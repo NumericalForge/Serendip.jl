@@ -22,7 +22,7 @@ compat_role(::Type{MechLumpedMass}) = VERTEX_CELL
 
 function elem_stiffness(elem::MechLumpedMass)
     ndim = elem.ctx.ndim
-    mat  = elem.pmodel
+    mat  = elem.cmodel
     K = zeros(ndim, ndim)
 
     keys = [:ux, :uy, :uz][1:ndim]
@@ -33,7 +33,7 @@ end
 
 function elem_mass(elem::MechLumpedMass)
     ndim = elem.ctx.ndim
-    mat  = elem.pmodel
+    mat  = elem.cmodel
 
     M = mat.m*Matrix{Float64}(I, ndim, ndim)
 

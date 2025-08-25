@@ -143,9 +143,9 @@ function add_monitor(
 
     target = select(ana.model, item_kind, selector)
     n = length(target)
-    n == 0 && notify("setup_monitor: No $(item_kind)s found for selector expression: ", selector)
+    n == 0 && notify("setup_monitor: No $(item_kind)s found for selector: ", selector)
     if kind in (:node, :ip)
-        n >  1 && notify("setup_monitor: More than one $item_kind match selector expression: ", selector, ". Picking the first one.")
+        n >  1 && notify("setup_monitor: More than one $item_kind match selector: ", selector, ". Picking the first one.")
         n >= 1 && (target = target[1:1])
     end
 

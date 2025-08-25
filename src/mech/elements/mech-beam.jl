@@ -166,7 +166,7 @@ function set_quadrature(elem::Element{MechBeam}, n::Int=0)
                 m = (i-1)*nj*nk + (j-1)*nk + k
                 elem.ips[m] = Ip(R, w)
                 elem.ips[m].id = m
-                elem.ips[m].state = compat_state_type(typeof(elem.pmodel), typeof(elem.eform), elem.ctx)(elem.ctx)
+                elem.ips[m].state = compat_state_type(typeof(elem.cmodel), typeof(elem.eform), elem.ctx)(elem.ctx)
                 elem.ips[m].owner = elem
             end
         end
@@ -330,7 +330,7 @@ function elem_stiffness(elem::Element{MechBeam})
         set_rot_x_xp(elem, J1D, L)
         dx′dξ = norm(J1D)
         dNdX′ = dNdR*inv(dx′dξ)
-        D     = calcD(elem.pmodel, ip.state)
+        D     = calcD(elem.cmodel, ip.state)
 
         setB(elem, ip, L, N, dNdX′, Rθ, Bil, Bi, B)
 
@@ -382,7 +382,7 @@ function elem_internal_forces(elem::Element{MechBeam}, ΔUg::Vector{Float64}=Flo
         setB(elem, ip, L, N, dNdX′, Rθ, Bil, Bi, B)
         if update
             @mul Δε = B*ΔU
-            Δσ, status = update_state(elem.pmodel, ip.state, Δε)
+            Δσ, status = update_state(elem.cmodel, ip.state, Δε)
             failed(status) && return ΔF, map, status
         else
             Δσ = ip.state.σ
@@ -403,7 +403,7 @@ end
 
 function elem_vals(elem::Element{MechBeam})
     # get ip average values
-    ipvals = [ state_values(elem.pmodel, ip.state) for ip in elem.ips ]
+    ipvals = [ state_values(elem.cmodel, ip.state) for ip in elem.ips ]
     # sum  = merge(+, ipvals... )
     # nips = length(elem.ips)
     merger(x,y) = abs(x) > abs(y) ? x : y
@@ -469,7 +469,7 @@ function elem_recover_nodal_values(elem::Element{MechBeam})
 
     end
 
-    E = elem.pmodel.E
+    E = elem.cmodel.E
     if ndim==2
         θZ = U′[3:ndof:ndof*nnodes]
         Izy = thz*thy^3/12

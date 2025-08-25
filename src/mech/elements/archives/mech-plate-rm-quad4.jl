@@ -24,13 +24,13 @@ compat_role(::Type{PlateRM}) = :bulk
 
 function D_matrix(elem::PlateRM)
 
-    coef = elem.pmodel.E/(1-elem.pmodel.ν^2);
+    coef = elem.cmodel.E/(1-elem.cmodel.ν^2);
 
-    D_mat = coef*[1 elem.pmodel.ν 0 0 0
-                  elem.pmodel.ν 1 0 0 0
-                  0  0 (1/2)*(1-elem.pmodel.ν) 0 0
-                  0  0 0 (5/12)*(1-elem.pmodel.ν) 0
-                  0  0 0 0 (5/12)*(1-elem.pmodel.ν)];
+    D_mat = coef*[1 elem.cmodel.ν 0 0 0
+                  elem.cmodel.ν 1 0 0 0
+                  0  0 (1/2)*(1-elem.cmodel.ν) 0 0
+                  0  0 0 (5/12)*(1-elem.cmodel.ν) 0
+                  0  0 0 0 (5/12)*(1-elem.cmodel.ν)];
     return D_mat
 end
 

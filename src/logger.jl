@@ -94,9 +94,9 @@ function add_logger(
 
     target = select(ana.model, item_name, selector)
     n = length(target)
-    n == 0 && notify("add_logger: No $(item_name)s found for selector expression: ", selector)
+    n == 0 && notify("add_logger: No $(item_name)s found for selector: ", selector)
     if kind in (:node, :ip)
-        n >  1 && notify("add_logger: More than one $item_name match selector expression: ", repr(selector), ". Picking the first one.")
+        n >  1 && notify("add_logger: More than one $item_name match selector: ", repr(selector), ". Picking the first one.")
         n >= 1 && (target = target[1:1])
     end
 

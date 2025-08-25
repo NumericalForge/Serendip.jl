@@ -12,7 +12,7 @@ compat_role(::Type{MechBondTip}) = :tip
 function set_quadrature(elem::Element{MechBondTip}, n::Int=1)
     ip = Ip([0.0, 0.0, 0.0], 0.0)
     ip.id = 1
-    ip.state = compat_state_type(typeof(elem.pmodel), MechBondTip, elem.ctx)(elem.ctx)
+    ip.state = compat_state_type(typeof(elem.cmodel), MechBondTip, elem.ctx)(elem.ctx)
     ip.owner = elem
     ip.coord = elem.nodes[end].coord
 
@@ -76,7 +76,7 @@ function elem_stiffness(elem::Element{MechBondTip})
     Ct = get_coords(rod)
 
     B = mountB(elem, Ch, Ct)
-    k = calcD(elem.pmodel, elem.ips[1].state)
+    k = calcD(elem.cmodel, elem.ips[1].state)
     coef = k
     K = coef*B'*B
 
@@ -104,7 +104,7 @@ function elem_internal_forces(elem::Element{MechBondTip}, ΔUg::Vector{Float64}=
     if update
         ΔU = ΔUg[map]
         Δw = dot(B, ΔU)
-        Δf, _ = update_state(elem.pmodel, elem.ips[1].state, Δw)
+        Δf, _ = update_state(elem.cmodel, elem.ips[1].state, Δw)
     else
         Δf = elem.ips[1].state.f
     end

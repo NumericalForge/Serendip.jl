@@ -261,7 +261,3 @@ function evaluate(path::Path, t::Float64)
     end
 end
 
-
-Base.show(io::IO, obj::Path) = _show(io, obj, 3, "")
-Base.show(io::IO, obj::PathCmd) = _show(io, obj, 2, "")
-

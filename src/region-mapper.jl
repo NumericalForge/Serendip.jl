@@ -2,7 +2,7 @@
 struct RegionMapping
     selector::Any
     eform::Type{<:ElementFormulation}
-    pmodel::Type{<:PhysicsModel}
+    cmodel::Type{<:PhysicsModel}
     params::NamedTuple
 end
 
@@ -11,8 +11,13 @@ end
 
 Creates an empty `RegionMapper` object.
 
-A `RegionMapper` holds a list of region mappings that associate parts of the mesh (defined by filters) with element formulations, physics models, and their parameters.
+A `RegionMapper` holds a list of region mappings that associate parts of the mesh (defined by filters) with element formulations, constitutive models, and their parameters.
 Mappings can later be added using [`add_mapping`](@ref).
+
+Each mapping associates a filtered region of the mesh with:
+- An element formulation (`eform`),
+- A constitutive model (`cmodel`),
+- A list of parameter values (`params`).
 """
 mutable struct RegionMapper
     mappings::Vector{RegionMapping}
@@ -24,21 +29,21 @@ end
 
 
 """
-    add_mapping(mapper::RegionMapper, selector, eform, pmodel; params...)
+    add_mapping(mapper::RegionMapper, selector, eform, cmodel; params...)
 
 Adds a new region mapping to the given `RegionMapper`.
 
 Each mapping associates a filtered region of the mesh with:
 - An element formulation (`eform`),
-- A physics model (`pmodel`),
-- And user-defined parameter values (`params`).
+- A constitutive model (`cmodel`),
+- A list of parameter values (`params`).
 
 # Arguments
 - `mapper::RegionMapper`: The mapper to add the region mapping to.
-- `selector`: A selector expression defining the mesh region (e.g., `x==0`, `:all`).
+- `selector`: A filtering expression defining the mesh region (e.g., `x==0`, `:all`).
 - `eform::Type`: The element formulation type (e.g., `MechBulk`).
-- `pmodel::Type`: The physics model type (e.g., `LinearElastic`).
-- `params...`: Named parameters for the physics model (e.g., `rho=10.0, E=30.0e6`).
+- `cmodel::Type`: The constitutive model type (e.g., `LinearElastic`).
+- `params...`: Named parameters for the constitutive model (e.g., `rho=10.0, E=30.0e6`).
 
 # Example
 ```julia
@@ -48,8 +53,8 @@ add_mapping(mapper, x>=0, MechBulk, LinearElastic; rho=10.0, E=30.0e6, nu=0.3)
 # Trows
 An error if a mapping with the same `selector` already exists in the mapper.
 """
-function add_mapping(mapper::RegionMapper, selector, eform::Type{S}, pmodel::Type{T}; params...) where S<:ElementFormulation where T<:PhysicsModel
-    mapping = RegionMapping(selector, eform, pmodel, NamedTuple(params))
+function add_mapping(mapper::RegionMapper, selector, eform::Type{S}, cmodel::Type{T}; params...) where S<:ElementFormulation where T<:PhysicsModel
+    mapping = RegionMapping(selector, eform, cmodel, NamedTuple(params))
     for m in mapper.mappings
         # m.selector == selector && error("Mapping already exists for selector: $selector")
     end
@@ -58,25 +63,25 @@ end
 
 
 """
-    RegionModel(eform, pmodel; params...)
+    RegionModel(eform, cmodel; params...)
 
-Creates a `RegionMapper` for simple cases where the **same element formulation** and **physics model** are applied to the entire mesh.
+Creates a `RegionMapper` for simple cases where the **same element formulation** and **constitutive model** are applied to the entire mesh.
 
 This is a convenience shortcut equivalent to manually creating a `RegionMapper` and adding a mapping with `selector=:all`.
 
 # Arguments
 - `eform::Type`: The element formulation type (e.g., `MechBulk`).
-- `pmodel::Type`: The physics model type (e.g., `LinearElastic`).
-- `params...`: Named parameters for the physics model.
+- `cmodel::Type`: The constitutive model type (e.g., `LinearElastic`).
+- `params...`: Named parameters for the constitutive model.
 
 # Example
 ```julia
 model = RegionModel(MechBulk, LinearElastic; rho=10, E=1.0, nu=0.3)
 ```
 """
-function RegionModel(eform::Type{S}, pmodel::Type{T}; params...) where S<:ElementFormulation where T<:PhysicsModel
+function RegionModel(eform::Type{S}, cmodel::Type{T}; params...) where S<:ElementFormulation where T<:PhysicsModel
     mapper = RegionMapper()
-    add_mapping(mapper, :all, eform, pmodel; params...)
+    add_mapping(mapper, :all, eform, cmodel; params...)
     return mapper
 end
 

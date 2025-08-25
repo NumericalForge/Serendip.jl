@@ -23,11 +23,11 @@ compat_role(::Type{PlateMZC}) = :bulk
 
 function D_matrix(elem::PlateMZC)
 
-    coef = elem.pmodel.E*elem.pmodel.thick^3/(12*(1-elem.pmodel.ν^2));
+    coef = elem.cmodel.E*elem.cmodel.thick^3/(12*(1-elem.cmodel.ν^2));
 
-    D_mat = coef*[1 elem.pmodel.ν 0
-                  elem.pmodel.ν 1 0
-                  0  0 (1-elem.pmodel.ν)/2];
+    D_mat = coef*[1 elem.cmodel.ν 0
+                  elem.cmodel.ν 1 0
+                  0  0 (1-elem.cmodel.ν)/2];
     return D_mat
 end
 

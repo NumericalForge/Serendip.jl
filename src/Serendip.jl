@@ -121,6 +121,21 @@ module Serendip
 
     include("deprecated.jl")
 
+    # show functions for goemetry related types
+    Base.show(io::IO, obj::GeoModel) = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::GPath)    = _show(io, obj, 3, "")
+    Base.show(io::IO, obj::Path)     = _show(io, obj, 3, "")
+    Base.show(io::IO, obj::PathCmd)  = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::Point)    = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::Edge)     = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::Surface)  = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::Volume)   = _show(io, obj, 2, "")
+
+    # show function for mesh related types
+    Base.show(io::IO, obj::CellShape) = _show(io, obj, 2)
+    Base.show(io::IO, obj::Mesh)      = _show(io, obj, 2)
+    Base.show(io::IO, obj::Block)     = _show(io, obj, 2)
+
     # show function for FE related types
     Base.show(io::IO, obj::Dof)               = _show(io, obj, 2, "")
     Base.show(io::IO, obj::Node)              = _show(io, obj, 2, "")
@@ -132,7 +147,11 @@ module Serendip
     Base.show(io::IO, obj::Facet)             = _show(io, obj, 2, "")
     Base.show(io::IO, obj::Logger)            = _show(io, obj, 2, "")
     Base.show(io::IO, obj::Monitor)           = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::RegionMapper)      = _show(io, obj, 4, "")
     Base.show(io::IO, obj::FEModel)           = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::Analysis)          = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::Stage)             = _show(io, obj, 2, "")
+
 
 
     # testing

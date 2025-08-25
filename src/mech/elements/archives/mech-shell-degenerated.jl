@@ -72,7 +72,7 @@ function set_quadrature(elem::ShellDegenerated, n::Int=0)
             j = (k-1)*n + i
             elem.ips[j] = Ip(R, w)
             elem.ips[j].id = j
-            elem.ips[j].state = compat_state_type(elem.pmodel)(elem.ctx)
+            elem.ips[j].state = compat_state_type(elem.cmodel)(elem.ctx)
             elem.ips[j].owner = elem
         end
     end
@@ -237,7 +237,7 @@ function setB(elem::ShellDegenerated, R::Matx, J::Matx , ip::Ip, dNdR::Matx, dNd
     nnodes, ndim = size(dNdX)
     ndof = 5
     B .= 0.0
-    t = elem.pmodel.t
+    t = elem.cmodel.t
     ζ = ip.R[3]
 
        for i in 1:nnodes
@@ -318,9 +318,9 @@ end
 
 function setD(elem::ShellDegenerated, D::Matx)
 
-    nu = elem.pmodel.ν
-    E1 = elem.pmodel.E/(1-elem.pmodel.ν^2)
-    G  = elem.pmodel.E/(2*(1+elem.pmodel.ν))
+    nu = elem.cmodel.ν
+    E1 = elem.cmodel.E/(1-elem.cmodel.ν^2)
+    G  = elem.cmodel.E/(2*(1+elem.cmodel.ν))
     G1 = 5/6*G
 
               D .=   [E1      nu*E1  0  0   0
@@ -370,7 +370,7 @@ function elem_stiffness(elem::ShellDegenerated)
     D  = Array{Float64}(undef, 5, 5)
     setD(elem, D)
 
-    t = elem.pmodel.t
+    t = elem.cmodel.t
     C = get_coords(elem)
 
     Dn = [ elem.Dlmn[i][j,3] for i in 1:nnodes, j in 1:3 ] # nx3

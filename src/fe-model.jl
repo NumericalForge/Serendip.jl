@@ -65,7 +65,7 @@ function FEModel(
     for mapping in mapper.mappings
         selector = mapping.selector
         eform  = mapping.eform
-        pmodel = mapping.pmodel
+        cmodel = mapping.cmodel
         kwargs = mapping.params
 
         cells = select(mesh, :element, selector)
@@ -78,31 +78,31 @@ function FEModel(
         end
 
         # Check if Physics model is compatible with the Element model
-        compatible_elem_models = [ argtps[2] for argtps in typeofargs(compat_state_type) if length(argtps)>1 && pmodel isa argtps[1] ]
+        compatible_elem_models = [ argtps[2] for argtps in typeofargs(compat_state_type) if length(argtps)>1 && cmodel isa argtps[1] ]
 
         if !any(isa.(eform, compatible_elem_models))
             comp_phys_model  = [ argtps[1].parameters[1] for argtps in typeofargs(compat_state_type) if length(argtps)>1 && typeof(argtps[1])!=UnionAll && argtps[2].parameters[1]==eform ]
 
-            msg = "FEModel: Element formulation $(eform) is not compatible with Physics model $(pmodel) (selector: $(repr(selector)))\n\
-            Compatible element formulations for model $(pmodel): $(join(compatible_elem_models, ", ", " and ")) \n\
-            Compatible physics models for element formulation $(eform): $(join(comp_phys_model, ", ", " and "))"
+            msg = "FEModel: Element formulation $(eform) is not compatible with Physics model $(cmodel) (selector: $(repr(selector)))\n\
+            Compatible element formulations for model $(cmodel): $(join(compatible_elem_models, ", ", " and ")) \n\
+            Compatible constitutive models for element formulation $(eform): $(join(comp_phys_model, ", ", " and "))"
             msg = replace(msg, r"Serendip\." => "")
             throw(SerendipException(msg))
         end
 
         # material parameters and arguments
-        phys_params = Base.kwarg_decl( methods(pmodel)[1] )
+        phys_params = Base.kwarg_decl( methods(cmodel)[1] )
         elem_params = Base.kwarg_decl( methods(eform)[1] )
 
         for key in keys(kwargs)
             if !(key in phys_params) && !(key in elem_params)
-                warn("FEModel: Ignoring unknown parameter `$key` for `$eform` with `$pmodel`.")
+                warn("FEModel: Ignoring unknown parameter `$key` for `$eform` with `$cmodel`.")
             end
         end
 
         phys_kwargs = NamedTuple(key => kwargs[key] for key in phys_params if haskey(kwargs, key))
 
-        phys_model  = pmodel(;phys_kwargs...)
+        phys_model  = cmodel(;phys_kwargs...)
         elem_kwargs = NamedTuple(key => kwargs[key] for key in elem_params if haskey(kwargs, key))
         elem_form   = eform(;elem_kwargs...)
 
@@ -128,7 +128,7 @@ function FEModel(
             elem.role      = cell.role
             elem.tag       = cell.tag
             elem.nodes     = model.nodes[conn]
-            elem.pmodel    = phys_model
+            elem.cmodel    = phys_model
             elem.eform     = elem_form
             elem.active    = true
             elem.ips       = [] # jet to be set
@@ -268,7 +268,7 @@ function FEModel(elems::Array{<:Element,1})
         elemnodes = nodes[nodeidxs]
         newelem = new_element(typeof(elem), elem.shape, elemnodes, elem.tag, model.ctx)
         newelem.id = i
-        newelem.pmodel = elem.pmodel
+        newelem.cmodel = elem.cmodel
         newelem.props = elem.props
         push!(model.elems, newelem)
     end
@@ -557,7 +557,7 @@ function nodal_patch_recovery(model::FEModel)
     all_fields_set = OrderedSet{Symbol}()
     for elem in model.elems
         if elem.role==:bulk
-            ips_vals = [ state_values(elem.pmodel, ip.state) for ip in elem.ips ]
+            ips_vals = [ state_values(elem.cmodel, ip.state) for ip in elem.ips ]
             push!(all_ips_vals, ips_vals)
             union!(all_fields_set, keys(ips_vals[1]))
 

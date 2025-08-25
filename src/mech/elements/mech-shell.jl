@@ -62,7 +62,7 @@ function set_quadrature(elem::Element{MechShell}, n::Int=0)
             j = (k-1)*n + i
             elem.ips[j] = Ip(R, w)
             elem.ips[j].id = j
-            elem.ips[j].state = compat_state_type(typeof(elem.pmodel), MechShell, elem.ctx)(elem.ctx)
+            elem.ips[j].state = compat_state_type(typeof(elem.cmodel), MechShell, elem.ctx)(elem.ctx)
             elem.ips[j].owner = elem
         end
     end
@@ -249,12 +249,12 @@ function elem_stiffness(elem::Element{MechShell})
 
         setB(elem, ip, N, L, dNdX′, Rθ, Bil, Bi, B)
 
-        E  = elem.pmodel.E
-        nu = elem.pmodel.ν
+        E  = elem.cmodel.E
+        nu = elem.cmodel.ν
         G  = E/(2*(1+nu))
 
         coef  = detJ′*ip.w
-        D     = calcD(elem.pmodel, ip.state, is_shell=true)
+        D     = calcD(elem.cmodel, ip.state, is_shell=true)
         K    += coef*B'*D*B
         # K    += coef*B'*S*D*B
 
@@ -346,7 +346,7 @@ function elem_internal_forces(elem::Element{MechShell}, ΔUg::Vector{Float64}=Fl
 
         if update
             @mul Δε = B*ΔU
-            Δσ, status = update_state(elem.pmodel, ip.state, Δε)
+            Δσ, status = update_state(elem.cmodel, ip.state, Δε)
             failed(status) && return ΔF, map, status
         else
             Δσ = ip.state.σ
@@ -393,7 +393,7 @@ end
 
 #         setB(elem, ip, N, L, dNdX′, Rθ, Bil, Bi, B)
 #         Δε = B*dU
-#         Δσ, status = update_state(elem.pmodel, ip.state, Δε, is_shell=true)
+#         Δσ, status = update_state(elem.cmodel, ip.state, Δε, is_shell=true)
 #         failed(status) && return dF, map, failure("MechShell: Error at integration point $(ip.id)")
 
 #         detJ′ = det(J′)

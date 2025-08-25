@@ -100,11 +100,11 @@ function elem_init(elem::HMJoint)
     end
 
     # Setting initial crack openning if available
-    if hasfield(typeof(elem.pmodel), :w)
-        if elem.pmodel.w > 0.0
+    if hasfield(typeof(elem.cmodel), :w)
+        if elem.cmodel.w > 0.0
             for ip in elem.ips
-                ip.state.w[1] = elem.pmodel.w
-                # ip.state.up = elem.pmodel.wc
+                ip.state.w[1] = elem.cmodel.w
+                # ip.state.up = elem.cmodel.wc
                 ip.state.up = 1e-10 # a value different from zero
                 ip.state.Δλ = 1.0
             end 
@@ -152,7 +152,7 @@ function elem_stiffness(elem::HMJoint)
 
         # compute K
         coef = detJ*ip.w*th
-        D    = calcD(elem.pmodel, ip.state)
+        D    = calcD(elem.cmodel, ip.state)
         @mul DBu = D*Bu
         @mul K  += coef*Bu'*DBu
     end
@@ -282,26 +282,26 @@ function elem_conductivity_matrix(elem::HMJoint)
         Nt = [N0' -Np' Np']
 
         # compute H
-        coef  = detJ*ip.w*th*elem.pmodel.kt
+        coef  = detJ*ip.w*th*elem.cmodel.kt
         H -= coef*Nb'*Nb
         H -= coef*Nt'*Nt
 
          # compute crack aperture
-        # if elem.pmodel.w == 0.0
+        # if elem.cmodel.w == 0.0
             if ip.state.up == 0.0 || ip.state.w[1] <= 0.0  
                 w = 0.0
             else
                 w = ip.state.w[1]
             end
         # else
-        #     if elem.pmodel.w >= ip.state.w[1]
-        #         w = elem.pmodel.w
+        #     if elem.cmodel.w >= ip.state.w[1]
+        #         w = elem.cmodel.w
         #     else 
         #         w = ip.state.w[1]
         #     end
         # end    
 
-        coef = detJ*ip.w*th*(w^3)/(12*elem.pmodel.η) 
+        coef = detJ*ip.w*th*(w^3)/(12*elem.cmodel.η) 
         H -= coef*Bf'*Bf
     end
     
@@ -346,22 +346,22 @@ function elem_compressibility_matrix(elem::HMJoint)
         Nf = [N0' N0' Np']
 
         # compute crack aperture
-        # if elem.pmodel.w == 0.0
+        # if elem.cmodel.w == 0.0
             if ip.state.up == 0.0 || ip.state.w[1] <= 0.0  
                 w = 0.0
             else
                 w = ip.state.w[1]
             end
         # else
-        #     if elem.pmodel.w >= ip.state.w[1]
-        #         w = elem.pmodel.w
+        #     if elem.cmodel.w >= ip.state.w[1]
+        #         w = elem.cmodel.w
         #     else 
         #         w = ip.state.w[1]
         #     end
         # end    
 
         # compute Cpp
-        coef = detJ*ip.w*elem.pmodel.β*w*th
+        coef = detJ*ip.w*elem.cmodel.β*w*th
         Cpp -= coef*Nf'*Nf
     end
 
@@ -421,21 +421,21 @@ function elem_RHS_vector(elem::HMJoint)
         # compute Q
 
         # compute crack aperture
-        # if elem.pmodel.w == 0.0
+        # if elem.cmodel.w == 0.0
             if ip.state.up == 0.0 || ip.state.w[1] <= 0.0 
                 w = 0.0
             else
                 w = ip.state.w[1]
             end 
         # else
-        #     if elem.pmodel.w >= ip.state.w[1]
-        #         w = elem.pmodel.w
+        #     if elem.cmodel.w >= ip.state.w[1]
+        #         w = elem.cmodel.w
         #     else 
         #         w = ip.state.w[1]
         #     end
         # end    
 
-        coef = detJ*ip.w*th*(w^3)/(12*elem.pmodel.η)   
+        coef = detJ*ip.w*th*(w^3)/(12*elem.cmodel.η)   
         bf = T[(2:end), (1:end)]*Z*elem.ctx.γw
         
         @mul Q += coef*Bf'*bf
@@ -536,7 +536,7 @@ function elem_internal_forces(elem::HMJoint, F::Array{Float64,1})
         mfw = mf'*w
         dFw-= coef*Nf'*mfw 
 
-        coef = detJ*ip.w*elem.pmodel.β*th
+        coef = detJ*ip.w*elem.cmodel.β*th
         dFw -= coef*Nf'*uwf
 
         # longitudinal flow
@@ -648,7 +648,7 @@ function update_elem!(elem::HMJoint, U::Array{Float64,1}, Δt::Float64)
         @mul Δω = Bu*dU
           
         # internal force dF
-        Δσ, Vt, L, status = update_state(elem.pmodel, ip.state, Δω, Δuw, G, BfUw, Δt)
+        Δσ, Vt, L, status = update_state(elem.cmodel, ip.state, Δω, Δuw, G, BfUw, Δt)
         failed(status) && return failure("HMJoint: error in update_elem!", status.message)
         Δσ -= mf*Δuw[3] # get total stress
         coef = detJ*ip.w*th
@@ -660,21 +660,21 @@ function update_elem!(elem::HMJoint, U::Array{Float64,1}, Δt::Float64)
         dFw -= coef*Nf'*mfΔω 
 
         # compute fluid compressibility
-        # if elem.pmodel.w == 0.0
+        # if elem.cmodel.w == 0.0
             if ip.state.up == 0.0 || ip.state.w[1] <= 0.0 
                 w = 0.0
             else
                 w = ip.state.w[1]
             end 
         # else
-        #     if elem.pmodel.w >= ip.state.w[1]
-        #         w = elem.pmodel.w
+        #     if elem.cmodel.w >= ip.state.w[1]
+        #         w = elem.cmodel.w
         #     else 
         #         w = ip.state.w[1]
         #     end
         # end    
 
-        coef = detJ*ip.w*elem.pmodel.β*w*th
+        coef = detJ*ip.w*elem.cmodel.β*w*th
         dFw -= coef*Nf'*Δuw[3]
 
         # longitudinal flow
@@ -693,10 +693,10 @@ end
 function elem_recover_nodal_values(elem::HMJoint)
     nips = length(elem.ips)
 
-    keys = output_keys(elem.pmodel)
+    keys = output_keys(elem.cmodel)
     vals = zeros(nips, length(keys))
     for (i,ip) in enumerate(elem.ips)
-        dict = state_values(elem.pmodel, ip.state)
+        dict = state_values(elem.cmodel, ip.state)
         vals[i,:] = [ dict[key] for key in keys ]
     end
     

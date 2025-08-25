@@ -66,7 +66,7 @@ function set_quadrature(elem::CookShell, n::Int=0)
             j = (k-1)*n + i
             elem.ips[j] = Ip(R, w)
             elem.ips[j].id = j
-            elem.ips[j].state = compat_state_type(elem.pmodel)(elem.ctx)
+            elem.ips[j].state = compat_state_type(elem.cmodel)(elem.ctx)
             elem.ips[j].owner = elem
         end
     end
@@ -83,7 +83,7 @@ function set_quadrature(elem::CookShell, n::Int=0)
         # dNdR = elem.shape.deriv(ip.R) # 3xn
         # J = C'*dNdR
         # No = normalize(cross(J[:,1], J[:,2]))
-        # ip.coord +=  elem.pmodel.th/2*R[end]*No
+        # ip.coord +=  elem.cmodel.th/2*R[end]*No
     end
 
 end
@@ -112,7 +112,7 @@ end
 
 function setB(elem::CookShell, ip::Ip, invJ::Matx, N::Vect, dNdX::Matx, Rrot::Matx, Bil::Matx, Bi::Matx, B::Matx)
     nnodes = size(dNdX,1)
-    th = elem.pmodel.th
+    th = elem.cmodel.th
     # Note that matrix B is designed to work with tensors in Mandel's notation
 
     ndof = 6
@@ -176,7 +176,7 @@ end
 function elem_stiffness(elem::CookShell)
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
-    th = elem.pmodel.th
+    th = elem.cmodel.th
     ndof = 6
 
     C = get_coords(elem)
@@ -207,7 +207,7 @@ function elem_stiffness(elem::CookShell)
         invJ = inv(J)
         dNdX = dNdR*invJ
 
-        D = calcD(elem.pmodel, ip.state)
+        D = calcD(elem.cmodel, ip.state)
         setB(elem, ip, invJ, N, dNdX, Rrot, Bil, Bi, B)
         detJ = det(J)
 
@@ -232,7 +232,7 @@ end
 function update_elem!(elem::CookShell, U::Array{Float64,1}, dt::Float64)
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
-    th = elem.pmodel.th
+    th = elem.cmodel.th
     ndof = 6
 
     map = elem_map(elem)
@@ -268,7 +268,7 @@ function update_elem!(elem::CookShell, U::Array{Float64,1}, dt::Float64)
         dNdX = dNdR*invJ
         setB(elem, ip, invJ, N, dNdX, Rrot, Bil, Bi, B)
         Δε = T*B*dU
-        Δσ, status = update_state(elem.pmodel, ip.state, Δε)
+        Δσ, status = update_state(elem.cmodel, ip.state, Δε)
         failed(status) && return failure("MechBulk: Error at integration point $(ip.id)")
 
         detJ = det(J)

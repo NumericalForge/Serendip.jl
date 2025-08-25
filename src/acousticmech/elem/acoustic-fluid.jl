@@ -164,9 +164,9 @@ function update_elem!(elem::AcousticFluid, DU::Array{Float64,1}, Δt::Float64)
 
     #     Δuw = N'*dUp # interpolation to the integ. point
 
-    #     V = update_state(elem.pmodel, ip.state, Δuw, G, Δt)
+    #     V = update_state(elem.cmodel, ip.state, Δuw, G, Δt)
 
-    #     coef  = elem.pmodel.S
+    #     coef  = elem.cmodel.S
     #     coef *= detJ*ip.w*th
     #     dFw  -= coef*N*Δuw
 

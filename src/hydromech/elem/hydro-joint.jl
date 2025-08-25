@@ -125,12 +125,12 @@ function elem_conductivity_matrix(elem::HydroJoint)
         Nt = [N0' -Np' Np']
 
         # compute H
-        coef  = detJ*ip.w*th*elem.pmodel.kt
+        coef  = detJ*ip.w*th*elem.cmodel.kt
         H -= coef*Nb'*Nb
         H -= coef*Nt'*Nt
 
          # compute crack aperture
-        coef = detJ*ip.w*th*(elem.pmodel.w^3)/(12*elem.pmodel.η)
+        coef = detJ*ip.w*th*(elem.cmodel.w^3)/(12*elem.cmodel.η)
         H -= coef*Bf'*Bf
     end
 
@@ -175,7 +175,7 @@ function elem_compressibility_matrix(elem::HydroJoint)
         Nf = [N0' N0' Np']
 
         # compute Cpp
-        coef = detJ*ip.w*elem.pmodel.β*elem.pmodel.w*th
+        coef = detJ*ip.w*elem.cmodel.β*elem.cmodel.w*th
         Cpp -= coef*Nf'*Nf
     end
 
@@ -234,7 +234,7 @@ function elem_RHS_vector(elem::HydroJoint)
         # compute Q
 
         # compute crack aperture
-        coef = detJ*ip.w*th*(elem.pmodel.w^3)/(12*elem.pmodel.η)
+        coef = detJ*ip.w*th*(elem.cmodel.w^3)/(12*elem.cmodel.η)
         bf = T[(2:end), (1:end)]*Z*elem.ctx.γw
 
         @mul Q += coef*Bf'*bf
@@ -303,7 +303,7 @@ function elem_internal_forces(elem::HydroJoint, F::Array{Float64,1})
 
         # internal volumes dFw
         uwf  = ip.state.uw[3]
-        coef = detJ*ip.w*elem.pmodel.β*th
+        coef = detJ*ip.w*elem.cmodel.β*th
         dFw -= coef*Nf'*uwf
 
         # longitudinal flow
@@ -385,12 +385,12 @@ function update_elem!(elem::HydroJoint, U::Array{Float64,1}, Δt::Float64)
         G    = [ dot(Nt,Uw); dot(Nb,Uw)]
         BfUw = Bf*Uw + bf
 
-        Vt, L = update_state(elem.pmodel, ip.state, Δuw, G, BfUw, Δt)
+        Vt, L = update_state(elem.cmodel, ip.state, Δuw, G, BfUw, Δt)
 
         # internal volumes dFw
 
         # compute fluid compressibility
-        coef = detJ*ip.w*elem.pmodel.β*elem.pmodel.w*th
+        coef = detJ*ip.w*elem.cmodel.β*elem.cmodel.w*th
         dFw -= coef*Nf'*Δuw[3]
 
         # longitudinal flow

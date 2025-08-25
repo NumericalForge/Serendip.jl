@@ -26,7 +26,7 @@ end
 # This function must be defined by each concrete type.
 # """
 # function elem_stiffness(elem::Element{<:MechFormulation})
-#     error("elem_stiffness function not defined for material type $(typeof(elem.pmodel))")
+#     error("elem_stiffness function not defined for material type $(typeof(elem.cmodel))")
 # end
 
 # """
@@ -61,5 +61,5 @@ end
 # This function must be defined by each concrete type.
 # """
 # function update_elem!(elem::Element{<:MechFormulation}, U::Array{Float64,1}, Δt::Float64)
-#     error("update_elem function not defined for material type $(typeof(elem.pmodel))")
+#     error("update_elem function not defined for material type $(typeof(elem.cmodel))")
 # end

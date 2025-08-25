@@ -24,9 +24,9 @@ compat_role(::Type{ShellQUAD4}) = :bulk
 # the strain-displacement matrix for membrane forces
 function Dm_maxtrix(elem::ShellQUAD4)
 
-    coef1 = elem.pmodel.t*elem.pmodel.E/(1-elem.pmodel.ν^2)
-    coef2 = elem.pmodel.ν*coef1
-    coef3 = coef1*(1-elem.pmodel.ν)/2
+    coef1 = elem.cmodel.t*elem.cmodel.E/(1-elem.cmodel.ν^2)
+    coef2 = elem.cmodel.ν*coef1
+    coef3 = coef1*(1-elem.cmodel.ν)/2
 
         Dm = [coef1  coef2 0
                   coef2  coef1 0
@@ -39,7 +39,7 @@ function Db_maxtrix(elem::ShellQUAD4)
 
     Dm = Dm_maxtrix(elem)
 
-    Db = Dm*(elem.pmodel.t^2/12)
+    Db = Dm*(elem.cmodel.t^2/12)
 
     return Db
 end
@@ -49,7 +49,7 @@ end
 
 function Ds_maxtrix(elem::ShellQUAD4)
 
-    coef = elem.pmodel.t*(5/6)*elem.pmodel.E/(2*(1+elem.pmodel.ν))
+    coef = elem.cmodel.t*(5/6)*elem.cmodel.E/(2*(1+elem.cmodel.ν))
 
             Ds = [coef    0
                         0     coef]

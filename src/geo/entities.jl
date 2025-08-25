@@ -76,12 +76,3 @@ struct Volume<:GeoEntity
         return new(id, transfinite, tag)
     end
 end
-
-
-
-
-
-Base.show(io::IO, obj::Point) = _show(io, obj, 2, "")
-Base.show(io::IO, obj::Edge) = _show(io, obj, 2, "")
-Base.show(io::IO, obj::Surface) = _show(io, obj, 2, "")
-Base.show(io::IO, obj::Volume) = _show(io, obj, 2, "")

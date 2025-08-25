@@ -85,7 +85,7 @@ end
 
 function get_values(ip::Ip)
     coords = OrderedDict( :x => ip.coord[1], :y => ip.coord[2], :z => ip.coord[3] )
-    vals   = state_values(ip.owner.pmodel, ip.state)
+    vals   = state_values(ip.owner.cmodel, ip.state)
     return merge(coords, vals)
 end
 

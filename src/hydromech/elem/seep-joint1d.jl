@@ -119,7 +119,7 @@ function elem_conductivity_matrix(elem::SeepJoint1D)
         Bp   = elem.cache_B[i]
         detJ = elem.cache_detJ[i]
 
-        coef = detJ*ip.w*(elem.pmodel.k/elem.ctx.γw)*p
+        coef = detJ*ip.w*(elem.cmodel.k/elem.ctx.γw)*p
         H -= coef*Bp'*Bp
     end
 
@@ -167,7 +167,7 @@ function update_elem!(elem::SeepJoint1D, DU::Array{Float64,1}, Δt::Float64)
 
         # poropression difference between solid and drain
         ΔFw = dot(Bp,Uw)/elem.ctx.γw
-        V = update_state(elem.pmodel, ip.state, ΔFw, Δt)
+        V = update_state(elem.cmodel, ip.state, ΔFw, Δt)
 
         coef = Δt*detJ*ip.w*p
         dFw += coef*Bp'*V
@@ -178,7 +178,7 @@ end
 
 
 function elem_recover_nodal_values(elem::SeepJoint1D)
-    all_ip_vals = [ state_values(elem.pmodel, ip.state) for ip in elem.ips ]
+    all_ip_vals = [ state_values(elem.cmodel, ip.state) for ip in elem.ips ]
     nips        = length(elem.ips)
     fields      = keys(all_ip_vals[1])
     nfields     = length(fields)

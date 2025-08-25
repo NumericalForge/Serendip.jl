@@ -113,7 +113,7 @@ function elem_stiffness(elem::Element{MechBulk})
 
         # compute K
         coef = detJ*ip.w*th
-        D    = calcD(elem.pmodel, ip.state)
+        D    = calcD(elem.cmodel, ip.state)
         @mul DB = D*B
         @mul K += coef*B'*DB
     end
@@ -198,7 +198,7 @@ function elem_internal_forces(elem::Element{MechBulk}, ΔUg::Vector{Float64}=Flo
 
         if update
             @mul Δε = B*ΔU
-            Δσ, status = update_state(elem.pmodel, ip.state, Δε)
+            Δσ, status = update_state(elem.cmodel, ip.state, Δε)
             failed(status) && return ΔF, map, status
         else
             Δσ = ip.state.σ
@@ -215,19 +215,19 @@ end
 function elem_vals(elem::Element{MechBulk})
     vals = OrderedDict{Symbol,Float64}()
 
-    if haskey(state_values(elem.pmodel, elem.ips[1].state), :damt)
+    if haskey(state_values(elem.cmodel, elem.ips[1].state), :damt)
 
-        mean_dt = mean( state_values(elem.pmodel, ip.state)[:damt] for ip in elem.ips )
+        mean_dt = mean( state_values(elem.cmodel, ip.state)[:damt] for ip in elem.ips )
 
         vals[:damt] = mean_dt
-        mean_dc = mean( state_values(elem.pmodel, ip.state)[:damc] for ip in elem.ips )
+        mean_dc = mean( state_values(elem.cmodel, ip.state)[:damc] for ip in elem.ips )
         vals[:damc] = mean_dc
     end
 
     #vals = OrderedDict{String, Float64}()
     #keys = elem_vals_keys(elem)
 #
-    #dicts = [ state_values(elem.pmodel, ip.state) for ip in elem.ips ]
+    #dicts = [ state_values(elem.cmodel, ip.state) for ip in elem.ips ]
     #nips = length(elem.ips)
 #
     #for key in keys

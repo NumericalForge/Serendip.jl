@@ -196,7 +196,3 @@ function add_array(geometry::GeoModel, gpath::GPath; nx::Int=1, ny::Int=1, nz::I
         end
     end
 end
-
-
-Base.show(io::IO, obj::GeoModel) = _show(io, obj, 2, "")
-Base.show(io::IO, obj::GPath) = _show(io, obj, 3, "")

@@ -198,7 +198,7 @@ function elem_stiffness(elem::HMSolid)
 
         # compute K
         coef = detJ*ip.w*th
-        D    = calcD(elem.pmodel, ip.state)
+        D    = calcD(elem.cmodel, ip.state)
         @mul DBu = D*Bu
         @mul K += coef*Bu'*DBu
     end
@@ -276,7 +276,7 @@ function elem_conductivity_matrix(elem::HMSolid)
         Bw .= dNwdX'
 
         # compute H
-        K = calcK(elem.pmodel, ip.state)
+        K = calcK(elem.cmodel, ip.state)
         coef  = 1/elem.ctx.γw
         coef *= detJ*ip.w*th
         @mul KBw = K*Bw
@@ -310,7 +310,7 @@ function elem_compressibility_matrix(elem::HMSolid)
         detJ > 0.0 || error("Negative Jacobian determinant in cell $(elem.id)")
 
         # compute Cpp
-        coef  = elem.pmodel.S
+        coef  = elem.cmodel.S
         coef *= detJ*ip.w*th
         Cpp  -= coef*Nw*Nw'
     end
@@ -349,7 +349,7 @@ function elem_RHS_vector(elem::HMSolid)
         Bw .= dNwdX'
 
         # compute Q
-        K = calcK(elem.pmodel, ip.state)
+        K = calcK(elem.cmodel, ip.state)
         coef = detJ*ip.w*th
         @mul KZ = K*Z
         @mul Q += coef*Bw'*KZ
@@ -415,7 +415,7 @@ function elem_internal_forces(elem::HMSolid, F::Array{Float64,1})
         coef = elem.props.α*detJ*ip.w*th
         dFw  .-= coef*Nw*εvol
 
-        coef = detJ*ip.w*elem.pmodel.S*th
+        coef = detJ*ip.w*elem.cmodel.S*th
         dFw .-= coef*Nw*uw
 
         D    = ip.state.D
@@ -486,7 +486,7 @@ function update_elem!(elem::HMSolid, DU::Array{Float64,1}, Δt::Float64)
         G[end] += 1.0; # gradient due to gravity
 
         # internal force dF
-        Δσ, V = update_state(elem.pmodel, ip.state, Δε, Δuw, G, Δt)
+        Δσ, V = update_state(elem.cmodel, ip.state, Δε, Δuw, G, Δt)
         Δσ -= elem.props.α*Δuw*m # get total stress
 
         coef = detJ*ip.w*th
@@ -498,7 +498,7 @@ function update_elem!(elem::HMSolid, DU::Array{Float64,1}, Δt::Float64)
         coef *= detJ*ip.w*th
         dFw  .-= coef*Nw*Δεvol
 
-        coef  = elem.pmodel.S
+        coef  = elem.cmodel.S
         coef *= detJ*ip.w*th
         dFw  .-= coef*Nw*Δuw
 

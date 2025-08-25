@@ -135,7 +135,7 @@ function elem_conductivity_matrix(elem::ThermoSolid)
         Bt .= dNdX'
 
         # compute H
-        K = calcK(elem.pmodel, ip.state)
+        K = calcK(elem.cmodel, ip.state)
         coef = detJ*ip.w*th
         @mul KBt = K*Bt
         @mul H -= coef*Bt'*KBt
@@ -259,7 +259,7 @@ function update_elem!(elem::ThermoSolid, DU::Array{Float64,1}, Δt::Float64)
 
         Δut = N'*dUt # interpolation to the integ. point
 
-        q = update_state(elem.pmodel, ip.state, Δut, G, Δt)
+        q = update_state(elem.cmodel, ip.state, Δut, G, Δt)
 
         #@showm q
         #error()

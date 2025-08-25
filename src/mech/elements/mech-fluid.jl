@@ -100,7 +100,7 @@ function elem_stiffness(elem::MechFluid)
         setB(elem, dNdX, B)
 
         # compute K
-        Kb = elem.pmodel.K # bulk modulus
+        Kb = elem.cmodel.K # bulk modulus
         coef = Kb*detJ*ip.w*th
 
         @mul K += coef*B'*B
@@ -212,7 +212,7 @@ function update_elem!(elem::MechFluid, U::Array{Float64,1}, Δt::Float64)
         setB(elem, dNdX, B)
 
         Δεv = dot(B,dU)
-        Δp, status = update_state(elem.pmodel, ip.state, Δεv)
+        Δp, status = update_state(elem.cmodel, ip.state, Δεv)
         failed(status) && return dF, map, status
         coef = detJ*ip.w*th
         @mul dF += coef*B'*Δp

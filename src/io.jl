@@ -25,9 +25,9 @@ function save_xml(model::FEModel, filename::String)
     xmats = XmlElement("Materials")
     mat_dict = OrderedDict{UInt, Material}()
     for elem in model.elems
-        hs = hash(elem.pmodel)
+        hs = hash(elem.cmodel)
         haskey(mat_dict, hs) && continue
-        mat_dict[hs] = elem.pmodel
+        mat_dict[hs] = elem.cmodel
     end
 
     mat_idx_dict = OrderedDict{UInt, Int}()
@@ -71,7 +71,7 @@ function save_xml(model::FEModel, filename::String)
                            "id"=>string(elem.id),
                            "shape"=>string(elem.shape.name),
                            "tag"=>string(elem.tag),
-                           "material"=>string(mat_idx_dict[hash(elem.pmodel)]),
+                           "material"=>string(mat_idx_dict[hash(elem.cmodel)]),
                            "active"=>string(elem.active),
                            "nodes"=>join((n.id for n in elem.nodes), ","),
                            "couplings"=>join((e.id for e in elem.couplings), ","),
@@ -270,7 +270,7 @@ function FEModel(filename::String; quiet=false)
         setfields!(elem, xelem.attributes, exclude=(:shape, :material, :nodes, :couplings))
 
         matidx = parse(Int,xelem.attributes["material"])
-        elem.pmodel = materials[matidx]
+        elem.cmodel = materials[matidx]
         nips = length(xelem.children)
 
         push!(domain.elems, elem)

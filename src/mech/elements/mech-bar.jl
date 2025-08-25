@@ -62,7 +62,7 @@ function elem_stiffness(elem::Element{MechBar})
             end
         end
 
-        E    = calcD(elem.pmodel, ip.state)
+        E    = calcD(elem.cmodel, ip.state)
         coef = E*A*detJ*ip.w
         @mul K += coef*B'*B
     end
@@ -165,7 +165,7 @@ function elem_internal_forces(elem::Element{MechBar}, ΔUg::Vector{Float64}=Floa
 
         if update
             Δε = (B*ΔU)[1]
-            Δσ, status = update_state(elem.pmodel, ip.state, Δε)
+            Δσ, status = update_state(elem.cmodel, ip.state, Δε)
             failed(status) && return ΔF, map, status
         else
             Δσ = ip.state.σ
@@ -214,7 +214,7 @@ end
 #         end
 
 #         deps = (B*dU)[1]
-#         dsig, _ = update_state(elem.pmodel, ip.state, deps)
+#         dsig, _ = update_state(elem.cmodel, ip.state, deps)
 #         coef = A*detJ*ip.w
 #         dF  .+= coef*vec(B')*dsig
 #     end
@@ -225,7 +225,7 @@ end
 
 function elem_vals(elem::Element{MechBar})
     # get ip average values
-    ipvals = [ state_values(elem.pmodel, ip.state) for ip in elem.ips ]
+    ipvals = [ state_values(elem.cmodel, ip.state) for ip in elem.ips ]
     merger(x,y) = abs(x) > abs(y) ? x : y
     merged  = merge(merger, ipvals... )
     vals = OrderedDict( k=>v for (k,v) in merged)

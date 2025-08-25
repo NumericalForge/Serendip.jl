@@ -66,7 +66,7 @@ function add_bc(
     end
     target = select(items, selector)
 
-    length(target) == 0 && notify("setup_bc: No $(item_name)s found for selector expression: ", selector)
+    length(target) == 0 && notify("setup_bc: No $(item_name)s found for selector: ", selector)
 
     bc = BoundaryCondition{target_type}(kind, selector, conds, target)
     push!(stage.bcs, bc)
@@ -96,7 +96,7 @@ end
 # function add_body_load(stage::Stage, selector; conds...)  # Body load treated as a special case of boundary condition
 #     model = stage.analysis.model
 #     target = model.elems.active[selector]
-#     length(target) == 0 && notify("add_body_load: No elements found for selector expression: ", selector)
+#     length(target) == 0 && notify("add_body_load: No elements found for selector: ", selector)
 
 #     return BoundaryCondition(:body, selector, conds, target)
 # end

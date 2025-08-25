@@ -174,7 +174,7 @@ function elem_stiffness(elem::Element{MechBondSlip})
     for (i,ip) in enumerate(elem.ips)
         B    = elem.cacheM[i]
         detJ = elem.cacheV[1][i]
-        D    = calcD(elem.pmodel, ip.state)
+        D    = calcD(elem.cmodel, ip.state)
         coef = p*detJ*ip.w
         @mul DB = D*B
         @mul K += coef*B'*DB
@@ -217,13 +217,13 @@ function elem_internal_forces(elem::Element{MechBondSlip}, ΔUg::Vector{Float64}
 
         if update
             @mul Δu = B*ΔU
-            Δσ, status = update_state(elem.pmodel, ip.state, Δu)
+            Δσ, status = update_state(elem.cmodel, ip.state, Δu)
             failed(status) && return ΔF, map, status
         else
             Δσ = ip.state.σ
         end
         # @mul Δu = B*ΔU
-        # Δσ, status = update_state(elem.pmodel, ip.state, Δu)
+        # Δσ, status = update_state(elem.cmodel, ip.state, Δu)
         # failed(status) && return ΔF, map, status
         coef = p*detJ*ip.w
         @mul ΔF += coef*B'*Δσ
@@ -234,7 +234,7 @@ end
 
 
 function elem_recover_nodal_values(elem::Element{MechBondSlip})
-    all_ip_vals = [ state_values(elem.pmodel, ip.state) for ip in elem.ips ]
+    all_ip_vals = [ state_values(elem.cmodel, ip.state) for ip in elem.ips ]
     nips        = length(elem.ips)
     fields      = keys(all_ip_vals[1])
     nfields     = length(fields)

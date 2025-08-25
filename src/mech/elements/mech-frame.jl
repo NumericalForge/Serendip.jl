@@ -193,7 +193,7 @@ function elem_mass(elem::Element{MechFrame})
     C  = get_coords(elem)
     ℓ  = norm(C[2,:]-C[1,:])
     ℓ2 = ℓ*ℓ
-    mat = elem.pmodel
+    mat = elem.cmodel
 
 
     M0 = mat.ρ*ℓ/420.0*[ 140   0      0      70    0      0

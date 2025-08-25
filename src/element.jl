@@ -11,7 +11,7 @@ mutable struct  Element{T}<:AbstractCell where T<:ElementFormulation
     active::Bool
     nodes ::Vector{Node}
     ips   ::Vector{Ip}
-    pmodel::PhysicsModel
+    cmodel::PhysicsModel
     couplings::Vector{Element}
     cacheV::Vector{FixedSizeVector{Float64}}
     cacheM::Vector{FixedSizeMatrix{Float64}}
@@ -45,7 +45,7 @@ This function can be specialized by concrete types.
 """
 function elem_init(elem::Element)
     for ip in elem.ips
-        init_state(elem.pmodel, ip.state)
+        init_state(elem.cmodel, ip.state)
     end
     return nothing
 end
@@ -120,7 +120,7 @@ function set_quadrature(elem::Element, n::Int=0)
         w = ipc[i].w
         elem.ips[i] = Ip(R, w)
         elem.ips[i].id = i
-        elem.ips[i].state = compat_state_type(typeof(elem.pmodel), typeof(elem.eform), elem.ctx)(elem.ctx)
+        elem.ips[i].state = compat_state_type(typeof(elem.cmodel), typeof(elem.eform), elem.ctx)(elem.ctx)
         elem.ips[i].owner = elem
     end
 
@@ -169,8 +169,8 @@ end
 
 
 function update_material!(elem::Element, mat::Material)
-    typeof(elem.pmodel) == typeof(mat) || error("update_material!: The same material type should be used.")
-    elem.pmodel = mat
+    typeof(elem.cmodel) == typeof(mat) || error("update_material!: The same material type should be used.")
+    elem.cmodel = mat
 end
 
 """
@@ -204,7 +204,7 @@ function setstate!(elems::Array{<:Element,1}; args...)
     notfound = Set{Symbol}()
 
     for elem in elems
-        fields = fieldnames(compat_state_type(elem.pmodel))
+        fields = fieldnames(compat_state_type(elem.cmodel))
         for ip in elem.ips
             for (k,v) in args
                 if k in fields
@@ -312,7 +312,7 @@ Returns a `DataTable` containing state variable values at all integration points
 function get_values(elem::Element)
     table = DataTable()
     for ip in elem.ips
-        D = state_values(elem.pmodel, ip.state)
+        D = state_values(elem.cmodel, ip.state)
         push!(table, D)
     end
 

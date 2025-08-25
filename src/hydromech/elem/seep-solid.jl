@@ -122,7 +122,7 @@ function elem_conductivity_matrix(elem::SeepSolid)
         @mul dNdX = dNdR*inv(J) # Bw = dNdX'
 
         # compute H
-        K = calcK(elem.pmodel, ip.state)
+        K = calcK(elem.cmodel, ip.state)
         coef  = 1/elem.ctx.γw
         coef *= detJ*ip.w*th
         @mul KBw = K*dNdX'
@@ -155,7 +155,7 @@ function elem_compressibility_matrix(elem::SeepSolid)
         detJ > 0.0 || error("Negative Jacobian determinant in cell $(elem.id)")
 
         # compute Cpp
-        coef  = elem.pmodel.S
+        coef  = elem.cmodel.S
         coef *= detJ*ip.w*th
         Cpp  -= coef*N*N'
     end
@@ -191,7 +191,7 @@ function elem_RHS_vector(elem::SeepSolid)
         detJ > 0.0 || error("Negative Jacobian determinant in cell $(elem.id)")
 
         # compute Q
-        K = calcK(elem.pmodel, ip.state)
+        K = calcK(elem.cmodel, ip.state)
         coef = detJ*ip.w*th
         @mul KZ = K*Z
         @mul Q += coef*dNdX*KZ
@@ -232,7 +232,7 @@ function elem_internal_forces(elem::SeepSolid, F::Array{Float64,1})
 
         # internal volumes dFw
         uw   = ip.state.uw
-        coef = detJ*ip.w*elem.pmodel.S*th
+        coef = detJ*ip.w*elem.cmodel.S*th
         dFw .-= coef*uw*N
 
         D    = ip.state.D
@@ -277,9 +277,9 @@ function update_elem!(elem::SeepSolid, DU::Array{Float64,1}, Δt::Float64)
 
         Δuw = N'*dUw # interpolation to the integ. point
 
-        V = update_state(elem.pmodel, ip.state, Δuw, G, Δt)
+        V = update_state(elem.cmodel, ip.state, Δuw, G, Δt)
 
-        coef  = elem.pmodel.S
+        coef  = elem.cmodel.S
         coef *= detJ*ip.w*th
         dFw  .-= coef*N*Δuw
 

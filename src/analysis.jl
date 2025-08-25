@@ -96,8 +96,6 @@ mutable struct AnalysisData
     end
 end
 
-Base.show(io::IO, obj::Analysis) = _show(io, obj, 2, "")
-
 
 function add_stage(
     ana::Analysis;

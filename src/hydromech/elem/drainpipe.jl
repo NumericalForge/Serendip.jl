@@ -73,7 +73,7 @@ local k::Float64, A::Float64, coef::Float64, dNdR::Matrix{Float64}
         Bw = dNdR'/detJ
 
         # compute H
-        coef = detJ*ip.w*(elem.pmodel.k/elem.ctx.γw)*A
+        coef = detJ*ip.w*(elem.cmodel.k/elem.ctx.γw)*A
         @mul H -= coef*Bw'*Bw
     end
 
@@ -105,7 +105,7 @@ function elem_RHS_vector(elem::DrainPipe)
         Bw = dNdR'/detJ
 
         # compute Q
-        coef = detJ*ip.w*elem.pmodel.k*A*Jvert
+        coef = detJ*ip.w*elem.cmodel.k*A*Jvert
         Q .+= coef*Bw'
     end
 
@@ -190,7 +190,7 @@ function update_elem!(elem::DrainPipe, DU::Array{Float64,1}, Δt::Float64)
         G += Jvert; # gradient due to gravity
         Δuw = dot(Nw,dUw) # interpolation to the integ. point
 
-        V = update_state(elem.pmodel, ip.state, Δuw, G, Δt)
+        V = update_state(elem.cmodel, ip.state, Δuw, G, Δt)
 
         coef = Δt*detJ*ip.w*A
         dFw += coef*Bw'*V
@@ -203,7 +203,7 @@ end
 function elem_vals(elem::DrainPipe)
     # get area and average fluid velocity and flow
     vals = OrderedDict(:A => elem.props.A )
-    mean_va = mean( state_values(elem.pmodel, ip.state)[:va] for ip in elem.ips )
+    mean_va = mean( state_values(elem.cmodel, ip.state)[:va] for ip in elem.ips )
     vals[:va] = mean_va
     vals[:Qa] = elem.props.A*mean_va
     return vals

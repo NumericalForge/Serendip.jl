@@ -98,7 +98,7 @@ function distributed_bc(elem::MechClassicalBeam, facet::Nothing, key::Symbol, va
     nodes  = elem.nodes
     nnodes = length(nodes)
     t      = elem.ctx.t
-    A      = elem.pmodel.A
+    A      = elem.cmodel.A
 
 
     # Force boundary condition
@@ -181,7 +181,7 @@ function elem_stiffness(elem::MechClassicalBeam)
     L  = norm(C[2,:]-C[1,:])
     L2 = L*L
     L3 = L*L*L
-    mat = elem.pmodel
+    mat = elem.cmodel
     EA = mat.E*mat.A
     EI = mat.E*mat.I
 
@@ -215,7 +215,7 @@ function elem_mass(elem::MechClassicalBeam)
     C  = get_coords(elem)
     L  = norm(C[2,:]-C[1,:])
     L2 = L*L
-    mat = elem.pmodel
+    mat = elem.cmodel
     EA = mat.E*mat.A
     EI = mat.E*mat.I
 

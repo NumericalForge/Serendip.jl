@@ -22,7 +22,7 @@ compat_role(::Type{MechSpring}) = LINE_CELL
 
 function elem_stiffness(elem::MechSpring)
     ndim = elem.ctx.ndim
-    mat  = elem.pmodel
+    mat  = elem.cmodel
 
     if ndim==1
         kx = mat.kx
@@ -53,7 +53,7 @@ end
 
 function elem_damping(elem::MechSpring)
     ndim = elem.ctx.ndim
-    mat  = elem.pmodel
+    mat  = elem.cmodel
 
     if ndim==1
         cx = mat.cx

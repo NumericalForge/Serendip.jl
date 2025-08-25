@@ -115,7 +115,7 @@ function elem_stiffness(elem::TMSolid)
 
         # compute K
         coef = detJ*ip.w*th
-        D    = calcD(elem.pmodel, ip.state)
+        D    = calcD(elem.cmodel, ip.state)
         @mul DBu = D*Bu
         @mul K += coef*Bu'*DBu
     end
@@ -131,8 +131,8 @@ function elem_coupling_matrix(elem::TMSolid)
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
     nbnodes = elem.shape.base_shape.npoints
-    E = elem.pmodel.E
-    ν = elem.pmodel.ν
+    E = elem.cmodel.E
+    ν = elem.cmodel.ν
     α = elem.props.α
     C   = get_coords(elem)
     Bu  = zeros(6, nnodes*ndim)
@@ -198,7 +198,7 @@ function elem_conductivity_matrix(elem::TMSolid)
         Bt .= dNtdX'
 
         # compute H
-        K = calcK(elem.pmodel, ip.state)
+        K = calcK(elem.cmodel, ip.state)
         coef = detJ*ip.w*th
         @mul KBt = K*Bt
         @mul H  -= coef*Bt'*KBt
@@ -248,8 +248,8 @@ function elem_internal_forces(elem::TMSolid, F::Array{Float64,1})
     nbnodes = elem.shape.base_shape.npoints
     C       = get_coords(elem)
 
-    E = elem.pmodel.E
-    ν = elem.pmodel.ν
+    E = elem.cmodel.E
+    ν = elem.cmodel.ν
     ρ = elem.props.ρ
     α = elem.props.α
     cv = elem.props.cv
@@ -332,8 +332,8 @@ function update_elem!(elem::TMSolid, DU::Array{Float64,1}, Δt::Float64)
     nbnodes = elem.shape.base_shape.npoints
     C       = get_coords(elem)
 
-    E = elem.pmodel.E
-    ν = elem.pmodel.ν
+    E = elem.cmodel.E
+    ν = elem.cmodel.ν
     ρ = elem.props.ρ
     α = elem.props.α
     cv = elem.props.cv
@@ -391,7 +391,7 @@ function update_elem!(elem::TMSolid, DU::Array{Float64,1}, Δt::Float64)
         G  = Bt*Ut
 
         # internal force dF
-        Δσ, q, status = update_state(elem.pmodel, ip.state, Δε, Δut, G, Δt)
+        Δσ, q, status = update_state(elem.cmodel, ip.state, Δε, Δut, G, Δt)
         failed(status) && return [dF; dFt], [map_u; map_t], status
 
         Δσ -= β*Δut*m # get total stress

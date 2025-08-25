@@ -24,5 +24,3 @@ mutable struct Stage
         return new(-1, name, bcs, nincs, nouts, tspan, activate, deactivate, :idle)
     end
 end
-
-Base.show(io::IO, obj::Stage) = _show(io, obj, 2, "")

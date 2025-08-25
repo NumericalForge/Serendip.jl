@@ -111,7 +111,7 @@ function elem_stiffness(elem::Element{MechEmbBar})
             end
         end
 
-        E    = calcD(elem.pmodel, ip.state)
+        E    = calcD(elem.cmodel, ip.state)
         coef = E*A*detJ*ip.w
         @mul K += coef*B'*B
     end
@@ -156,7 +156,7 @@ function elem_internal_forces(elem::Element{MechEmbBar}, ΔUg::Vector{Float64}=F
 
         if update
             Δε = (B*ΔUbar)[1]
-            Δσ, status = update_state(elem.pmodel, ip.state, Δε)
+            Δσ, status = update_state(elem.cmodel, ip.state, Δε)
             failed(status) && return ΔF, map, status
         else
             Δσ = ip.state.σ
@@ -199,7 +199,7 @@ end
 #         end
 
 #         dε = (B*dUbar)[1]
-#         dσ, _ = update_state(elem.pmodel, ip.state, dε)
+#         dσ, _ = update_state(elem.cmodel, ip.state, dε)
 #         coef = A*detJ*ip.w
 #         @mul dF += coef*B'*dσ
 #     end
@@ -221,7 +221,7 @@ end
 function elem_vals(elem::Element{MechEmbBar})
     # get area and average stress and axial force
     vals = OrderedDict(:A => elem.eform.A )
-    σx´ = [ state_values(elem.pmodel, ip.state)[:σx´] for ip in elem.ips ]
+    σx´ = [ state_values(elem.cmodel, ip.state)[:σx´] for ip in elem.ips ]
     _, idx = findmax(abs, σx´)
     max_σx´ = σx´[idx]
     vals[:σx´] = max_σx´

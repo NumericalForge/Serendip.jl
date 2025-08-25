@@ -53,7 +53,4 @@ export generate_embedded_cells!
 
 include("outline.jl")
 
-# show function for mesh related types
-Base.show(io::IO, obj::CellShape) = _show(io, obj, 2)
-Base.show(io::IO, obj::Block) = _show(io, obj, 2)
-Base.show(io::IO, obj::Mesh) = _show(io, obj, 2)
+

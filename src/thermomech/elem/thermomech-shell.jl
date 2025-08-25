@@ -94,7 +94,7 @@ function set_quadrature(elem::TMShell, n::Int=0)
             j = (k-1)*n + i
             elem.ips[j] = Ip(R, w)
             elem.ips[j].id = j
-            elem.ips[j].state = compat_state_type(typeof(elem.pmodel), typeof(elem), elem.ctx)(elem.ctx)
+            elem.ips[j].state = compat_state_type(typeof(elem.cmodel), typeof(elem), elem.ctx)(elem.ctx)
             elem.ips[j].owner = elem
         end
     end
@@ -240,7 +240,7 @@ function elem_stiffness(elem::TMShell)
         setB(elem, ip, N, L, dNdX′, Rrot, Bil, Bi, B)
 
         coef  = detJ′*ip.w
-        D     = calcD(elem.pmodel, ip.state)
+        D     = calcD(elem.cmodel, ip.state)
         K    += coef*B'*S*D*B
     end
 
@@ -260,8 +260,8 @@ function elem_coupling_matrix(elem::TMShell)
     th     = elem.props.th
     nnodes = length(elem.nodes)
 
-    E = elem.pmodel.E
-    ν = elem.pmodel.ν
+    E = elem.cmodel.E
+    ν = elem.cmodel.ν
 
     ndof = 6
     nstr = 6
@@ -293,7 +293,7 @@ function elem_coupling_matrix(elem::TMShell)
         @assert detJ′>0
 
         # compute Cut
-        α = calc_α(elem.pmodel, ip.state.ut)
+        α = calc_α(elem.cmodel, ip.state.ut)
         β = E*α/(1-ν)
 
         coef  = β
@@ -330,7 +330,7 @@ function elem_conductivity_matrix(elem::TMShell)
         dNdX′ = dNdR*invJ′
         Bt   .= dNdX′'
 
-        K = calcK(elem.pmodel, ip.state)
+        K = calcK(elem.cmodel, ip.state)
         detJ′ = det(J′)
         @assert detJ′>0
 
@@ -363,7 +363,7 @@ function elem_mass_matrix(elem::TMShell)
         @assert detJ′>0
 
         # compute Cut
-        cv = calc_cv(elem.pmodel, ip.state.ut)
+        cv = calc_cv(elem.cmodel, ip.state.ut)
         coef  = elem.props.ρ*cv
         coef *= detJ′*ip.w
         M    -= coef*N*N'
@@ -383,8 +383,8 @@ function elem_internal_forces(elem::TMShell, F::Array{Float64,1})
     ndof   = 6
     C      = get_coords(elem)
 
-    E = elem.pmodel.E
-    ν = elem.pmodel.ν
+    E = elem.cmodel.E
+    ν = elem.cmodel.ν
     ρ = elem.props.ρ
 
     map_u = elem_map_u(elem)
@@ -426,7 +426,7 @@ function elem_internal_forces(elem::TMShell, F::Array{Float64,1})
         σ  = ip.state.σ
         ut = ip.state.ut
 
-        α = calc_α(elem.pmodel, ip.state.ut)
+        α = calc_α(elem.cmodel, ip.state.ut)
         β = E*α/(1-ν)
 
         σ -= β*ut*m # get total stress
@@ -441,7 +441,7 @@ function elem_internal_forces(elem::TMShell, F::Array{Float64,1})
         coef *= detJ′*ip.w
         dFt  -= coef*N
 
-        cv = calc_cv(elem.pmodel, ip.state.ut)
+        cv = calc_cv(elem.cmodel, ip.state.ut)
         coef  = ρ*cv
         coef *= detJ′*ip.w
         dFt  -= coef*N*ut
@@ -466,8 +466,8 @@ function update_elem!(elem::TMShell, DU::Array{Float64,1}, Δt::Float64)
     ndof   = 6
     C      = get_coords(elem)
 
-    E = elem.pmodel.E
-    ν = elem.pmodel.ν
+    E = elem.cmodel.E
+    ν = elem.cmodel.ν
     ρ = elem.props.ρ
 
     map_u = elem_map_u(elem)
@@ -519,10 +519,10 @@ function update_elem!(elem::TMShell, DU::Array{Float64,1}, Δt::Float64)
         G  = Bt*Ut
 
         # internal force dF
-        Δσ, q, status = update_state(elem.pmodel, ip.state, Δε, Δut, G, Δt)
+        Δσ, q, status = update_state(elem.cmodel, ip.state, Δε, Δut, G, Δt)
         failed(status) && return [dF; dFt], [map_u; map_t], status
 
-        α = calc_α(elem.pmodel, ip.state.ut)
+        α = calc_α(elem.cmodel, ip.state.ut)
         β = E*α/(1-ν)
 
         Δσ -= β*Δut*m # get total stress
@@ -536,7 +536,7 @@ function update_elem!(elem::TMShell, DU::Array{Float64,1}, Δt::Float64)
         coef *= detJ′*ip.w
         dFt  -= coef*N
 
-        cv = calc_cv(elem.pmodel, ip.state.ut)
+        cv = calc_cv(elem.cmodel, ip.state.ut)
         coef  = ρ*cv
         coef *= detJ′*ip.w
         dFt  -= coef*N*Δut

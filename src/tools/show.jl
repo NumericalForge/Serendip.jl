@@ -42,22 +42,21 @@ _show(x; maxdepth=2) = _show(stdout, x, maxdepth, "", "    ")
 const not_unrolling_typenames_in_show = [ "CellShape", "Context"  ]
 
 function _show(io::IO, x, maxdepth::Int, indent::String="", tab::String="    ")
-    T = typeof(x)
-
-    nf = nfields(x)
+    if x isa DataType
+        print(io, string(x))
+        return
+    end
 
     # Prints objects with no fields
+    nf = nfields(x)
     if nf==0
         print(io, repr(x))
         return
     end
-
-    # print(io, T)
+    
     summ = summary(x)
     print(io, summ)
     pnames = propertynames(x)
-    fnames = fieldnames(T)
-
 
     if maxdepth==0 && !contains(summ, " ")
         if :name in pnames && isdefined(x, :name)
@@ -73,15 +72,17 @@ function _show(io::IO, x, maxdepth::Int, indent::String="", tab::String="    ")
     end
 
     maxdepth==0 && return
-
+    
     for name in pnames
-
+        
         fname = string(name)
         fname[1]=='_' && continue
         println(io)
-
+        
         print(io, indent*tab, fname, ": ")
-
+        
+        T      = typeof(x)
+        fnames = fieldnames(T)
         if name in fnames && !isdefined(x, name)
             print(io, "#undef")
         else

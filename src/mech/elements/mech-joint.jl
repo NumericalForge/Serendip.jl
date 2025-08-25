@@ -98,7 +98,7 @@ function elem_stiffness(elem::Element{MechInterface})
 
         # compute K
         coef = detJ*ip.w*th
-        D    = calcD(elem.pmodel, ip.state)
+        D    = calcD(elem.cmodel, ip.state)
         @mul DB = D*B
         @mul K += coef*B'*DB
     end
@@ -162,7 +162,7 @@ function elem_internal_forces(elem::Element{MechInterface}, ΔUg::Vector{Float64
 
         if update
             @mul Δω = B*ΔU
-            Δσ, status = update_state(elem.pmodel, ip.state, Δω)
+            Δσ, status = update_state(elem.cmodel, ip.state, Δω)
             failed(status) && return ΔF, map, status
         else
             Δσ = ip.state.σ
@@ -180,10 +180,10 @@ end
 function elem_recover_nodal_values(elem::Element{MechInterface})
     nips = length(elem.ips)
 
-    keys = output_keys(elem.pmodel)
+    keys = output_keys(elem.cmodel)
     vals = zeros(nips, length(keys))
     for (i,ip) in enumerate(elem.ips)
-        dict = state_values(elem.pmodel, ip.state)
+        dict = state_values(elem.cmodel, ip.state)
         vals[i,:] = [ dict[key] for key in keys ]
     end
 

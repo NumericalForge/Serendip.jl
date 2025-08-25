@@ -150,7 +150,7 @@ function elem_conductivity_matrix(elem::ThermoShell)
 
         Bt   .= dNdX′'
 
-        K = calcK(elem.pmodel, ip.state)
+        K = calcK(elem.cmodel, ip.state)
         detJ′ = det(J′)
         @assert detJ′>0
 
@@ -186,7 +186,7 @@ function elem_mass_matrix(elem::ThermoShell)
         @assert detJ′>0
 
         # compute Cut
-        coef  = elem.props.ρ*elem.pmodel.cv
+        coef  = elem.props.ρ*elem.cmodel.cv
         coef *= detJ′*ip.w
         M    -= coef*N*N'
 
@@ -235,7 +235,7 @@ function elem_internal_forces(elem::ThermoShell, F::Array{Float64,1})
         # compute N
         # internal force
         ut   = ip.state.ut + 273
-        β   = elem.pmodel.E*elem.pmodel.α/(1-2*elem.pmodel.ν)
+        β   = elem.cmodel.E*elem.cmodel.α/(1-2*elem.cmodel.ν)
         σ    = ip.state.σ - β*ut*m # get total stress
         coef = detJ*ip.w*th
         @mul dF += coef*Bu'*σ
@@ -244,7 +244,7 @@ function elem_internal_forces(elem::ThermoShell, F::Array{Float64,1})
         εvol = dot(m, ε)
         coef = β*detJ*ip.w*th
         dFt  -= coef*N*εvol
-        coef = detJ*ip.w*elem.props.ρ*elem.pmodel.cv*th/T0
+        coef = detJ*ip.w*elem.props.ρ*elem.cmodel.cv*th/T0
         dFt -= coef*N*ut
         QQ   = ip.state.QQ
         coef = detJ*ip.w*th/T0
@@ -298,9 +298,9 @@ function update_elem!(elem::ThermoShell, DU::Array{Float64,1}, Δt::Float64)
         # compute Δut
         Δut = N'*dUt # interpolation to the integ. point
 
-        q = update_state(elem.pmodel, ip.state, Δut, G, Δt)
+        q = update_state(elem.cmodel, ip.state, Δut, G, Δt)
 
-        coef  = elem.props.ρ*elem.pmodel.cv
+        coef  = elem.props.ρ*elem.cmodel.cv
         coef *= detJ′*ip.w
         dFt  -= coef*N*Δut
 
