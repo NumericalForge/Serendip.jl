@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export DataTable, datatable, push!, save, randtable
 export compress, resize, filter, cut!, clamp!, denoise!
@@ -150,7 +150,7 @@ function Base.push!(table::DataTable, row::Union{NTuple, AbstractDict, Vector{<:
             end
         end
     end
-    
+
     return row
 end
 
@@ -324,7 +324,7 @@ end
 function Base.sort!(table::DataTable, options::NamedTuple...)
     n, m = size(table)
     idx = collect(1:n)
-    
+
     for opt in options
         field = get(opt, :field, "")
         rev   = get(opt, :rev, false)
@@ -360,7 +360,7 @@ function compress!(table::DataTable, n::Int)
     for i in 1:length(columns)
         columns[i] = columns[i][idxs]
     end
-    
+
     return table
 end
 
@@ -373,7 +373,7 @@ end
 function resize(table::DataTable, n::Int=0; ratio=1.0)
     header = getheader(table)
     nr     = nrows(table)
-    
+
     if n==0
         ratio > 0.0 || error("resize: ratio should be greater than zero")
         n = max(2, round(Int, nr*ratio))
@@ -397,10 +397,10 @@ function resize(table::DataTable, n::Int=0; ratio=1.0)
             s0 = (ib-1) * ds              # s @ left point
             t  = (s - s0) / ds            # local t for current Bezier
             t > 1.0 && (t = 1.0)          # clean rubbish. e.g. 1.00000000002
-        
+
             # collect control points
             k = 1 + (ib-1) * 3            # position of first point of bezier
-            
+
             P1 = U[k  ]
             P2 = U[k+1]
             P3 = U[k+2]
@@ -422,7 +422,7 @@ function resize(table::DataTable, n::Int=0; ratio=1.0)
 
         push!(cols, V)
     end
-    
+
     return DataTable(header, cols)
 end
 
@@ -443,7 +443,7 @@ function cut!(table::DataTable, field, value=0.0; after=false)
     end
 
     if idx>0
-        α = -V[idx-1]/(V[idx]-V[idx-1]) 
+        α = -V[idx-1]/(V[idx]-V[idx-1])
         header = getheader(table)
         for field in header
             W      = table[field]
@@ -475,7 +475,7 @@ function smooth!(table::DataTable, fieldx, fieldy=nothing; knots=[0.0, 1.0])
         fieldy = fieldx
         X = collect(range(0, 1, length=nr))
         Y = table[fieldx]
-    else 
+    else
         X = table[fieldx]
         Y = table[fieldy]
     end
@@ -511,7 +511,7 @@ function denoise!(table::DataTable, fieldx, fieldy=nothing; noise=0.05, npatch=4
     A  = zeros(2)
     ΔY = [ Float64[] for i in 1:nr ]
 
-    for i in 1:nr-npatch+1        
+    for i in 1:nr-npatch+1
         rng = i:i+npatch-1
         Xp = X[rng]
         Yp = Y[rng]
@@ -730,7 +730,7 @@ function Base.show(io::IO, table::DataTable)
         return
     end
 
-    header = keys(colidx)
+    header = getheader(table)
     types = eltype.(columns)
     # types  = typeof.(getindex.(columns,1))
 

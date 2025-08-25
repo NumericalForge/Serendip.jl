@@ -23,7 +23,7 @@ macro s(exs...)
     sf = basename(string(__source__.file))
     sl = string(__source__.line)
     for ex in exs
-        push!(blk.args, 
+        push!(blk.args,
         :(
             printstyled($(sprint(Base.show_unquoted,ex)*" = "),
             repr(begin value=$(esc(ex)) end), color=13);
@@ -47,7 +47,7 @@ function _show(io::IO, x, maxdepth::Int, indent::String="", tab::String="    ")
     nf = nfields(x)
 
     # Prints objects with no fields
-    if nf==0 
+    if nf==0
         print(io, repr(x))
         return
     end
@@ -109,7 +109,7 @@ _show(io::IO, x::Expr, maxdepth::Int, indent::String, tab::String) = print(io, "
 function _show(io::IO, x::AbstractDict, maxdepth::Int, indent::String="", tab::String="    ")
     if valtype(x)<:Real || valtype(x)<:AbstractString
         n = length(x)
-        if n<8 
+        if n<8
             s = repr(x)
             if length(s)<70
                 show(io, x)
@@ -144,7 +144,7 @@ function _show(io::IO, x::Union{AbstractArray, AbstractSet}, maxdepth::Int, inde
     isset && (x = collect(x))
 
     if eltype(x) <: Number
-        if n<20 
+        if n<20
             s = repr(x)
             if length(s)<70
                 show(io, x)

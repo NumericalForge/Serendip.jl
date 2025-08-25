@@ -1,36 +1,36 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export AcousticAnalysis, AcousticMechAnalysis, AcousticContext, AcousticMechContext
+export AcousticAnalysis, AcousticMechAnalysis, AcousticContext, AcousticContext
 
 
-AcousticMechContext_params = [
-    FunInfo(:MechContext, "Context for mechanical analysis"),
+AcousticContext_params = [
+    FunInfo(:Context, "Context for mechanical analysis"),
     KwArgInfo(:ndim, "Analysis dimension", 0),
-    KwArgInfo(:stressmodel, "Stress model", :d3, values=(:planestress, :planestrain, :axisymmetric, :d3, :none)),
+    KwArgInfo(:stress_state, "Stress model", :d3, values=(:plane_stress, :plane_strain, :axisymmetric, :d3, :none)),
     KwArgInfo(:g, "Gravity acceleration", 0.0, cond=:(g>=0))
 ]
-@doc docstring(AcousticMechContext_params) AcousticMechContext
+@doc docstring(AcousticContext_params) AcousticContext
 
-mutable struct AcousticMechContext<:Context
-    stressmodel::Symbol # plane stress, plane strain, etc.
+mutable struct AcousticContext<:Context
+    stress_state::Symbol # plane stress, plane strain, etc.
     g::Float64 # gravity acceleration
 
     ndim     ::Int       # Analysis dimension
     thickness::Float64 # to be set after FEModel creation
 
-    function AcousticMechContext(; kwargs...)
-        args = checkargs(kwargs, AcousticMechContext_params)
+    function AcousticContext(; kwargs...)
+        args = checkargs(kwargs, AcousticContext_params)
         this = new()
-        
+
         # Analysis related
-        this.stressmodel = args.stressmodel
+        this.stress_state = args.stress_state
         this.ndim        = args.ndim
         this.g           = args.g
         return this
     end
 end
 
-const AcousticContext = AcousticMechContext
+const AcousticContext = AcousticContext
 
 
 AcousticMechAnalysis_params = [
@@ -40,7 +40,7 @@ AcousticMechAnalysis_params = [
 
 mutable struct AcousticMechAnalysis<:TransientAnalysis
     model ::FEModel
-    ctx   ::AcousticMechContext
+    ctx   ::AcousticContext
     sctx  ::SolverContext
 
     stages  ::Array{Stage}
@@ -51,25 +51,25 @@ mutable struct AcousticMechAnalysis<:TransientAnalysis
         this = new(model, model.ctx)
         this.stages = []
         this.loggers = []
-        this.monitors = []  
+        this.monitors = []
         this.sctx = SolverContext()
-        
+
         this.sctx.outkey = outkey
         this.sctx.outdir = rstrip(outdir, ['/', '\\'])
         isdir(this.sctx.outdir) || mkdir(this.sctx.outdir) # create output directory if it does not exist
 
         model.ctx.thickness = model.thickness
-        if model.ctx.stressmodel==:none
+        if model.ctx.stress_state==:none
             if model.ctx.ndim==2
-                model.ctx.stressmodel = :planestrain
+                model.ctx.stress_state = :plane_strain
             else
-                model.ctx.stressmodel = :d3
+                model.ctx.stress_state = :d3
             end
         end
 
         return this
     end
-    
+
 end
 
 const AcousticAnalysis = AcousticMechAnalysis
@@ -82,9 +82,9 @@ function am_mount_M(elems::Array{<:Element,1}, ndofs::Int )
         for elem in elems
             ty = typeof(elem)
             hasmethod(elem_acoustic_mass, (ty,)) || continue
-            
+
             Me, rmap, cmap = elem_acoustic_mass(elem)
-            
+
             nr, nc = size(Me)
             for i in 1:nr
                 for j in 1:nc
@@ -138,7 +138,7 @@ end
 
 function solve!(model::FEModel, ana::AcousticMechAnalysis; args...)
     name = "Solver for acoustic mechanical analyses"
-    status = stage_iterator!(name, am_stage_solver!, model; args...)
+    status = stage_iterator(name, am_stage_solver!, model; args...)
     return status
 end
 
@@ -161,25 +161,25 @@ function solve!(ana::AcousticMechAnalysis; args...)
     args = checkargs(args, tm_solver_params)
     if !args.quiet
         printstyled("Solver for acoustic-mechanical analyses", "\n", bold=true, color=:cyan)
-        println("  stress model: ", ana.ctx.stressmodel)
+        println("  stress model: ", ana.ctx.stress_state)
     end
 
-    status = stage_iterator!(tm_stage_solver!, ana; args...)
+    status = stage_iterator(tm_stage_solver!, ana; args...)
     return status
 end
 
 
 function tm_stage_solver!(ana::AcousticMechAnalysis, stage::Stage; args...)
     args = NamedTuple(args)
-    
-    tol     = args.tol      
-    ΔTmin   = args.dTmin    
-    ΔTmax   = args.dTmax   
-    # rspan   = args.rspan    
-    # scheme  = args.scheme   
-    maxits  = args.maxits 
-    autoinc = args.autoinc  
-    quiet   = args.quiet 
+
+    tol     = args.tol
+    ΔTmin   = args.dTmin
+    ΔTmax   = args.dTmax
+    # rspan   = args.rspan
+    # scheme  = args.scheme
+    maxits  = args.maxits
+    autoinc = args.autoinc
+    quiet   = args.quiet
 
     model = ana.model
     ctx = model.ctx
@@ -194,8 +194,8 @@ function tm_stage_solver!(ana::AcousticMechAnalysis, stage::Stage; args...)
     tspan     = stage.tspan
     saveouts  = stage.nouts > 0
 
-    stressmodel = ctx.stressmodel
-    ctx.ndim==3 && @check stressmodel==:d3
+    stress_state = ctx.stress_state
+    ctx.ndim==3 && @check stress_state==:d3
 
     # Get active elements
     for elem in stage.toactivate
@@ -204,7 +204,7 @@ function tm_stage_solver!(ana::AcousticMechAnalysis, stage::Stage; args...)
     active_elems = filter(elem -> elem.active, model.elems)
 
     # Get dofs organized according to boundary conditions
-    dofs, nu = configure_dofs!(model, stage.bcs) # unknown dofs first
+    dofs, nu = configure_dofs(model, stage.bcs) # unknown dofs first
     ndofs    = length(dofs)
     umap     = 1:nu         # map for unknown bcs
     pmap     = nu+1:ndofs   # map for prescribed bcs
@@ -216,7 +216,7 @@ function tm_stage_solver!(ana::AcousticMechAnalysis, stage::Stage; args...)
     # quiet || nu==ndofs && println(sctx.alerts, "solve_system!: No essential boundary conditions", Base.warn_color) #TODO
 
     # Dictionary of data keys related with a dof
-    components_dict = Dict( 
+    components_dict = Dict(
                             :up => (:up, :fq, :vp, :ap),
                             :ux => (:ux, :fx, :vx, :ax),
                             :uy => (:uy, :fy, :vy, :ay),
@@ -224,7 +224,7 @@ function tm_stage_solver!(ana::AcousticMechAnalysis, stage::Stage; args...)
                             :rx => (:rx, :mx, :vrx, :arx),
                             :ry => (:ry, :my, :vry, :ary),
                             :rz => (:rz, :mz, :vrz, :arz))
-    
+
     # Setup quantities at dofs
     if stage.id == 1
         for dof in dofs
@@ -239,7 +239,7 @@ function tm_stage_solver!(ana::AcousticMechAnalysis, stage::Stage; args...)
         A = zeros(ndofs)
         V = zeros(ndofs)
         Uex, Fexa = get_bc_vals(model, bcs) # get values at time t
-        
+
         M = am_mount_M(model.elems, ndofs)
 
         # initial acceleration
@@ -280,7 +280,7 @@ function tm_stage_solver!(ana::AcousticMechAnalysis, stage::Stage; args...)
     ΔFin = zeros(ndofs)  # vector of internal natural values for current increment
     ΔUi  = zeros(ndofs)  # vector of essential values (e.g. displacements) for this increment
     ΔUk  = zeros(ndofs)  # vector of essential values for current iteration
-    
+
     ΔFexi = zeros(ndofs)  # increment of external natural bc
     ΔUexi = zeros(ndofs)  # increment of external essential bc
     Fexi! = zeros(ndofs)  # last value of external natural bc
@@ -313,7 +313,7 @@ function tm_stage_solver!(ana::AcousticMechAnalysis, stage::Stage; args...)
 
         # Update counters
         inc += 1
-        sctx.inc = inc 
+        sctx.inc = inc
 
         println(sctx.log, "  inc $inc")
 
@@ -358,7 +358,7 @@ function tm_stage_solver!(ana::AcousticMechAnalysis, stage::Stage; args...)
             # Get internal forces and update data at integration points (update ΔFin)
             ΔFin .= 0.0
             ΔUit   = ΔUi + ΔUk
-            ΔFin, sysstatus = update_state!(model.elems, ΔUit, Δt)
+            ΔFin, sysstatus = update_state(model.elems, ΔUit, Δt)
             failed(sysstatus) && (syserror=true; break)
 
             Vt = -V + 2/Δt*ΔUit
@@ -406,7 +406,7 @@ function tm_stage_solver!(ana::AcousticMechAnalysis, stage::Stage; args...)
                 us, fs, vs, as = components_dict[dof.name]
                 dof.vals[us] = U[i]
                 dof.vals[fs] = F[i]
-                dof.vals[vs] = V[i] 
+                dof.vals[vs] = V[i]
                 dof.vals[as] = A[i]
             end
 

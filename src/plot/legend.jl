@@ -1,32 +1,24 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 const _legend_locations=[
     :right,
     :left,
     :top,
     :bottom,
-    :topright,
-    :topleft,
-    :bottomright,
-    :bottomleft,
-    :outerright,
-    :outerleft,
-    :outertop,
-    :outertopleft,
-    :outertopright,
-    :outerbottom,
-    :outerbottomright,
-    :outerbottomleft
+    :top_right,
+    :top_left,
+    :bottom_right,
+    :bottom_left,
+    :outer_right,
+    :outer_left,
+    :outer_top,
+    :outer_top_left,
+    :outer_top_right,
+    :outer_bottom,
+    :outer_bottom_right,
+    :outer_bottom_left
 ]
 
-Legend_params = [
-    FunInfo(:Legend, "Creates a `Legend` instance."),
-    KwArgInfo(:location, "Location of the legend", :topright, values=_legend_locations ),
-    KwArgInfo(:font, "Name of the font", "NewComputerModern", type=AbstractString),
-    KwArgInfo(:font_size, "Size of the font in dpi", 7.0, cond=:(font_size>0)),
-    KwArgInfo(:ncols, "Number of columns in the legend", 1, cond=:(ncols>0)),
-]
-@doc docstring(Legend_params) Legend
 
 mutable struct Legend<:FigureComponent
     location::Symbol
@@ -41,10 +33,23 @@ mutable struct Legend<:FigureComponent
     width::Float64          # width of the legend box
     height::Float64         # height of the legend box
 
-    function Legend(; kwargs...)
-        args = checkargs(kwargs, Legend_params)
-        this = new(args.location, args.font, args.font_size, args.ncols)
-        return this
+    function Legend(;
+        location::Symbol = :top_right,
+        font::String = "NewComputerModern",
+        font_size::Float64 = 7.0,
+        ncols::Int = 1,
+        # title::String = ""
+    )
+        @check location in _legend_locations "location must be one of $(_legend_locations)"
+        @check font_size>0 "font_size must be positive"
+        @check ncols>0 "ncols must be positive"
+
+        return new(
+            location,
+            font,
+            font_size,
+            ncols,
+        )
     end
 end
 

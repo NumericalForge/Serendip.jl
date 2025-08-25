@@ -1,18 +1,18 @@
-using Amaru
+using Serendip
 
 # Mesh generation
 blocks = [
-    Block( [0 0; 3 0.4], nx=20, ny=10, cellshape=QUAD8, tag="solids"),
+    Block( [0 0; 3 0.4], nx=20, ny=10, shape=QUAD8, tag="solids"),
 ]
 
 msh = Mesh(blocks)
 
 # Finite element modeling
 materials = [
-             "solids" => MechSolid => LinearElastic => (E=200e6, nu=0.2),
+             "solids" => MechBulk => LinearElastic => (E=200e6, nu=0.2),
             ]
 
-ana = MechAnalysis(stressmodel=:planestress)
+ana = MechAnalysis(stress_state=:plane_stress)
 model = FEModel(msh, materials, ana)
 
 addlogger!(model, :(x==1.5 && y==0) => NodeLogger("one-node.dat"))
@@ -29,8 +29,8 @@ addstage!(model, bcs, nincs=5, nouts=5)
 solve!(model)
 
 # Plotting
-mchart = MeshChart(model, 
-    field = :sxx,
+mchart = MeshChart(model,
+    field = :σxx,
     colormap = :coolwarm,
     label = L"\sigma_x",
     warp = 20

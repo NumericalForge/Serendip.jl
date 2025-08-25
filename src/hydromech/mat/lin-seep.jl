@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export ConstPermeability
 
@@ -57,7 +57,7 @@ function calcK(mat::ConstPermeability, state::ConstPermeabilityState) # Hydrauli
 end
 
 
-function update_state!(mat::ConstPermeability, state::ConstPermeabilityState, Δuw::Float64, G::Array{Float64,1}, Δt::Float64)
+function update_state(mat::ConstPermeability, state::ConstPermeabilityState, Δuw::Float64, G::Array{Float64,1}, Δt::Float64)
     K = calcK(mat, state)
     state.V   = -K*G
     state.D  += state.V*Δt
@@ -66,7 +66,7 @@ function update_state!(mat::ConstPermeability, state::ConstPermeabilityState, Δ
 end
 
 
-function ip_state_vals(mat::ConstPermeability, state::ConstPermeabilityState)
+function state_values(mat::ConstPermeability, state::ConstPermeabilityState)
     D = OrderedDict{Symbol, Float64}()
     D[:vx] = state.V[1]
     D[:vy] = state.V[2]

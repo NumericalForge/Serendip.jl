@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 using Test
 
 # mesh
@@ -10,36 +10,37 @@ msh= Mesh(bls)
 fc = -30.87e3
 ft = 2.95e3
 
-fc_fun = PathFunction(:M, 0.0, fc)
-fc_fun = PathFunction(:M, 0.0, 0.5*fc, :Q, 0, 1*fc, 0.002, fc, :C, 0.004, fc, 0.005, 0.2*fc, 0.01, 0.1*fc )
+# fc_fun = PathFunction(:M, 0.0, fc)
+# fc_fun = PathFunction(:M, 0.0, 0.5*fc, :Q, 0, 1*fc, 0.002, fc, :C, 0.004, fc, 0.005, 0.2*fc, 0.01, 0.1*fc )
 
-ft_fun = PathFunction(:M, 0.0, ft)
-# ft_fun = PathFunction(:M, 0.0, ft, :C, 0.0001, 0.2*ft, 0.0002, 0.0, 0.0003, 0.0)
-# ft_fun = PathFunction(:M, 0.0, ft, :C, 0.0004, 0.2*ft, 0.0006, 0.0, 0.0009, 0.0)
-ft_fun = PathFunction(:M, 0.0, ft, :C, 0.00002, 0.2*ft, 0.00005, 0.0, 0.0002, 0.0)
+# ft_fun = PathFunction(:M, 0.0, ft)
+# # ft_fun = PathFunction(:M, 0.0, ft, :C, 0.0001, 0.2*ft, 0.0002, 0.0, 0.0003, 0.0)
+# # ft_fun = PathFunction(:M, 0.0, ft, :C, 0.0004, 0.2*ft, 0.0006, 0.0, 0.0009, 0.0)
+# ft_fun = PathFunction(:M, 0.0, ft, :C, 0.00002, 0.2*ft, 0.00005, 0.0, 0.0002, 0.0)
 
-p_fun = PathFunction(:M, 0.0, 2.5*fc)
-p_fun = PathFunction(:M, 0.0, 1.5*fc, :Q, 0, 1.9*fc, 0.004, 1.9*fc, :Q, 0.04, 2*fc, 0.04, 2.5*fc)
-# p_fun = PathFunction(:M, 0.0, 1.61*fc, :L, 0.004, 1.9*fc, :Q, 0.04, 2*fc, 0.04, 2.5*fc)
+# p_fun = PathFunction(:M, 0.0, 2.5*fc)
+# p_fun = PathFunction(:M, 0.0, 1.5*fc, :Q, 0, 1.9*fc, 0.004, 1.9*fc, :Q, 0.04, 2*fc, 0.04, 2.5*fc)
+# # p_fun = PathFunction(:M, 0.0, 1.61*fc, :L, 0.004, 1.9*fc, :Q, 0.04, 2*fc, 0.04, 2.5*fc)
 
 
 # fem domain
 mats = [
-       "solids" => MechSolid => CSCP => (E=30e6, nu=0.2, alpha=1.55, beta=1.14, fc=fc_fun, ft=ft_fun, pmin=p_fun)
+       "solids" => MechBulk => CSCP => (E=30e6, nu=0.2, alpha=0.666, beta=1.15, fc=fc, ft=ft, epsc=0.002, GF=0.1, wc=0.00005)
       ]
 
-ana = MechAnalysis()
-model = FEModel(msh, mats, ana)
+ctx = Context()
+model = FEModel(msh, mats, ctx)
+ana = MechAnalysis(model)
 
 loggers = [
            [0.05, 0.05, 0.05] => IpLogger("cscp.table")
           ]
-setloggers!(model, loggers)
+setloggers!(ana, loggers)
 
 mons = [
     [0.05, 0.05, 0.05] => IpMonitor(:(sxx, syy), stop=:( rho<0.3*rho_max))
     ]
-setmonitors!(model, mons)
+setmonitors!(ana, mons)
 
 
 θ = 225
@@ -72,12 +73,12 @@ while T<1.0
         ]
     end
 
-    addstage!(model, bcs)
-    res = solve!(model, autoinc=true, tol=0.01, rspan=0.02, dT0=dT0)
+    addstage!(ana, bcs)
+    res = solve!(ana, autoinc=true, tol=0.01, rspan=0.02, dT0=dT0)
     global dT0 = 0.05
 
-    sx = model.loggers[1].table[:σxx][end]
-    sy = model.loggers[1].table[:σyy][end]
+    sx = ana.loggers[1].table[:σxx][end]
+    sy = ana.loggers[1].table[:σyy][end]
     β  = (atand(sy, sx) + 360) % 360
 
     global T = T+ΔT
@@ -90,7 +91,7 @@ while T<1.0
 
     contains(res.message, "Stop") && break
     contains(res.message, "not converge") && break
-    
+
 end
 
 

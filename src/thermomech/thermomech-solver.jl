@@ -1,38 +1,38 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export ThermoAnalysis, ThermoMechAnalysis, ThermoContext, ThermoMechContext
+export ThermoAnalysis, ThermoMechAnalysis, ThermoContext, ThermoContext
 
 
 ThermoMechAnalysisContext_params = [
-    FunInfo(:ThermoMechContext, "Thermomechanical analysis context properties."),
+    FunInfo(:ThermoContext, "Thermomechanical analysis context properties."),
     KwArgInfo(:ndim, "Analysis dimension", 0),
-    KwArgInfo(:stressmodel, "Stress model", :d3, values=(:planestress, :planestrain, :axisymmetric, :d3, :none)),
+    KwArgInfo(:stress_state, "Stress model", :d3, values=(:plane_stress, :plane_strain, :axisymmetric, :d3, :none)),
     KwArgInfo(:g, "Gravity acceleration", 0.0, cond=:(g>=0)),
     KwArgInfo(:T0, "Reference temperature", 0.0, cond=:(T0>=-273.15)),
 ]
-@doc docstring(ThermoMechAnalysisContext_params) ThermoMechContext
+@doc docstring(ThermoMechAnalysisContext_params) ThermoContext
 
-mutable struct ThermoMechContext<:Context
-    stressmodel::Symbol # plane stress, plane strain, etc.
+mutable struct ThermoContext<:Context
+    stress_state::Symbol # plane stress, plane strain, etc.
     g::Float64 # gravity acceleration
     T0::Float64 # reference temperature
-    
+
     ndim     ::Int       # Analysis dimension
     thickness::Float64 # to be set after FEModel creation
 
-    function ThermoMechContext(; kwargs...)
+    function ThermoContext(; kwargs...)
         args = checkargs(kwargs, ThermoMechAnalysisContext_params)
         this = new()
-        
+
         # Analysis related
-        this.stressmodel = args.stressmodel
+        this.stress_state = args.stress_state
         this.ndim        = args.ndim
         this.g           = args.g
         return this
     end
 end
 
-const ThermoContext = ThermoMechContext
+const ThermoContext = ThermoContext
 
 
 # ThermomechAnalysis_params = [
@@ -42,7 +42,7 @@ const ThermoContext = ThermoMechContext
 
 mutable struct ThermoMechAnalysis<:TransientAnalysis
     model ::FEModel
-    ctx   ::ThermoMechContext
+    ctx   ::ThermoContext
     sctx  ::SolverContext
 
     stages  ::Array{Stage}
@@ -53,25 +53,25 @@ mutable struct ThermoMechAnalysis<:TransientAnalysis
         this = new(model, model.ctx)
         this.stages = []
         this.loggers = []
-        this.monitors = []  
+        this.monitors = []
         this.sctx = SolverContext()
-        
+
         this.sctx.outkey = outkey
         this.sctx.outdir = rstrip(outdir, ['/', '\\'])
         isdir(this.sctx.outdir) || mkdir(this.sctx.outdir) # create output directory if it does not exist
 
         model.ctx.thickness = model.thickness
-        if model.ctx.stressmodel==:none
+        if model.ctx.stress_state==:none
             if model.ctx.ndim==2
-                model.ctx.stressmodel = :planestrain
+                model.ctx.stress_state = :plane_strain
             else
-                model.ctx.stressmodel = :d3
+                model.ctx.stress_state = :d3
             end
         end
 
         return this
     end
-    
+
 end
 
 const ThermoAnalysis = ThermoMechAnalysis
@@ -181,17 +181,17 @@ function complete_ut_T(model::FEModel)
     T0 = model.ctx.T0
 
     for elem in model.elems
-        elem.shape.family==BULKCELL || continue
-        elem.shape==elem.shape.basic_shape && continue
+        elem.role==BULKCELL || continue
+        elem.shape==elem.shape.base_shape && continue
         npoints  = elem.shape.npoints
-        nbpoints = elem.shape.basic_shape.npoints
+        nbpoints = elem.shape.base_shape.npoints
         map = [ elem.nodes[i].id for i in 1:nbpoints ]
         Ute = Ut[map]
         C = elem.shape.nat_coords
         for i in nbpoints+1:npoints
             id = elem.nodes[i].id
             R = C[i,:]
-            N = elem.shape.basic_shape.func(R)
+            N = elem.shape.base_shape.func(R)
             Ut[id] = dot(N,Ute)
         end
     end
@@ -219,25 +219,25 @@ function solve!(ana::ThermoMechAnalysis; args...)
     args = checkargs(args, tm_solver_params)
     if !args.quiet
         printstyled("Solver for thermo-mechanical analyses", "\n", bold=true, color=:cyan)
-        println("  stress model: ", ana.ctx.stressmodel)
+        println("  stress model: ", ana.ctx.stress_state)
     end
 
-    status = stage_iterator!(tm_stage_solver!, ana; args...)
+    status = stage_iterator(tm_stage_solver!, ana; args...)
     return status
 end
 
 
 function tm_stage_solver!(ana::ThermoMechAnalysis, stage::Stage; args...)
     args = NamedTuple(args)
-    
-    tol     = args.tol      
-    ΔTmin   = args.dTmin    
-    ΔTmax   = args.dTmax   
-    rspan   = args.rspan    
-    scheme  = args.scheme   
-    maxits  = args.maxits 
-    autoinc = args.autoinc  
-    quiet   = args.quiet 
+
+    tol     = args.tol
+    ΔTmin   = args.dTmin
+    ΔTmax   = args.dTmax
+    rspan   = args.rspan
+    scheme  = args.scheme
+    maxits  = args.maxits
+    autoinc = args.autoinc
+    quiet   = args.quiet
 
     model = ana.model
     ctx = model.ctx
@@ -254,9 +254,9 @@ function tm_stage_solver!(ana::ThermoMechAnalysis, stage::Stage; args...)
     T0        = ctx.T0
     ftol      = tol
 
-    stressmodel = ctx.stressmodel
-    ctx.ndim==3 && @check stressmodel==:d3
-    
+    stress_state = ctx.stress_state
+    ctx.ndim==3 && @check stress_state==:d3
+
 
     # Get active elements
     for elem in stage.toactivate
@@ -265,7 +265,7 @@ function tm_stage_solver!(ana::ThermoMechAnalysis, stage::Stage; args...)
     active_elems = filter(elem -> elem.active, model.elems)
 
     # Get dofs organized according to boundary conditions
-    dofs, nu = configure_dofs!(model, stage.bcs) # unknown dofs first
+    dofs, nu = configure_dofs(model, stage.bcs) # unknown dofs first
     ndofs    = length(dofs)
     umap     = 1:nu         # map for unknown bcs
     pmap     = nu+1:ndofs   # map for prescribed bcs
@@ -394,7 +394,7 @@ function tm_stage_solver!(ana::ThermoMechAnalysis, stage::Stage; args...)
             failed(sysstatus) && (syserror=true; break)
             copyto!.(State, StateBk)
             ΔUt = ΔUa + ΔUitr
-            ΔFin, sysstatus = update_state!(active_elems, ΔUt, Δt)
+            ΔFin, sysstatus = update_state(active_elems, ΔUt, Δt)
             failed(sysstatus) && (syserror=true; break)
 
             # Corrector step
@@ -409,7 +409,7 @@ function tm_stage_solver!(ana::ThermoMechAnalysis, stage::Stage; args...)
                 failed(sysstatus) && (syserror=true; break)
                 copyto!.(State, StateBk)
                 ΔUt   = ΔUa + ΔUi
-                ΔFin, sysstatus = update_state!(active_elems, ΔUt, Δt)
+                ΔFin, sysstatus = update_state(active_elems, ΔUt, Δt)
                 failed(sysstatus) && (syserror=true; break)
             end
 

@@ -10,7 +10,7 @@ function Base.copy(cmd::PathFunCmd)
     return newcmd
 end
 
-function (cmd::PathFunCmd)(t::Float64) 
+function (cmd::PathFunCmd)(t::Float64)
     if cmd.key==:M
         return cmd.points[1]
     elseif cmd.key==:L
@@ -64,7 +64,7 @@ function find_t(cmd::PathFunCmd, x::Real)
 
         f(t) = (1-t)^3*x1 + 3*(1-t)^2*t*x2 + 3*(1-t)*t^2*x3 + t^3*x4 - x
         df(t) = 3*(1-t)^2*(x2-x1) + 6*(1-t)*t*(x3-x2) + 3*t^2*(x4-x3)
-    
+
         tol = 0.001
         maxits = 10
         t = (x-x1)/(x4-x1)
@@ -97,7 +97,7 @@ function interpolate(cmd::PathFunCmd, x::Real)
         t = find_t(cmd, x)
 
         return (1-t)^2*y1 + 2*(1-t)*t*y2 + t^2*y3
-        
+
     elseif cmd.key==:C
         x1, y1 = cmd.points[1]
         x2, y2 = cmd.points[2]
@@ -123,7 +123,7 @@ function derive(cmd::PathFunCmd, x::Real)
     elseif cmd.key==:L
         x1, y1 = cmd.points[1]
         x2, y2 = cmd.points[2]
-        
+
         return (y2-y1)/(x2-x1)
     elseif cmd.key==:Q
         x1, y1 = cmd.points[1]
@@ -133,7 +133,7 @@ function derive(cmd::PathFunCmd, x::Real)
         t = find_t(cmd, x)
         dydt = 2*(1-t)*(y2-y1) + 2*t*(y3-y2)
         dxdt = 2*(1-t)*(x2-x1) + 2*t*(x3-x2)
-        
+
         return dydt/dxdt
     elseif cmd.key==:C
         x1, y1 = cmd.points[1]
@@ -144,7 +144,7 @@ function derive(cmd::PathFunCmd, x::Real)
         t = find_t(cmd, x)
         dydt = 3*(1-t)^2*(y2-y1) + 6*(1-t)*t*(y3-y2) + 3*t^2*(y4-y3)
         dxdt = 3*(1-t)^2*(x2-x1) + 6*(1-t)*t*(x3-x2) + 3*t^2*(x4-x3)
-        
+
         return dydt/dxdt
     else
         error("Invalid command key $(cmd.key)")
@@ -159,6 +159,10 @@ struct PathFunction
 
     function PathFunction()
         return new(Vector{PathFunCmd}())
+    end
+
+    function PathFunction(cmds::Vector{PathFunCmd})
+        return new(cmds)
     end
 
     function PathFunction(list::Union{Symbol, Real}...)
@@ -188,16 +192,16 @@ end
 
 function Base.append!(f::PathFunction, list::Union{Symbol, Real}...)
     n   = length(list)
-    
+
     local lastpoint
     if length(f.cmds)==0
         list[1]==:M || error("PathFunction: First command must be :M")
     else
         lastpoint = f.cmds[end].points[end]
     end
-    
+
     idx = 1
-    while idx<=n 
+    while idx<=n
         key = list[idx]
         if key==:M
             n>=idx+2 || error("PathFunction: M command requires at least two numbers")
@@ -259,7 +263,7 @@ end
 # function set_extreme_points(path::PathFunction)
 #     p_start = path.cmds[1].points[1]
 #     p_end = path.cmds[end].points[end]
-    
+
 #     if p_start[1] < p_end[1]
 #         path.p_left = p_start
 #         path.p_right = p_end
@@ -292,7 +296,7 @@ function interpolate(path::PathFunction, x::Real)
         end
     end
 
-    # interpolate 
+    # interpolate
     return interpolate(cmd, x)
 
 end
@@ -319,13 +323,13 @@ function derive(path::PathFunction, x::Real)
         end
     end
 
-    # interpolate 
+    # interpolate
     return derive(cmd, x)
 
 end
 
 Base.show(io::IO, obj::PathFunction) = _show(io, obj, 4, "")
-    
+
 
 # F = PathFunction(:M, 0, 0, :Q, 0.4, 1, 1, 1 )
 # F = PathFunction(:M, 0, 0, :Q, 0.5, 1, 1, 1, :C, 1.3, 1, 1.5, 0, 2, 0, :L, 3, 1 )
@@ -334,7 +338,7 @@ Base.show(io::IO, obj::PathFunction) = _show(io, obj, 4, "")
 # @show derive(F, 2.5)
 
 
-# using Amaru
+# using Serendip
 
 # chart = Chart()
 
@@ -342,9 +346,9 @@ Base.show(io::IO, obj::PathFunction) = _show(io, obj, 4, "")
 # Y = [ interpolate(F, x) for x in X ]
 # D = [ derive(F, x) for x in X ]
 
-# series = [ 
-#     LineSeries(X, Y)
-#     LineSeries(X, D)
+# series = [
+#     DataSeries(X, Y)
+#     DataSeries(X, D)
 #  ]
-# addseries!(chart, series)
+# add_series(chart, series)
 # save(chart, "chart.pdf")

@@ -1,9 +1,9 @@
-using Amaru
+using Serendip
 
 # Mesh generation
 
 blocks = [
-    Block( [0 0 0; 0.2 2.0 0.2], nx=1, ny=10, nz=1, cellshape=HEX8, tag="solids"),
+    Block( [0 0 0; 0.2 2.0 0.2], nx=1, ny=10, nz=1, shape=HEX8, tag="solids"),
 ]
 
 mesh = Mesh(blocks)
@@ -11,10 +11,10 @@ mesh = Mesh(blocks)
 # Model definition
 
 materials = [
-    "solids" => MechSolid => LinearElastic => (E=30e6, nu=0.2, rho=24.0)
+    "solids" => MechBulk => LinearElastic => (E=30e6, nu=0.2, rho=24.0)
 ]
 
-ctx = MechContext()
+ctx = Context()
 model = FEModel(mesh, materials, ctx)
 ana = DynAnalysis(model)
 

@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export LinDrainPipe
 
@@ -40,7 +40,7 @@ compat_state_type(::Type{LinDrainPipe}, ::Type{DrainPipe}, ctx::Context) = LinDr
 # compat_elem_types(::Type{LinDrainPipe}) = (DrainPipe,)
 
 
-function update_state!(mat::LinDrainPipe, state::LinDrainPipeState, Δuw::Float64, G::Float64, Δt::Float64)
+function update_state(mat::LinDrainPipe, state::LinDrainPipeState, Δuw::Float64, G::Float64, Δt::Float64)
     k = mat.k
     state.V  = -k*G
     state.D  += state.V*Δt
@@ -49,7 +49,7 @@ function update_state!(mat::LinDrainPipe, state::LinDrainPipeState, Δuw::Float6
 end
 
 
-function ip_state_vals(mat::LinDrainPipe, state::LinDrainPipeState)
+function state_values(mat::LinDrainPipe, state::LinDrainPipeState)
     return OrderedDict(
       :va => state.V,
       :uwa => state.uw)

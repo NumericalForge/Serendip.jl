@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export ElasticShellThermo
 
@@ -40,7 +40,7 @@ mutable struct ElasticShellThermo<:Material
 
     function ElasticShellThermo(; args...)
         args = checkargs(args, ElasticShellThermo_params)
-        
+
         return new(args.E, args.nu, args.k, args.cv, args.alpha)
     end
 end
@@ -59,7 +59,7 @@ function calc_α(mat::ElasticShellThermo, ut::Float64)
 end
 
 function calcD(mat::ElasticShellThermo, state::ElasticShellThermoState)
-    return calcDe(mat.E, mat.ν, :planestress)
+    return calcDe(mat.E, mat.ν, :plane_stress)
 end
 
 
@@ -72,8 +72,8 @@ function calcK(mat::ElasticShellThermo, state::ElasticShellThermoState) # Therma
 end
 
 
-function update_state!(mat::ElasticShellThermo, state::ElasticShellThermoState, Δε::Array{Float64,1}, Δut::Float64, G::Array{Float64,1}, Δt::Float64)
-    De = calcDe(mat.E, mat.ν, :planestress)
+function update_state(mat::ElasticShellThermo, state::ElasticShellThermoState, Δε::Array{Float64,1}, Δut::Float64, G::Array{Float64,1}, Δt::Float64)
+    De = calcDe(mat.E, mat.ν, :plane_stress)
     Δσ = De*Δε
     state.ε  += Δε
     state.σ  += Δσ
@@ -86,7 +86,7 @@ function update_state!(mat::ElasticShellThermo, state::ElasticShellThermoState, 
 end
 
 
-function ip_state_vals(mat::ElasticShellThermo, state::ElasticShellThermoState)
-    D = stress_strain_dict(state.σ, state.ε, state.ctx.stressmodel)
+function state_values(mat::ElasticShellThermo, state::ElasticShellThermoState)
+    D = stress_strain_dict(state.σ, state.ε, state.ctx.stress_state)
     return D
 end

@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 using Test
 
 coord = [ 0. 0.; 1. 0. ]

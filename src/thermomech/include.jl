@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 include("elem/thermomech.jl")
 export elem_config_dofs, elem_init, elem_stiffness, update_elem!, elem_vals

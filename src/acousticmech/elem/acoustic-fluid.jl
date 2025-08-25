@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export AcousticFluid
 
@@ -17,7 +17,7 @@ struct AcousticFluidProps<:ElemProperties
     function AcousticFluidProps(; kwargs...)
         args = checkargs(kwargs, AcousticFluid_params)
         return new(args.rho, args.c)
-    end    
+    end
 end
 
 
@@ -31,7 +31,7 @@ mutable struct AcousticFluid<:AcousticMech
     mat   ::Material
     props ::AcousticFluidProps
     active::Bool
-    linked_elems::Array{Element,1}
+    couplings::Array{Element,1}
     ctx::Context
 
     function AcousticFluid()
@@ -39,7 +39,7 @@ mutable struct AcousticFluid<:AcousticMech
     end
 end
 
-compat_shape_family(::Type{AcousticFluid}) = BULKCELL
+compat_role(::Type{AcousticFluid}) = BULKCELL
 compat_elem_props(::Type{AcousticFluid}) = AcousticFluidProps
 
 
@@ -51,7 +51,7 @@ end
 
 
 function elem_init(elem::AcousticFluid)
-    
+
 end
 
 
@@ -65,13 +65,13 @@ function elem_acoustic_stiffness(elem::AcousticFluid)
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
-    C      = getcoords(elem)
+    C      = get_coords(elem)
     K      = zeros(nnodes, nnodes)
     dNdX   = zeros(nnodes, ndim) # cartesian derivatives
     J      = Array{Float64}(undef, ndim, ndim) # Jacobian
 
     for ip in elem.ips
-        elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+        elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
 
         dNdR = elem.shape.deriv(ip.R)
         @mul J  = C'*dNdR
@@ -82,7 +82,7 @@ function elem_acoustic_stiffness(elem::AcousticFluid)
 
         coef = detJ*ip.w*th
 
-        # @mul 
+        # @mul
         K += coef*Bp'*Bp
     end
 
@@ -92,18 +92,18 @@ function elem_acoustic_stiffness(elem::AcousticFluid)
     return K, map, map
 end
 
-         
+
 function elem_acoustic_mass(elem::AcousticFluid)
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
-    C      = getcoords(elem)
+    C      = get_coords(elem)
     M      = zeros(nnodes, nnodes)
     J      = Array{Float64}(undef, ndim, ndim)
     c      = elem.props.c # sound speed
 
     for ip in elem.ips
-        elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+        elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
 
         N    = elem.shape.func(ip.R)
         dNdR = elem.shape.deriv(ip.R)
@@ -131,7 +131,7 @@ function update_elem!(elem::AcousticFluid, DU::Array{Float64,1}, Δt::Float64)
 
     map_p  = [ node.dofdict[:up].eq_id for node in elem.nodes ]
 
-    C   = getcoords(elem)
+    C   = get_coords(elem)
 
     dP = DU[map_p] # nodal pore-pressure increments
     P  = [ node.dofdict[:up].vals[:up] for node in elem.nodes ]
@@ -152,7 +152,7 @@ function update_elem!(elem::AcousticFluid, DU::Array{Float64,1}, Δt::Float64)
     # dNdX = Array{Float64}(undef, nnodes, ndim)
 
     # for ip in elem.ips
-    #     elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+    #     elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
 
     #     # compute Bu matrix
     #     N    = elem.shape.func(ip.R)
@@ -164,9 +164,9 @@ function update_elem!(elem::AcousticFluid, DU::Array{Float64,1}, Δt::Float64)
 
     #     Δuw = N'*dUp # interpolation to the integ. point
 
-    #     V = update_state!(elem.mat, ip.state, Δuw, G, Δt)
+    #     V = update_state(elem.pmodel, ip.state, Δuw, G, Δt)
 
-    #     coef  = elem.mat.S
+    #     coef  = elem.pmodel.S
     #     coef *= detJ*ip.w*th
     #     dFw  -= coef*N*Δuw
 

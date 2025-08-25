@@ -1,23 +1,28 @@
 mutable struct Stage
     id          ::Int
-    "boundary conditions"
+    name        ::String
     bcs         ::AbstractArray
     nincs       ::Int
     nouts       ::Int
     tspan       ::Float64
-    toactivate  ::Array{<:Element,1}
-    todeactivate::Array{<:Element,1}
-    status      ::Symbol # :pending, :solving, :done, :error
+    activate  ::Vector{Element}
+    deactivate::Vector{Element}
+    status      ::Symbol # :idle, :pending, :solving, :done, :error
+    analysis    ::Analysis
 
-    function Stage(bcs         ::AbstractArray;
+    function Stage(name::String="";
+                    # bcs       ::Vector{BoundaryCondition}=BoundaryCondition[];
                    nincs       ::Int     = 1,
                    nouts       ::Int     = 0,
-                   tspan       ::Number  = 0.0,
-                   toactivate  ::Array{<:Element,1}=Element[],
-                   todeactivate::Array{<:Element,1}=Element[],
+                   tspan       ::Real  = 0.0,
+                   activate  ::Vector{<:Element}=Element[],
+                   deactivate::Vector{<:Element}=Element[],
     )
         @check nincs>0
         @check nouts>=0
-        return new(-1, bcs, nincs, nouts, tspan, toactivate, todeactivate, :pending)
+        bcs = BoundaryCondition[]
+        return new(-1, name, bcs, nincs, nouts, tspan, activate, deactivate, :idle)
     end
 end
+
+Base.show(io::IO, obj::Stage) = _show(io, obj, 2, "")

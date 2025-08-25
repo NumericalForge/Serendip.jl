@@ -1,4 +1,4 @@
-using Amaru, Test
+using Serendip, Test
 
 # 2D unstructured mesh
 geo = GeoModel()
@@ -39,29 +39,29 @@ meshes = [ mesh1, mesh2 ]
 
 # FE analysis
 mats = [
-    :bulks => MechSolid => LinearElastic => (E=1e2, nu=0.499)
+    :bulks => MechBulk => LinearElastic => (E=1e2, nu=0.499)
 ]
 
-ctx = MechContext()
+ctx = Context()
 results = []
 for mesh in [mesh1, mesh2]
     model = FEModel(mesh, mats, ctx)
     ana = MechAnalysis(model)
-    
+
     log = NodeLogger()
     addlogger!(ana, :(x==0.5 && y==1) => log )
-    
+
     bcs = [
         :(y==0) => NodeBC(uy=0)
         :(x==0 && y==0) => NodeBC(ux=0)
         :(y==1) => SurfaceBC(ty=-1)
     ]
-    
+
     addstage!(ana, bcs)
     solve!(ana)
 
     push!(results, log.table.uy[end])
 
-end    
+end
 
 println(@test results[1] ≈ results[2] atol=1e-7)

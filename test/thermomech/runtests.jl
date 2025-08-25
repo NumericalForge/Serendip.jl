@@ -1,6 +1,6 @@
-using Amaru
+using Serendip
 
-@runfiles [    
+@runfiles [
          "thermo.jl",
          "thermomech.jl",
          "tm-shell.jl",

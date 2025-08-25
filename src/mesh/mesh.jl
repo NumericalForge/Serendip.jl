@@ -1,28 +1,27 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
 mutable struct Mesh<:AbstractDomain
-    nodes::Array{Node,1} 
+    nodes::Array{Node,1}
     elems::Array{Cell,1}
     faces::Array{Cell,1}
     edges::Array{Cell,1}
     node_data::OrderedDict{String,Array}
     elem_data ::OrderedDict{String,Array}
-    ctx::MeshEnv
+    ctx::MeshContext
 
     _pointdict::Dict{UInt64,Node}
     _elempartition::ElemPartition
 
-    function Mesh(ndim=0)
+    function Mesh(ndim::Integer=0)
         this = new()
         this.nodes = []
         this.elems  = []
         this.faces  = []
         this.edges  = []
-        # this.ndim   = 0
         this.node_data = OrderedDict()
         this.elem_data = OrderedDict()
-        this.ctx = MeshEnv(ndim)
+        this.ctx = MeshContext(ndim)
         this._pointdict = Dict{UInt64, Node}()
         this._elempartition = ElemPartition()
         return this
@@ -44,21 +43,21 @@ function Base.copy(mesh::AbstractDomain)
     for elem in mesh.elems
         idxs = [ node.id for node in elem.nodes ]
         newelemnodes = newmesh.nodes[idxs]
-        newelem = Cell(elem.shape, newelemnodes, tag=elem.tag, id=elem.id, active=elem.active)
+        newelem = Cell(elem.shape, elem.role, newelemnodes, tag=elem.tag, id=elem.id, active=elem.active)
         push!(newmesh.elems, newelem)
     end
 
-    compute_facets!(newmesh)
-    
+    compute_facets(newmesh)
+
     newmesh._pointdict = Dict( hash(node) => node for node in newmesh.nodes )
     newmesh.node_data = copy(mesh.node_data)
     newmesh.elem_data = copy(mesh.elem_data)
-    
+
     # fixing references for linked elements #todo check
     for elem in newmesh.elems
-        if length(elem.linked_elems)>0
-            idxs = [ e.id for e in elem.linked_elems ]
-            elem.linked_elems = newmesh.elems[idxs]
+        if length(elem.couplings)>0
+            idxs = [ e.id for e in elem.couplings ]
+            elem.couplings = newmesh.elems[idxs]
         end
     end
 
@@ -89,7 +88,6 @@ function get_outer_facets_by_id(cells::Array{<:AbstractCell,1})
     # face_d = OrderedDict{UInt64, Cell}()
     face_d = Dict()
     hash1(edge) = sort([ n.id for n in edge.nodes ])
-    @show "hiiiii"
 
     # Get only unique faces. If dup, original and dup are deleted
     for cell in cells
@@ -107,12 +105,12 @@ function get_outer_facets_by_id(cells::Array{<:AbstractCell,1})
 end
 
 
-function getedges(surf_cells::Array{<:AbstractCell,1})
+function get_edges(surf_cells::Array{<:AbstractCell,1})
     edges_dict = Dict{UInt64, Cell}()
 
     # Get only unique edges
     for cell in surf_cells
-        for edge in getedges(cell)
+        for edge in get_edges(cell)
             edge.owner = cell.owner
             edges_dict[hash(edge)] = edge
         end
@@ -165,8 +163,8 @@ function sortnodes!(mesh::Mesh; sort_degrees=true, reversed=true)
     for cell in mesh.elems
 
         # adding cell edges
-        if cell.shape.family == BULKCELL #is_solid(cell.shape)
-            for edge in getedges(cell)
+        if cell.role == :bulk
+            for edge in get_edges(cell)
                 push!(all_edges, edge)
             end
 
@@ -186,25 +184,25 @@ function sortnodes!(mesh::Mesh; sort_degrees=true, reversed=true)
             continue
         end
 
-        # joint1D cells (semi-embedded approach)
-        if cell.shape in (JLINK2, JLINK3)
+        # line interface
+        if cell.role == :line_interface
             npts = cell.shape.npoints
-            edge = Cell(POLYVERTEX, [ cell.nodes[1]; cell.nodes[end-npts+1:end] ])
+            edge = Cell(POLYVERTEX, :line_interface, [ cell.nodes[1]; cell.nodes[end-npts+1:end] ])
             push!(all_edges, edge)
             continue
         end
 
         # embedded line cells
-        if cell.shape.family == LINECELL && length(cell.linked_elems)>0
-            edge1 = Cell(cell.shape, cell.nodes)
-            edge2 = Cell(LIN2, [ cell.nodes[1], cell.linked_elems[1].nodes[1] ])
+        if cell.role == :line && length(cell.couplings)>0
+            edge1 = Cell(cell.shape, cell.role, cell.nodes)
+            edge2 = Cell(LIN2, cell.role, [ cell.nodes[1], cell.couplings[1].nodes[1] ])
             push!(all_edges, edge1)
             push!(all_edges, edge2)
             continue
         end
 
         # all other cells
-        edge = Cell(cell.shape, cell.nodes)
+        edge = Cell(cell.shape, :line, cell.nodes)
         push!(all_edges, edge)
 
     end
@@ -213,7 +211,6 @@ function sortnodes!(mesh::Mesh; sort_degrees=true, reversed=true)
     nnodes = length(mesh.nodes)
     neighs_ids = Array{Int64}[ [] for i in 1:nnodes ]
 
-    # for edge in values(all_edges)
     for edge in all_edges
         nodes = edge.nodes
         np = length(nodes)
@@ -315,19 +312,27 @@ function update_quality!(mesh::Mesh)
 end
 
 
-function compute_facets!(mesh::Mesh)
+function compute_facets(mesh::Mesh)
+
     if mesh.ctx.ndim==2
         mesh.edges = get_outer_facets(mesh.elems)
         mesh.faces = mesh.edges
     elseif mesh.ctx.ndim==3
         solids = filter( elem->elem.shape.ndim==3, mesh.elems )
-        planars = filter( elem->elem.shape.ndim==2 && elem.shape.family==BULKCELL, mesh.elems )
-        for cell in planars # TODO: fix for BC in shells
+        surfaces = filter( elem-> elem.role==:surface || (elem.shape.ndim==2 && elem.role==:bulk), mesh.elems )
+        for cell in surfaces
             cell.owner = cell # set itself as owner
         end
-        mesh.faces = [ get_outer_facets(solids); planars ]
-        mesh.edges = getedges(mesh.faces)
+        mesh.faces = [ get_outer_facets(solids); surfaces ]
+        mesh.edges = get_edges(mesh.faces)
     end
+
+    # add line elements as edges
+    lines = filter( elem->elem.role==:line, mesh.elems )
+    for line in lines
+        line.owner = line # set itself as owner
+    end
+    append!(mesh.edges, lines)
 end
 
 
@@ -344,9 +349,15 @@ function synchronize!(mesh::Mesh; sortnodes=false, cleandata=false)
 
     mesh.ctx.ndim = max(ndim, mesh.ctx.ndim)
 
+    # check if there is a 3d surface
+    if mesh.ctx.ndim==2 && any( elem.role==:surface for elem in mesh.elems )
+        notify("synchronize!: 2D mesh with surface elements detected. Converting to 3D mesh.")
+        mesh.ctx.ndim = 3
+    end
+
     # Numberig nodes
-    for (i,p) in enumerate(mesh.nodes) 
-        p.id = i 
+    for (i,p) in enumerate(mesh.nodes)
+        p.id = i
     end
 
     # Numberig cells and setting ctx
@@ -356,7 +367,7 @@ function synchronize!(mesh::Mesh; sortnodes=false, cleandata=false)
     end
 
     # Faces and edges
-    compute_facets!(mesh)
+    compute_facets(mesh)
 
     # Quality
     Q = Float64[]
@@ -377,12 +388,12 @@ function synchronize!(mesh::Mesh; sortnodes=false, cleandata=false)
     # tag
     # tags = sort(unique([elem.tag for elem in mesh.elems]))
     # tag_dict = Dict( tag=>i-1 for (i,tag) in enumerate(tags) )
-    
+
     mesh.node_data["node-id"]   = collect(1:length(mesh.nodes))
     mesh.elem_data["quality"]   = Q
     mesh.elem_data["elem-id"]   = collect(1:length(mesh.elems))
     mesh.elem_data["cell-type"] = [ Int(cell.shape.vtk_type) for cell in mesh.elems ]
-    
+
     # tag
     # tags  = collect(Set(elem.tag for elem in mesh.elems))
     # tag_d = Dict( tag=>i for (i,tag) in enumerate(tags) )
@@ -411,7 +422,7 @@ function join_mesh!(mesh::Mesh, m2::Mesh)
     for m in (mesh, m2)
         for node in m.nodes
             pointdict[hash(node)] = node
-        end    
+        end
     end
     nodes = collect(values(pointdict))
 
@@ -442,7 +453,7 @@ end
 
 
 """
-    $(SIGNATURES)
+    Mesh(coordinates, connectivities, cellshapes=CellShape[]; tag="", quiet=true)
 
 Creates a `Mesh` from a nodal `coordinates` matrix,
 an array of `connectivities` and a list of `cellshapes`.
@@ -450,9 +461,9 @@ If `cellshapes` are not provided, they are guessed based on the geometry.
 A `tag` string for all generated cells can be provided optionally.
 
 # Examples
-    
+
 ```jldoctest
-julia> using Amaru;
+julia> using Serendip;
 julia> C = [ 0 0; 1 0; 1 1; 0 1 ];
 julia> L = [ [ 1, 2, 3 ], [ 1, 3, 4 ] ];
 julia> S = [ TRI3, TRI3 ];
@@ -488,15 +499,15 @@ Mesh
 """
 function Mesh(
               coordinates::Array{<:Real},
-              conns      ::Array{Array{Int64,1},1},
+              connectivities::Array{Array{Int64,1},1},
               cellshapes ::Array{CellShape,1}=CellShape[];
               tag        ::String="",
-              quiet      ::Bool=true,
+              quiet      ::Bool=false,
              )
-    
+
 
     n = size(coordinates, 1) # number of nodes
-    m = size(conns , 1) # number of cells
+    m = size(connectivities , 1) # number of cells
 
     nodes = Node[]
     for i in 1:n
@@ -506,21 +517,23 @@ function Mesh(
 
     # Get ndim
     ndim = size(coordinates,2)
-    ctx  = MeshEnv(ndim)
+    ctx  = MeshContext(ndim)
 
     cells = Cell[]
     for i in 1:m
-        pts = nodes[conns[i]]
+        pts = nodes[connectivities[i]]
         if length(cellshapes)>0
             shape = cellshapes[i]
         else
             shape = get_shape_from_ndim_npoints(length(pts), ndim)
         end
-        cell = Cell(shape, pts, tag=tag, ctx=ctx)
+        role = shape in (LIN2, LIN3, LIN4) ? :line : :bulk
+        cell = Cell(shape, role, pts, tag=tag, ctx=ctx)
         push!(cells, cell)
     end
 
-    mesh = Mesh(ndim)
+    mesh = Mesh()
+    mesh.ctx.ndim = ndim
     mesh.nodes = nodes
     mesh.elems = cells
     synchronize!(mesh, sortnodes=false) # no node ordering
@@ -596,50 +609,50 @@ function Mesh(elems::Vector{Cell})
 end
 
 
-function Base.getindex(mesh::Mesh, filter::Union{String,Expr,Symbol,Symbolic,CellFamily,CellShape})
-    elems = mesh.elems[filter]
-    length(elems)==0 && return Mesh()
+# function Base.getindex(mesh::Mesh, filter::Union{String,Expr,Symbol,Symbolic,CellFamily,CellShape})
+#     elems = mesh.elems[filter]
+#     length(elems)==0 && return Mesh()
 
-    # newnodes
-    nodes    = [ node for elem in elems for node in elem.nodes ]
-    nodes_d  = Dict{Int,Node}( node.id => copy(node) for node in nodes )
-    newnodes = collect(values(nodes_d))
-    node_ids = collect(keys(nodes_d))
-    ndim     = any( node.coord[3] != 0.0 for node in newnodes ) ? 3 : 2
+#     # newnodes
+#     nodes    = [ node for elem in elems for node in elem.nodes ]
+#     nodes_d  = Dict{Int,Node}( node.id => copy(node) for node in nodes )
+#     newnodes = collect(values(nodes_d))
+#     node_ids = collect(keys(nodes_d))
+#     ndim     = any( node.coord[3] != 0.0 for node in newnodes ) ? 3 : 2
 
-    # copy elements
-    newelems = Cell[]
-    for elem in elems
-        elem_nodes = Node[ nodes_d[node.id] for node in elem.nodes ]
-        newelem    = Cell(elem.shape, elem_nodes, tag=elem.tag)
-        push!(newelems, newelem)
-    end
-    
-    # create new mesh
-    newmesh       = Mesh(ndim)
-    newmesh.nodes = newnodes
-    newmesh.elems = newelems
+#     # copy elements
+#     newelems = Cell[]
+#     for elem in elems
+#         elem_nodes = Node[ nodes_d[node.id] for node in elem.nodes ]
+#         newelem    = Cell(elem.shape, elem_nodes, tag=elem.tag)
+#         push!(newelems, newelem)
+#     end
 
-    # update node fields
-    for (key, data) in mesh.node_data
-        sz = size(data)
-        if length(sz)==1
-            newmesh.node_data[key] = data[node_ids]
-        else
-            newmesh.node_data[key] = data[node_ids,:]
-        end
-    end
-    
-    # update elem fields
-    elem_ids = [ elem.id for elem in elems ]
-    for (key, data) in mesh.elem_data
-        newmesh.elem_data[key] = data[elem_ids]
-    end
+#     # create new mesh
+#     newmesh       = Mesh(ndim)
+#     newmesh.nodes = newnodes
+#     newmesh.elems = newelems
 
-    synchronize!(newmesh, sortnodes=true)
+#     # update node fields
+#     for (key, data) in mesh.node_data
+#         sz = size(data)
+#         if length(sz)==1
+#             newmesh.node_data[key] = data[node_ids]
+#         else
+#             newmesh.node_data[key] = data[node_ids,:]
+#         end
+#     end
 
-    return newmesh
-end
+#     # update elem fields
+#     elem_ids = [ elem.id for elem in elems ]
+#     for (key, data) in mesh.elem_data
+#         newmesh.elem_data[key] = data[elem_ids]
+#     end
+
+#     synchronize!(newmesh, sortnodes=true)
+
+#     return newmesh
+# end
 
 
 function threshold(mesh::Mesh, field::Union{Symbol,String}, minval::Float64, maxval::Float64)
@@ -665,7 +678,7 @@ function threshold(mesh::Mesh, field::Union{Symbol,String}, minval::Float64, max
     end
 
     # get nodes
-    nodes = getnodes(cells)
+    nodes = get_nodes(cells)
 
     # ids from selected cells and nodes
     cids = [ c.id for c in cells ]
@@ -707,7 +720,7 @@ function get_segment_data(msh::AbstractDomain, X1::Array{<:Real,1}, X2::Array{<:
         X = X1 + Δ*(i-1)
         s = s1 + Δs*(i-1)
         cell = find_elem(X, msh.elems, msh._elempartition, 1e-7, Cell[])
-        coords =getcoords(cell)
+        coords =get_coords(cell)
         R = inverse_map(cell.shape, coords, X)
         N = cell.shape.func(R)
         map = [ p.id for p in cell.nodes ]
@@ -725,18 +738,18 @@ function get_segment_data(msh::AbstractDomain, X1::Array{<:Real,1}, X2::Array{<:
 end
 
 export randmesh
-function randmesh(n::Int...; cellshape=nothing)
+function randmesh(n::Int...; shape=nothing)
     ndim = length(n)
     if ndim==2
         lx, ly = (1.0, 1.0)
         nx, ny = n
-        isnothing(cellshape) && (cellshape=rand((TRI3, TRI6, QUAD4, QUAD8)))
-        m = Mesh(Block([0.0 0.0; lx ly], nx=nx, ny=ny, cellshape=cellshape), quiet=true)
+        isnothing(cellshape) && (shape=rand((TRI3, TRI6, QUAD4, QUAD8)))
+        m = Mesh(Block([0.0 0.0; lx ly], nx=nx, ny=ny, shape=cellshape), quiet=true)
     else
         lx, ly, lz = (1.0, 1.0, 1.0)
         nx, ny, nz = n
-        isnothing(cellshape) && (cellshape=rand((TET4, TET10, HEX8, HEX20)))
-        m = Mesh(Block([0.0 0.0 0.0; lx ly lz], nx=nx, ny=ny, nz=nz, cellshape=cellshape), quiet=true)
+        isnothing(cellshape) && (shape=rand((TET4, TET10, HEX8, HEX20)))
+        m = Mesh(Block([0.0 0.0 0.0; lx ly lz], nx=nx, ny=ny, nz=nz, shape=cellshape), quiet=true)
     end
 end
 

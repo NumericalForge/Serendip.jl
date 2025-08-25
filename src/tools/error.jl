@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export @check
 
@@ -19,75 +19,77 @@ export stop
 stop(text="Stop") = throw(StopException(text))
 
 
-
-mutable struct AmaruException <: Exception
+mutable struct SerendipException <: Exception
     message::String
 end
 
-Base.showerror(io::IO, e::AmaruException) = printstyled(io, "AmaruException: ", e.message, "\n", color=:red)
+Base.showerror(io::IO, e::SerendipException) = printstyled(io, "SerendipException: ", e.message, "\n", color=:red)
 
-mutable struct PropertyException <: Exception
-    message::String
-end
+# mutable struct PropertyException <: Exception
+#     message::String
+# end
 
-Base.showerror(io::IO, e::PropertyException) = print(io, "PropertyException: ", e.message)
+# Base.showerror(io::IO, e::PropertyException) = print(io, "PropertyException: ", e.message)
 
 
-macro check(expr, exception=ArgumentError, args...)
-    exprs = replace(string(expr), " "=>"")
-    vars = getvars(expr)
+macro check(expr, args...)
+    exception = ArgumentError
+    if length(args)==0
+        msg = "Condition `$expr` is not satisfied"
+    elseif length(args)==1
+        if args[1] isa Exception
+            exception = args[1]
+        else
+            msg = args[1]
+        end
+    elseif length(args)==2
+        exception = args[1]
+        msg = args[2]
+    else
+        error("Invalid number of arguments for @check macro. Expected 0, 1, or 2 arguments, got $(length(args))")
+    end
+
+    # expr = replace(string(expr), " "=>"")
 
     return quote
         if !$(esc(expr)) # Eval boolean expression
-            if $exception==ArgumentError
-
-                # Get function name
-                st = stacktrace(backtrace())
-                fname = :_
-                for frame in st
-                    if !startswith(string(frame.func), "_") && frame.func!=Symbol("macro expansion")
-                        fname = frame.func
-                        break
-                    end
+            # Get function name
+            st = stacktrace(backtrace())
+            fname = :_
+            for frame in st
+                if !startswith(string(frame.func), "_") && frame.func!=Symbol("macro expansion")
+                    fname = frame.func
+                    break
                 end
-
-                # Prepare message
-                if length($vars)==1
-                    prm = $(string(vars[1]))
-                    val = $(esc(vars[1]))
-                    msg = "Invalid value for $prm which must satisfy $($(exprs)). Got $prm = $val"
-                else
-                    prms = $(join(vars, ", ", " and "))
-                    msg = "Arguments $prms must satisfy $($(exprs))"
-                end
-
-                fname != "" && (msg="$fname: $msg")
-                throw($(exception)(msg, $(args)...))
-            else
-                throw($(exception)($(args)...))
             end
+
+            # msg = $(esc(msg))
+            # msg = repr(begin local value = $(esc(msg)) end)
+            msg = $(esc(msg))
+            fname != "" && (msg="$fname: $msg")
+            throw($(exception)(msg))
         end
     end
 end
 
-macro checkmissing(params, required, names)
 
-    return quote
-        # Get function name
-        st = stacktrace(backtrace())
-        fname = :_
-        for frame in st
-            if !startswith(string(frame.func), "_") && frame.func!=Symbol("macro expansion")
-                fname = frame.func
-                break
-            end
-        end
+# macro checkmissing(params, required, names)
+#     return quote
+#         # Get function name
+#         st = stacktrace(backtrace())
+#         fname = :_
+#         for frame in st
+#             if !startswith(string(frame.func), "_") && frame.func!=Symbol("macro expansion")
+#                 fname = frame.func
+#                 break
+#             end
+#         end
 
-        missingkeys = setdiff($(esc(required)), keys($(esc(params))) )
-        if length(missingkeys)>0
-            msg = "Missing arguments: $(join(missingkeys, ", ")). Possible inputs are: $($(esc(names)))"
-            msg = replace(msg, "=" => ":")
-            throw(AmaruException("$fname: $msg"))
-        end
-    end
-end
+#         missingkeys = setdiff($(esc(required)), keys($(esc(params))) )
+#         if length(missingkeys)>0
+#             msg = "Missing arguments: $(join(missingkeys, ", ")). Possible inputs are: $($(esc(names)))"
+#             msg = replace(msg, "=" => ":")
+#             throw(SerendipException("$fname: $msg"))
+#         end
+#     end
+# end

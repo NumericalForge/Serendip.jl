@@ -1,11 +1,11 @@
-using Amaru
+using Serendip
 
 
 # Mesh generation
 
 
 blocks = [
-    Block( [0 0; 1 10], nx=1, ny=10, cellshape=QUAD4, tag="solids"),
+    Block( [0 0; 1 10], nx=1, ny=10, shape=QUAD4, tag="solids"),
 ]
 
 msh = Mesh(blocks)

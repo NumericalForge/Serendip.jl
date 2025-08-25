@@ -1,4 +1,4 @@
-using Amaru, Test
+using Serendip, Test
 
 # 3D unstructured mesh
 geo = GeoModel()

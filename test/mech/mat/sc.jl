@@ -1,9 +1,9 @@
-using Amaru
+using Serendip
 using Test
 
 # mesh generation
 
-bl  = Block( [0 0; 0.2 0.1], nx=3, ny=1, cellshape=QUAD4)
+bl  = Block( [0 0; 0.2 0.1], nx=3, ny=1, shape=QUAD4)
 msh = Mesh(bl)
 iptag!(msh.elems[2], 100)
 tag!(msh.elems[2], 100)
@@ -29,7 +29,7 @@ log_n3 = NodeLogger(3)
 log_n5 = NodeLogger(5)
 loggers = [log_ip, log_face, log_n3, log_n5]
 
-#model = FEModel(msh, mats, stressmodel=:planestress, thickness=1.0)
+#model = FEModel(msh, mats, stress_state=:plane_stress, thickness=1.0)
 model = FEModel(msh, mats, loggers)
 
 # Boundary conditions

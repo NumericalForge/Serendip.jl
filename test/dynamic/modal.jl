@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 
 geo = GeoModel()
 s = 0.25
@@ -17,9 +17,9 @@ mesh = Mesh(geo)
 # mplot(mesh, "mesh.pdf")
 
 
-mats = [ :bulks => MechSolid => LinearElastic => (E=2e6, nu=0.2, rho=15.0) ]
+mats = [ :bulks => MechBulk => LinearElastic => (E=2e6, nu=0.2, rho=15.0) ]
 
-ctx = MechContext()
+ctx = Context()
 model = FEModel(mesh, mats, ctx)
 ana = MechModalAnalysis(model)
 

@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export LinearElasticSeep
 
@@ -58,7 +58,7 @@ compat_state_type(::Type{LinearElasticSeep}, ::Type{HMSolid}, ctx::Context) = Li
 
 
 function calcD(mat::LinearElasticSeep, state::LinearElasticSeepState)
-    return calcDe(mat.E, mat.ν, state.ctx.stressmodel) # function calcDe defined at elastic-solid.jl
+    return calcDe(mat.E, mat.ν, state.ctx.stress_state) # function calcDe defined at elastic-solid.jl
 end
 
 
@@ -71,7 +71,7 @@ function calcK(mat::LinearElasticSeep, state::LinearElasticSeepState) # Hydrauli
 end
 
 
-function update_state!(mat::LinearElasticSeep, state::LinearElasticSeepState, Δε::Array{Float64,1}, Δuw::Float64, G::Array{Float64,1}, Δt::Float64)
+function update_state(mat::LinearElasticSeep, state::LinearElasticSeepState, Δε::Array{Float64,1}, Δuw::Float64, G::Array{Float64,1}, Δt::Float64)
     De = calcD(mat, state)
     Δσ = De*Δε
     state.ε  += Δε
@@ -84,8 +84,8 @@ function update_state!(mat::LinearElasticSeep, state::LinearElasticSeepState, Δ
 end
 
 
-function ip_state_vals(mat::LinearElasticSeep, state::LinearElasticSeepState)
-    D = stress_strain_dict(state.σ, state.ε, state.ctx.stressmodel)
+function state_values(mat::LinearElasticSeep, state::LinearElasticSeepState)
+    D = stress_strain_dict(state.σ, state.ε, state.ctx.stress_state)
 
     D[:vx] = state.V[1]
     D[:vy] = state.V[2]

@@ -1,8 +1,8 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
 function smooth!(
-    mesh::Mesh; 
+    mesh::Mesh;
     quiet = false,
     scheme  = "laplacian",
     tol     = 1e-3,
@@ -200,7 +200,7 @@ end
 function matrixK(cell::Cell, ndim::Int64, E::Float64, ν::Float64)
     nnodes = length(cell.nodes)
 
-    C = getcoords(cell.nodes, ndim)
+    C = get_coords(cell.nodes, ndim)
     K = zeros(nnodes*ndim, nnodes*ndim)
     B = zeros(6, nnodes*ndim)
 
@@ -320,7 +320,7 @@ function faces_normal(faces::Array{Cell,1}, facetol)
 
     for f in faces
 
-        C =getcoords(f, ndim)
+        C =get_coords(f, ndim)
 
         # move the coordinates to avoid singular case
         # when the regression line/planes crosses the origin
@@ -516,7 +516,7 @@ function force_bc(mesh::Mesh, E::Float64, ν::Float64, α::Float64, extended::Bo
     for c in mesh.elems
         # get coordinates matrix
         np = length(c.nodes)
-        C0 = getcoords(c.nodes, ndim)
+        C0 = get_coords(c.nodes, ndim)
         V  = abs(cell_extent(c)) # area or volume
 
         #extended || (V = α*V)
@@ -577,7 +577,7 @@ function find_disps(mesh::Mesh, patches, extended, α, qmin, in_border)
     for c in mesh.elems
         # get coordinates matrix
         np = length(c.nodes)
-        C0 = getcoords(c.nodes, ndim)
+        C0 = get_coords(c.nodes, ndim)
         v  = abs(cell_extent(c)) # area or volume
         W[c.id] = v
         #W[c.id] = 1.0
@@ -636,10 +636,10 @@ function find_weighted_pos(mesh::Mesh, patches, extended, α, qmin, in_border)
     for c in mesh.elems
         # get coordinates matrix
         np = length(c.nodes)
-        C0 = getcoords(c.nodes, ndim)
+        C0 = get_coords(c.nodes, ndim)
         v  = abs(cell_extent(c)) # area or volume
         W[c.id] = v
-	    QQ[c.id] = c.quality
+        QQ[c.id] = c.quality
 
         s = v^(1.0/ndim) # scale factor
 
@@ -655,33 +655,33 @@ function find_weighted_pos(mesh::Mesh, patches, extended, α, qmin, in_border)
 
         # add to UU
         dmap = [ p.id for p in c.nodes ]
-	X1X1[dmap,:,c.id] .= C1
+    X1X1[dmap,:,c.id] .= C1
     end
 
     # weighted positioning
     for node in mesh.nodes
         patch = patches[node.id]
-	
-	sumW = sum( W[c.id] for c in patch )
-	sumdeltaQQ = sum( 1.01 - QQ[c.id] for c in patch ) #deltaQQ -> chage in the element quality. As is placed an ideal element, final quality is 1. To avoid zero division 1.01
 
-	#test= [X1X1[node.id,:,c.id] for c in patch]
-	#println(test)	
-	
-	parcel1 = 0.5*sum(((1.01-QQ[c.id])./sumdeltaQQ).* X1X1[node.id,:,c.id] for c in patch)
-	#parcel2 = .5*sum((1-(W[c.id]/sumW)).* X1X1[node.id,:,c.id] for c in patch) #When node is a corner, parcel2=0. Knowing that corners do not move, it would not be a problem. XX apparently for 
-										#those nodes is incorrect though. Nevertheless, it does not matter. To be sure, in case of number of patches for the node
-										#is 1, make coefficient in parcel1 equal to 1. instead of .5 (see conditional commented)
-										#Maybe parcel2 equation is wrong. For points with 4 patches same area, parcel2 is bigger than it should be. For testing parcel2
-										#was slightly modyfied as next. With this, not only this problem is solved but the initial problem as well.
+    sumW = sum( W[c.id] for c in patch )
+    sumdeltaQQ = sum( 1.01 - QQ[c.id] for c in patch ) #deltaQQ -> chage in the element quality. As is placed an ideal element, final quality is 1. To avoid zero division 1.01
 
-	
-	parcel2 = 0.5*sum(((W[c.id]/sumW)).* X1X1[node.id,:,c.id] for c in patch)  
+    #test= [X1X1[node.id,:,c.id] for c in patch]
+    #println(test)
 
-	#if lenght(patch)==1
-		#parce1 *=2
+    parcel1 = 0.5*sum(((1.01-QQ[c.id])./sumdeltaQQ).* X1X1[node.id,:,c.id] for c in patch)
+    #parcel2 = .5*sum((1-(W[c.id]/sumW)).* X1X1[node.id,:,c.id] for c in patch) #When node is a corner, parcel2=0. Knowing that corners do not move, it would not be a problem. XX apparently for
+                                        #those nodes is incorrect though. Nevertheless, it does not matter. To be sure, in case of number of patches for the node
+                                        #is 1, make coefficient in parcel1 equal to 1. instead of .5 (see conditional commented)
+                                        #Maybe parcel2 equation is wrong. For points with 4 patches same area, parcel2 is bigger than it should be. For testing parcel2
+                                        #was slightly modyfied as next. With this, not only this problem is solved but the initial problem as well.
 
-	XX[node.id, :] .= parcel1 + parcel2
+
+    parcel2 = 0.5*sum(((W[c.id]/sumW)).* X1X1[node.id,:,c.id] for c in patch)
+
+    #if lenght(patch)==1
+        #parce1 *=2
+
+    XX[node.id, :] .= parcel1 + parcel2
     end
 
     return XX
@@ -710,8 +710,8 @@ function fast_smooth2!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Float
 
     # check for not allowed cells
     for c in mesh.elems
-        if c.shape.family != BULKCELL
-            error("smooth!: cells of family $(c.shape.family) are not allowed for smoothing: $(c.shape.name)")
+        if c.role != :bulk
+            error("smooth!: cells of family $(c.role) are not allowed for smoothing: $(c.shape.name)")
         end
     end
 
@@ -765,7 +765,7 @@ function fast_smooth2!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Float
     savesteps && save(mesh, "$filekey-0.vtk")
 
 
-    
+
     for i in 1:maxit
 
         sw = StopWatch()
@@ -891,8 +891,8 @@ function fast_smooth!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Float6
 
     # check for not allowed cells
     for c in mesh.elems
-        if c.shape.family != BULKCELL
-            error("smooth!: cells of family $(c.shape.family) are not allowed for smoothing: $(c.shape.name)")
+        if c.role != :bulk
+            error("smooth!: cells of family $(c.role) are not allowed for smoothing: $(c.shape.name)")
         end
     end
 
@@ -1069,8 +1069,8 @@ function fitting_smooth!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Flo
 
     # check for not allowed cells
     for c in mesh.elems
-        if c.shape.family != BULKCELL
-            error("smooth!: cells of family $(c.shape.family) are not allowed for smoothing: $(c.shape.name)")
+        if c.role != :bulk
+            error("smooth!: cells of family $(c.role) are not allowed for smoothing: $(c.shape.name)")
         end
     end
 
@@ -1257,7 +1257,7 @@ function laplacian_smooth!(mesh::Mesh; maxit::Int64=20, quiet=true, fixed=false,
     # list of nodes per patch (without key node)
     P = Array{Node,1}[]
     for (node, patch) in zip(nodes, patches)
-        patch_nodes =getnodes(patch)
+        patch_nodes =get_nodes(patch)
         idx = findfirst( p -> hash(p) == hash(node), patch_nodes)
         splice!(patch_nodes, idx) # remove key node
         push!(P, patch_nodes)
@@ -1329,11 +1329,11 @@ function laplacian_smooth!(mesh::Mesh; maxit::Int64=20, quiet=true, fixed=false,
 
             # Weighed Laplacian smoothing
             if weighted
-                Xcs = [ mean(getcoords(c,ndim),dims=1)[1:ndim] for c in patch ] # centroidal coordinates for each cell in patch
+                Xcs = [ mean(get_coords(c,ndim),dims=1)[1:ndim] for c in patch ] # centroidal coordinates for each cell in patch
                 Vs  = [ c.extent for c in patch ] # areas or volumes
                 X = X0 + sum( Vs[j]*(Xcs[j]-X0) for j in 1:length(patch) ) / sum(Vs)
             else # simplest Laplacian smoothing
-                X  = mean(getcoords(patch_nodes),dims=1)[1:ndim]
+                X  = mean(get_coords(patch_nodes),dims=1)[1:ndim]
             end
 
             # fix coordinates for surface nodes

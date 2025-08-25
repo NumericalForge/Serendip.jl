@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 using Test
 
 # mesh
@@ -9,12 +9,12 @@ msh= Mesh(bls)
 
 # fem domain
 mats = [
-       "solids" => MechSolid => WillamWarnke => (E=30e6, nu=0.25, fc=-30e3, ft=3e3, fb=-33e3, H=0)
+       "solids" => MechBulk => WillamWarnke => (E=30e6, nu=0.25, fc=-30e3, ft=3e3, fb=-33e3, H=0)
       ]
 
 ana = MechAnalysis()
 model = FEModel(msh, mats, ana)
- 
+
 loggers = [
            [0, 0, 0.1] => IpLogger("cscp.table")
           ]
@@ -45,15 +45,15 @@ solve!(model, tol=1e-1, autoinc=true, quiet=false).success
 # Plotting
 
 chart = Chart(
-    x_label = L"\varepsilon_{zz}\times 1000",
-    y_label = L"\sigma_{zz}",
+    xlabel = L"\varepsilon_{zz}\times 1000",
+    ylabel = L"\sigma_{zz}",
     xmult = 1e3,
 )
 table = model.loggers[1].table
 
-series = [ 
-    LineSeries(table.ezz, table.szz),
+series = [
+    DataSeries(table.ezz, table.szz),
 ]
 
-addseries!(chart, series)
+add_series(chart, series)
 save(chart, "chart.pdf")

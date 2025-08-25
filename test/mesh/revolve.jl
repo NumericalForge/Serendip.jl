@@ -1,15 +1,16 @@
-using Amaru
+using Serendip
 using Test
 
 printstyled("\nMesh revolve\n", color=:blue, bold=true)
 
 shapes = (LIN2, LIN3)
-data = ((48,49),(48,145)) 
+data = ((48,49),(48,145))
 for i in eachindex(shapes)
     shape = shapes[i]
     println("\nrevolving $(shape.name)")
-    bl = Block( [0 0; 1 1], n=4, cellshape=shape, tag="solids")
-    mesh = Mesh(bl)
+    geo = GeoModel()
+    add_block(geo, [0, 0], [1, 1]; n=4, shape=shape, tag="solids")
+    mesh = Mesh(geo)
     mesh = revolve(mesh, base=[0,0,0], axis=[0,1,0], n=12)
     TR = @test (length(mesh.elems), length(mesh.nodes)) == data[i]
     println(TR)
@@ -20,8 +21,11 @@ data = ((768,437), (384,1113), (192,245), (192,921))
 for i in eachindex(shapes)
     shape = shapes[i]
     println("\nrevolving $(shape.name)")
-    bl = Block( [0 0; 1 1], nx=4, ny=4, cellshape=shape, tag="solids")
-    mesh = Mesh(bl)
+    geo = GeoModel()
+    add_block(geo, [0, 0], [1, 1]; nx=4, ny=4, shape=shape, tag="solids")
+    mesh = Mesh(geo)
+    # bl = Block( [0 0; 1 1], nx=4, ny=4, shape=shape, tag="solids")
+    # mesh = Mesh(bl)
     mesh = revolve(mesh, base=[0,0,0], axis=[0,1,0], n=12)
     TR = @test (length(mesh.elems), length(mesh.nodes)) == data[i]
     println(TR)

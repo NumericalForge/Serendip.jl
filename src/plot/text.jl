@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 # cache is required to avoid multiple calls to findfont
 _font_cache = Dict{String, String}() # cache font -> family
@@ -93,9 +93,9 @@ function draw_text(cc::CairoContext, x, y, str::AbstractString; halign="center",
     rw = halign=="center" ? 0.5 : halign=="right" ? 1.0 : 0.0
     rh = valign=="center" ? 0.5 : valign=="top" ? 1.0 : 0.0
 
-    translate(cc, x, y)
+    Cairo.translate(cc, x, y)
     Cairo.rotate(cc, -angle*pi/180)
-    translate(cc, -rw*width, rh*height)
+    Cairo.translate(cc, -rw*width, rh*height)
     move_to(cc, 0, 0)
     show_text(cc, str)
 
@@ -109,7 +109,7 @@ function draw_text(cc::CairoContext, x, y, str::LaTeXString; halign="center", va
 
     texelems = generate_tex_elements(str)
     fix_tex_elems!(texelems)
-    
+
     # get the current font
     font_face = ccall((:cairo_get_font_face, Cairo.libcairo), Ptr{Cvoid}, (Ptr{Cvoid},), cc.ptr)
     font_family = ccall((:cairo_toy_font_face_get_family, Cairo.libcairo), Cstring, (Ptr{Cvoid},), font_face)
@@ -129,7 +129,7 @@ function draw_text(cc::CairoContext, x, y, str::LaTeXString; halign="center", va
     rw = halign=="center" ? 0.5 : halign=="right" ? 1.0 : 0.0
     rh = valign=="center" ? 0.5 : valign=="top" ? 1.0 : 0.0
 
-    translate(cc, x, y)
+    Cairo.translate(cc, x, y)
     Cairo.rotate(cc, -angle*pi/180)
     Cairo.translate(cc, -rw*width, rh*height + minh*fsize)
     move_to(cc, 0, 0)

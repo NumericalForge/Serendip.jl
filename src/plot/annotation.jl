@@ -1,33 +1,48 @@
 
-Annotation_params = [
-    FunInfo(:Annotation, "Creates an `Annotation` instance."),
-    ArgInfo(:text, "Text to be displayed", type=AbstractString),
-    ArgInfo(:x, "x-coordinate of the annotation", cond=:(0<=x<=1), type=Real),
-    ArgInfo(:y, "y-coordinate of the annotation", cond=:(0<=y<=1), type=Real),
-    KwArgInfo(:textalignment, "Alignment of the text", :auto, values=(:auto, :left, :right, :top, :bottom)),
-    KwArgInfo(:target, "Coordinates of the target point of the arrow relative to data", [0.0,0.0], length=2),
-    KwArgInfo((:lw, :lineweight), "Edge weight", 0.4, cond=:(lw>0)),
-    KwArgInfo(:font, "Name of the font", "NewComputerModern", type=AbstractString),
-    KwArgInfo(:fontsize, "Size of the font in dpi", 6.0, cond=:(fontsize>0)),
-    KwArgInfo(:color, "Color of the text", :default),
-]
+# Annotation_params = [
+#     FunInfo(:Annotation, "Creates an `Annotation` instance."),
+#     ArgInfo(:text, "Text to be displayed", type=AbstractString),
+#     ArgInfo(:x, "x-coordinate of the annotation", cond=:(0<=x<=1), type=Real),
+#     ArgInfo(:y, "y-coordinate of the annotation", cond=:(0<=y<=1), type=Real),
+#     KwArgInfo(:text_alignment, "Alignment of the text", :auto, values=(:auto, :left, :right, :top, :bottom)),
+#     KwArgInfo(:target, "Coordinates of the target point of the arrow relative to data", [0.0,0.0], length=2),
+#     KwArgInfo(:line_width, "Edge weight", 0.4, cond=:(line_width>0)),
+#     KwArgInfo(:font, "Name of the font", "NewComputerModern", type=AbstractString),
+#     KwArgInfo(:fontsize, "Size of the font in dpi", 6.0, cond=:(fontsize>0)),
+#     KwArgInfo(:color, "Color of the text", :default),
+# ]
 
 
 mutable struct Annotation <: FigureComponent
     text::AbstractString
     x::Float64
     y::Float64
-    textalignment::Symbol
-    target::Vector
-    lw::Float64
+    text_alignment::Symbol
+    target::Vector{Float64}
+    line_width::Float64
     font::String
     fontsize::Float64
     color::Symbol
-    function Annotation(text, x, y; kwargs...)
-        args = checkargs([text, x, y], kwargs, Annotation_params)
-        target = collect(float.(args.target))
-        this = new(args.text, args.x, args.y, args.textalignment, target, args.lw, args.font, args.fontsize, args.color)
-        return this
+    function Annotation(text::AbstractString, x::Real, y::Real;
+        text_alignment::Symbol=:auto,
+        target::AbstractArray{<:Real,1}=[0.0,0.0],
+        line_width::Real=0.4,
+        font::AbstractString="NewComputerModern",
+        fontsize::Real=6.0,
+        color::Symbol=:black
+    )
+
+        @check 0<=x<=1 "x must be in the range [0,1]"
+        @check 0<=y<=1 "y must be in the range [0,1]"
+        @check text_alignment in (:auto, :left, :right, :top, :bottom) "Invalid text_alignment: $(repr(text_alignment))"
+        @check length(target)==2 "target must be a 2D point"
+        @check line_width>0 "line_width must be positive"
+        @check fontsize>0 "fontsize must be positive"
+
+        # args = checkargs([text, x, y], kwargs, Annotation_params)
+        target = float.(target)
+
+        return new(text, x, y, text_alignment, target, line_width, font, fontsize, color)
     end
 end
 
@@ -38,7 +53,7 @@ end
 
 
 function draw!(c::Figure, cc::CairoContext, a::Annotation)
-    
+
     set_font_size(cc, a.fontsize)
     font = get_font(a.font)
     select_font_face(cc, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL )
@@ -48,13 +63,13 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
     # convert from axes to Cairo coordinates
     x = c.canvas.box[1] + a.x*c.canvas.width
     y = c.canvas.box[2] + (1-a.y)*c.canvas.height
-    halign = a.textalignment==:right ? "right" : "left"
-    valign = a.textalignment==:top ? "top" : "bottom"
+    halign = a.text_alignment==:right ? "right" : "left"
+    valign = a.text_alignment==:top ? "top" : "bottom"
     set_source_rgb(cc, 0, 0, 0)
     draw_text(cc, x, y, a.text, halign=halign, valign=valign, angle=0)
 
-    if a.textalignment==:auto
-        a.textalignment = :left
+    if a.text_alignment==:auto
+        a.text_alignment = :left
     end
 
     # draw arrow
@@ -87,7 +102,7 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
         dy = ya - y
 
         # compute lines
-        if abs(dx)>abs(dy) 
+        if abs(dx)>abs(dy)
             if abs(dy)<h/2
                 lines = "-|"
                 if dx>0
@@ -121,10 +136,11 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
             end
         end
 
-        set_source_rgb(cc, get_color(a.color, :black)...)
+        set_source_rgb(cc, _colors_dict[a.color]...)
+
         set_line_join(cc, Cairo.CAIRO_LINE_JOIN_ROUND)
-        set_line_width(cc, a.lw)
-        
+        set_line_width(cc, a.line_width)
+
         # update deltas
         dx = xa - x
         dy = ya - y
@@ -140,7 +156,7 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
         end
 
         # Draw line 2
-        dx += sign(dx)*a.lw
+        dx += sign(dx)*a.line_width
         move_to(cc, x, y)
         if lines[2]=='|'
             rel_line_to(cc, 0, dy)

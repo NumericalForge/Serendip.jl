@@ -1,31 +1,31 @@
 ```@meta
 DocTestSetup = quote
-    using Amaru
+    using Serendip
 end
 ```
 
-# Introduction to Amaru
+# Introduction to Serendip
 
-Amaru is a Finite Element library written in Julia language. The purpose of this library is to aid the research of new algorithms for the finite element method. Currently this library solves static and dynamic analyses in two and three-dimensions.
+Serendip is a Finite Element library written in Julia language. The purpose of this library is to aid the research of new algorithms for the finite element method. Currently this library solves static and dynamic analyses in two and three-dimensions.
 
 ## Installation and basic usage
 
 Install the package using the package manager, type `]` and then:
 
 ```
-] add Amaru
+] add Serendip
 ```
 
-To use Amaru, type in Julia REPL:
+To use Serendip, type in Julia REPL:
 
 ```
-using Amaru
+using Serendip
 ```
 
 To test, type `]` and then:
 
 ```
-] test Amaru
+] test Serendip
 ```
 
 ## Development version
@@ -33,5 +33,5 @@ To test, type `]` and then:
 To install the development version, type `]` and then
 
 ```
-add Amaru#main
+add Serendip#main
 ```

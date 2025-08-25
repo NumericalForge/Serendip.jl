@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 using Test
 
 for shape in (TRI3, TRI6, QUAD4, QUAD8)
@@ -6,54 +6,47 @@ for shape in (TRI3, TRI6, QUAD4, QUAD8)
     printstyled("$(shape.name)\n", color=:cyan)
     printstyled("axisymmetric\n", color=:cyan)
 
-    bl = Block( [0 0; 1 1], nx=4, ny=4, cellshape=shape, tag="solids")
-    mesh = Mesh(bl)
+    geo = GeoModel()
+    add_block(geo, [0, 0], [1, 1], nx=4, ny=4, shape=shape, tag="solids")
+    mesh = Mesh(geo)
 
-    materials = [
-        "solids" => MechSolid => LinearElastic => (E=100.0, nu=0.2)
-    ]
+    mapper = RegionModel(MechBulk, LinearElastic, E=100.0, nu=0.2)
 
-    ctx = MechContext(stressmodel=:axisymmetric)
-    model = FEModel(mesh, materials, ctx)
-    ana = MechAnalysis(model)
+    ctx   = Context(stress_state=:axisymmetric)
+    model = FEModel(mesh, mapper, ctx)
+    ana   = MechAnalysis(model)
 
-    bcs = [
-           :(x==0) => SurfaceBC(ux=0),
-           :(y==0) => SurfaceBC(uy=0),
-           :(y==1) => SurfaceBC(ty=-10),
-           #"solids" => SurfaceBC(ty=-10),
-    ]
+    stage = add_stage(ana)
+    add_bc(stage, :face, x==0, ux=0)
+    add_bc(stage, :face, y==0, uy=0)
+    add_bc(stage, :face, y==1, ty=-10)
+    run(ana).success
 
-    addstage!(ana, bcs)
-    solve!(ana).success
-
-    sample_node = model.nodes[:(x==1 && y==1)][1]
-    uxr = sample_node.dofs[:ux].vals[:ux]
-    uyr = sample_node.dofs[:uy].vals[:uy]
-    println( get_data(model.nodes[:(x==1 && y==1)][1]) )
+    sample_node = select(model, :node, (x==1, y==1))[1]
+    uxr = get_dof(sample_node, :ux).vals[:ux]
+    uyr = get_dof(sample_node, :uy).vals[:uy]
+    # println( get_values(sample_node) )
 
     # 3D
     printstyled("3d version", color=:cyan); println()
 
     mesh = revolve(mesh, base=[0,0,0], axis=[0,1,0], n=12)
-    
-    ctx = MechContext()
-    model = FEModel(mesh, materials, ctx)
-    ana = MechAnalysis(model)
 
-    bcs = [
-           :(x==0 && y==0) => NodeBC(ux=0, uy=0),
-           :(y==0) => SurfaceBC(uy=0),
-           :(y==1) => SurfaceBC(ty=-10),
-    ]
+    ctx   = Context()
+    model = FEModel(mesh, mapper, ctx)
+    ana   = MechAnalysis(model)
 
-    addstage!(ana, bcs)
-    solve!(ana).success
-    sample_node = model.nodes[:(x==1 && y==1)][1]
-    ux = sample_node.dofs[:ux].vals[:ux]
-    uy = sample_node.dofs[:uy].vals[:uy]
+    stage = add_stage(ana)
+    add_bc(stage, :node, (x==0,y==0, z==0), uz=0)
+    add_bc(stage, :node, (x==0,y==0), ux=0, uy=0)
+    add_bc(stage, :face, y==0, uy=0)
+    add_bc(stage, :face, y==1, ty=-10)
+    run(ana).success
 
-    println( get_data(model.nodes[:(x==1 && y==1)][1]) )
+    sample_node = select(model, :node, (x==1, y==1))[1]
+    ux = get_dof(sample_node, :ux).vals[:ux]
+    uy = get_dof(sample_node, :uy).vals[:uy]
+    # println( get_values(sample_node) )
 
     # Verification
     @test [uxr, uyr] ≈ [ux, uy] atol=1e-3

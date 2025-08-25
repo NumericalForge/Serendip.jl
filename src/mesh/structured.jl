@@ -13,8 +13,17 @@ end
 flatten(x)=flatten(x, [])
 
 
-function mesh_structured(geo::GeoModel)
-    mesh = Mesh() # empty mesh
+function mesh_structured(geo::GeoModel, ndim::Int=0)
+    # check ndim
+    if ndim!=3
+        points = [ point for block in geo.blocks for point in block.points ]
+        ndim = any( point.coord[3] != 0.0 for point in points ) ? 3 : 2
+        if ndim == 2
+            ndim = any( point.coord[2] != 0.0 for point in points ) ? 2 : 1
+        end
+    end
+
+    mesh = Mesh(ndim) # empty mesh
     return mesh_structured(mesh, geo.blocks)
 end
 
@@ -37,15 +46,15 @@ end
 function split_block!(mesh::Mesh, bl::Block)
     nx, ny, nz = bl.nx, bl.ny, bl.nz
     rx, ry, rz = bl.rx, bl.ry, bl.rz
-    coords = getcoords(bl.points)
-    shape = bl.cellshape
+    coords = get_coords(bl.points)
+    shape = bl.shape
 
     if shape==LIN2
         p_arr = Array{Node}(undef, nx+1)
         for i = 1:nx+1
             # r = (2.0/nx)*(i-1) - 1.0
             r = -1.0 + 2.0*(rx==1 ? (1/nx)*(i-1) : (1-rx^(i-1))/(1-rx^nx))
-            N = bl.shape.func([r])
+            N = bl.blockshape.func([r])
             C = N'*coords
             C = round.(C, digits=8)
             p = get_node(mesh._pointdict, C)
@@ -61,7 +70,7 @@ function split_block!(mesh::Mesh, bl::Block)
             p1 = p_arr[i  ]
             p2 = p_arr[i+1]
 
-            cell = Cell(shape, [p1, p2], tag=bl.tag, ctx=mesh.ctx)
+            cell = Cell(shape, :line, [p1, p2], tag=bl.tag, ctx=mesh.ctx)
             push!(mesh.elems, cell)
         end
         return
@@ -72,12 +81,12 @@ function split_block!(mesh::Mesh, bl::Block)
             for i = 1:2*nx+1
                 # r = (1.0/nx)*(i-1) - 1.0
                 r = -1.0 + 2.0*(rx==1 ? (1/(2*nx))*(i-1) : (1-rx^(i-1))/(1-rx^(2*nx)))
-                N = bl.shape.func([r])
+                N = bl.blockshape.func([r])
                 C = N'*coords
                 C = round.(C, digits=8)
                 p = get_node(mesh._pointdict, C)
                 if p===nothing
-                    p = Node(C); 
+                    p = Node(C);
                     push!(mesh.nodes, p)
                     mesh._pointdict[hash(p)] = p
                 end
@@ -89,7 +98,7 @@ function split_block!(mesh::Mesh, bl::Block)
                 p2 = p_arr[i+2]
                 p3 = p_arr[i+1]
 
-                cell = Cell(shape, [p1, p2, p3], tag=bl.tag, ctx=mesh.ctx)
+                cell = Cell(shape, :line, [p1, p2, p3], tag=bl.tag, ctx=mesh.ctx)
                 push!(mesh.elems, cell)
             end
         return
@@ -99,12 +108,12 @@ function split_block!(mesh::Mesh, bl::Block)
         p_arr = Array{Node}(undef, 3*nx+1)
             for i = 1:3*nx+1
                 r = -1.0 + 2.0*(rx==1 ? (1/(3*nx))*(i-1) : (1-rx^(i-1))/(1-rx^(3*nx)))
-                N = bl.shape.func([r])
+                N = bl.blockshape.func([r])
                 C = N'*coords
                 C = round.(C, digits=8)
                 p = get_node(mesh._pointdict, C)
                 if p===nothing
-                    p = Node(C); 
+                    p = Node(C);
                     push!(mesh.nodes, p)
                     mesh._pointdict[hash(p)] = p
                 end
@@ -117,7 +126,7 @@ function split_block!(mesh::Mesh, bl::Block)
                 p3 = p_arr[i+1]
                 p4 = p_arr[i+2]
 
-                cell = Cell(shape, [p1, p2, p3, p4], tag=bl.tag, ctx=mesh.ctx)
+                cell = Cell(shape, :line, [p1, p2, p3, p4], tag=bl.tag, ctx=mesh.ctx)
                 push!(mesh.elems, cell)
             end
         return
@@ -128,11 +137,11 @@ function split_block!(mesh::Mesh, bl::Block)
         for j = 1:ny+1
             for i = 1:nx+1
                 # r = (2.0/nx)*(i-1) - 1.0
-                # s = (2.0/ny)*(j-1) - 1.0 
+                # s = (2.0/ny)*(j-1) - 1.0
                 r = -1.0 + 2.0*(rx==1 ? (1/nx)*(i-1) : (1-rx^(i-1))/(1-rx^nx))
                 s = -1.0 + 2.0*(ry==1 ? (1/ny)*(j-1) : (1-ry^(j-1))/(1-ry^ny))
-                
-                N = bl.shape.func([r, s])
+
+                N = bl.blockshape.func([r, s])
                 C = N'*coords
                 p::Any = nothing
                 if i in (1, nx+1) || j in (1, ny+1)
@@ -158,17 +167,17 @@ function split_block!(mesh::Mesh, bl::Block)
                 p4 = p_arr[i  , j+1]
 
                 if shape==QUAD4
-                    cell = Cell(shape, [p1, p2, p3, p4], tag=bl.tag, ctx=mesh.ctx)
+                    cell = Cell(shape, :bulk, [p1, p2, p3, p4], tag=bl.tag, ctx=mesh.ctx)
                     push!(mesh.elems, cell)
                 else
                     C = (p1.coord+p2.coord+p3.coord+p4.coord)/4
                     p5 = Node(C); push!(mesh.nodes, p5)
                     mesh._pointdict[hash(p5)] = p5
-                    
-                    cell1 = Cell(shape, [p1, p2, p5], tag=bl.tag, ctx=mesh.ctx)
-                    cell2 = Cell(shape, [p2, p3, p5], tag=bl.tag, ctx=mesh.ctx)
-                    cell3 = Cell(shape, [p3, p4, p5], tag=bl.tag, ctx=mesh.ctx)
-                    cell4 = Cell(shape, [p4, p1, p5], tag=bl.tag, ctx=mesh.ctx)
+
+                    cell1 = Cell(shape, :bulk, [p1, p2, p5], tag=bl.tag, ctx=mesh.ctx)
+                    cell2 = Cell(shape, :bulk, [p2, p3, p5], tag=bl.tag, ctx=mesh.ctx)
+                    cell3 = Cell(shape, :bulk, [p3, p4, p5], tag=bl.tag, ctx=mesh.ctx)
+                    cell4 = Cell(shape, :bulk, [p4, p1, p5], tag=bl.tag, ctx=mesh.ctx)
                     push!(mesh.elems, cell1)
                     push!(mesh.elems, cell2)
                     push!(mesh.elems, cell3)
@@ -189,7 +198,7 @@ function split_block!(mesh::Mesh, bl::Block)
                 # s = (1.0/ny)*(j-1) - 1.0
                 r = -1.0 + 2.0*(rx==1 ? (1/(2*nx))*(i-1) : (1-rx^(i-1))/(1-rx^(2*nx)))
                 s = -1.0 + 2.0*(ry==1 ? (1/(2*ny))*(j-1) : (1-ry^(j-1))/(1-ry^(2*ny)))
-                N = bl.shape.func([r, s])
+                N = bl.blockshape.func([r, s])
                 C = N'*coords
                 p::Any = nothing
                 if i in (1, 2*nx+1) || j in (1, 2*ny+1)
@@ -219,10 +228,10 @@ function split_block!(mesh::Mesh, bl::Block)
                 p8 = p_arr[i  , j+1]
 
                 if shape==QUAD8
-                    cell = Cell(shape, [p1, p2, p3, p4, p5, p6, p7, p8], tag=bl.tag, ctx=mesh.ctx)
+                    cell = Cell(shape, :bulk, [p1, p2, p3, p4, p5, p6, p7, p8], tag=bl.tag, ctx=mesh.ctx)
                 else
                     p9   = p_arr[i+1, j+1]
-                    cell = Cell(shape, [p1, p2, p3, p4, p5, p6, p7, p8, p9], tag=bl.tag, ctx=mesh.ctx)
+                    cell = Cell(shape, :bulk, [p1, p2, p3, p4, p5, p6, p7, p8, p9], tag=bl.tag, ctx=mesh.ctx)
                 end
                 push!(mesh.elems, cell)
             end
@@ -241,7 +250,7 @@ function split_block!(mesh::Mesh, bl::Block)
                 r = -1.0 + 2.0*(rx==1 ? (1/(3*nx))*(i-1) : (1-rx^(i-1))/(1-rx^(3*nx)))
                 s = -1.0 + 2.0*(ry==1 ? (1/(3*ny))*(j-1) : (1-ry^(j-1))/(1-ry^(3*ny)))
 
-                N = bl.shape.func([r, s])
+                N = bl.blockshape.func([r, s])
                 C = N'*coords
                 p::Any = nothing
                 if i in (1, 3*nx+1) || j in (1, 3*ny+1)
@@ -274,7 +283,7 @@ function split_block!(mesh::Mesh, bl::Block)
                 p11 = p_arr[i  , j+2]
                 p12 = p_arr[i  , j+1]
 
-                cell = Cell(shape, [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12], tag=bl.tag, ctx=mesh.ctx)
+                cell = Cell(shape, :bulk, [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12], tag=bl.tag, ctx=mesh.ctx)
                 push!(mesh.elems, cell)
             end
         end
@@ -290,8 +299,8 @@ function split_block!(mesh::Mesh, bl::Block)
     #             # s = (2.0/ny)*(j-1) - 1.0
     #             r = -1.0 + 2.0*(rx==1 ? (1/nx)*(i-1) : (1-rx^(i-1))/(1-rx^nx))
     #             s = -1.0 + 2.0*(ry==1 ? (1/ny)*(j-1) : (1-ry^(j-1))/(1-ry^ny))
-                
-    #             N = bl.shape.func([r, s])
+
+    #             N = bl.blockshape.func([r, s])
     #             C = N'*coords
     #             p::Any = nothing
     #             if i in (1, nx+1) || j in (1, ny+1)
@@ -315,8 +324,8 @@ function split_block!(mesh::Mesh, bl::Block)
     #             p3 = p_arr[i+1, j+1]
     #             p4 = p_arr[i  , j+1]
 
-    #             cell1 = Cell(shape, [p1, p2, p3], tag=bl.tag, ctx=mesh.ctx)
-    #             cell2 = Cell(shape, [p4, p1, p3], tag=bl.tag, ctx=mesh.ctx)
+    #             cell1 = Cell(shape, :bulk, [p1, p2, p3], tag=bl.tag, ctx=mesh.ctx)
+    #             cell2 = Cell(shape, :bulk, [p4, p1, p3], tag=bl.tag, ctx=mesh.ctx)
     #             push!(mesh.elems, cell1)
     #             push!(mesh.elems, cell2)
     #         end
@@ -341,7 +350,7 @@ function split_block!(mesh::Mesh, bl::Block)
             for i = 1:2*nx+1
                 r = (1.0/nx)*(i-1) - 1.0
                 s = (1.0/ny)*(j-1) - 1.0
-                N = bl.shape.func([r, s])
+                N = bl.blockshape.func([r, s])
                 C = N'*coords
                 p::Any = nothing
                 if i in (1, 2*nx+1) || j in (1, 2*ny+1)
@@ -372,8 +381,8 @@ function split_block!(mesh::Mesh, bl::Block)
 
                 p9   = p_arr[i+1, j+1]
 
-                cell1 = Cell(shape, [p1, p2, p3, p5, p6, p9], tag=bl.tag, ctx=mesh.ctx)
-                cell2 = Cell(shape, [p4, p1, p3, p8, p9, p7], tag=bl.tag, ctx=mesh.ctx)
+                cell1 = Cell(shape, :bulk, [p1, p2, p3, p5, p6, p9], tag=bl.tag, ctx=mesh.ctx)
+                cell2 = Cell(shape, :bulk, [p4, p1, p3, p8, p9, p7], tag=bl.tag, ctx=mesh.ctx)
                 push!(mesh.elems, cell1)
                 push!(mesh.elems, cell2)
             end
@@ -392,7 +401,7 @@ function split_block!(mesh::Mesh, bl::Block)
                     r = -1.0 + 2.0*(rx==1 ? (1/nx)*(i-1) : (1-rx^(i-1))/(1-rx^nx))
                     s = -1.0 + 2.0*(ry==1 ? (1/ny)*(j-1) : (1-ry^(j-1))/(1-ry^ny))
                     t = -1.0 + 2.0*(rz==1 ? (1/nz)*(k-1) : (1-rz^(k-1))/(1-rz^nz))
-                    N = bl.shape.func([r, s, t])
+                    N = bl.blockshape.func([r, s, t])
                     C = N'*coords
                     p::Any = nothing
                     if i in (1, nx+1) || j in (1, ny+1) || k in (1, nz+1)
@@ -423,28 +432,28 @@ function split_block!(mesh::Mesh, bl::Block)
                     p8 = p_arr[i  , j+1, k+1]
 
                     if shape==HEX8
-                        cell = Cell(shape, [p1, p2, p3, p4, p5, p6, p7, p8], tag=bl.tag, ctx=mesh.ctx)
+                        cell = Cell(shape, :bulk, [p1, p2, p3, p4, p5, p6, p7, p8], tag=bl.tag, ctx=mesh.ctx)
                         push!(mesh.elems, cell)
                     end
                     if shape==TET4
-                        push!( mesh.elems, Cell(shape, [p2, p4, p1, p8], tag=bl.tag, ctx=mesh.ctx) )
-                        push!( mesh.elems, Cell(shape, [p2, p1, p5, p8], tag=bl.tag, ctx=mesh.ctx) )
-                        push!( mesh.elems, Cell(shape, [p2, p5, p6, p8], tag=bl.tag, ctx=mesh.ctx) )
-                        push!( mesh.elems, Cell(shape, [p2, p6, p7, p8], tag=bl.tag, ctx=mesh.ctx) )
-                        push!( mesh.elems, Cell(shape, [p2, p3, p4, p8], tag=bl.tag, ctx=mesh.ctx) )
-                        push!( mesh.elems, Cell(shape, [p2, p7, p3, p8], tag=bl.tag, ctx=mesh.ctx) )
+                        push!( mesh.elems, Cell(shape, :bulk, [p2, p4, p1, p8], tag=bl.tag, ctx=mesh.ctx) )
+                        push!( mesh.elems, Cell(shape, :bulk, [p2, p1, p5, p8], tag=bl.tag, ctx=mesh.ctx) )
+                        push!( mesh.elems, Cell(shape, :bulk, [p2, p5, p6, p8], tag=bl.tag, ctx=mesh.ctx) )
+                        push!( mesh.elems, Cell(shape, :bulk, [p2, p6, p7, p8], tag=bl.tag, ctx=mesh.ctx) )
+                        push!( mesh.elems, Cell(shape, :bulk, [p2, p3, p4, p8], tag=bl.tag, ctx=mesh.ctx) )
+                        push!( mesh.elems, Cell(shape, :bulk, [p2, p7, p3, p8], tag=bl.tag, ctx=mesh.ctx) )
                     end
                     if shape==PYR5
                         C = (p1.coord+p2.coord+p3.coord+p4.coord+p5.coord+p6.coord+p7.coord+p8.coord)/8
                         p9 = Node(C); push!(mesh.nodes, p9)
                         mesh._pointdict[hash(p9)] = p9
-                        
-                        cell1 = Cell(shape, [p1, p2, p3, p4, p9], tag=bl.tag, ctx=mesh.ctx)
-                        cell2 = Cell(shape, [p2, p6, p7, p3, p9], tag=bl.tag, ctx=mesh.ctx)
-                        cell3 = Cell(shape, [p4, p3, p7, p8, p9], tag=bl.tag, ctx=mesh.ctx)
-                        cell4 = Cell(shape, [p1, p4, p8, p5, p9], tag=bl.tag, ctx=mesh.ctx)
-                        cell5 = Cell(shape, [p2, p1, p5, p6, p9], tag=bl.tag, ctx=mesh.ctx)
-                        cell6 = Cell(shape, [p6, p5, p8, p7, p9], tag=bl.tag, ctx=mesh.ctx)
+
+                        cell1 = Cell(shape, :bulk, [p1, p2, p3, p4, p9], tag=bl.tag, ctx=mesh.ctx)
+                        cell2 = Cell(shape, :bulk, [p2, p6, p7, p3, p9], tag=bl.tag, ctx=mesh.ctx)
+                        cell3 = Cell(shape, :bulk, [p4, p3, p7, p8, p9], tag=bl.tag, ctx=mesh.ctx)
+                        cell4 = Cell(shape, :bulk, [p1, p4, p8, p5, p9], tag=bl.tag, ctx=mesh.ctx)
+                        cell5 = Cell(shape, :bulk, [p2, p1, p5, p6, p9], tag=bl.tag, ctx=mesh.ctx)
+                        cell6 = Cell(shape, :bulk, [p6, p5, p8, p7, p9], tag=bl.tag, ctx=mesh.ctx)
                         push!(mesh.elems, cell1)
                         push!(mesh.elems, cell2)
                         push!(mesh.elems, cell3)
@@ -475,7 +484,7 @@ function split_block!(mesh::Mesh, bl::Block)
                     r = -1.0 + 2.0*(rx==1 ? (1/(2*nx))*(i-1) : (1-rx^(i-1))/(1-rx^(2*nx)))
                     s = -1.0 + 2.0*(ry==1 ? (1/(2*ny))*(j-1) : (1-ry^(j-1))/(1-ry^(2*ny)))
                     t = -1.0 + 2.0*(rz==1 ? (1/(2*nz))*(k-1) : (1-rz^(k-1))/(1-rz^(2*nz)))
-                    N = bl.shape.func([r, s, t])
+                    N = bl.blockshape.func([r, s, t])
                     C = N'*coords
                     p::Any = nothing
                     if i in (1, 2*nx+1) || j in (1, 2*ny+1) || k in (1, 2*nz+1)
@@ -520,7 +529,7 @@ function split_block!(mesh::Mesh, bl::Block)
                     p20 = p_arr[i  , j+2, k+1]
 
                     if shape == HEX20
-                        cell = Cell(shape, [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20], tag=bl.tag, ctx=mesh.ctx)
+                        cell = Cell(shape, :bulk, [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20], tag=bl.tag, ctx=mesh.ctx)
                         push!(mesh.elems, cell)
                     end
                     if shape in (TET10, HEX27)
@@ -534,14 +543,14 @@ function split_block!(mesh::Mesh, bl::Block)
                         p27 = p_arr[i+1, j+1, k+1]
 
                         if shape==TET10
-                            push!( mesh.elems, Cell(shape, [p2, p4, p1, p8, p25, p12, p9,  p27, p20, p21], tag=bl.tag, ctx=mesh.ctx) )
-                            push!( mesh.elems, Cell(shape, [p2, p1, p5, p8, p9,  p17, p23, p27, p21, p16], tag=bl.tag, ctx=mesh.ctx) )
-                            push!( mesh.elems, Cell(shape, [p2, p5, p6, p8, p23, p13, p18, p27, p16, p26], tag=bl.tag, ctx=mesh.ctx) )
-                            push!( mesh.elems, Cell(shape, [p2, p6, p7, p8, p18, p14, p22, p27, p26, p15], tag=bl.tag, ctx=mesh.ctx) )
-                            push!( mesh.elems, Cell(shape, [p2, p3, p4, p8, p10, p11, p25, p27, p24, p20], tag=bl.tag, ctx=mesh.ctx) )
-                            push!( mesh.elems, Cell(shape, [p2, p7, p3, p8, p22, p19, p10, p27, p15, p24], tag=bl.tag, ctx=mesh.ctx) )
+                            push!( mesh.elems, Cell(shape, :bulk, [p2, p4, p1, p8, p25, p12, p9,  p27, p20, p21], tag=bl.tag, ctx=mesh.ctx) )
+                            push!( mesh.elems, Cell(shape, :bulk, [p2, p1, p5, p8, p9,  p17, p23, p27, p21, p16], tag=bl.tag, ctx=mesh.ctx) )
+                            push!( mesh.elems, Cell(shape, :bulk, [p2, p5, p6, p8, p23, p13, p18, p27, p16, p26], tag=bl.tag, ctx=mesh.ctx) )
+                            push!( mesh.elems, Cell(shape, :bulk, [p2, p6, p7, p8, p18, p14, p22, p27, p26, p15], tag=bl.tag, ctx=mesh.ctx) )
+                            push!( mesh.elems, Cell(shape, :bulk, [p2, p3, p4, p8, p10, p11, p25, p27, p24, p20], tag=bl.tag, ctx=mesh.ctx) )
+                            push!( mesh.elems, Cell(shape, :bulk, [p2, p7, p3, p8, p22, p19, p10, p27, p15, p24], tag=bl.tag, ctx=mesh.ctx) )
                         else
-                            cell = Cell(shape, [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p21, p22, p23, p24, p25, p26, p27], tag=bl.tag, ctx=mesh.ctx)
+                            cell = Cell(shape, :bulk, [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p21, p22, p23, p24, p25, p26, p27], tag=bl.tag, ctx=mesh.ctx)
                             push!(mesh.elems, cell)
                         end
                     end

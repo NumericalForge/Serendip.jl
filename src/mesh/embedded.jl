@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 # Remove line-joint-cells from mesh and set up line cells as embedded cells
 function generate_embedded_cells!(mesh::Mesh)
@@ -6,10 +6,10 @@ function generate_embedded_cells!(mesh::Mesh)
     newcells = []
     id = 0
     for cell in mesh.elems
-        if cell.shape.family==LINEJOINTCELL
+        if cell.role==BONDSLIP_CELL
             # link solid cell to line cells
-            solid, line = cell.linked_elems
-            line.linked_elems = [ solid ]
+            solid, line = cell.couplings
+            line.couplings = [ solid ]
         else
             # save non joint1D cells
             id += 1

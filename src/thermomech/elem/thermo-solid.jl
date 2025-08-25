@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
 export ThermoSolid
@@ -19,7 +19,7 @@ struct ThermoSolidProps<:ElemProperties
         this = new(args.rho, args.cv)
 
         return this
-    end    
+    end
 end
 
 
@@ -33,7 +33,7 @@ mutable struct ThermoSolid<:ThermoMech
     mat::Material
     props ::ThermoSolidProps
     active::Bool
-    linked_elems::Array{Element,1}
+    couplings::Array{Element,1}
     ctx::Context
 
     function ThermoSolid()
@@ -42,7 +42,7 @@ mutable struct ThermoSolid<:ThermoMech
 end
 
 
-compat_shape_family(::Type{ThermoSolid}) = BULKCELL
+compat_role(::Type{ThermoSolid}) = BULKCELL
 compat_elem_props(::Type{ThermoSolid}) = ThermoSolidProps
 
 
@@ -75,7 +75,7 @@ function distributed_bc(elem::ThermoSolid, facet::Union{Facet,Nothing}, key::Sym
     nnodes = length(nodes)
 
     # Calculate the target coordinates matrix
-    C = getcoords(nodes, ndim)
+    C = get_coords(nodes, ndim)
 
     # Calculate the nodal values
     F     = zeros(nnodes)
@@ -94,7 +94,7 @@ function distributed_bc(elem::ThermoSolid, facet::Union{Facet,Nothing}, key::Sym
         if ndim==2
             x, y = X
             vip = evaluate(val, t=t, x=x, y=y)
-            if elem.ctx.stressmodel==:axisymmetric
+            if elem.ctx.stress_state==:axisymmetric
                 th = 2*pi*X[1]
             end
         else
@@ -117,7 +117,7 @@ function elem_conductivity_matrix(elem::ThermoSolid)
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
-    C      = getcoords(elem)
+    C      = get_coords(elem)
     H      = zeros(nnodes, nnodes)
     dNdX   = zeros(nnodes, ndim)
     Bt     = zeros(ndim, nnodes)
@@ -126,7 +126,7 @@ function elem_conductivity_matrix(elem::ThermoSolid)
     J    = Array{Float64}(undef, ndim, ndim)
 
     for ip in elem.ips
-        elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+        elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
         dNdR = elem.shape.deriv(ip.R)
         @mul J  = C'*dNdR
         detJ = det(J)
@@ -135,7 +135,7 @@ function elem_conductivity_matrix(elem::ThermoSolid)
         Bt .= dNdX'
 
         # compute H
-        K = calcK(elem.mat, ip.state)
+        K = calcK(elem.pmodel, ip.state)
         coef = detJ*ip.w*th
         @mul KBt = K*Bt
         @mul H -= coef*Bt'*KBt
@@ -152,13 +152,13 @@ function elem_mass_matrix(elem::ThermoSolid)
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
-    C      = getcoords(elem)
+    C      = get_coords(elem)
     M      = zeros(nnodes, nnodes)
 
     J  = Array{Float64}(undef, ndim, ndim)
 
     for ip in elem.ips
-        elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+        elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
 
         N    = elem.shape.func(ip.R)
         dNdR = elem.shape.deriv(ip.R)
@@ -182,7 +182,7 @@ end
 function elem_internal_forces(elem::ThermoSolid, F::Array{Float64,1})
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
-    C   = getcoords(elem)
+    C   = get_coords(elem)
     th     = elem.ctx.thickness
     θ0     = elem.ctx.T0 + 273.15
     map_p  = [ node.dofdict[:ut].eq_id for node in elem.nodes ]
@@ -194,7 +194,7 @@ function elem_internal_forces(elem::ThermoSolid, F::Array{Float64,1})
     dNdX = Array{Float64}(undef, nnodes, ndim)
 
     for ip in elem.ips
-        elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+        elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
 
 
         # compute Bt matrix
@@ -231,7 +231,7 @@ function update_elem!(elem::ThermoSolid, DU::Array{Float64,1}, Δt::Float64)
 
     map_t  = [ node.dofdict[:ut].eq_id for node in elem.nodes ]
 
-    C   = getcoords(elem)
+    C   = get_coords(elem)
 
     dUt = DU[map_t] # nodal temperature increments
     Ut  = [ node.dofdict[:ut].vals[:ut] for node in elem.nodes ]
@@ -244,7 +244,7 @@ function update_elem!(elem::ThermoSolid, DU::Array{Float64,1}, Δt::Float64)
     dNdX = Array{Float64}(undef, nnodes, ndim)
 
     for ip in elem.ips
-        elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+        elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
 
         # compute Bu matrix
         N    = elem.shape.func(ip.R)
@@ -259,7 +259,7 @@ function update_elem!(elem::ThermoSolid, DU::Array{Float64,1}, Δt::Float64)
 
         Δut = N'*dUt # interpolation to the integ. point
 
-        q = update_state!(elem.mat, ip.state, Δut, G, Δt)
+        q = update_state(elem.pmodel, ip.state, Δut, G, Δt)
 
         #@showm q
         #error()

@@ -1,4 +1,4 @@
- #This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+ #This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export MCJointSeep2
 
@@ -362,7 +362,7 @@ function calcD(mat::MCJointSeep2, state::MCJointSeepState2)
 end
 
 
-function update_state!(mat::MCJointSeep2, state::MCJointSeepState2, Δw::Array{Float64,1}, Δuw::Array{Float64,1},  G::Array{Float64,1}, BfUw::Array{Float64,1}, Δt::Float64)
+function update_state(mat::MCJointSeep2, state::MCJointSeepState2, Δw::Array{Float64,1}, Δuw::Array{Float64,1},  G::Array{Float64,1}, BfUw::Array{Float64,1}, Δt::Float64)
     ndim = state.ctx.ndim
     σini = copy(state.σ)
 
@@ -418,7 +418,7 @@ function update_state!(mat::MCJointSeep2, state::MCJointSeepState2, Δw::Array{F
 
     # compute crack aperture
     if mat.w == 0.0
-        if state.up == 0.0 || state.w[1] <= 0.0 
+        if state.up == 0.0 || state.w[1] <= 0.0
             w = 0.0
         else
             w = state.w[1]
@@ -438,7 +438,7 @@ function update_state!(mat::MCJointSeep2, state::MCJointSeepState2, Δw::Array{F
 end
 
 
-function ip_state_vals(mat::MCJointSeep2, state::MCJointSeepState2)
+function state_values(mat::MCJointSeep2, state::MCJointSeepState2)
     ndim = state.ctx.ndim
     if ndim == 3
        return OrderedDict(

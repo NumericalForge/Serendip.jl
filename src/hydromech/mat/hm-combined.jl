@@ -30,7 +30,7 @@ function Base.setproperty!(state::HMCombinedState, s::Symbol, value)
     mstate = getfield(state, :mstate)
     fields1 = propertynames(hstate)
     fields2 = propertynames(mstate)
-    
+
     s in fields1 && return setfield!(hstate, s, value)
     s in fields2 && return setfield!(hstate, s, value)
     error("type HMCombinedState has no field $s")
@@ -44,14 +44,14 @@ mutable struct HMCombined{M1,M2}<:Material
     function HMCombined{M1,M2}(; params...) where {M1,M2}
         tmat = M1(;params...)
         mmat = M2(;params...)
-        
+
         return new{M1,M2}(tmat, mmat)
     end
 end
 
 # Type of corresponding state structure
-compat_state_type(::Type{HMCombined{M1,M2}}, ::Type{HMSolid}, ctx::Context) where {M1,M2} = HMCombinedState{compat_state_type(M1,SeepSolid,ctx), compat_state_type(M2,MechSolid,ctx)} 
-compat_state_type(::Type{HMCombined{M1,M2}}, ::Type{HMJoint}, ctx::Context) where {M1,M2} = HMCombinedState{compat_state_type(M1,HydroJoint,ctx), compat_state_type(M2,MechJoint,ctx)} 
+compat_state_type(::Type{HMCombined{M1,M2}}, ::Type{HMSolid}, ctx::Context) where {M1,M2} = HMCombinedState{compat_state_type(M1,SeepSolid,ctx), compat_state_type(M2,MechBulk,ctx)}
+compat_state_type(::Type{HMCombined{M1,M2}}, ::Type{HMJoint}, ctx::Context) where {M1,M2} = HMCombinedState{compat_state_type(M1,HydroJoint,ctx), compat_state_type(M2,MechInterface,ctx)}
 
 # compat_elem_types(::Type{HMCombined{M1,M2}}) where {M1,M2} = (HMSolid, HMJoint)
 
@@ -77,14 +77,14 @@ function calcK(mat::HMCombined, state::HMCombinedState) # Hydraulic conductivity
     return calcK(mat.tmat, state.hstate)
 end
 
-function update_state!(mat::HMCombined, state::HMCombinedState, Δε::Array{Float64,1}, Δut::Float64, G::Array{Float64,1}, Δt::Float64)
-    QQ = update_state!(mat.tmat, state.hstate, Δut, G, Δt)
-    Δσ, status = update_state!(mat.mmat, state.mstate, Δε)
+function update_state(mat::HMCombined, state::HMCombinedState, Δε::Array{Float64,1}, Δut::Float64, G::Array{Float64,1}, Δt::Float64)
+    QQ = update_state(mat.tmat, state.hstate, Δut, G, Δt)
+    Δσ, status = update_state(mat.mmat, state.mstate, Δε)
     return Δσ, QQ, status
 end
 
-function ip_state_vals(mat::HMCombined, state::HMCombinedState)
-    vals1 = ip_state_vals(mat.tmat, state.hstate)
-    vals2 = ip_state_vals(mat.mmat, state.mstate)
+function state_values(mat::HMCombined, state::HMCombinedState)
+    vals1 = state_values(mat.tmat, state.hstate)
+    vals2 = state_values(mat.mmat, state.mstate)
     return merge(vals1, vals2)
 end

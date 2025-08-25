@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 using Test
 
 
@@ -8,37 +8,35 @@ fy = 240e3 # kPa
 H  = 0
 nu = 0.3
 
-# mesh
-bl = Block( [0 0 -0.05; 0.05 1.0 0.05], nx=1, ny=50, nz=2, cellshape=HEX20)
-mesh= Mesh(bl)
+geo = GeoModel()
+add_block(geo, [0, 0, -th], [th, 1.0, th], nx=1, ny=25, nz=2, shape=HEX20, tag="beam")
+mesh = Mesh(geo)
 
-# fem domain
-mat = [ :bulks => MechSolid => VonMises => (E=E, nu=nu, fy=fy, H=H) ]
 
-ctx = MechContext()
-model = FEModel(mesh, mat, ctx)
-ana = MechAnalysis(model)
+mapper = RegionMapper()
+add_mapping(mapper, "beam", MechBulk, VonMises, E=E, nu=nu, fy=fy, H=H)
+model = FEModel(mesh, mapper)
 
-log = NodeLogger()
-addlogger!(ana, :(x==$th/2 && y==1 && z==0) => log)
-addmonitor!(ana, :((x==$th/2 && y==1 && z==0)) => NodeMonitor(:fz))
+ana   = MechAnalysis(model)
+log = add_logger(ana, :node, (x==th/2, y==1, z==0))
+add_monitor(ana, :node, (x==th/2, y==1, z==0), :fz)
 
-# boundary conditions
-bcs = [
-    :(y==0) => NodeBC(uy=0),
-    :(y==0 && z==0) => NodeBC(uz=0),
-    :(x==$th/2 && y==0 && z==0) => NodeBC(ux=0),
-    :(x==$th/2  && y==1 && z==0) => NodeBC(uz=-0.08),
-]
+stage = add_stage(ana, nincs=20, nouts=1)
+add_bc(stage, :node, (y==0), uy=0)
+add_bc(stage, :node, (y==0, z==0), uz=0)
+add_bc(stage, :node, (x==th/2, y==0, z==0), ux=0)
+add_bc(stage, :node, (x==th/2, y==1, z==0), uz=-0.03)
 
-addstage!(ana, bcs, nincs=20, nouts=1)
-solve!(ana, autoinc=true)
+run(ana, autoinc=true, tol=0.001)
+@test log.table.fz[end]≈-30 atol=0.8
 
-println(@test log.table.fz[end]≈-30 atol=0.7)
-
-if makeplots
-    using PyPlot
+makeplots = false
+if @isdefined(makeplots) && makeplots
     tab = log.table
-    plot( -tab[:uz], -tab[:fz], "-o")
+    chart = Chart(;
+        xlabel = "Displacement uz [m]",
+        ylabel = "Force fz [kN]",
+    )
+    add_series(chart, -tab["uz"], -tab["fz"], marker=:circle)
+    save(chart, "vm-3d.pdf")
 end
-

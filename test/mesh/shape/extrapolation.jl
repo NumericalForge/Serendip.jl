@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 using Test
 
 printstyled("\nShape extrapolation\n", color=:blue, bold=true)
@@ -19,8 +19,8 @@ for shape in ALL_ISO_SHAPES
     # Analize for each number of integration points
     for (nip, Cip) in shape.quadrature
         # Cases with too few ip points for a linear field
-        nip <=1 && continue 
-        (nip ==2 && shape.basic_shape == WED6) && continue 
+        nip <=1 && continue
+        (nip ==2 && shape.base_shape == WED6) && continue
 
         # Exception
         #(nip ==18 && shape == WED15) && continue  # WED15 does not work with nip=18 !

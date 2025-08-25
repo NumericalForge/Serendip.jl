@@ -1,4 +1,4 @@
-using Amaru, LinearAlgebra
+using Serendip, LinearAlgebra
 using Test
 
 printstyled("\nShape functions\n", color=:blue, bold=true)

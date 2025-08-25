@@ -1,27 +1,27 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-@enum(CellFamily,
-    VERTEXCELL    = 0,
-    LINECELL      = 1,
-    BULKCELL      = 2,
-    JOINTCELL     = 4,
-    LINEJOINTCELL = 5,
-    TIPJOINTCELL  = 6,
-)
-const SOLIDCELL = BULKCELL
+# role::CellRole # BULK, SURFACE, LINE, LINEINTERFACE, TIP, INTERFACE
+# @enum(CellFamily,
+#     VERTEX_CELL   = 0,
+#     LINE_CELL     = 1,
+#     :bulk     = 2,
+#     SURFACE_CELL  = 3,
+#     JOINT_CELL    = 4,
+#     BONDSLIP_CELL = 5,
+#     TIP_CELL      = 6,
+# )
 
-# Export
-for s in instances(CellFamily)
-    @eval export $(Symbol(s))
-end
-export SOLIDCELL
+# # Export
+# for s in instances(CellFamily)
+#     @eval export $(Symbol(s))
+# end
 
 mutable struct CellShape
     name       ::String
-    family     ::CellFamily
+    # family     ::CellFamily
     ndim       ::Int
     npoints    ::Int
-    basic_shape::CellShape
+    base_shape::CellShape
     vtk_type   ::VTKCellType
     facet_idxs ::AbstractArray
     edge_idxs  ::AbstractArray
@@ -36,22 +36,22 @@ mutable struct CellShape
     end
 end
 
-include("lines.jl")
-include("solids2d.jl")
-include("solids3d.jl")
-include("joints.jl")
+
+include("1d.jl")
+include("2d.jl")
+include("3d.jl")
 
 # Shape for unknown polyvertex
 function MakePOLYVERTEX()
     shape             = CellShape()
     shape.name        = "POLYVERTEX"
-    shape.family      = VERTEXCELL
+    # shape.family      = VERTEX_CELL
     shape.ndim        = 0
     shape.npoints     = 0
     shape.vtk_type    = VTK_POLY_VERTEX
     shape.facet_idxs  = []
     shape.facet_shape = ()
-    shape.quadrature  = Dict( 0 => [] )
+    shape.quadrature  = Dict( 0 => [], 1 => ALL_IP1 )
     return shape
 end
 const POLYVERTEX = MakePOLYVERTEX()
@@ -85,32 +85,15 @@ const VTK2SHAPE = Dict{VTKCellType,CellShape}(
 )
 
 # All isoparametric cell shapes
-const ALL_ISO_SHAPES = [
-    LIN2
-    LIN3
-    LIN4
-    TRI3
-    TRI6
-    QUAD4
-    QUAD8
-    QUAD9
-    QUAD12
-    PYR5
-    PYR13
-    TET4
-    TET10
-    WED6
-    WED15
-    HEX8
-    HEX20
-    HEX27
-]
+const ALL_ISO_SHAPES = [ LIN2, LIN3, LIN4, TRI3, TRI6, QUAD4, QUAD8, QUAD9, QUAD12, PYR5, PYR13, TET4, TET10, WED6, WED15, HEX8, HEX20, HEX27 ]
 
 # dictionary (ndim,nfpoints,nlayers) => joint_shape
-_joint_ndim_nfpoints_nlayers_dict = Dict( 
-    (2,2,2)=>JLIN2 , (2,3,2)=>JLIN3 , (2,4,2)=>JLIN4 , (3,3,2)=>JTRI3 , (3,4,2)=>JQUAD4 , (3,6,2)=>JTRI6 , (3,8,2)=>JQUAD8,
-    (2,2,3)=>J3LIN2, (2,3,2)=>J3LIN3, (2,4,2)=>J3LIN4, (3,3,2)=>J3TRI3, (3,4,2)=>J3QUAD4, (3,6,2)=>J3TRI6, (3,8,2)=>J3QUAD8,
-)
+
+# _joint_ndim_nfpoints_nlayers_dict = Dict(
+#     (2,2,2)=>JLIN2 , (2,3,2)=>JLIN3 , (2,4,2)=>JLIN4 , (3,3,2)=>JTRI3 , (3,4,2)=>JQUAD4 , (3,6,2)=>JTRI6 , (3,8,2)=>JQUAD8,
+#     (2,2,3)=>J3LIN2, (2,3,2)=>J3LIN3, (2,4,2)=>J3LIN4, (3,3,2)=>J3TRI3, (3,4,2)=>J3QUAD4, (3,6,2)=>J3TRI6, (3,8,2)=>J3QUAD8,
+# )
+
 
 function get_shape_from_vtk(vtk_type::VTKCellType, npoints::Int64, ndim::Int64, nlayers::Int64=0)
     # vtk_type: VTK cell code
@@ -120,7 +103,7 @@ function get_shape_from_vtk(vtk_type::VTKCellType, npoints::Int64, ndim::Int64, 
 
     if vtk_type==VTK_POLYGON
         if npoints==12
-            return QUAD12    
+            return QUAD12
         end
     end
 
@@ -128,15 +111,10 @@ function get_shape_from_vtk(vtk_type::VTKCellType, npoints::Int64, ndim::Int64, 
 
     # Check if it is a joint cell with layers
     if nlayers in (2,3)
-        # dictionary (ndim,nfpoints,nlayers) => joint_shape
         shapedict = _joint_ndim_nfpoints_nlayers_dict
         nfpoints = div(npoints,nlayers)
-        # @show ndim
-        # @show nfpoints
-        # @show nlayers
 
-        # @show haskey(shapedict, (ndim, nfpoints, nlayers))
-        
+
         if haskey(shapedict, (ndim, nfpoints, nlayers))
             return shapedict[(ndim, nfpoints, nlayers)]
         end
@@ -179,6 +157,8 @@ function get_shape_from_ndim_npoints(npoints::Int64, ndim::Int64)::CellShape
 end
 
 
+
+
 function bdistance(shape::CellShape, R::Array{Float64,1})
     # Returns a real value which is a pseudo distance from a point to the border of an element
     # Arguments:
@@ -187,7 +167,7 @@ function bdistance(shape::CellShape, R::Array{Float64,1})
     #     a real value: if possitive then the point is inside the element and negative otherwise
 
     r, s, t = R
-    bshape = shape.basic_shape
+    bshape = shape.base_shape
     if bshape == TRI3  return min(r, s, 1-r-s) end
     if bshape == QUAD4 return min(1 - abs(r), 1 - abs(s)) end
     if bshape == TET4  return min(r, s, t, 1-r-s-t) end
@@ -211,9 +191,6 @@ function inverse_map(shape::CellShape, coords::Array{Float64,2}, X0::AbstractArr
         # calculate Jacobian
         D = shape.deriv(R)
         J = C'*D
-        # @show size(J)
-        # @show J
-        # @show C
 
         # calculate trial of real coordinates
         N  = shape.func(R)
@@ -229,9 +206,9 @@ function inverse_map(shape::CellShape, coords::Array{Float64,2}, X0::AbstractArr
 
         if norm(ΔX) < tol; break end
     end
+    # k==maxits && println("Warning: max iterations (maxits=$maxits) reached in inverse mapping. norm(ΔX)=$(norm(ΔX))")
 
     # TODO: Improve accuracy of inverse_map function in elements with non regular shape
-    #k==maxits && println("Warning: max iterations (maxits=$maxits) reached in inverse mapping. norm(ΔX)=$(norm(ΔX))")
 
     if ndim==2
         R = vcat( R, 0.0 )
@@ -240,8 +217,8 @@ function inverse_map(shape::CellShape, coords::Array{Float64,2}, X0::AbstractArr
 end
 
 
-function is_inside(shape::CellShape, C::Array{Float64,2}, X::AbstractArray{Float64,1}, tol = 1.e-7)
-    if shape.family!=BULKCELL return false end
+function is_inside(shape::CellShape, C::Array{Float64,2}, X::Union{Vector{Float64}, Vec3}; tol=1.e-7)
+    shape in (LIN2, LIN3, LIN4) && return false
 
     # fix dimension
     ndim = size(C, 2)
@@ -310,8 +287,6 @@ function extrapolator(shape::CellShape, nips::Int)
     for i in 1:nips
         εip[i,:] .= IP[i].coord[1:ndim]..., 1.0
     end
-
-    # εip = [ IP[:,1:ndim] ones(nips) ]
 
     # ε matrix: Local coordinates of nodal points
     ε = [ shape.nat_coords ones(npoints) ] # increase a column of ones

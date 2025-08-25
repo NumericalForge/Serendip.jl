@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 
 geo = GeoModel()
 
@@ -15,7 +15,7 @@ addline!(geo, p4, p1)
 pull!(geo, geo.surfaces, axis=[0,0,1], length=1)
 
 # plotting
-plot = GeometryPlot(geo, 
+plot = GeometryPlot(geo,
     lineweight = 0.5,
     fontsize = 8,
     # font = "Times New Roman",

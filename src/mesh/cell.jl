@@ -1,20 +1,11 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
 # Cell
-
-
-"""
-    Cell
-
-A type that represents a mesh cell. It can be a 1D, 2D or 3D.
-
-# Fields
-$(FIELDS)
-"""
 mutable struct Cell<:AbstractCell
     id     ::Integer
     shape  ::CellShape
+    role::Symbol  # :vertex, :line, :bulk, :surface, :interface, :line_interface, :tip
     nodes  ::Array{Node,1}
     tag    ::String
     active ::Bool
@@ -22,41 +13,15 @@ mutable struct Cell<:AbstractCell
     embedded::Bool                # flag for embedded cells
     crossed::Bool                 # flag if cell crossed by linear inclusion
     owner  ::Union{AbstractCell,Nothing}  # owner cell if this cell is a face/edge
-    linked_elems::Array{AbstractCell,1}   # neighbor cells in case of joint cell
-    ctx::MeshEnv                 # mesh environment variables
+    couplings::Array{AbstractCell,1}   # neighbor cells in case of joint cell
+    ctx::MeshContext                 # mesh environment variables
 
-    @doc """
-        $(SIGNATURES)
 
-    Constructs a `Cell` given a `shape` and an array of nodes.
-    A `tag` string can be provided optionally.
-    If the cell is a face or an edge, the `owner` element cell can be provided.
-
-    # Examples
-    
-    ```jldoctest
-    julia> using Amaru;
-    julia> nodes = [ Node(0,0), Node(1,0), Node(1,1) ];
-    julia> Cell(TRI3, nodes, tag="triangle");
-    Cell
-      id: -1
-      shape: CellShape  name="TRI3"
-      nodes: 3-element Vector{Node}:
-          1: Node  id=-1
-          2: Node  id=-1
-          3: Node  id=-1
-      tag: "triangle"
-      quality: 0.0
-      embedded: false
-      crossed: false
-      owner: nothing
-      linked_elems: 0-element Vector{Amaru.AbstractCell}
-    ```
-    """
-    function Cell(shape::CellShape, nodes::Array{Node,1}; ctx::MeshEnv=MeshEnv(0), tag::String="", owner=nothing, id::Int=-1, active=true)
+    function Cell(shape::CellShape, role::Symbol, nodes::Array{Node,1}; ctx::MeshContext=MeshContext(0), tag::String="", owner=nothing, id::Int=-1, active=true)
         this = new()
         this.id = id
         this.shape = shape
+        this.role = role
         this.nodes = copy(nodes)
         this.tag = tag
         this.active  = active
@@ -64,7 +29,7 @@ mutable struct Cell<:AbstractCell
         this.embedded= false
         this.crossed = false
         this.owner   = owner
-        this.linked_elems = []
+        this.couplings = []
         this.ctx     = ctx
         return this
     end
@@ -80,20 +45,11 @@ const Facet=Cell
 Base.hash(cell::Cell) = sum(hash(node) for node in cell.nodes)
 Base.isequal(c1::Cell, c2::Cell) = hash(c1)==hash(c2)
 
-"""
-    $(TYPEDSIGNATURES)
 
-Creates a copy of `cell`.
-"""
 Base.copy(cell::Cell)  = Cell(cell.shape, cell.nodes, tag=cell.tag, owner=cell.owner)
 
-"""
-    $(SIGNATURES)
 
-Returns a matrix with the nodal coordinates of `c`.
-`ndim` (default 3) can be used to define the number axes.
-"""
-function getcoords(c::AbstractCell, ndim=3)
+function get_coords(c::AbstractCell, ndim=3)
     n = length(c.nodes)
     C = Array{Float64}(undef, n, ndim)
     for (i,p) in enumerate(c.nodes)
@@ -106,13 +62,13 @@ end
 
 
 # Return all nodes in cells
-# function getnodes(cells::Array{<:AbstractCell,1})
-#     return collect(Set(node for cell in cells for node in cell.nodes)) 
+# function get_nodes(cells::Array{<:AbstractCell,1})
+#     return collect(Set(node for cell in cells for node in cell.nodes))
 # end
 
 
 
-function getnodes(elems::Vector{<:AbstractCell})
+function get_nodes(elems::Vector{<:AbstractCell})
     # get all nodes using object id
     points_d = Dict{UInt64, Node}()
     for elem in elems
@@ -125,132 +81,56 @@ function getnodes(elems::Vector{<:AbstractCell})
 end
 
 
-# function (cells::Array{<:AbstractCell,1})(filter=nothing; tag=nothing, shape=nothing, family=nothing, plane=nothing, invert=false)
+"""
+    select(elems::Vector{<:AbstractCell}, selectors...; invert=false, tag="")
 
-#     filtered = collect(1:length(cells))
-    
-#     if isa(filter, Expr) && filter!=:()
-#         indexes = copy(filtered)
-#         filtered = Int[]
-#         # cells id must be set
-#         nodes = getnodes(cells)
-#         pointmap = zeros(Int, maximum(node.id for node in nodes) ) # points and pointmap may have different sizes
+Filters a list of finite element cells (`elems`) based on one or more `selectors`.
 
-#         T = Bool[]
-#         for (i,node) in enumerate(nodes)
-#             pointmap[node.id] = i
-#             x, y, z = node.coord.x, node.coord.y, node.coord.z
-#             push!(T, evaluate(filter, x=x, y=y, z=z))
-#         end
- 
-#         filtered = Int[ i for i in indexes if all( T[pointmap[node.id]] for node in cells[i].nodes ) ]
-#     end
+Selectors can be:
+- `:all`             → select all elements (no filtering)
+- `:bulk`, `:line`, `:interface`, `:line_interface`, `:tip` → select by element role
+- `:active`          → select only active elements
+- `:embedded`        → select embedded line elements (with couplings)
+- `String`           → match element tag
+- `Expr` or `Symbolic` → spatial condition using coordinates `x`, `y`, `z`
+- `Vector{Int}`      → list of element indices to select
+- `NTuple{N, Symbolic}` → multiple symbolic coordinate conditions
 
-#     if isa(filter, Symbol)
-#         families = Dict(:solids=>BULKCELL, :lines=>LINECELL, :joints=>JOINTCELL, :linejoints=>LINEJOINTCELL, :tipjoints=>TIPJOINT)
-#         family = families[filter]
-#     end
+# Keyword Arguments
+- `invert::Bool`: If `true`, returns the complement of the selected set.
+- `tag::String`: If non-empty, assigns this tag to all selected elements.
 
-#     if tag!==nothing
-#         indexes = copy(filtered)
-#         filtered = Int[ i for i in indexes if cells[i].tag==tag ]
-#     end
-    
-#     if shape!==nothing
-#         indexes = copy(filtered)
-#         filtered = Int[ i for i in indexes if cells[i].shape==shape ]
-#     end
-
-#     if family!==nothing
-#         indexes = copy(filtered)
-#         filtered = Int[ i for i in indexes if cells[i].shape.family==family ]
-#     end
-
-#     if plane!==nothing
-#         indexes = copy(filtered)
-#         filtered = Int[]
-
-#         # plane normal
-#         tol = 1e-5
-#         A = plane # coplanar points
-#         I = ones(size(A,1))
-#         n = normalize(pinv(A.+tol/100)*I) # best fit normal        
-
-#         for i in indexes
-#             cell = cells[i]
-#             cell.shape.family == JOINTCELL || continue
-#             ndim = cell.shape.ndim+1
-#             @assert ndim==size(A,2)
-#             C = getcoords(cells[i], ndim)
-#             I = ones(size(C,1))
-#             N = pinv(C.+tol/100)*I # best fit normal 
-#             norm(C*N-I)<tol || continue # check if cell is coplanar
-#             normalize!(N)
-#             norm(N-n)<tol || continue # check if planes are parallel
-#             dot(A[1,:]-C[1,:], n)<tol && push!(filtered, i)
-#         end
-#     end
-
-#     if invert
-#         filtered = setdiff(1:length(cells), filtered)
-#     end
-
-#     return cells[filtered]
-# end
-
-
-function Base.getproperty(c::AbstractCell, s::Symbol)
-    s == :coords && return getcoords(c)
-    s == :faces  && return getfaces(c)
-    s == :edges  && return getedges(c)
-    s == :extent && return cell_extent(c)
-    return getfield(c, s)
-end
-
-
-function Base.getproperty(cells::Array{<:AbstractCell,1}, s::Symbol)
-    s in (:all, :solids, :bulks, :lines, :joints, :joints1D, :linejoints, :tipjoints, :embeddeds) && return cells[s]
-    s == :nodes  && return getnodes(cells)
-    s == :filter && return cells
-    s == :active && return filter(cell -> cell.active, cells)
-    return getfield(cells, s)
-end
-
-
-function Base.getindex(cells::Array{<:AbstractCell,1}, filters::NTuple; kwargs...)
-    return getindex(cells, filters...; kwargs...)
-end
-
-
-function Base.getindex(
-    cells::Array{<:AbstractCell,1}, 
-    filters::Union{Symbol,Expr,Symbolic,String,CellFamily,CellShape}...;
-    normal = nothing,
-    plane  = nothing,
-    invert = false
+# Returns
+- A filtered list of elements matching the criteria.
+"""
+function select(
+    elems::Vector{<:AbstractCell},
+    selectors::Union{Symbol,Expr,Symbolic,String,Vector{Int},NTuple{N, Symbolic} where N}...;
+    invert = false,
+    tag::String = ""
     )
-    
-    filtered = collect(1:length(cells))
 
-    for filter in filters
+    selectors = flatten(selectors)
+    selected = collect(1:length(elems)) # selected indexes
 
-        if isa(filter, Symbol)
-            if filter in (:solids, :bulks) 
-                filter=BULKCELL
-            elseif filter == :lines
-                filter=LINECELL
-            elseif filter == :joints
-                filter=JOINTCELL
-            elseif filter in (:linejoints, :joints1D, :joints1d) 
-                filter=LINEJOINTCELL
-            elseif filter == :tipjoints
-                filter=TIPJOINT
+    for selector in selectors
+
+        if isa(selector, Symbol)
+            if selector == :all
+                # do nothing (don't filter)
+            elseif selector in (:bulk, :line, :interface, :line_interface, :tip)
+                selected = Int[ i for i in selected if elems[i].role==selector ]
+            elseif selector == :active
+                selected = Int[ i for i in selected if elems[i].active ]
+            elseif selector == :embedded
+                selected = Int[ i for i in selected if elems[i].role==:line && length(elems[i].couplings)>0 ]
+            else
+                error("select: cannot filter array of Cell with symbol $(repr(selector))")
             end
-        end
-
-        if isa(filter, Expr) || isa(filter, Symbolic) 
-            # nodes = getnodes(cells) # it merge nodes
-            nodes = [ node for cell in cells for node in cell.nodes ]
+        elseif isa(selector, String)
+            selected = Int[ i for i in selected if elems[i].tag==selector ]
+        elseif isa(selector, Expr) || isa(selector, Symbolic)
+            nodes = [ node for cell in elems for node in cell.nodes ]
             max_id = maximum( n->n.id, nodes )
             pointmap = zeros(Int, max_id) # points and pointmap may have different sizes
 
@@ -258,89 +138,92 @@ function Base.getindex(
             for (i,node) in enumerate(nodes)
                 pointmap[node.id] = i
                 x, y, z = node.coord.x, node.coord.y, node.coord.z
-                push!(T, evaluate(filter, x=x, y=y, z=z))
+                push!(T, evaluate(selector, x=x, y=y, z=z))
             end
 
-            # @show filtered
-            # @show pointmap
-            # @show [ n.id for n in nodes ]
-            # for c in cells
-            #     @show [ n.id for n in c.nodes ]
-            # end
-    
-            filtered = Int[ i for i in filtered if all( T[pointmap[node.id]] for node in cells[i].nodes ) ]
-        elseif isa(filter, Symbol)
-            if filter==:all
-                # do nothing (don't filter)
-            elseif filter==:active
-                filtered = Int[ i for i in filtered if cells[i].active ]
-            elseif filter in (:embedded, :embeddeds)
-                filtered = Int[ i for i in filtered if cells[i].shape.family==LINECELL && length(cells[i].linked_elems)>0 ]
-            elseif filter == :shells
-                filtered = Int[ i for i in filtered if cells[i].shape.family==BULKCELL && cells[i].shape.ndim==2 ]
-            else
-                error("getindex: cannot filter array of Cell with symbol $(repr(filter))")
-            end
-        elseif isa(filter, String)
-            filtered = Int[ i for i in filtered if cells[i].tag==filter ]
-        elseif isa(filter, CellFamily)
-            filtered = Int[ i for i in filtered if cells[i].shape.family==filter ]
-        elseif isa(filter, CellShape)
-            filtered = Int[ i for i in filtered if cells[i].shape==filter ]
-        end
-
-    end
-
-    
-    if !isnothing(normal) || !isnothing(plane)
-        indexes = copy(filtered)
-        filtered = Int[]
-        tol = 1e-8
-
-        if !isnothing(normal)
-            n = normalize(normal) # best fit normal
-            dim = length(n)
-        else
-            # filter is a plane: a matrix with at least three points
-            A = plane # coplanar points
-            I = ones(size(A,1))
-            n = normalize(pinv(A.+tol/100)*I) # best fit normal   
-            dim = size(A,2)
-        end
-
-        for i in indexes
-            cell = cells[i]
-
-            ndim = cell.shape.ndim+1
-            @assert dim==ndim
-            C = getcoords(cells[i], ndim)
-            N = cellnormal(cell)
-            isnothing(N) && continue
-            isparallelto(N,n) || continue
-
-            if !isnothing(plane)
-                dot(A[1,:]-C[1,:], n)<tol || continue # check if faces are coplanar
-            end
-            push!(filtered, i)
+            selected = Int[ i for i in selected if all( T[pointmap[node.id]] for node in elems[i].nodes ) ]
+        elseif isa(selector, Vector{Int}) # selector is a vector of indexes
+            selected = intersect(selected, selector)
         end
     end
 
     if invert
-        filtered = setdiff(1:length(cells), filtered)
+        selected = setdiff(1:length(elems), selected)
     end
 
-    return cells[filtered]
+    selection = elems[selected]
+
+    # Set tag for selected elements
+    if tag != ""
+        for elem in selection
+            elem.tag = tag
+        end
+    end
+
+    return elems[selected]
+end
+
+"""
+    select(domain::AbstractDomain, kind::Symbol, selectors...; invert=false, tag="")
+
+Filters entities from a finite element domain (`domain`) by type and selection criteria.
+
+# Arguments
+- `domain::AbstractDomain`: The mesh or domain containing entities.
+- `kind::Symbol`: One of `:element`, `:face`, `:edge`, or `:node` to specify which entity to select.
+- `selectors`: One or more selectors.
+
+Selectors can be:
+- `:all`             → select all elements (no filtering)
+- `:bulk`, `:line`, `:interface`, `:line_interface`, `:tip` → select by element role
+- `:active`          → select only active elements
+- `:embedded`        → select embedded line elements (with couplings)
+- `String`           → match element tag
+- `Expr` or `Symbolic` → spatial condition using coordinates `x`, `y`, `z`
+- `Vector{Int}`      → list of element indices to select
+- `NTuple{N, Symbolic}` → multiple symbolic coordinate conditions
+
+# Keyword Arguments
+- `invert::Bool`: If `true`, returns the entities not matching the selectors.
+- `tag::String`: If non-empty, assigns this tag to all selected entities.
+
+# Returns
+- A list of selected entities of the specified kind.
+"""
+function select(
+    domain::AbstractDomain,
+    kind::Symbol,
+    selectors::Union{Symbol,Expr,Symbolic,String,CellShape, NTuple{N, Symbolic} where N}...;
+    invert = false,
+    tag::String = ""
+    )
+
+    if kind == :element
+        return select(domain.elems, selectors...; invert=invert, tag=tag)
+    elseif kind == :face
+        return select(domain.faces, selectors...; invert=invert, tag=tag)
+    elseif kind == :edge
+        return select(domain.edges, selectors...; invert=invert, tag=tag)
+    elseif kind == :node
+        return select(domain.nodes, selectors...; invert=invert, tag=tag)
+    elseif kind == :ip
+        ips = [ ip for elem in domain.elems for ip in elem.ips ]
+        return select(ips, selectors...; invert=invert, tag=tag)
+    else
+        error("select: unknown kind $(repr(kind))")
+    end
+
 end
 
 
 function cellnormal(cell::AbstractCell)
     iscoplanar(cell) || return nothing
-    
+
     tol = 1e-8
     ndim = cell.shape.ndim+1
-    C = getcoords(cell, ndim)
+    C = get_coords(cell, ndim)
     I = ones(size(C,1))
-    N = pinv(C.+tol/100)*I # best fit normal 
+    N = pinv(C.+tol/100)*I # best fit normal
     normalize!(N)
     return N
 end
@@ -360,8 +243,8 @@ end
 function iscoplanar(cell::AbstractCell)
     tol = 1e-8
 
-    coords = getcoords(cell, 3)
-    
+    coords = get_coords(cell, 3)
+
     # find a plane
     X1 = coords[1,:]
     X2 = coords[2,:]
@@ -375,7 +258,7 @@ function iscoplanar(cell::AbstractCell)
         N = cross(X1X2, X1X)
         norm(N) > tol && break
     end
-    
+
     # test the plane at each point
     for i in 3:length(cell.nodes)
         X = coords[i,:]
@@ -395,7 +278,7 @@ function nearest(cells::Array{Cell,1}, coord)
     X = vec(coord)
 
     for (i,cell) in enumerate(cells)
-        C = vec(mean(getcoords(cell), dims=1))
+        C = vec(mean(get_coords(cell), dims=1))
         D[i] = norm(X-C)
     end
 
@@ -442,12 +325,13 @@ function getfacets(cell::AbstractCell)
     facet_shape==() && return faces
 
     sameshape = typeof(facet_shape) == CellShape # check if all facets have the same shape
+    role = cell.shape.ndim ==3 ? :surface : :line # 2D cells have only lines as facets
 
     # Iteration for each facet
     for (i, face_idxs) in enumerate(all_facets_idxs)
         nodes = cell.nodes[face_idxs]
         shape  = sameshape ? facet_shape : facet_shape[i]
-        face   = Cell(shape, nodes, tag=cell.tag, owner=cell)
+        face   = Cell(shape, role, nodes, tag=cell.tag, owner=cell)
         face.nodes = nodes # update nodes since Cell creates a copy
         push!(faces, face)
     end
@@ -456,23 +340,22 @@ function getfacets(cell::AbstractCell)
 end
 
 # gets all faces of a cell
-function getfaces(cell::AbstractCell)
-    # Return a cell with the same shape in case of a 2D cell in 3D space
-    # cell.ctx.ndim==3 && 
-    cell.shape.ndim==2 && return [ Cell(cell.shape, cell.nodes, tag=cell.tag, owner=cell) ]
-    return getfacets(cell)
-end
+# function getfaces(cell::AbstractCell)
+#     # Return a cell with the same shape in case of a 2D cell in 3D space
+#     cell.shape.ndim==2 && return [ Cell(cell.shape, cell.nodes, tag=cell.tag, owner=cell) ]
+#     return getfacets(cell)
+# end
 
 
 # gets all edges of a cell
-function getedges(cell::AbstractCell)
+function get_edges(cell::AbstractCell)
     edges  = Cell[]
     all_edge_idxs = cell.shape.edge_idxs
 
     for edge_idx in all_edge_idxs
         nodes = cell.nodes[edge_idx]
         shape  = (LIN2, LIN3, LIN4)[length(nodes)-1]
-        edge   = Cell(shape, nodes, tag=cell.tag, owner=cell)
+        edge   = Cell(shape, :line, nodes, tag=cell.tag, owner=cell)
         push!(edges, edge)
     end
 
@@ -487,9 +370,9 @@ function cell_extent(c::AbstractCell)
     nldim = c.shape.ndim # cell basic dimension
 
     # get coordinates matrix
-    C = getcoords(c)
+    C = get_coords(c)
     J = Array{Float64}(undef, size(C,2), nldim)
-    
+
     # calc metric
     vol = 0.0
     for i in 1:nip
@@ -600,7 +483,7 @@ end
 # Returns the cell quality ratio as reg_surf/surf
 function cell_quality(c::AbstractCell)::Float64
     # get faces
-    c.shape.family==JOINTCELL && return 1.0
+    c.role != :bulk && return 1.0
 
     faces = getfacets(c)
     length(faces)==0 && return 1.0
@@ -625,7 +508,7 @@ end
 
 
 function cell_aspect_ratio(c::AbstractCell)::Float64
-    edges = getedges(c)
+    edges = get_edges(c)
     L = [ cell_extent(e) for e in edges ]
     return maximum(L)/minimum(L)
 end
@@ -668,108 +551,26 @@ end
 
 
 function inverse_map(cell::AbstractCell, X::AbstractArray{Float64,1}, tol=1.0e-7)
-    return inverse_map(cell.shape, getcoords(cell), X, tol)
+    return inverse_map(cell.shape, get_coords(cell), X, tol)
 end
 
 
-function get_point(s::Float64, coords::Array{Float64,2})
-    #  Interpolates coordinates for s between 0 and 1
-    #
-    #  0               +1  -->s
-    #  1---2---3---..---n  -->idx
+# function get_point(s::Float64, coords::Array{Float64,2})
+#     #  Interpolates coordinates for s between 0 and 1
+#     #
+#     #  0               +1  -->s
+#     #  1---2---3---..---n  -->idx
 
-    @assert 0<=s<=1
-    n = size(coords,1)
-    m = n - 1 # number of segments
-    δ = 1/m   # parametric length per segment
-    
-    # segment index and parametric coordinates
-    i  = floor(Int, s/δ) + 1 # index for current segment
-    i  = min(i, m)
-    si = (i-1)*δ     # global parametric coordinate at the beginning of segment i
-    t  = (s - si)/δ  # local parametric coordiante
+#     @assert 0<=s<=1
+#     n = size(coords,1)
+#     m = n - 1 # number of segments
+#     δ = 1/m   # parametric length per segment
 
-    return coords[i,:]*(1-t) + coords[i+1,:]*t
-end
+#     # segment index and parametric coordinates
+#     i  = floor(Int, s/δ) + 1 # index for current segment
+#     i  = min(i, m)
+#     si = (i-1)*δ     # global parametric coordinate at the beginning of segment i
+#     t  = (s - si)/δ  # local parametric coordiante
 
-export select
-
-
-function select(cells::Array{Cell,1}, polycoords::Array{Float64,2}, axis=[0.0, 0.0, 1.0])
-    # Selects elements included in the projection of the give polygon and axis direction
-
-    n = size(polycoords, 1)
-    eps = 1e-8
-    
-    # project to plane
-    V1 = polycoords[2,:] - polycoords[1,:]
-    V2 = cross(axis, V1)
-    V1 = cross(V2, axis)
-    normalize!(V1)
-    normalize!(V2)
-    N = normalize(axis)
-
-    R = [V1'; V2'; N']
-    XY = (polycoords*R')[:,1:2]
-    XY = round.(XY, digits=8)
-
-    selected = Cell[]
-
-    for cell in cells
-        allin = true
-
-        for node in cell.nodes
-            X = R*node.coord
-            x, y = X[1], X[2]
-        
-            # find if point is inside
-            ints = 0
-
-            for i in 1:n
-                x1, y1 = XY[i,1], XY[i,2]
-        
-                # check if point is equal to vertex
-                if abs(x1-x)<eps && abs(y1-y)<eps
-                    ints = 1
-                    break
-                end
-
-                # get second point of segment
-                if i!=n
-                    x2, y2 = XY[i+1,1], XY[i+1,2]
-                else
-                    x2, y2 = XY[1,1], XY[1,2]
-                end
-
-                if y1==y2
-                    continue
-                end
-
-                if y>=min(y1,y2) && y<=max(y1,y2)
-                    # check if point is contained in line
-                    if abs((x2-x1)/(y2-y1) - (x2-x)/(y2-y)) < eps
-                        ints = 1
-                        break
-                    end
-                    
-                    xi = x1 + (x2-x1)/(y2-y1)*(y-y1)
-        
-                    if xi > x 
-                        ints += 1
-                    end
-                end
-        
-            end
-
-            if ints%2==0
-                allin = false
-                break
-            end
-        end
-
-        allin && push!(selected, cell)
-    end
-
-    return selected
-
-end
+#     return coords[i,:]*(1-t) + coords[i+1,:]*t
+# end

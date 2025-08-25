@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 
 geo = GeoModel(size=1)
 s = 0.2
@@ -24,16 +24,16 @@ save(mesh, "dowel.vtu")
 
 # FEM
 mats = [
-        :bulks => MechSolid => LinearElastic => (E=24e2, nu=0.2),
+        :bulks => MechBulk => LinearElastic => (E=24e2, nu=0.2),
 
-        # :lines => MechTruss => LinearElastic => (E=200e6, A=0.00011),
+        # :lines => MechBar => LinearElastic => (E=200e6, A=0.00011),
         :lines => MechBeam => LinearElastic => (E=200e6, A=0.00011),
 
         :linejoints => MechBondSlip => LinearBondSlip => (kn=5000, ks=6000, p=0.25),
         # :linejoints => MechBondSlip => CebBondSlip => (taumax=12, taures=3, s1=0.001, s2=0.0011, s3=0.004, alpha=0.5, beta=0.5, ks=(12/0.001)*5, kn=5000, p=0.25)
        ]
 
-ctx = MechContext(stressmodel=:planestress)
+ctx = Context(stress_state=:plane_stress)
 model = FEModel(mesh, mats, ctx, thickness=0.1)
 tag!(model.elems.lines.nodes[x>=1], "outside")
 

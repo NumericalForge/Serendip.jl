@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 function getfullpath(dir, filename)
     filename=="" && return ""
@@ -19,11 +19,11 @@ function wrap(str::String; level=1)
 
     for s in split(str, "\n")
         if (level-1)*2+length(str)>width
-            len = width - 2*(level-1) 
+            len = width - 2*(level-1)
             rx  = Regex(".{1,$len}( |\$)")
             ss  = SubstitutionString("  "^(level-1)*"\\0\\n")
             s   = replace(s, rx => ss)[1:end-1]
-        else 
+        else
             s = "  "^(level-1)*s
         end
         push!(parts, s)
@@ -116,7 +116,7 @@ function latex(M::AbstractArray; digits=3)
 
     m = size(M, 1)
     n = size(M, 2)
-    
+
 
     # widths calculation
     etype = eltype(M)

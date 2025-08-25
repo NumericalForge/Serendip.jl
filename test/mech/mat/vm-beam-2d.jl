@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 using Test
 
 h  = 0.1
@@ -9,36 +9,22 @@ fy = 240e3 # kPa
 H  = 0.0
 nu = 0.3
 
-# mesh
-bl = Block( [0 0; L 0], nx=50, cellshape=LIN3)
-msh = Mesh(bl, ndim=2)
+geo = GeoModel()
+bl = add_block(geo, [0.0, 0.0], [L, 0], nx=50, shape=LIN3, tag="beam")
+mesh = Mesh(geo, ndim=2)
+save(mesh, "vm-beam-2d.vtu")
 
-# fem domain
-mat = [ :lines => MechBeam => VonMises => (E=E, nu=nu, fy=fy, H=H, thy=h, thz=th) ]
+mapper = RegionMapper()
+add_mapping(mapper, "beam", MechBeam, VonMises, E=E, nu=nu, fy=fy, H=H, thy=h, thz=th)
+model = FEModel(mesh, mapper)
 
-ctx = MechContext()
-model = FEModel(msh, mat, ctx)
-ana = MechAnalysis(model)
+ana   = MechAnalysis(model)
+log = add_logger(ana, :node, (x==L))
+mon = add_monitor(ana, :node, (x==L), :fy)
 
-log = NodeLogger()
-addlogger!(ana, :(x==$L) => log)
-addmonitor!(ana, :(x==$L) => NodeMonitor(:fy))
+stage = add_stage(ana, nincs=30, nouts=1)
+add_bc(stage, :node, (x==0), ux=0, uy=0, rz=0)
+add_bc(stage, :node, (x==L), uy = -0.03)
 
-# boundary conditions
-bcs = [
-    :(x==0) => NodeBC(ux=0, uy=0, rz=0),
-    :(x==$L) => NodeBC(uy = -0.08),
-]
-
-addstage!(ana, bcs, nincs=30, nouts=1)
-
-solve!(ana, autoinc=true)
-
-println(@test log.table.fy[end]≈-30 atol=5.0)
-
-if makeplots
-    using PyPlot
-    tab = log.table
-    plot( -tab[:uy], -tab[:fy], "-o")
-end
-
+run(ana, autoinc=true)
+@test log.table["fy"][end]≈-30 atol=5.0

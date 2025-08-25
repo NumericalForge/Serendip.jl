@@ -1,453 +1,339 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-# Monitor structs and functions
-# =============================
-
-abstract type AbstractMonitor end
-@inline Base.:(<<)(a, b::AbstractMonitor) = return a=>b
-
-# Ip Monitor
-# ==========
+mutable struct Monitor{T}
+    kind    ::Symbol
+    exprs   ::Vector
+    selector::Any
+    target  ::Vector{T}
+    stops   ::Vector
+    filename::String
+    values  ::OrderedDict{Symbol, Float64}
+    table   ::DataTable
+end
 
 """
-    $(TYPEDEF)
+    add_monitor(
+        ana::Analysis,
+        kind::Symbol,
+        selector::Any,
+        expr::Union{Symbol, Expr, Tuple, Array},
+        filename::String = "";
+        stop::Union{Expr,Tuple,Array,Nothing} = nothing
+    )
 
-Monitor type for a single integration point.
+Adds a monitor to the analysis for observing quantities during the simulation.
+Monitors are used to evaluate expressions at selected nodes or integration points and optionally trigger stopping conditions.
+
+# Positional Arguments
+
+- `ana::Analysis`:
+    The analysis object to which the monitor will be attached. The monitor is stored in `ana.monitors`.
+
+- `kind::Symbol`:
+    Specifies the type of monitor. Valid options are:
+    - `:node`: Monitor a single node.
+    - `:ip`: Monitor a single integration point.
+    - `:nodegroup`: Monitor a group of nodes.
+    - `:ipgroup`: Monitor a group of integration points.
+    - `:nodalreduce`: Monitor reduced quantities across selected nodes.
+
+- `selector`:
+    Defines how to select the items to monitor. Can be:
+    - A **vector** `[x, y, z]` specifying coordinates (the nearest matching item will be used if no exact match is found).
+    - A **logical expression** (e.g., `x > 0 && y < 1`).
+    - A predefined tag or list of items.
+
+- `expr`:
+    One or more expressions to monitor. Can be a single `Symbol` (e.g., `:ux`), or a collection (e.g., `[:ux, :uy]`, a tuple, or an array).
+
+- `filename::String` (optional):
+    Name of the file where the monitor results will be saved. If a path is not
+    provided, the file is saved in the current directory.
+    The file extension should be `.table` (for `DataTable`) for kind `:node`,
+    `:ip` and `:nodalreduce`, or `.book` (for `DataBook`) for kind `:nodegroup` or `:ipgroup`.
+
+
+# Keyword Arguments
+
+- `stop` (optional):
+    Defines stop conditions for the monitor. Can be:
+    - An condition (e.g., `:(ux > 0.1)`).
+    - A collection of conditions.
+    **Note:** Stop conditions are only supported for `:node` and `:ip` kinds.
+
+# Returns
+
+- A `Monitor` object of type `Monitor{Node}` or `Monitor{Ip}`, depending on `kind`. The monitor is also pushed into `ana.monitors`.
+
+# Notes
+
+- If `kind` is `:node` or `:ip` and the selector matches multiple items, only the **first match** will be monitored.
+- For `:nodegroup` and `:ipgroup`, the selected items are sorted automatically by coordinate sum.
+- If no items match the selector, the nearest item is chosen and a notification is displayed.
+
+# Example
+```julia
+# Monitor displacement ux at a node at x=0 and y==0
+add_monitor(ana, :node, (x==0,y==0), :ux, "monitor_node_ux.table")
+
+# Monitor stress components at a group of integration points
+add_monitor(ana, :ipgroup, z>1.0, [:sxx, :syy], "stress_ipgroup.book")
+
+# Monitor a node and stop analysis if ux > 0.01 at that node
+add_monitor(ana, :node, [0.0, 0.0, 0.0], :ux; stop=:(ux > 0.01))
+```
 """
-mutable struct IpMonitor<:AbstractMonitor
-    expr     ::Union{Symbol,Expr}
-    vals     ::OrderedDict # stores current values
-    filename ::String
-    filter   ::Any
-    label    ::String
-    table    ::DataTable
-    ip       ::Union{Ip,Nothing}
-    stopexpr ::Expr
+function add_monitor(
+    ana::Analysis,
+    kind::Symbol,
+    selector,
+    expr::Union{Symbol,Expr,Tuple,Array},
+    filename="";
+    stop::Union{Expr,Tuple,Array,Nothing} = nothing,
+    )
 
+    @check kind in (:node, :ip, :nodegroup, :ipgroup, :nodalreduce) "add_monitor: kind must be one of :node, :ip, :nodegroup, :ipgroup, :nodalreduce"
 
-    @doc """
-    $(TYPEDSIGNATURES)
-    
-    Returns a IpMonitor for a given expression or symbol (`expr`). This monitor will
-    record the corresponding data during the finite element analysis.
-    The data recorded can be stored in the optional `filename`.
-        
+    item_kind = kind in (:node, :nodegroup, :nodalreduce) ? :node : :ip
+    target_type = item_kind == :node ? Node : Ip
 
-    # Example
-    ```julia-repl
-    julia> ana.model = randmodel(2,2)
+    # get filename
+    filename = getfullpath(ana.data.outdir, filename)
 
-    julia> monitors = [
-        :(x==0.5 && y==1.0) => IpMonitor(:σxx, "sxx.dat")
-        :(x==0.5 && y==0.0) => IpMonitor(:εyy, "eyy.dat")
-    ]
+    exprs = typeof(expr) in (Symbol, Expr) ? [expr] : vec(collect(expr))
+    all(typeof(expr) in (Symbol, Expr) for ex in exprs) || error("add_monitor: expr must be a Symbol or Expr or a collection of them")
 
-    julia> addmonitors!(ana, monitors)
-    ```
-    """
-    function IpMonitor(expr::Union{Symbol,Expr}, filename::String=""; stop=Expr=:())
-        if expr isa Expr
-            expr = round_floats!(expr)
-        end
-        if expr isa Symbol || expr.head == :call || expr.head == :(=)
-            expr = :($expr,)
-        end
-
-        stop = fix_expr_maximum_minimum!(stop)
-        if stop.head == :call
-            stop = :($stop,)
-        end
-
-        return new(expr, OrderedDict(), filename, :(), "", DataTable(), nothing, stop)
+    for (i,ex) in enumerate(exprs)
+        ex = round_floats!(ex)
+        ex = fix_expr_maximum_minimum!(ex)
+        exprs[i] = ex
     end
+
+    stop !== nothing && kind in (:nodegroup, :ipgroup) && error("Stop condition not supported for $kind monitors")
+    stops = stop === nothing ? [] : stop isa Expr ? [stop] : vec(collect(stop))
+    all(stop isa Expr for stop in stops) || error("add_monitor: stop must be a condition Expr or a collection of Exprs")
+
+    for (i,expr) in enumerate(stops)
+        ex = round_floats!(ex)
+        ex = fix_expr_maximum_minimum!(ex)
+        stops[i] = ex
+    end
+
+    items = target_type == :node ? ana.model.nodes : select(ana.model, :ip, :all)
+
+    # setup if selector is an array
+    if kind in (:node, :ip) && selector isa AbstractArray
+        X = Vec3(selector)
+        x, y, z = X
+        target = select(ana.model, item_kind, :(x==$x && y==$y && z==$z))
+
+        n = length(target)
+        if n==0
+            notify("add_monitor: No $kind found at $(selector). Picking the nearest at $X")
+            target = [ nearest(items, X) ]
+        else
+            target = target[1:1] # take the first
+        end
+
+        mon = Monitor{target_type}(kind, exprs, selector, target, stops, filename, OrderedDict{Symbol, Vector{Float64}}(), DataTable())
+        update_monitor!(ana, mon)
+        push!(ana.data.monitors, mon)
+        return mon
+    end
+
+    target = select(ana.model, item_kind, selector)
+    n = length(target)
+    n == 0 && notify("setup_monitor: No $(item_kind)s found for selector expression: ", selector)
+    if kind in (:node, :ip)
+        n >  1 && notify("setup_monitor: More than one $item_kind match selector expression: ", selector, ". Picking the first one.")
+        n >= 1 && (target = target[1:1])
+    end
+
+    mon = Monitor{target_type}(kind, exprs, selector, target, stops, filename, OrderedDict{Symbol, Vector{Float64}}(), DataTable())
+    update_monitor!(ana, mon)
+    push!(ana.data.monitors, mon)
+    return mon
 end
 
 
-function setup_monitor!(ana, allitems, filter, monitor::AbstractMonitor, field::Symbol)
-    item_type  = eltype(allitems)
-    item_name  = lowercase(string(item_type))
-    singleitem = string(field)[end] != 's' # if field ends with 's' it is a collection
+function update_monitor!(ana::Analysis, monitor::Monitor)
+    length(monitor.target) == 0 && return success()
 
-    if filter isa AbstractArray
-        items = getfromcoords(allitems, filter)
-        n = length(items)
+    if monitor.kind in (:node, :ip)
+        state = get_values(monitor.target[1])
 
-        if n==0
-            N = nearest(allitems, filter)
-            if N===nothing
-                items = item_type[]
+        # update state with _max and _min
+        vars = union(getvars(monitor.exprs)..., getvars(monitor.stops))
+        minmax_vals = OrderedDict()
+        for var in vars
+            contains(string(var), r"_max|_min") || continue
+            keystr, optstr = split(string(var), '_')
+            key = Symbol(keystr)
+
+            if size(monitor.table,1) == 0
+                state[var] = state[key]
             else
-                X = round.(N.coord, sigdigits=5)
-                notify("setup_monitor: No ip found at $(filter). Picking the nearest at $X")
-                items = [ N ]
+                fun = optstr=="min" ? min : max
+                state[var] = fun(state[key], monitor.table[var][end])
+            end
+            minmax_vals[var] = state[var]
+        end
+
+        for expr in monitor.exprs
+            monitor.values[expr] = evaluate(expr; state...)
+        end
+
+        merge!(monitor.values, minmax_vals)
+        monitor.values[:stage] = ana.data.stage
+        monitor.values[:T]     = ana.data.T
+        ana.data.transient && (monitor.values[:t]=ana.data.t)
+        push!(monitor.table, monitor.values)
+
+        # eval stop expressions
+        for expr in monitor.stops
+            if evaluate(expr; state...)
+                return failure("Stop condition reached: ($expr)")
             end
         end
-    elseif filter isa Integer
-        if 1<=filter<=length(allitems)
-            items = [ allitems[filter] ]
-        else
-            items = item_type[]
+    elseif monitor.kind in (:ipgroup, :nodegroup)
+        for expr in monitor.exprs
+            vals = []
+            for item in monitor.target
+                state = get_values(item)
+                val = evaluate(expr; state...)
+                push!(vals, val)
+            end
+            if expr isa Symbol
+                lo, hi = round.(extrema(vals), sigdigits=5)
+                monitor.values[Symbol(:(min($expr)))] = lo
+                monitor.values[Symbol(:(max($expr)))] = hi
+            else
+                val = any(vals) # TODO ?
+                monitor.values[expr] = val
+            end
         end
-    else
-        items = allitems[filter]
-    end
 
-    n = length(items)
-    if singleitem
-        if n==0
-            warn("setup_monitor!: No $(item_name)s found for filter expression: $(monitor.filter)")
-            setfield!(monitor, field, nothing)
-        else
-            n>1 && notify("setup_monitor!: More than one $item_name match filter expression: $(monitor.filter)")
-            setfield!(monitor, field, items[1])
+        monitor.values[:stage] = ana.data.stage
+        monitor.values[:T]     = ana.data.T
+        ana.data.transient && (monitor.values[:t]=ana.data.t)
+
+        push!(monitor.table, monitor.values)
+    elseif monitor.kind == :nodalreduce
+        tableU = DataTable()
+        tableF = DataTable()
+        for node in monitor.target
+            nvals = get_values(node)
+            valsU  = OrderedDict( dof.name => nvals[dof.name] for dof in node.dofs )
+            valsF  = OrderedDict( dof.natname => nvals[dof.natname] for dof in node.dofs )
+            push!(tableF, valsF)
+            push!(tableU, valsU)
         end
-    else
-        setfield!(monitor, field, items)
-    end
 
-    if filter isa Expr || filter isa Symbolic
-        monitor.label = replace( string(round_floats!(getexpr(filter))), " " => "")
-    elseif filter isa Integer
-        monitor.label = "$item_name $filter"
-    else
-        monitor.label = string(filter)
-    end
+        valsU = OrderedDict( Symbol(key) => mean(tableU[key]) for key in keys(tableU) ) # gets the average of essential values
+        valsF = OrderedDict( Symbol(key) => sum(tableF[key])  for key in keys(tableF) ) # gets the sum for each component
+        state = merge(valsU, valsF)
 
-    monitor.filename = getfullpath(ana.sctx.outdir, monitor.filename)
-
-    return nothing
-end
-
-
-function setup_monitor!(ana, filter, monitor::IpMonitor)
-    setup_monitor!(ana, ana.model.elems.ips, filter, monitor, :ip)
-end
-
-
-function update_monitor!(monitor::IpMonitor, ana::Analysis)
-    monitor.ip === nothing && return success()
-
-    state = ip_vals(monitor.ip) 
-
-    # update state with _max and _min
-    vars = union(getvars(monitor.expr), getvars(monitor.stopexpr))
-    extravals = OrderedDict()
-    for var in vars
-        contains(string(var), r"_max|_min") || continue
-        keystr, optstr = split(string(var), '_')
-        key = Symbol(keystr)
-
-        if size(monitor.table)[1] == 0
-            state[var] = state[key]
-        else
-            fun = optstr=="min" ? min : max
-            state[var] = fun(state[key], monitor.table[var][end])
+        # update state with definitinos
+        for ex in monitor.exprs
+            if ex isa Expr && ex.head == :(=)
+                var = ex.args[1]
+                state[var] = evaluate(ex.args[2]; state...)
+            end
         end
-        extravals[var] = state[var]
-    end
 
-    for expr in monitor.expr.args
-        monitor.vals[expr] = evaluate(expr; state...)
-    end
+        # update state with _max and _min
+        vars = union(getvars(monitor.exprs), getvars(monitor.stops))
+        minmax_vals = OrderedDict()
+        for var in vars
+            contains(string(var), r"_max|_min") || continue
+            keystr, optstr = split(string(var), '_')
+            key = Symbol(keystr)
 
-    merge!(monitor.vals, extravals)
-    monitor.vals[:stage] = ana.sctx.stage
-    monitor.vals[:T]     = ana.sctx.T
-    ana.sctx.transient && (monitor.vals[:t]=ana.sctx.t)
-    push!(monitor.table, monitor.vals)
+            if size(monitor.table)[1] == 0
+                state[var] = state[key]
+            else
+                fun = optstr=="min" ? min : max
+                state[var] = fun(state[key], monitor.table[var][end])
+            end
+            minmax_vals[var] = state[var]
+        end
 
-    # eval stop expressions
-    for expr in monitor.stopexpr.args
-        if evaluate(expr; state...)
-            return failure("Stop condition at IpMonitor ($expr)")
+        # eval expressions
+        for expr in monitor.exprs
+            if expr isa Expr && expr.head == :(=)
+                expr = expr.args[1]
+            end
+            monitor.values[expr] = evaluate(expr; state...)
+        end
+
+        merge!(monitor.values, minmax_vals)
+        monitor.values[:stage] = ana.data.stage
+        monitor.values[:T]     = ana.data.T
+        ana.data.transient && (monitor.values[:t]=ana.data.t)
+        push!(monitor.table, monitor.values)
+
+        # eval stop expressions
+        for expr in monitor.stops
+            if evaluate(expr; state...)
+                return failure("Stop condition at NodeSumMonitor ($expr)")
+            end
         end
     end
 
     return success()
+
 end
 
 
-function output(monitor::AbstractMonitor)
-    out = IOBuffer()
-    head = "  " * string(typeof(monitor)) * " " * monitor.label
-    print(out, head, "\e[K")
+function output(monitor::Monitor)
 
-    first = true
-    for (k,v) in monitor.vals
+    # out = IOBuffer()
+    selector = monitor.selector
+
+    if selector isa Expr || selector isa Symbolic
+        loc = replace( string(round_floats!(getexpr(selector))), " " => "")
+    elseif selector isa Integer
+        loc = "$item_name $selector"
+    else
+        loc = repr(selector)
+    end
+
+    head = string(monitor.kind) * " at " * loc
+
+    # head = "    $(monitor.kind) at " * label * "    "
+    # head_len = length(head)
+    # n = 5
+    # rem = head_len%n
+    # if rem != 0
+    #     head *= " "^(n - rem)
+    # end
+
+    # print(out, head, "\e[K")
+
+    labels = String[]
+    values = String[]
+    # first = true
+    for (k,v) in monitor.values
         k in (:stage, :T, :t) && continue
-        first || print(out, " "^length(head))
-        first = false
-
         if v isa Real && !(v isa Bool)
             v = round(v, sigdigits=5)
         end
-        println(out, "   ", replace(string(k), " " => ""), " : ", v, "\e[K")
+        push!(labels, string(k))
+        push!(values, string(v))
+
+        # first || print(out, " "^length(head))
+
+
+        # println(out, replace(string(k), " " => ""), " : ", v, "\e[K")
+        # first = false
     end
-    str = String(take!(out))
-    return str
+    # labels[1] = label
+    # str = String(take!(out))
+    # return str
+    return head, labels, values
 end
 
 
-# Node Monitor
-# ============
-
-"""
-    $(TYPEDEF)
-
-Monitor type for a single node.
-"""
-mutable struct NodeMonitor<:AbstractMonitor
-    expr     ::Union{Symbol,Expr}
-    vals     ::OrderedDict # stores current values
-    filename ::String
-    filter   ::Any
-    label    ::String
-    table    ::DataTable
-    node     ::Union{Node,Nothing}
-
-    @doc """
-    $(TYPEDSIGNATURES)
-    
-    Returns a NodeMonitor for a given expression or symbol (`expr`). This monitor will
-    record the corresponding data during the finite element analysis.
-    The data recorded can be stored in the optional `filename`.
-        
-    # Example
-    ```julia-repl
-    julia> ana.model = randmodel(2,2)
-
-    julia> monitors = [
-        :(x==0.5 && y==1.0) => NodeMonitor(:fx, "fx.dat")
-        :(x==0.5 && y==0.0) => NodeMonitor(:uy, "uy.dat")
-    ]
-
-    julia> addmonitors!(ana, monitors)
-    ```
-    """
-    function NodeMonitor(expr::Union{Symbol,Expr}, filename::String="")
-        if expr isa Symbol || expr.head == :call
-            expr = :($expr,)
-        end
-
-        return new(expr, OrderedDict(), filename, :(), "", DataTable())
-    end
-end
-
-
-function setup_monitor!(ana, filter, monitor::NodeMonitor)
-    setup_monitor!(ana, ana.model.nodes, filter, monitor, :node)
-end
-
-
-function update_monitor!(monitor::NodeMonitor, ana::Analysis)
-    monitor.node === nothing && return success()
-
-    for expr in monitor.expr.args
-        state = node_vals(monitor.node) 
-        monitor.vals[expr] = evaluate(expr; state...)
-    end
-
-    monitor.vals[:stage] = ana.sctx.stage
-    monitor.vals[:T]     = ana.sctx.T
-    ana.sctx.transient && (monitor.vals[:t]=ana.sctx.t)
-
-    push!(monitor.table, monitor.vals)
-
-    return success()
-end
-
-
-# Monitor for a group of ips
-# ==========================
-
-mutable struct IpGroupMonitor<:AbstractMonitor
-    expr    ::Expr
-    vals    ::OrderedDict
-    filename::String
-    filter  ::Any
-    label   ::String
-    table   ::DataTable
-    ips     ::Array{Ip,1}
-
-    function IpGroupMonitor(expr::Union{Symbol,Expr}, filename::String="")
-        if expr isa Expr
-            expr = round_floats!(expr)
-        end
-        if expr isa Symbol || expr.head == :call || expr.head == :(=)
-            expr = :($expr,)
-        end
-
-        return new(expr, OrderedDict(), filename, :(), "", DataTable(), [])
-    end
-end
-
-
-function setup_monitor!(ana, filter, monitor::IpGroupMonitor)
-    setup_monitor!(ana, ana.model.elems.ips, filter, monitor, :ip)
-end
-
-
-function update_monitor!(monitor::IpGroupMonitor, ana::Analysis)
-    length(monitor.ips) == 0 && return success()
-
-    for expr in monitor.expr.args
-        vals = []
-        for ip in monitor.ips
-            state = ip_vals(ip) 
-            val = evaluate(expr; state...)
-            push!(vals, val)
-        end
-        if expr isa Symbol
-            lo, hi = round.(extrema(vals), sigdigits=5)
-            monitor.vals[:(min($expr))] = lo
-            monitor.vals[:(max($expr))] = hi
-        else
-            val = any(vals)
-            monitor.vals[expr] = val
-        end
-    end
-
-    monitor.vals[:stage] = ana.sctx.stage
-    monitor.vals[:T]     = ana.sctx.T
-    ana.sctx.transient && (monitor.vals[:t]=ana.sctx.t)
-
-    push!(monitor.table, monitor.vals)
-
-    return success()
-end
-
-
-# Monitor for the sum of nodes
-# ============================
-
-"""
-    $(TYPEDEF)
-
-Monitor type tha represent the resultant of a group of nodes.
-"""
-mutable struct NodeSumMonitor<:AbstractMonitor
-    expr     ::Union{Symbol,Expr} # watches
-    vals     ::OrderedDict # current values
-    filename ::String
-    filter   ::Any
-    label    ::String
-    table    ::DataTable
-    nodes    ::Array{Node,1}
-    stopexpr ::Expr
-
-    @doc """
-    $(TYPEDSIGNATURES)
-    
-    Returns a NodeSumMonitor for a given expression or symbol (`expr`). This monitor will
-    record the corresponding data during the finite element analysis.
-    The data recorded can be stored in the optional `filename`.
-    The `stop` expresion can be used to stop the analysis if the expresion becomes true.
-
-    # Example
-    ```julia-repl
-    julia> ana.model = randmodel(2,2)
-
-    julia> monitors = [
-        :(y==1.0) => NodeSumMonitor(:fx, "fx.dat")
-        :(y==0.0) => NodeSumMonitor(:fy, "fy.dat"; stop = :(uy>0.01))
-    ]
-
-    julia> addmonitors!(ana, monitors)
-    ```
-    """
-    function NodeSumMonitor(expr::Union{Symbol,Expr}, filename::String=""; stop=Expr=:())
-        if expr isa Expr
-            expr = fix_expr_maximum_minimum!(round_floats!(expr))
-        end
-        stop = fix_expr_maximum_minimum!(stop)
-        if expr isa Symbol || expr.head == :call || expr.head == :(=)
-            expr = :($expr,)
-        end
-        if stop.head == :call
-            stop = :($stop,)
-        end
-
-        return new(expr, OrderedDict(), filename, :(), "", DataTable(), Node[], stop)
-    end
-end
-
-
-function setup_monitor!(ana, filter, monitor::NodeSumMonitor)
-    setup_monitor!(ana, ana.model.nodes, filter, monitor, :nodes)
-
-    # available_vars = OrderedSet()
-    # for node in monitor.nodes
-    #     for dof in node.dofs
-    #         push!(available_vars, dof.name)
-    #         push!(available_vars, dof.natname)
-    #     end
-    # end
-    # hint("NodeSumMonitor: ", replace(string(monitor.expr), " " => ""), " Available data: ", join(available_vars, ", "))
-end
-
-
-function update_monitor!(monitor::NodeSumMonitor, ana::Analysis)
-    length(monitor.nodes) == 0 && return success()
-
-    tableU = DataTable()
-    tableF = DataTable()
-    for node in monitor.nodes
-        nvals = node_vals(node)
-        valsU  = OrderedDict( dof.name => nvals[dof.name] for dof in node.dofs )
-        valsF  = OrderedDict( dof.natname => nvals[dof.natname] for dof in node.dofs )
-        push!(tableF, valsF)
-        push!(tableU, valsU)
-    end
-
-    valsU = OrderedDict( Symbol(key) => mean(tableU[key]) for key in keys(tableU) ) # gets the average of essential values
-    valsF = OrderedDict( Symbol(key) => sum(tableF[key])  for key in keys(tableF) ) # gets the sum for each component
-    state = merge(valsU, valsF)
-
-    # update state with definitinos
-    for ex in monitor.expr.args
-        if ex isa Expr && ex.head == :(=)
-            var = ex.args[1]
-            state[var] = evaluate(ex.args[2]; state...)
-        end
-    end
-
-    # update state with _max and _min
-    vars = union(getvars(monitor.expr), getvars(monitor.stopexpr))
-    extravals = OrderedDict()
-    for var in vars
-        contains(string(var), r"_max|_min") || continue
-        keystr, optstr = split(string(var), '_')
-        key = Symbol(keystr)
-
-        if size(monitor.table)[1] == 0
-            state[var] = state[key]
-        else
-            fun = optstr=="min" ? min : max
-            state[var] = fun(state[key], monitor.table[var][end])
-        end
-        extravals[var] = state[var]
-    end
-
-    # eval expressions
-    for expr in monitor.expr.args
-        if expr isa Expr && expr.head == :(=)
-            expr = expr.args[1]
-        end
-        monitor.vals[expr] = evaluate(expr; state...)
-    end
-
-    merge!(monitor.vals, extravals)
-    monitor.vals[:stage] = ana.sctx.stage
-    monitor.vals[:T]     = ana.sctx.T
-    ana.sctx.transient && (monitor.vals[:t]=ana.sctx.t)
-    push!(monitor.table, monitor.vals)
-
-    # eval stop expressions
-    for expr in monitor.stopexpr.args
-        if evaluate(expr; state...)
-            return failure("Stop condition at NodeSumMonitor ($expr)")
-        end
-    end
-
-    return success()
+function save(monitor::Monitor, filename::String; quiet=false)
+    save(monitor.table, filename, quiet=quiet)
 end

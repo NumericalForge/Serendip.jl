@@ -84,7 +84,7 @@ Base.:*(X::Vec6, a::Real) = Vec6( a*X.v1, a*X.v2, a*X.v3, a*X.v4, a*X.v5, a*X.v6
 Base.:*(a::Real, X::Vec6) = X*a
 Base.:/(X::Vec6, a::Real) = X*(1.0/a)
 
-Base.:*(M::Array{Float64,2}, X::Vec6) = Vec6( 
+Base.:*(M::Array{Float64,2}, X::Vec6) = Vec6(
     M[1,1]*X.v1 + M[1,2]*X.v2 + M[1,3]*X.v3 + M[1,4]*X.v4 + M[1,5]*X.v5 + M[1,6]*X.v6,
     M[2,1]*X.v1 + M[2,2]*X.v2 + M[2,3]*X.v3 + M[2,4]*X.v4 + M[2,5]*X.v5 + M[2,6]*X.v6,
     M[3,1]*X.v1 + M[3,2]*X.v2 + M[3,3]*X.v3 + M[3,4]*X.v4 + M[3,5]*X.v5 + M[3,6]*X.v6,

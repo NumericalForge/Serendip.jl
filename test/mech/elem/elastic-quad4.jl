@@ -2,53 +2,49 @@
 # Finite Elements for Structural Analysis. pg 168
 # William Weaver & Paul Johnston
 
-using Amaru
+using Serendip
 using Test
 
 # Mesh generation
 
-block = Block( [0 0; 1 1], nx=1, ny=1, cellshape=QUAD4, tag="solid")
-mesh = Mesh(block, quiet=true)
+geo = GeoModel()
+add_block(geo, [0, 0], [1, 1], nx=1, ny=1, shape=QUAD4)
+mesh = Mesh(geo, quiet=true)
 
-# Model definition
+mapper = RegionModel(MechBulk, LinearElastic, E=1.0, nu=0.25)
 
-mats = [
-    "solid" => MechSolid => LinearElastic => (E=1.0, nu=0.25),
-]
-
-ctx = MechContext(stressmodel=:planestrain)
-model = FEModel(mesh, mats, ctx)
+ctx = Context(stress_state=:plane_strain)
+model = FEModel(mesh, mapper, ctx)
 ana = MechAnalysis(model)
 
-bcs = [
-    :(x==0.) => SurfaceBC(ux=0.),
-    :(y==0.) => SurfaceBC(uy=0),
-    :(y==1.) => SurfaceBC(ty=-1.),
-]
-addstage!(ana, bcs, nincs=1)
-solve!(ana)
+stage = add_stage(ana, nincs=1)
+add_bc(stage, :face, x==0, ux=0)
+add_bc(stage, :face, y==0, uy=0)
+add_bc(stage, :face, y==1, ty=-1)
+
+run(ana)
 
 
-dis = 
+dis =
     [
-        0.0       0.0000e+00 
-        0.3125    0.0000e+00 
-        0.0      -9.3750e-01 
-        0.3125   -9.3750e-01 
+        0.0       0.0000e+00
+        0.3125    0.0000e+00
+        0.0      -9.3750e-01
+        0.3125   -9.3750e-01
     ]
-           
+
 
 println("Displacements:")
 
-D = get_data(model.nodes)[[:ux, :uy]]
+D = get_values(model.nodes)[[:ux, :uy]]
 println(D)
 
 @test dis ≈ Array(D) atol=1e-5
 
 println("Stress:")
-S = elems_ip_vals(model.elems[1])[[:σxx, :σyy, :σxy]]
+S = get_values(model.elems[1])[[:σxx, :σyy, :σxy]]
 println(S)
 
 println("Support reactions:")
-F = get_data(model.nodes)[[:fx, :fy]]
+F = get_values(model.nodes)[[:fx, :fy]]
 println(F)

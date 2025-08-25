@@ -7,7 +7,7 @@ function convex_hull(nodes::Array{Node,1})
     # the nodes might be in placed an arbitrary 3D plane
 
     # find the best fit plane
-    C = getcoords(nodes, 3)
+    C = get_coords(nodes, 3)
     nnodes = length(nodes)
 
     # move the coordinates to avoid singular case
@@ -36,7 +36,7 @@ function convex_hull(nodes::Array{Node,1})
 
     R = [ V1 V2 V3 ]
 
-    Amaru.@showm R
+    Serendip.@showm R
 
     # C = C*R'
     C = C*R
@@ -57,7 +57,7 @@ function convex_hull(nodes::Array{Node,1})
                 idx2 = j
                 continue
             end
-            
+
             P2 = C[idx2,:]
             Pj = C[j,:]
 
@@ -71,8 +71,8 @@ function convex_hull(nodes::Array{Node,1})
         idx2==perm[1] && break
     end
 
-    Amaru.@showm C
-    Amaru.@showm C[perm, :]
+    Serendip.@showm C
+    Serendip.@showm C[perm, :]
 
     # build contour
     return nodes[perm]

@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export NLConductivity
 
@@ -75,7 +75,7 @@ function calcK(mat::NLConductivity, state::NLConductivityState) # Thermal conduc
 end
 
 
-function update_state!(mat::NLConductivity, state::NLConductivityState, Δut::Float64, G::Array{Float64,1}, Δt::Float64)
+function update_state(mat::NLConductivity, state::NLConductivityState, Δut::Float64, G::Array{Float64,1}, Δt::Float64)
     K = calcK(mat, state)
     state.Q   = -K*G
     state.D  += state.Q*Δt
@@ -84,7 +84,7 @@ function update_state!(mat::NLConductivity, state::NLConductivityState, Δut::Fl
 end
 
 
-function ip_state_vals(mat::NLConductivity, state::NLConductivityState)
+function state_values(mat::NLConductivity, state::NLConductivityState)
     D = OrderedDict{Symbol, Float64}()
     #D[:qx] = state.Q[1]
     #D[:qy] = state.Q[2]

@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 # Tensor definitions using Mandel notation
 
@@ -79,7 +79,7 @@ The eigenvalues are sorted from highest to lowest
 """
 function eigvals(T::Vec6; sort=true)
     t11, t22, t33, t23, t13, t12 = T[1], T[2], T[3], T[4]/SR2, T[5]/SR2, T[6]/SR2
-    
+
     # full notation
     F = @SArray[ t11  t12  t13
                  t12  t22  t23
@@ -100,7 +100,7 @@ The eigenvectors are returned columnwise and disposed in a clockwise coordinate 
 """
 function LinearAlgebra.eigen(T::Vec6)
     t11, t22, t33, t23, t13, t12 = T[1], T[2], T[3], T[4]/SR2, T[5]/SR2, T[6]/SR2
-    
+
     # full notation
     F = @SArray[ t11  t12  t13
                  t12  t22  t23
@@ -121,7 +121,7 @@ end
 
 function LinearAlgebra.inv(T::Vec6)
     t11, t22, t33, t23, t13, t12 = T[1], T[2], T[3], T[4]/SR2, T[5]/SR2, T[6]/SR2
-    
+
     # full notation
     F = @SArray[ t11  t12  t13
                  t12  t22  t23
@@ -159,10 +159,10 @@ end
 Return a dictionary with conventional stress and stress values
 from stress and strain tensors defined in Mandel notation.
 """
-@inline function stress_strain_dict(σ::Vec6, ε::Vec6, stressmodel::Symbol)
+@inline function stress_strain_dict(σ::Vec6, ε::Vec6, stress_state::Symbol)
     svm = √(3*J2(σ))
 
-    if stressmodel in (:planestress,:planestrain)
+    if stress_state in (:plane_stress,:plane_strain)
         s1, _, s3 = eigvals(σ)
         return OrderedDict{Symbol,Float64}(
             :σxx => σ[1],
@@ -179,7 +179,7 @@ from stress and strain tensors defined in Mandel notation.
             :εzz => ε[3],
             :εxy => ε[6]/SR2,
         )
-    elseif stressmodel==:axisymmetric
+    elseif stress_state==:axisymmetric
         return OrderedDict{Symbol,Float64}(
             :σrr => σ[1],
             :σyy => σ[2],

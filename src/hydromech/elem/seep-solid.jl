@@ -1,11 +1,11 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export SeepSolid
 
 struct SeepSolidProps<:ElemProperties
     function SeepSolidProps(; params...)
         return new()
-    end    
+    end
 end
 
 
@@ -20,7 +20,7 @@ mutable struct SeepSolid<:Hydromech
     mat::Material
     props ::SeepSolidProps
     active::Bool
-    linked_elems::Array{Element,1}
+    couplings::Array{Element,1}
     ctx::Context
 
     function SeepSolid(props=SeepSolidProps())
@@ -30,7 +30,7 @@ mutable struct SeepSolid<:Hydromech
     end
 end
 
-compat_shape_family(::Type{SeepSolid}) = BULKCELL
+compat_role(::Type{SeepSolid}) = BULKCELL
 compat_elem_props(::Type{SeepSolid}) = SeepSolidProps
 
 
@@ -63,7 +63,7 @@ function distributed_bc(elem::SeepSolid, facet::Union{Facet,Nothing}, key::Symbo
     nnodes = length(nodes)
 
     # Calculate the target coordinates matrix
-    C = getcoords(nodes, ndim)
+    C = get_coords(nodes, ndim)
 
     # Calculate the nodal values
     F     = zeros(nnodes)
@@ -82,7 +82,7 @@ function distributed_bc(elem::SeepSolid, facet::Union{Facet,Nothing}, key::Symbo
         if ndim==2
             x, y = X
             vip = evaluate(val, t=t, x=x, y=y)
-            if elem.ctx.stressmodel==:axisymmetric
+            if elem.ctx.stress_state==:axisymmetric
                 th = 2*pi*X[1]
             end
         else
@@ -105,7 +105,7 @@ function elem_conductivity_matrix(elem::SeepSolid)
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
-    C      = getcoords(elem)
+    C      = get_coords(elem)
     H      = zeros(nnodes, nnodes)
     dNdX   = zeros(nnodes, ndim)
     KBw    = zeros(ndim, nnodes)
@@ -113,7 +113,7 @@ function elem_conductivity_matrix(elem::SeepSolid)
     J    = Array{Float64}(undef, ndim, ndim)
 
     for ip in elem.ips
-        elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+        elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
 
         dNdR = elem.shape.deriv(ip.R)
         @mul J  = C'*dNdR
@@ -122,7 +122,7 @@ function elem_conductivity_matrix(elem::SeepSolid)
         @mul dNdX = dNdR*inv(J) # Bw = dNdX'
 
         # compute H
-        K = calcK(elem.mat, ip.state)
+        K = calcK(elem.pmodel, ip.state)
         coef  = 1/elem.ctx.γw
         coef *= detJ*ip.w*th
         @mul KBw = K*dNdX'
@@ -140,13 +140,13 @@ function elem_compressibility_matrix(elem::SeepSolid)
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
-    C      = getcoords(elem)
+    C      = get_coords(elem)
     Cpp    = zeros(nnodes, nnodes)
 
     J  = Array{Float64}(undef, ndim, ndim)
 
     for ip in elem.ips
-        elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+        elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
 
         N    = elem.shape.func(ip.R)
         dNdR = elem.shape.deriv(ip.R)
@@ -155,7 +155,7 @@ function elem_compressibility_matrix(elem::SeepSolid)
         detJ > 0.0 || error("Negative Jacobian determinant in cell $(elem.id)")
 
         # compute Cpp
-        coef  = elem.mat.S
+        coef  = elem.pmodel.S
         coef *= detJ*ip.w*th
         Cpp  -= coef*N*N'
     end
@@ -171,7 +171,7 @@ function elem_RHS_vector(elem::SeepSolid)
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
-    C      = getcoords(elem)
+    C      = get_coords(elem)
     Q      = zeros(nnodes)
     Bw     = zeros(ndim, nnodes)
     KZ     = zeros(ndim)
@@ -182,7 +182,7 @@ function elem_RHS_vector(elem::SeepSolid)
     Z[end] = 1.0
 
     for ip in elem.ips
-        elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+        elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
 
         dNdR = elem.shape.deriv(ip.R)
         @mul J  = C'*dNdR
@@ -191,7 +191,7 @@ function elem_RHS_vector(elem::SeepSolid)
         detJ > 0.0 || error("Negative Jacobian determinant in cell $(elem.id)")
 
         # compute Q
-        K = calcK(elem.mat, ip.state)
+        K = calcK(elem.pmodel, ip.state)
         coef = detJ*ip.w*th
         @mul KZ = K*Z
         @mul Q += coef*dNdX*KZ
@@ -208,7 +208,7 @@ function elem_internal_forces(elem::SeepSolid, F::Array{Float64,1})
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
-    C   = getcoords(elem)
+    C   = get_coords(elem)
 
     map_w  = [ node.dofdict[:uw].eq_id for node in elem.nodes ]
 
@@ -218,7 +218,7 @@ function elem_internal_forces(elem::SeepSolid, F::Array{Float64,1})
     dNdX = Array{Float64}(undef, nnodes, ndim)
 
     for ip in elem.ips
-        elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+        elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
 
         # compute Bw matrix
         dNdR = elem.shape.deriv(ip.R)
@@ -232,7 +232,7 @@ function elem_internal_forces(elem::SeepSolid, F::Array{Float64,1})
 
         # internal volumes dFw
         uw   = ip.state.uw
-        coef = detJ*ip.w*elem.mat.S*th
+        coef = detJ*ip.w*elem.pmodel.S*th
         dFw .-= coef*uw*N
 
         D    = ip.state.D
@@ -250,7 +250,7 @@ function update_elem!(elem::SeepSolid, DU::Array{Float64,1}, Δt::Float64)
     th     = elem.ctx.thickness
 
     map_w = [ node.dofdict[:uw].eq_id for node in elem.nodes ]
-    C     = getcoords(elem)
+    C     = get_coords(elem)
 
     dUw = DU[map_w] # nodal pore-pressure increments
     Uw  = [ node.dofdict[:uw].vals[:uw] for node in elem.nodes ]
@@ -262,7 +262,7 @@ function update_elem!(elem::SeepSolid, DU::Array{Float64,1}, Δt::Float64)
     dNdX = Array{Float64}(undef, nnodes, ndim)
 
     for ip in elem.ips
-        elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+        elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
 
         # compute Bu matrix
         N    = elem.shape.func(ip.R)
@@ -277,9 +277,9 @@ function update_elem!(elem::SeepSolid, DU::Array{Float64,1}, Δt::Float64)
 
         Δuw = N'*dUw # interpolation to the integ. point
 
-        V = update_state!(elem.mat, ip.state, Δuw, G, Δt)
+        V = update_state(elem.pmodel, ip.state, Δuw, G, Δt)
 
-        coef  = elem.mat.S
+        coef  = elem.pmodel.S
         coef *= detJ*ip.w*th
         dFw  .-= coef*N*Δuw
 

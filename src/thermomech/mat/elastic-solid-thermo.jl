@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export LinearElasticThermo
 
@@ -52,7 +52,7 @@ compat_state_type(::Type{LinearElasticThermo}, ::Type{TMSolid}, ctx::Context) = 
 
 
 function calcD(mat::LinearElasticThermo, state::LinearElasticThermoState)
-    return calcDe(mat.E, mat.ν, state.ctx.stressmodel) # function calcDe defined at elastic-solid.jl
+    return calcDe(mat.E, mat.ν, state.ctx.stress_state) # function calcDe defined at elastic-solid.jl
 end
 
 
@@ -65,7 +65,7 @@ function calcK(mat::LinearElasticThermo, state::LinearElasticThermoState) # Ther
 end
 
 
-function update_state!(mat::LinearElasticThermo, state::LinearElasticThermoState, Δε::Array{Float64,1}, Δut::Float64, G::Array{Float64,1}, Δt::Float64)
+function update_state(mat::LinearElasticThermo, state::LinearElasticThermoState, Δε::Array{Float64,1}, Δut::Float64, G::Array{Float64,1}, Δt::Float64)
     De = calcD(mat, state)
     Δσ = De*Δε
     state.ε  += Δε
@@ -78,8 +78,8 @@ function update_state!(mat::LinearElasticThermo, state::LinearElasticThermoState
 end
 
 
-function ip_state_vals(mat::LinearElasticThermo, state::LinearElasticThermoState)
-    D = stress_strain_dict(state.σ, state.ε, state.ctx.stressmodel)
+function state_values(mat::LinearElasticThermo, state::LinearElasticThermoState)
+    D = stress_strain_dict(state.σ, state.ε, state.ctx.stress_state)
 
     #D[:qx] = state.QQ[1] # VERIFICAR NECESSIDADE
     #D[:qy] = state.QQ[2] # VERIFICAR NECESSIDADE

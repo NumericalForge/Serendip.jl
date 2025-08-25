@@ -1,68 +1,93 @@
-using Amaru
+using Serendip
 using Test
 
 dis = [ -0.012, -0.095 ]
 
+top_node = nothing
+
 for shape in (TRI3, TRI6, QUAD4, QUAD8, QUAD9)
     printstyled(shape.name, color=:cyan); println()
-    bl = Block( [0 0; 1 1], nx=2, ny=2, cellshape=shape, tag="solids")
-    mesh = Mesh(bl)
-    tag!(mesh.faces[:(y==0)], "bottom") # bottom face
-    tag!(mesh.faces[:(y==1)], "top") # top face
+    # bl = Block( [0, 0], [1, 1], nx=2, ny=2, shape=shape, tag="solids")
+    geo = GeoModel()
+    add_block(geo, [0, 0], [1, 1], nx=2, ny=2, shape=shape)
+    mesh = Mesh(geo)
+    select(mesh, :face, y==0, tag="bottom") # bottom face
+    select(mesh, :face, y==1, tag="top") # top face
 
-    materials = [
-        "solids" => MechSolid => LinearElastic => (E=100.0, nu=0.2)
-    ]
+    mapper = RegionModel(MechBulk, LinearElastic, E=100.0, nu=0.2)
+    # materials = [
+        # "solids" => MechBulk => LinearElastic => (E=100.0, nu=0.2)
+    # ]
 
-    ctx = MechContext()
-    model = FEModel(mesh, materials, ctx)
+    ctx = Context()
+    model = FEModel(mesh, mapper, ctx)
 
     ana = MechAnalysis(model)
-    bcs = [
-        "bottom" => SurfaceBC(ux=0, uy=0),
-        "top"    => SurfaceBC(ty=-10.)
-    ]
-    addstage!(ana, bcs)
-    solve!(ana).success
+    stage = add_stage(ana)
+    add_bc(stage, :edge, "bottom", ux=0, uy=0)
+    add_bc(stage, :edge, "top", ty=-10.)
+    run(ana).success
 
-    top_node = model.nodes[:(y==1)][1]
+    global top_node = select(model, :node, y==1)[1]
     ux = top_node.dofs[:ux].vals[:ux]
     uy = top_node.dofs[:uy].vals[:uy]
     @test [ux, uy] ≈ dis atol=4e-2
 
-    println( get_data(model.nodes[:(y==1)][1]) )
+    println( get_values(top_node) )
 
 end
 
 #for shape in (TET4, TET10, HEX8, HEX20, HEX27)
 for shape in (TET4, TET10, HEX8, HEX20, HEX27)
     printstyled(shape.name, color=:cyan); println()
-    bl = Block( [0 0 0; 1 1 1], nx=2, ny=2, nz=2, cellshape=shape, tag="solids")
-    mesh = Mesh(bl)
-    tag!(mesh.faces[:(z==0)], "bottom") # bottom face
-    tag!(mesh.faces[:(z==1)], "top") # top face
-    tag!(mesh.faces[:(x==0 || x==1)], "sides") # lateral face
+    geo = GeoModel()
+    add_block(geo, [0, 0, 0], [1, 1, 1], nx=2, ny=2, nz=2, shape=shape)
+    # bl = Block( [0 0 0; 1 1 1], nx=2, ny=2, nz=2, shape=shape, tag="solids")
+    mesh = Mesh(geo)
 
-    materials = [
-        "solids" => MechSolid => LinearElastic => (E=100.0, nu=0.2)
-    ]
+    select(mesh, :face, z==0, tag="bottom") # bottom face
+    select(mesh, :face, z==1, tag="top") # top face
+    select(mesh, :face, x==0, tag="sides") # lateral face
+    select(mesh, :face, x==1, tag="sides") # lateral face
 
-    ctx = MechContext()
-    model = FEModel(mesh, materials, ctx)
+    # tag!(mesh.faces[:(z==0)], "bottom") # bottom face
+    # tag!(mesh.faces[:(z==1)], "top") # top face
+    # tag!(mesh.faces[:(x==0 || x==1)], "sides") # lateral face
+
+    mapper = RegionModel(MechBulk, LinearElastic, E=100.0, nu=0.2)
+    ctx = Context()
+    model = FEModel(mesh, mapper, ctx)
+
     ana = MechAnalysis(model)
-    bcs = [
-        "bottom" => SurfaceBC(ux=0, uy=0, uz=0),
-        "sides"  => SurfaceBC(ux=0),
-        "top"    => SurfaceBC(tz=-10.)
-    ]
-    addstage!(ana, bcs)
-    solve!(ana).success
+    stage = add_stage(ana)
+    add_bc(stage, :face, "bottom", ux=0, uy=0, uz=0)
+    add_bc(stage, :face, "sides", ux=0)
+    add_bc(stage, :face, "top", tz=-10.)
+    run(ana).success
 
-    top_node = model.nodes[:(z==1)][1]
+
+    # materials = [
+    #     "solids" => MechBulk => LinearElastic => (E=100.0, nu=0.2)
+    # ]
+
+    # ctx = Context()
+    # model = FEModel(mesh, materials, ctx)
+    # ana = MechAnalysis(model)
+    # bcs = [
+    #     "bottom" => SurfaceBC(ux=0, uy=0, uz=0),
+    #     "sides"  => SurfaceBC(ux=0),
+    #     "top"    => SurfaceBC(tz=-10.)
+    # ]
+    # addstage!(ana, bcs)
+    # solve!(ana).success
+
+    # top_node = model.nodes[:(z==1)][1]
+    global top_node = select(model, :node, z==1)[1]
+
     uy = top_node.dofs[:uy].vals[:uy]
     uz = top_node.dofs[:uz].vals[:uz]
 
-    println( get_data(model.nodes[:(z==1)][1]) )
+    # println( get_values(top_node) )
 
     @test [uy, uz] ≈ dis atol=1e-2
 end

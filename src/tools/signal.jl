@@ -6,7 +6,7 @@ Find peaks in a vector `Y` with respect to `X` and filter according to `minpromi
 
 """
 function findpeaks(X::AbstractVector, Y::AbstractVector; minprominence=0.0, maxwidth=Inf)
-    
+
     idxs = Int[] # peak indices
     if minprominence==0
         mi, ma = extrema(Y)

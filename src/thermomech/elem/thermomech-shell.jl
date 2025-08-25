@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export TMShell
 
@@ -35,7 +35,7 @@ mutable struct TMShell<:ThermoMech
     mat   ::Material
     props ::TMShellProps
     active::Bool
-    linked_elems::Array{Element,1}
+    couplings::Array{Element,1}
     Dlmn::Array{ SMatrix{3,3,Float64}, 1}
 
     function TMShell();
@@ -44,18 +44,18 @@ mutable struct TMShell<:ThermoMech
 end
 
 
-compat_shape_family(::Type{TMShell}) = BULKCELL
+compat_role(::Type{TMShell}) = BULKCELL
 compat_elem_props(::Type{TMShell}) = TMShellProps
 
 
 function elem_init(elem::TMShell)
     # check element dimension
-    elem.shape.ndim==2 || throw(AmaruException("TMShell: Invalid element shape. Got $(elem.shape.name)"))
+    elem.shape.ndim==2 || throw(SerendipException("TMShell: Invalid element shape. Got $(elem.shape.name)"))
 
     # Compute nodal rotation matrices
     nnodes = length(elem.nodes)
     elem.Dlmn = Array{SMatrix{3,3,Float64}}(undef,nnodes)
-    C = getcoords(elem)
+    C = get_coords(elem)
 
     for i in 1:nnodes
         Ri = elem.shape.nat_coords[i,:]
@@ -77,7 +77,7 @@ function elem_init(elem::TMShell)
 end
 
 
-function setquadrature!(elem::TMShell, n::Int=0)
+function set_quadrature(elem::TMShell, n::Int=0)
     # Set integration points
     if n in (8, 18)
         n = div(n,2)
@@ -94,13 +94,13 @@ function setquadrature!(elem::TMShell, n::Int=0)
             j = (k-1)*n + i
             elem.ips[j] = Ip(R, w)
             elem.ips[j].id = j
-            elem.ips[j].state = compat_state_type(typeof(elem.mat), typeof(elem), elem.ctx)(elem.ctx)
+            elem.ips[j].state = compat_state_type(typeof(elem.pmodel), typeof(elem), elem.ctx)(elem.ctx)
             elem.ips[j].owner = elem
         end
     end
 
     # finding ips global coordinates
-    C     = getcoords(elem)
+    C     = get_coords(elem)
     shape = elem.shape
 
     for ip in elem.ips
@@ -161,7 +161,7 @@ end
 
 
 function calcS(elem::TMShell, αs::Float64)
-    return @SMatrix [ 
+    return @SMatrix [
         1.  0.  0.  0.  0.  0.
         0.  1.  0.  0.  0.  0.
         0.  0.  1.  0.  0.  0.
@@ -198,7 +198,7 @@ function setB(elem::TMShell, ip::Ip, N::Vect, L::Matx, dNdX::Matx, Rrot::Matx, B
 
         Bil[1,1] = dNdx;                                                                                Bil[1,5] = dNdx*ζ*th/2
                              Bil[2,2] = dNdy;                           Bil[2,4] = -dNdy*ζ*th/2
-                                                  
+
                                                   Bil[4,3] = dNdy/SR2;  Bil[4,4] = -1/SR2*Ni
                                                   Bil[5,3] = dNdx/SR2;                                  Bil[5,5] = 1/SR2*Ni
         Bil[6,1] = dNdy/SR2; Bil[6,2] = dNdx/SR2;                       Bil[6,4] = -1/SR2*dNdx*ζ*th/2;  Bil[6,5] = 1/SR2*dNdy*ζ*th/2
@@ -206,7 +206,7 @@ function setB(elem::TMShell, ip::Ip, N::Vect, L::Matx, dNdX::Matx, Rrot::Matx, B
         c = (i-1)*ndof
         @mul Bi = Bil*Rrot
         B[:, c+1:c+6] .= Bi
-    end 
+    end
 end
 
 
@@ -215,7 +215,7 @@ function elem_stiffness(elem::TMShell)
     nnodes = length(elem.nodes)
     ndof   = 6
     nstr   = 6
-    C      = getcoords(elem)
+    C      = get_coords(elem)
     K      = zeros(ndof*nnodes, ndof*nnodes)
     B      = zeros(nstr, ndof*nnodes)
     L      = zeros(3,3)
@@ -236,11 +236,11 @@ function elem_stiffness(elem::TMShell)
 
         detJ′ = det(J′)
         @assert detJ′>0
-        
+
         setB(elem, ip, N, L, dNdX′, Rrot, Bil, Bi, B)
 
         coef  = detJ′*ip.w
-        D     = calcD(elem.mat, ip.state)
+        D     = calcD(elem.pmodel, ip.state)
         K    += coef*B'*S*D*B
     end
 
@@ -260,25 +260,25 @@ function elem_coupling_matrix(elem::TMShell)
     th     = elem.props.th
     nnodes = length(elem.nodes)
 
-    E = elem.mat.E
-    ν = elem.mat.ν
+    E = elem.pmodel.E
+    ν = elem.pmodel.ν
 
     ndof = 6
     nstr = 6
-    C    = getcoords(elem)
+    C    = get_coords(elem)
     B    = zeros(nstr, ndof*nnodes)
     L    = zeros(3,3)
     Rrot = zeros(5,ndof)
     Bil  = zeros(nstr,5)
     Bi   = zeros(nstr,ndof)
-    C    = getcoords(elem)
+    C    = get_coords(elem)
     Cut  = zeros(ndof*nnodes, nnodes) # u-t coupling matrix
     m    = [ 1.0, 1.0, 0.0, 0.0, 0.0, 0.0 ]
 
 
 
     for ip in elem.ips
-        #elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+        #elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
         N    = elem.shape.func(ip.R)
         dNdR = elem.shape.deriv(ip.R)
         J2D  = C'*dNdR
@@ -286,14 +286,14 @@ function elem_coupling_matrix(elem::TMShell)
         J′   = [ L*J2D [ 0,0,th/2]  ]
         invJ′ = inv(J′)
         dNdR  = [ dNdR zeros(nnodes) ]
-        dNdX′ = dNdR*invJ′      
+        dNdX′ = dNdR*invJ′
         setB(elem, ip, N, L, dNdX′, Rrot, Bil, Bi, B)
 
         detJ′ = det(J′)
         @assert detJ′>0
 
         # compute Cut
-        α = calc_α(elem.mat, ip.state.ut)
+        α = calc_α(elem.pmodel, ip.state.ut)
         β = E*α/(1-ν)
 
         coef  = β
@@ -301,7 +301,7 @@ function elem_coupling_matrix(elem::TMShell)
         mN    = m*N'
         @mul Cut -= coef*B'*mN
     end
-    
+
     map_u = elem_map_u(elem)
     map_t = elem_map_t(elem)
 
@@ -313,7 +313,7 @@ function elem_conductivity_matrix(elem::TMShell)
     ndim   = elem.ctx.ndim
     th     = elem.props.th   # elem.ctx.thickness
     nnodes = length(elem.nodes)
-    C      = getcoords(elem)
+    C      = get_coords(elem)
     H      = zeros(nnodes, nnodes)
     Bt     = zeros(ndim, nnodes)
     KBt    = zeros(ndim, nnodes)
@@ -330,10 +330,10 @@ function elem_conductivity_matrix(elem::TMShell)
         dNdX′ = dNdR*invJ′
         Bt   .= dNdX′'
 
-        K = calcK(elem.mat, ip.state)
+        K = calcK(elem.pmodel, ip.state)
         detJ′ = det(J′)
         @assert detJ′>0
-        
+
         coef = detJ′*ip.w
         @mul KBt = K*Bt
         @mul H -= coef*Bt'*KBt
@@ -347,8 +347,8 @@ end
 function elem_mass_matrix(elem::TMShell)
     th     = elem.props.th
     nnodes = length(elem.nodes)
-    
-    C = getcoords(elem)
+
+    C = get_coords(elem)
     M = zeros(nnodes, nnodes)
     L = zeros(3,3)
 
@@ -363,7 +363,7 @@ function elem_mass_matrix(elem::TMShell)
         @assert detJ′>0
 
         # compute Cut
-        cv = calc_cv(elem.mat, ip.state.ut)
+        cv = calc_cv(elem.pmodel, ip.state.ut)
         coef  = elem.props.ρ*cv
         coef *= detJ′*ip.w
         M    -= coef*N*N'
@@ -381,10 +381,10 @@ function elem_internal_forces(elem::TMShell, F::Array{Float64,1})
     T0k    = elem.ctx.T0 + 273.15
     nnodes = length(elem.nodes)
     ndof   = 6
-    C      = getcoords(elem)
+    C      = get_coords(elem)
 
-    E = elem.mat.E
-    ν = elem.mat.ν
+    E = elem.pmodel.E
+    ν = elem.pmodel.ν
     ρ = elem.props.ρ
 
     map_u = elem_map_u(elem)
@@ -398,7 +398,7 @@ function elem_internal_forces(elem::TMShell, F::Array{Float64,1})
     Bt  = zeros(ndim, nnodes)
 
     L    = zeros(3,3)
-    Rrot = zeros(5,ndof) 
+    Rrot = zeros(5,ndof)
     Bil  = zeros(6,5)
     Bi   = zeros(6,ndof)
     S    = calcS(elem, elem.props.αs)
@@ -408,7 +408,7 @@ function elem_internal_forces(elem::TMShell, F::Array{Float64,1})
         # compute Bu and Bt matrices
         N = elem.shape.func(ip.R)
         dNdR = elem.shape.deriv(ip.R) # 3xn
-        
+
         J2D = C'*dNdR
         set_rot_x_xp(elem, J2D, L)
         J′ = [ L*J2D [ 0,0,th/2]  ]
@@ -426,11 +426,11 @@ function elem_internal_forces(elem::TMShell, F::Array{Float64,1})
         σ  = ip.state.σ
         ut = ip.state.ut
 
-        α = calc_α(elem.mat, ip.state.ut)
+        α = calc_α(elem.pmodel, ip.state.ut)
         β = E*α/(1-ν)
 
         σ -= β*ut*m # get total stress
-    
+
         coef = detJ′*ip.w
         dF += coef*B'*S*σ
 
@@ -441,7 +441,7 @@ function elem_internal_forces(elem::TMShell, F::Array{Float64,1})
         coef *= detJ′*ip.w
         dFt  -= coef*N
 
-        cv = calc_cv(elem.mat, ip.state.ut)
+        cv = calc_cv(elem.pmodel, ip.state.ut)
         coef  = ρ*cv
         coef *= detJ′*ip.w
         dFt  -= coef*N*ut
@@ -464,10 +464,10 @@ function update_elem!(elem::TMShell, DU::Array{Float64,1}, Δt::Float64)
     T0k    = elem.ctx.T0 + 273.15
     nnodes = length(elem.nodes)
     ndof   = 6
-    C      = getcoords(elem)
+    C      = get_coords(elem)
 
-    E = elem.mat.E
-    ν = elem.mat.ν
+    E = elem.pmodel.E
+    ν = elem.pmodel.ν
     ρ = elem.props.ρ
 
     map_u = elem_map_u(elem)
@@ -485,7 +485,7 @@ function update_elem!(elem::TMShell, DU::Array{Float64,1}, Δt::Float64)
     Bt  = zeros(ndim, nnodes)
 
     L    = zeros(3,3)
-    Rrot = zeros(5,ndof) 
+    Rrot = zeros(5,ndof)
     Bil  = zeros(6,5)
     Bi   = zeros(6,ndof)
     Δε   = zeros(6)
@@ -496,7 +496,7 @@ function update_elem!(elem::TMShell, DU::Array{Float64,1}, Δt::Float64)
         # compute Bu and Bt matrices
         N = elem.shape.func(ip.R)
         dNdR = elem.shape.deriv(ip.R) # 3xn
-        
+
         J2D = C'*dNdR
         set_rot_x_xp(elem, J2D, L)
         J′ = [ L*J2D [ 0,0,th/2]  ]
@@ -519,14 +519,14 @@ function update_elem!(elem::TMShell, DU::Array{Float64,1}, Δt::Float64)
         G  = Bt*Ut
 
         # internal force dF
-        Δσ, q, status = update_state!(elem.mat, ip.state, Δε, Δut, G, Δt)
+        Δσ, q, status = update_state(elem.pmodel, ip.state, Δε, Δut, G, Δt)
         failed(status) && return [dF; dFt], [map_u; map_t], status
 
-        α = calc_α(elem.mat, ip.state.ut)
+        α = calc_α(elem.pmodel, ip.state.ut)
         β = E*α/(1-ν)
 
         Δσ -= β*Δut*m # get total stress
-    
+
         coef = detJ′*ip.w
         dF += coef*B'*S*Δσ
 
@@ -536,7 +536,7 @@ function update_elem!(elem::TMShell, DU::Array{Float64,1}, Δt::Float64)
         coef *= detJ′*ip.w
         dFt  -= coef*N
 
-        cv = calc_cv(elem.mat, ip.state.ut)
+        cv = calc_cv(elem.pmodel, ip.state.ut)
         coef  = ρ*cv
         coef *= detJ′*ip.w
         dFt  -= coef*N*Δut

@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 
 # Mesh generation
 bl  = Block( [0 0 0; 1.0 6.0 1.0], nx=1, ny=10, nz=3, tag="solids")
@@ -11,8 +11,8 @@ msh = Mesh(bls)
 
 # FEM analysis
 mats = [
-        "solids" => MechSolid => LinearElastic => (E=1.e4, nu=0.25),
-        "bars"  => MechTruss => VonMises => (E=1.e8, A=0.005, fy=500e3),
+        "solids" => MechBulk => LinearElastic => (E=1.e4, nu=0.25),
+        "bars"  => MechBar => VonMises => (E=1.e8, A=0.005, fy=500e3),
        ]
 model = Model(msh, mats, ana)
 

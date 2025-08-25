@@ -59,7 +59,7 @@ end
 function free(pool, arrays...)
     tid = Threads.threadid()
     tpool = pool.tpools[tid]
-    
+
     for A in arrays
         id    = objectid(A)
         T     = eltype(A)

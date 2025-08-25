@@ -7,7 +7,7 @@ function getpolygon(nodes::Array{Node,1})
     # the nodes might be placed an arbitrary 3D plane
 
     # find the best fit plane
-    C = getcoords(nodes, 3)
+    C = get_coords(nodes, 3)
     nnodes = length(nodes)
 
     # move the coordinates to avoid singular case
@@ -68,7 +68,7 @@ function getpolygon(nodes::Array{Node,1})
     # put point with smaller internal angle as first
     circshift(perm, 1-mini)
 
-    # Amaru.@showm getcoords(nodes[perm])*R
+    # Serendip.@showm get_coords(nodes[perm])*R
 
     # build contour
     return nodes[perm]
@@ -79,7 +79,7 @@ end
 function sortnodes(nodes::Vector{Node}, Vx´, Vy´)
 
     # find the best fit plane
-    C = getcoords(nodes, 3)
+    C = get_coords(nodes, 3)
     nnodes = length(nodes)
 
     # # move the coordinates to avoid singular case
@@ -209,7 +209,7 @@ Generates a planar mesh by slicing a 3D `mesh` using a plane defined by a `base`
 The original nodal data is interpolated to the nodes of the resulting mesh.
 """
 function slice(
-    mesh::AbstractDomain; 
+    mesh::AbstractDomain;
     base::AbstractArray{<:Real,1} = Float64[],
     axis::AbstractArray{<:Real,1} = Float64[],
     project=true # makes a x-y projection of the slice
@@ -242,8 +242,8 @@ function slice(
     # get all mesh edges
     edgedict = Dict{UInt, CellEdge}()
     for cell in mesh.elems
-        cell.shape.family == BULKCELL || continue
-        for edge in getedges(cell)
+        cell.role == :bulk || continue
+        for edge in get_edges(cell)
             hs = hash(edge)
             edgedict[hs] = edge
         end
@@ -257,10 +257,10 @@ function slice(
     tolf = 1e-8
     maxits = 100
     for edge in edges
-        
+
         Xa = edge.nodes[1].coord
         Xb = edge.nodes[2].coord
-        
+
         fa = dot(Xa-base, axis)
         fb = dot(Xb-base, axis)
         fa*fb > 0.0 && continue
@@ -276,7 +276,7 @@ function slice(
 
         if Xi===nothing
             Xi = Vec3(0,0,0)
-            C  = getcoords(edge)
+            C  = get_coords(edge)
             a  = -1.0
             b  = +1.0
             fi = 0.0
@@ -308,9 +308,9 @@ function slice(
     end
 
     # mount slice elements
-    new_elems = Cell[]
+    bulk_elems = Cell[]
     for cell in mesh.elems
-        cell.shape.family == BULKCELL || continue
+        cell.role == :bulk || continue
 
         nodedict = Dict{UInt,Node}()
         for edge in cell.edges
@@ -319,7 +319,7 @@ function slice(
             Xi = int_nodes_d[hash(Xi)]
             nodedict[hash(Xi)] = Xi
         end
-        
+
         nodes = collect(values(nodedict))
         nnodes = length(nodes)
         nnodes > 2 || continue
@@ -329,59 +329,114 @@ function slice(
         for c in cells
             c.tag = cell.tag
             c.owner = cell
-            push!(new_elems, c)
+            push!(bulk_elems, c)
         end
     end
 
-    new_elems = unique(new_elems)
-    new_nodes = getnodes(new_elems)
-    
+    bulk_elems = unique(bulk_elems)
+    new_nodes = get_nodes(bulk_elems)
+
+    # non bulk elements
+    d = dot(base, axis)
+    l, m, n = axis
+    other_elems = mesh.elems[:($l*x + $m*y + $n*z == $d) ]
+    new_nodes = [ new_nodes; get_nodes(other_elems) ]
+
     # Numberig nodes
-    for (i, node) in enumerate(new_nodes) 
-        node.id = i 
+    for (i, node) in enumerate(new_nodes)
+        node.id = i
     end
 
     # Numberig cells and setting ctx
-    for (i, elem) in enumerate(new_elems)
+    for (i, elem) in enumerate(bulk_elems)
         elem.id = i
     end
 
     # interpolate node data
+    # nnodes = length(new_nodes)
+    # node_data = OrderedDict{String,Array}()
+    # for (key,data) in mesh.node_data
+    #     key in ("node-id",) && continue
+
+    #     count = zeros(Int, nnodes)
+    #     sz    = size(data)
+    #     dim   = length(sz)
+    #     if dim==1
+    #         newdata = zeros(eltype(data), nnodes)
+    #     else
+    #         newdata = zeros(eltype(data), nnodes, sz[2])
+    #     end
+
+    #     for cell in bulk_elems
+    #         ocell = cell.owner
+    #         ids = [ node.id for node in ocell.nodes ]
+    #         V = data[ids,:]
+    #         coords = get_coords(ocell)
+    #         for node in cell.nodes
+    #             Ξ = inverse_map(ocell.shape, coords, node.coord)
+    #             N = ocell.shape.func(Ξ)
+    #             val = V'*N
+    #             newdata[node.id, :] .+= val
+    #             count[node.id] += 1
+    #         end
+    #     end
+
+    #     # @show count
+
+    #     node_data[key] = newdata./count
+    # end
+
+    # interpolate node data
+    labels = [ key for key in keys(mesh.node_data) if key != "node-id" ]
     nnodes = length(new_nodes)
     node_data = OrderedDict{String,Array}()
-    for (key,data) in mesh.node_data
-        key in ("node-id",) && continue
 
-        count = zeros(Int, nnodes)
-        sz    = size(data)
-        dim   = length(sz)
+
+    for key in labels
+        data = mesh.node_data[key]
+        sz   = size(data)
+        dim  = length(sz)
         if dim==1
             newdata = zeros(eltype(data), nnodes)
         else
             newdata = zeros(eltype(data), nnodes, sz[2])
         end
+        node_data[key] = newdata
+    end
 
-        for cell in new_elems
-            ocell = cell.owner
-            ids = [ node.id for node in ocell.nodes ]
-            V = data[ids,:]
-            coords = getcoords(ocell)
-            for node in cell.nodes
-                Ξ = inverse_map(ocell.shape, coords, node.coord)
-                N = ocell.shape.func(Ξ)
+    count = zeros(Int, nnodes)
+
+    for cell in bulk_elems
+        ocell = cell.owner
+        ids = [ node.id for node in ocell.nodes ]
+        coords = get_coords(ocell)
+        for node in cell.nodes
+            count[node.id] > 0 && continue
+            count[node.id] += 1
+            Ξ = inverse_map(ocell.shape, coords, node.coord)
+            N = ocell.shape.func(Ξ)
+            for key in labels
+                V = mesh.node_data[key][ids,:]
                 val = V'*N
-                newdata[node.id, :] .+= val
-                count[node.id] += 1
+                node_data[key][node.id, :] .= val
+                # node_data[key][node.id, :] .+= val
             end
         end
-
-
-        node_data[key] = newdata./count
     end
-    
+
+
+    for key in labels
+        for cell in other_elems
+            for node in cell.nodes
+                node_data[key][node.id, :] .= mesh.node_data[key][node.id, :]
+            end
+        end
+    end
+
+
     # update cell data
     elem_data=OrderedDict{String,Array}()
-    nelems = length(new_elems)
+    nelems = length(bulk_elems)
     for (key,data) in mesh.elem_data
         key in ("elem-id", "quality", "cell-type") && continue
         contains(key, "tag") && continue
@@ -394,10 +449,10 @@ function slice(
             newdata = zeros(eltype(data), nelems, sz[2])
         end
 
-        for cell in new_elems
+        for cell in bulk_elems
             ocell = cell.owner
             val = data[ocell.id, :]
-            newdata[cell.id, :] .= val 
+            newdata[cell.id, :] .= val
         end
 
         elem_data[key] = newdata
@@ -423,8 +478,9 @@ function slice(
 
     ndim = project ? 2 : 3
     newmesh = Mesh(ndim)
+
     newmesh.nodes = new_nodes
-    newmesh.elems = new_elems
+    newmesh.elems = [ bulk_elems; other_elems ]
     newmesh.node_data = node_data
     newmesh.elem_data = elem_data
     synchronize!(newmesh, sortnodes=false)

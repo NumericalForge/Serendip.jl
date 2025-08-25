@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 using Test
 
 R = 22.27
@@ -33,7 +33,7 @@ th    = 0.1
 materials = ["shell"=> TMShell => TMCombined{ConstConductivity, LinearElastic} => (E=E, nu=nu, k=k, alpha=alpha, thickness=th, rho=rho, cv=cv) ]
 # materials = ["shell"=> TMShell => TMCombined{ConstConductivity, VonMises} => (E=E, nu=nu, k=k, alpha=alpha, thickness=th, rho=rho, cv=cv, H=0.0, fy=100000.0) ]
 
-ctx = ThermoMechContext(T0=0.0)
+ctx = ThermoContext(T0=0.0)
 model = FEModel(mesh, materials, ctx)
 ana = ThermoMechAnalysis(model)
 addmonitor!(ana, :(x==0 && y==0 && z==$R) => NodeMonitor(:uz))
@@ -41,7 +41,7 @@ addmonitor!(ana, :(x==0 && y==0 && z==$R) => NodeMonitor(:ut))
 
 bcs = [
 
-	:(z==$zmin) => NodeBC(ux=0, uy=0, uz=0, rx=0, ry=0, rz=0),
+    :(z==$zmin) => NodeBC(ux=0, uy=0, uz=0, rx=0, ry=0, rz=0),
     :(x==0 && y==0 && z==$R) => NodeBC(fz=10000),
     :(z==$zmin) => NodeBC(ut = 50),
 ]

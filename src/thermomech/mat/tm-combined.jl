@@ -65,8 +65,8 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{TMCombined{M1,M2}}, ::Type{TMSolid}, ctx::Context) where {M1,M2} = TMCombinedState{compat_state_type(M1,ThermoSolid,ctx), compat_state_type(M2,MechSolid,ctx)} 
-compat_state_type(::Type{TMCombined{M1,M2}}, ::Type{TMShell}, ctx::Context) where {M1,M2} = TMCombinedState{compat_state_type(M1,ThermoShell,ctx), compat_state_type(M2,MechShell,ctx)} 
+compat_state_type(::Type{TMCombined{M1,M2}}, ::Type{TMSolid}, ctx::Context) where {M1,M2} = TMCombinedState{compat_state_type(M1,ThermoSolid,ctx), compat_state_type(M2,MechBulk,ctx)}
+compat_state_type(::Type{TMCombined{M1,M2}}, ::Type{TMShell}, ctx::Context) where {M1,M2} = TMCombinedState{compat_state_type(M1,ThermoShell,ctx), compat_state_type(M2,MechShell,ctx)}
 
 
 function Base.getproperty(mat::TMCombined, s::Symbol)
@@ -93,14 +93,14 @@ function calcK(mat::TMCombined, state::TMCombinedState) # Hydraulic conductivity
     return calcK(mat.tmat, state.tstate)
 end
 
-function update_state!(mat::TMCombined, state::TMCombinedState, Δε::Array{Float64,1}, Δut::Float64, G::Array{Float64,1}, Δt::Float64)
-    QQ = update_state!(mat.tmat, state.tstate, Δut, G, Δt)
-    Δσ, status = update_state!(mat.mmat, state.mstate, Δε)
+function update_state(mat::TMCombined, state::TMCombinedState, Δε::Array{Float64,1}, Δut::Float64, G::Array{Float64,1}, Δt::Float64)
+    QQ = update_state(mat.tmat, state.tstate, Δut, G, Δt)
+    Δσ, status = update_state(mat.mmat, state.mstate, Δε)
     return Δσ, QQ, status
 end
 
-function ip_state_vals(mat::TMCombined, state::TMCombinedState)
-    vals1 = ip_state_vals(mat.tmat, state.tstate)
-    vals2 = ip_state_vals(mat.mmat, state.mstate)
+function state_values(mat::TMCombined, state::TMCombinedState)
+    vals1 = state_values(mat.tmat, state.tstate)
+    vals2 = state_values(mat.mmat, state.mstate)
     return merge(vals1, vals2)
 end

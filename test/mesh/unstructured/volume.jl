@@ -1,4 +1,4 @@
-using Amaru, Test
+using Serendip, Test
 
 # 2D unstructured mesh with a hole
 geo = GeoModel()

@@ -1,32 +1,49 @@
-using Amaru
+using Serendip
 using Test
 
-bl = Block( [0 0 0; 1 1 1], nx=2, ny=2, nz=2, cellshape=HEX8, tag="solids")
-mesh = Mesh(bl)
+geo = GeoModel()
+add_block(geo, [0,0,0], [1,1,1], nx=2, ny=2, nz=2, tag="solids")
+mesh = Mesh(geo)
 
-mats = [ "solids" => MechSolid => LinearElastic => (E=100.0, nu=0.2) ]
+mapper = RegionMapper()
+add_mapping(mapper, "solids", MechBulk, LinearElastic, E=100.0, nu=0.2)
 
-ctx = MechContext()
-model = FEModel(mesh, mats, ctx)
+model = FEModel(mesh, mapper)
 ana = MechAnalysis(model)
 
-# Monitors
-monitors = [
-    (x==1, y==1, z==1) => NodeMonitor(:uy, "node.table")
-    (x==1, y==0) => NodeMonitor(:uy)
-    y==1 => NodeSumMonitor(:uy, "nodessum.book")
+add_monitor(ana, :node, (x==1, y==1, z==1), :uy, "node.table")
+add_monitor(ana, :node, (x==1, y==0), :uy)
+add_monitor(ana, :nodalreduce, (x==1, y==1), :uy, "nodes.table")
 
-    (x>0.5, y>0.5, z>0.5) => IpMonitor(:σyy, "ip.table")
-    (x>0.5, y>0.5) => IpGroupMonitor(:σyy, "ips.book")
-    [0.5,0.5,0.0] => IpMonitor(:σyy)
-]
+add_monitor(ana, :ip, (x>0.5, y>0.5, z>0.5), :σyy, "ip.table")
+add_monitor(ana, :ip, [0.5,0.5,0.0], :σyy)
+add_monitor(ana, :ipgroup, (x>0.5, y>0.5), :σyy, "ips.table")
 
-setloggers!(ana, loggers)
 
-bcs = [
-       :(z==0) => NodeBC(ux=0, uy=0, uz=0 ),
-       :(z==1) => SurfaceBC(tz=-10.0),
-      ]
-addstage!(ana, bcs, nincs=4, nouts=4)
+# bl = Block( [0 0 0; 1 1 1], nx=2, ny=2, nz=2, shape=HEX8, tag="solids")
+# mesh = Mesh(bl)
 
-@test solve!(ana).success
+# mats = [ "solids" => MechBulk => LinearElastic => (E=100.0, nu=0.2) ]
+
+# ctx = Context()
+# model = FEModel(mesh, mats, ctx)
+# ana = MechAnalysis(model)
+
+# # Monitors
+# monitors = [
+#     (x==1, y==1, z==1) => NodeMonitor(:uy, "node.table")
+#     (x==1, y==0) => NodeMonitor(:uy)
+#     y==1 => NodeSumMonitor(:uy, "nodessum.book")
+
+#     (x>0.5, y>0.5, z>0.5) => IpMonitor(:σyy, "ip.table")
+#     (x>0.5, y>0.5) => IpGroupMonitor(:σyy, "ips.book")
+#     [0.5,0.5,0.0] => IpMonitor(:σyy)
+# ]
+
+# setloggers!(ana, loggers)
+
+stage = add_stage(ana, nincs=4, nouts=4)
+add_bc(stage, :node, z==0, ux=0, uy=0, uz=0 )
+add_bc(stage, :face, z==1, tz=-10.0)
+
+@test run(ana).success

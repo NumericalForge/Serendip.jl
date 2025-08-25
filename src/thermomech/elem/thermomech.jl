@@ -40,7 +40,7 @@ This function also updates strains, stresses and internal variables of all
 This function must be redefined by concrete types.
 """
 function update_elem!(elem::ThermoMech, dU::Array{Float64,1})
-    error("elem_dF function not defined for material type $(typeof(elem.mat))")
+    error("elem_dF function not defined for material type $(typeof(elem.pmodel))")
 end
 
 """

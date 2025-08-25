@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export LeakoffJoint
 
@@ -45,12 +45,12 @@ mutable struct LeakoffJoint<:Material
         @check 0<=nu<0.5
         return new(E, nu)
         return this
-        
+
         @check gammaw>0
         @check beta>=0
         @check eta>=0
-        @check kt>=0   
-        @check w>=0    
+        @check kt>=0
+        @check w>=0
 
         this = new(gammaw, beta, eta, kt, w)
         return this
@@ -65,7 +65,7 @@ compat_state_type(::Type{LeakoffJoint}, ::Type{HydroJoint}, ctx::Context) = Leak
 # compat_elem_types(::Type{LeakoffJoint}) = (HydroJoint,)
 
 
-function update_state!(mat::LeakoffJoint, state::LeakoffJointState, Δuw::Array{Float64,1}, G::Array{Float64,1}, BfUw::Array{Float64,1}, Δt::Float64)
+function update_state(mat::LeakoffJoint, state::LeakoffJointState, Δuw::Array{Float64,1}, G::Array{Float64,1}, BfUw::Array{Float64,1}, Δt::Float64)
     state.uw +=  Δuw
     state.V   = -mat.kt*G
     #state.D  +=  state.V*Δt
@@ -76,7 +76,7 @@ function update_state!(mat::LeakoffJoint, state::LeakoffJointState, Δuw::Array{
 end
 
 
-function ip_state_vals(mat::LeakoffJoint, state::LeakoffJointState)
+function state_values(mat::LeakoffJoint, state::LeakoffJointState)
     return OrderedDict(
           :uwf => state.uw[3] ,
           :vb  => state.V[1] ,

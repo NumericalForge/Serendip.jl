@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 # Types
 const Vect = AbstractArray{Float64, 1}
@@ -9,7 +9,7 @@ const Vec2 = SVector{2, Float64}
 const Vec3 = SVector{3, Float64}
 const Vec4 = SVector{4, Float64}
 const Vec6 = SVector{6, Float64}
-const Mat6x6 = SMatrix{6, 6, Float64, 36} 
+const Mat6x6 = SMatrix{6, 6, Float64, 36}
 
 
 function Base.convert(::Type{Vec3}, A::Array{Float64,1})
@@ -168,7 +168,7 @@ function Base.split(A::AbstractArray, knots::AbstractArray)
     if knots[end] == A[end]
         knots = knots[1:end-1]
     end
-    
+
     if knots[1] != A[1]
         knots = [A[1]; knots]
     end
@@ -191,7 +191,7 @@ end
 function dump_matrix(A::SparseMatrixCSC, filename::String)
     n, m = size(A)
     rows, cols, vals = findnz(A)
-    
+
     open(filename, "w") do file
         println(file, "%%MatrixMarket matrix coordinate real general")
         println(file, "$n $m $(length(vals))")

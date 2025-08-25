@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 using Test
 
 h  = 0.1
@@ -9,37 +9,20 @@ fy = 240e3 # kPa
 H  = 0.0
 nu = 0.3
 
-# mesh
-bl = Block( [0 0 0; L 0 0], nx=50, cellshape=LIN3)
-msh = Mesh(bl, ndim=3)
+geo = GeoModel()
+add_block(geo, [0, 0, 0], [L, 0, 0], nx=50, shape=LIN3, tag="beam")
+mesh = Mesh(geo, ndim=3)
 
-# fem domain
-mat = [ :lines => MechBeam => VonMises => (E=E, nu=nu, fy=fy, H=H, thy=th, thz=h) ]
+mapper = RegionMapper()
+add_mapping(mapper, "beam", MechBeam, VonMises, E=E, nu=nu, fy=fy, H=H, thy=th, thz=h)
+model = FEModel(mesh, mapper)
 
-ctx = MechContext()
-model = FEModel(msh, mat, ctx)
 ana = MechAnalysis(model)
+log = add_logger(ana, :node, (x==L))
+mon = add_monitor(ana, :node, (x==L), :fz)
 
-log = NodeLogger()
-addlogger!(ana, :(x==$L) => log)
-addmonitor!(ana, :(x==$L) => NodeMonitor(:fz))
-
-# boundary conditions
-bcs = [
-    :(x==0) => NodeBC(ux=0, uy=0, uz=0, rx=0, ry=0, rz=0),
-    :(x==$L) => NodeBC(uz = -0.08),
-]
-
-addstage!(ana, bcs, nincs=30, nouts=1)
-
-solve!(ana, autoinc=true)
-
-println(@test log.table.fz[end]≈-30 atol=5.0)
-
-if makeplots
-    using PyPlot
-    tab = log.table
-    plot( -tab[:uz], -tab[:fz], "-o")
-    show()
-end
-
+stage = add_stage(ana, nincs=30, nouts=1)
+add_bc(stage, :node, (x==0), ux=0, uy=0, uz=0, rx=0, ry=0, rz=0)
+add_bc(stage, :node, (x==L), uz = -0.03)
+run(ana, autoinc=true)
+@test log.table["fz"][end]≈-30 atol=5.0

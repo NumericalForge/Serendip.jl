@@ -1,42 +1,32 @@
-using Amaru
+using Serendip
 
 # Finite element entities
-bl  = Block( [0 0; 1 1], nx=4, ny=4, cellshape=QUAD9, tag="solids")
-msh = Mesh(bl)
+geo = GeoModel()
+add_block(geo, [0,0], [1,1], nx=4, ny=4, shape=QUAD9, tag="solids")
+mesh = Mesh(geo)
 
-mats = [ "solids" => MechSolid => LinearElastic => (E=100.0, nu=0.2) ]
-ctx = MechContext()
-model = FEModel(msh, mats, ctx)
+mapper = RegionMapper()
+add_mapping(mapper, "solids", MechBulk, LinearElastic, E=100.0, nu=0.2)
+model = FEModel(mesh, mapper)
 ana = MechAnalysis(model)
 
-loggers = [
-        :(x==1 && y==1) => NodeLogger("node.dat"),
-        :(y==1)         => NodeGroupLogger("nodes.dat"),
-       ]
-setloggers!(ana, loggers)
+log1 = add_logger(ana, :node, (x==1, y==1), "node.table")
+log2 = add_logger(ana, :nodegroup, (y==1), "nodes.book")
+
+stage = add_stage(ana, nincs=3)
+add_bc(stage, :node, (y==0), ux=0, uy=0)
+add_bc(stage, :face, (y==1), ty=2)
+
+run(ana)
 
 
-bcs = [
-        :(y==0) => NodeBC(ux=0, uy=0),
-        :(y==1) => SurfaceBC(ty=2),
-      ]
+table = DataTable("output/node.table")
+book  = DataBook("output/nodes.book")
 
-addstage!(ana, bcs, nincs=3)
-solve!(ana)
-
-table = DataTable("node.dat")
-book  = DataBook("nodes.dat")
-
-rm("node.dat")
-rm("nodes.dat")
-
-println(bl)
-println(msh)
+println(mesh)
 println(mats)
-println(loggers[1])
-println(loggers)
-println(bcs[1])
-println(bcs)
+println(log1)
+println(stage.bcs)
 println(model.nodes[1].dofs[1])
 println(model.nodes[1].dofs)
 println(model.nodes[1])

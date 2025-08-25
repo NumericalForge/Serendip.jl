@@ -1,12 +1,12 @@
-using Amaru
+using Serendip
 
 # Mesh generation
-bl  = Block( [0 0 0; 3.0 3.0 3.0], nx=5, ny=5, nz=5, cellshape=HEX8, tag="solids")
-bl1 = BlockInset( [1.5 1.5 3.0; 1.5 1.5 1.5], curvetype="polyline", cellshape=LIN3, tag="drains", jointtag="joints")
-bl2 = BlockInset( [1.2 1.5 1.6; 0.0 1.5 0.0], curvetype="polyline", cellshape=LIN3, tag="drains", jointtag="joints")
-bl3 = BlockInset( [1.8 1.5 1.6; 3.0 1.5 0.0], curvetype="polyline", cellshape=LIN3, tag="drains", jointtag="joints")
-bl4 = BlockInset( [1.5 1.2 1.6; 1.5 0.0 0.0], curvetype="polyline", cellshape=LIN3, tag="drains", jointtag="joints")
-bl5 = BlockInset( [1.5 1.8 1.6; 1.5 3.0 0.0], curvetype="polyline", cellshape=LIN3, tag="drains", jointtag="joints")
+bl  = Block( [0 0 0; 3.0 3.0 3.0], nx=5, ny=5, nz=5, shape=HEX8, tag="solids")
+bl1 = BlockInset( [1.5 1.5 3.0; 1.5 1.5 1.5], curvetype="polyline", shape=LIN3, tag="drains", jointtag="joints")
+bl2 = BlockInset( [1.2 1.5 1.6; 0.0 1.5 0.0], curvetype="polyline", shape=LIN3, tag="drains", jointtag="joints")
+bl3 = BlockInset( [1.8 1.5 1.6; 3.0 1.5 0.0], curvetype="polyline", shape=LIN3, tag="drains", jointtag="joints")
+bl4 = BlockInset( [1.5 1.2 1.6; 1.5 0.0 0.0], curvetype="polyline", shape=LIN3, tag="drains", jointtag="joints")
+bl5 = BlockInset( [1.5 1.8 1.6; 1.5 3.0 0.0], curvetype="polyline", shape=LIN3, tag="drains", jointtag="joints")
 bls = [bl, bl1, bl2, bl3, bl4, bl5]
 
 mesh = Mesh(bls)

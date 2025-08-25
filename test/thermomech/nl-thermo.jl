@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 using Revise
 
 r = 0.40
@@ -20,13 +20,13 @@ alpha = 1.2e-5 # thermal expansion coefficient  1/K or 1/°C
 k = [
     20.64624298101154  54.10821643286573
     798.203337367805   27.414829659318634
-    1199.193436377706  27.414829659318634    
+    1199.193436377706  27.414829659318634
 ]
 
 k_fun = PathFunction(:M, 20.64, 54.108, :L, 798.20, 27.41, :L, 1199.19, 27.41)
 
 
-bl = Block( [0 r 0; L r 0], nx=n, cellshape=LIN3)
+bl = Block( [0 r 0; L r 0], nx=n, shape=LIN3)
 mesh = Mesh(bl)
 mesh = revolve(mesh, base=[0,0,0], axis=[1,0,0], minangle=0, maxangle=360, n=n)
 

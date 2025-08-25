@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export AcousticModalAnalysis
 
@@ -12,7 +12,7 @@ AcousticModalAnalysis_params = [
 
 mutable struct AcousticModalAnalysis<:Analysis
     model ::FEModel
-    ctx   ::AcousticMechContext
+    ctx   ::AcousticContext
     sctx  ::SolverContext
 
     stages  ::Array{Stage}
@@ -21,16 +21,16 @@ mutable struct AcousticModalAnalysis<:Analysis
 
     freqs::Array{Float64,1} # frequencies
     modes::Array{Float64,2} # modes
-    
+
     function AcousticModalAnalysis(model::FEModel; outdir=".", outkey="out")
         this = new(model, model.ctx)
         this.stages = []
         this.loggers = []
-        this.monitors = []  
+        this.monitors = []
 
         this.freqs = zeros(0)
         this.modes = zeros(0,0)
-        
+
         this.sctx = SolverContext()
 
         this.sctx.outkey = outkey
@@ -38,11 +38,11 @@ mutable struct AcousticModalAnalysis<:Analysis
         isdir(this.sctx.outdir) || mkdir(this.sctx.outdir) # create output directory if it does not exist
 
         model.ctx.thickness = model.thickness
-        if model.ctx.stressmodel==:none
+        if model.ctx.stress_state==:none
             if model.ctx.ndim==2
-                model.ctx.stressmodel = :planestrain
+                model.ctx.stress_state = :plane_strain
             else
-                model.ctx.stressmodel = :d3
+                model.ctx.stress_state = :d3
             end
         end
 
@@ -53,7 +53,7 @@ end
 
 function solve!(model::FEModel, ana::AcousticModalAnalysis; args...)
     name = "Solver for dynamic modal analyses"
-    status = stage_iterator!(name, acoustic_modal_solver!, model; args...)
+    status = stage_iterator(name, acoustic_modal_solver!, model; args...)
     return status
 end
 
@@ -71,10 +71,10 @@ function solve!(ana::AcousticModalAnalysis; args...)
     args = checkargs(args, acoustic_modal_solver_params)
     if !args.quiet
         printstyled("Solver for acousticanical modal analyses", "\n", bold=true, color=:cyan)
-        println("  stress model: ", ana.ctx.stressmodel)
+        println("  stress model: ", ana.ctx.stress_state)
     end
 
-    status = stage_iterator!(acoustic_modal_solver!, ana; args...)
+    status = stage_iterator(acoustic_modal_solver!, ana; args...)
     return status
 end
 
@@ -90,10 +90,10 @@ function acoustic_modal_solver!(ana::AcousticModalAnalysis, stage::Stage; kwargs
 
     quiet || println(sctx.log, "Modal analysis for acoustic systems")
 
-    stressmodel = ctx.stressmodel
-    ctx.ndim==3 && @check stressmodel==:d3
+    stress_state = ctx.stress_state
+    ctx.ndim==3 && @check stress_state==:d3
 
-    
+
     # todo: check there are not force boundary conditions
 
     # get only bulk elements
@@ -105,7 +105,7 @@ function acoustic_modal_solver!(ana::AcousticModalAnalysis, stage::Stage; kwargs
     end
 
     # get dofs organized according to boundary conditions
-    dofs, nu    = configure_dofs!(model, stage.bcs)
+    dofs, nu    = configure_dofs(model, stage.bcs)
 
     ndofs       = length(dofs)
     model.ndofs = length(dofs)
@@ -161,11 +161,11 @@ function acoustic_modal_solver!(ana::AcousticModalAnalysis, stage::Stage; kwargs
 
     sctx.inc = 1
     sctx.ΔT  = 1.0
-    
+
     # save modes
     for i in 1:nmodes
         U = V[:,i] # modal displacements
-        
+
         for (k,dof) in enumerate(dofs[1:nu])
             dof.vals[dof.name] = U[k]
         end

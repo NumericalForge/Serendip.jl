@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 
 # geo = GeoModel()
 
@@ -15,42 +15,57 @@ using Amaru
 # pull!(geo, geo.faces, axis=[0,0,1], length=1.0)
 
 geo = GeoModel()
-block = Block([0 0 0; 1 1 1], nx=2, ny=2, nz=4, shape=HEX8)
-addblock!(geo, block)
-
+add_block(geo, [0,0,0], [1,1,1], nx=2, ny=2, nz=4, tag="solids")
 mesh = Mesh(geo, quiet=true)
 
-# ctx = MechContext(stressmodel=:planestress)
-ctx = MechContext()
-mats = [
-    :bulks => MechSolid => LinearElastic => (E=1e4, nu=0.25)
-]
-    
-model = FEModel(mesh, mats, ctx, quiet=false)
-ana = MechAnalysis(model)
+mapper = RegionMapper()
+add_mapping(mapper, "solids", MechBulk, LinearElastic, E=1e4, nu=0.25)
+model = FEModel(mesh, mapper)
 
-bcs = [
-    z==0 => NodeBC(ux=0, uy=0, uz=0)
-    z==1 => SurfaceBC(tz=-100)
-    # :(x<0.5 && y==1) => SurfaceBC(qy=-100)
-]
+ana = MechAnalysis(model)
+stage = add_stage(ana)
+
+add_bc(stage, :node, z==0, ux=0, uy=0, uz=0 )
+add_bc(stage, :face, z==1, tz=-100.0)
+
+run(ana)
+
+# # block = Block([0 0 0; 1 1 1], nx=2, ny=2, nz=4, shape=HEX8)
+# # addblock!(geo, block)
+# #
+# # mesh = Mesh(geo, quiet=true)
+
+# # ctx = Context(stress_state=:plane_stress)
+# # ctx = Context()
+# mats = [
+#     :bulks => MechBulk => LinearElastic => (E=1e4, nu=0.25)
+# ]
+
+# model = FEModel(mesh, mats, ctx, quiet=false)
+# ana = MechAnalysis(model)
+
+# bcs = [
+#     z==0 => NodeBC(ux=0, uy=0, uz=0)
+#     z==1 => SurfaceBC(tz=-100)
+#     # :(x<0.5 && y==1) => SurfaceBC(qy=-100)
+# ]
 # bcs = [
 #     :(y==0) => NodeBC(ux=0,uy=0)
 #     :(x<0.5 && y==1) => SurfaceBC(qy=-100)
 # ]
-addstage!(ana, bcs)
-solve!(ana, quiet=false)
+# addstage!(ana, bcs)
+# solve!(ana, quiet=false)
 
 cmap = Colormap(:coolwarm, rev=true)
 
 # plotting
-plot = MeshPlot(model, 
+plot = DomainPlot(model,
     azimut = 30,
     elevation = 30,
     field = "uz",
     colormap = cmap,
     # warp = 20,
-    # label = L"u_z", 
+    # label = L"u_z",
     # fontsize = 8,
     # font = "Times New Roman",
     # colorbarscale = 0.8

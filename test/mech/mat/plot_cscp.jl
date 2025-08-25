@@ -1,11 +1,11 @@
-using Amaru
+using Serendip
 
 table = DataTable("cscp.table")
 
 
 chart = Chart(
-    x_label = L"\xi",
-    y_label = L"\rho",
+    xlabel = L"\xi",
+    ylabel = L"\rho",
     xmult = 1e-3,
 )
 
@@ -18,7 +18,7 @@ f̄c = table.fcb[1]
 ξa = table.xi_a[1]
 ξb = table.xi_b[1]
 k = table.kappa[1]
-rξ(ξ) = Amaru.spow((ξb-ξ)/f̄c, 1/α)
+rξ(ξ) = Serendip.spow((ξb-ξ)/f̄c, 1/α)
 
 function rc(ξ::Float64)
     ξ>=ξi && return 1.0
@@ -38,43 +38,43 @@ k = table.kappa[end]
 ρ1 = [ rθ*rc(ξ)*rξ(ξ)*k for ξ in ξ1]
 
 
-series = [ 
-    LineSeries(ξ0, ρ0, color=:red),
-    LineSeries(ξ1, ρ1, color=:blue),
-    LineSeries(table.xi, table.rho, marker=:circle),
+series = [
+    DataSeries(ξ0, ρ0, color=:red),
+    DataSeries(ξ1, ρ1, color=:blue),
+    DataSeries(table.xi, table.rho, marker=:circle),
 ]
 
-addseries!(chart, series)
+add_series(chart, series)
 save(chart, "chart.pdf")
 
 # chart2
 
 chart = Chart(
-    x_label = L"\varepsilon_{yy}\times 1000",
-    y_label = L"\sigma_{yy}",
+    xlabel = L"\varepsilon_{yy}\times 1000",
+    ylabel = L"\sigma_{yy}",
     xmult = 1e3,
 )
 
 
-series = [ 
-    LineSeries(table.eyy, table.syy, marker=:circle),
+series = [
+    DataSeries(table.eyy, table.syy, marker=:circle),
 ]
 
-addseries!(chart, series)
+add_series(chart, series)
 save(chart, "chart2.pdf")
 
 # chart3
 
 chart = Chart(
-    x_label = L"\varepsilon_{xx}\times 1000",
-    y_label = L"\sigma_{xx}",
+    xlabel = L"\varepsilon_{xx}\times 1000",
+    ylabel = L"\sigma_{xx}",
     xmult = 1e3,
 )
 
 
-series = [ 
-    LineSeries(table.eyy, table.sxx, marker=:circle),
+series = [
+    DataSeries(table.eyy, table.sxx, marker=:circle),
 ]
 
-addseries!(chart, series)
+add_series(chart, series)
 save(chart, "chart3.pdf")

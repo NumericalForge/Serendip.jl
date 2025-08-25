@@ -48,7 +48,7 @@ end
 function Base.getindex(M::Mat6x6, i::Int, j::Int)
     0<i<=6 || throw(BoundsError(M,(i,j)))
     0<j<=6 || throw(BoundsError(M,(i,j)))
-    
+
     k = 6*(j-1) + i
     return M.data[k]
 end
@@ -68,7 +68,7 @@ Base.:*(M::Mat6x6, a::Real) = Mat6x6(a.*M.data)
 
 function Base.:*(M::Mat6x6, X::Vec6)
     d = M.data
-    Vec6( 
+    Vec6(
         d[1]*X.v1 + d[07]*X.v2 + d[13]*X.v3 + d[19]*X.v4 + d[25]*X.v5 + d[31]*X.v6,
         d[2]*X.v1 + d[08]*X.v2 + d[14]*X.v3 + d[20]*X.v4 + d[26]*X.v5 + d[32]*X.v6,
         d[3]*X.v1 + d[09]*X.v2 + d[15]*X.v3 + d[21]*X.v4 + d[27]*X.v5 + d[33]*X.v6,

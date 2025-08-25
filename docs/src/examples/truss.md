@@ -1,7 +1,7 @@
 # Example of a truss analysis
 
 ```@example
-using Amaru
+using Serendip
 
 # 2D Truss
 coord = [ 0 0; 9 0; 18 0; 0 9; 9 9; 18 9.]
@@ -16,7 +16,7 @@ mats = [
        ]
 
 # A mechanical analysis context
-ctx = MechContext(ndim=2)
+ctx = Context(ndim=2)
 
 # A finite element model object
 model = FEModel(mesh, mats, ctx)

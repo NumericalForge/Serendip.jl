@@ -1,6 +1,6 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-const _default_colors = [ :c1, :c2, :c3, :c4, :c5, :c6, :c7, :c8, :c9, :c10, :c11, :c12 ]
+export Color, lighten, darken
 
 _colors_dict = Dict(
     :c1          => (0.769, 0.306, 0.322), # red
@@ -10,8 +10,8 @@ _colors_dict = Dict(
     # :c5          => (0.506, 0.447, 0.702), # purple
     :c5          => (0.749, 0.992, 0.188).*0.75, # green
     :c6          => (0.000, 0.667, 0.682).*0.9, # aquamarine
-    :c7          => (0.576, 0.471, 0.376),
-    :c8          => (0.647, 0.318, 0.580),
+    :c7          => (0.647, 0.318, 0.580), # purple
+    :c8          => (0.576, 0.471, 0.376), # brown
     :c9          => (0.647, 0.318, 0.580),
     :c10         => (0.647, 0.318, 0.580),
     :c11         => (0.647, 0.318, 0.580),
@@ -69,27 +69,86 @@ _colors_dict = Dict(
 _colors_list = collect(keys(_colors_dict))
 
 
-function get_color(color::Tuple, default=:black)
-    return color
-end
+struct Color
+    r::Float64
+    g::Float64
+    b::Float64
+    a::Float64
 
-function get_color(color::Symbol, default=:black)
-    if color==:default
-        if default isa Symbol
-            color = default
-        else
-            return default
-        end
+    function Color(c::Color)
+        return new(c.r, c.g, c.b, c.a)
     end
 
-    color in keys(_colors_dict) || throw(AmaruException("get_color: color must be one of $_colors_list. Got $color"))
-    return _colors_dict[color]
+    function Color(r::Float64, g::Float64, b::Float64, a::Float64=1.0)
+        return new( clamp(r, 0.0, 1.0), clamp(g, 0.0, 1.0), clamp(b, 0.0, 1.0), clamp(a, 0.0, 1.0) )
+    end
+
+    function Color(r::Int, g::Int, b::Int, a::Float64=1.0)
+        return new( clamp(r, 0, 255)/255, clamp(g, 0, 255)/255, clamp(b, 0, 255)/255, clamp(a, 0.0, 1.0) )
+    end
+
+    function Color(t::Tuple)
+        a::Float64 = length(t)==4 ? t[4] : 1.0
+        return Color(t[1], t[2], t[3], a)
+    end
+
+    function Color(s::Symbol)
+        @check haskey(_colors_dict, s)
+        return Color(_colors_dict[s])
+    end
+
 end
+
+rgb(c::Color)  = (c.r, c.g, c.b)
+rgba(c::Color) = (c.r, c.g, c.b, c.a)
+
+
+const _default_colors = [ Color(:c1), Color(:c2), Color(:c3), Color(:c4), Color(:c5), Color(:c6), Color(:c7), Color(:c8), Color(:c9), Color(:c10), Color(:c11), Color(:c12) ]
+
+
+
+function lighten(c::Color, ratio::Float64)
+    @assert 0.0 ≤ ratio ≤ 1.0 "Ratio must be between 0 and 1"
+    return Color(
+        c.r + (1.0 - c.r) * ratio,
+        c.g + (1.0 - c.g) * ratio,
+        c.b + (1.0 - c.b) * ratio,
+        c.a
+    )
+end
+
+function darken(c::Color, ratio::Float64)
+    @assert 0.0 ≤ ratio ≤ 1.0 "Ratio must be between 0 and 1"
+    return (
+        c.r * (1.0 - ratio),
+        c.g * (1.0 - ratio),
+        c.b * (1.0 - ratio),
+        c.a
+    )
+end
+
+
+# function get_color(color::Tuple, default=:black)
+    # return color
+# end
+
+# function get_color(color::Symbol, default=:black)
+#     if color==:default
+#         if default isa Symbol
+#             color = default
+#         else
+#             return default
+#         end
+#     end
+
+#     color in keys(_colors_dict) || throw(SerendipException("get_color: color must be one of $_colors_list. Got $color"))
+#     return _colors_dict[color]
+# end
 
 
 struct Colormap
     stops::Vector{Float64} # might be resized according to actual data
-    colors::Array{Vec3}
+    colors::Array{Tuple}
 
     function Colormap(stops, colors)
         @assert length(stops)==length(colors)
@@ -99,7 +158,7 @@ end
 
 
 function Colormap(cmap_name::Symbol; limits=Float64[], rev=false)
-    cmap_name in _colormaps_list || throw(AmaruException("Colormap: colormap not found which must be one of $(_colormaps_list)"))
+    cmap_name in _colormaps_list || throw(SerendipException("Colormap: colormap not found which must be one of $(_colormaps_list)"))
     colormap = _colormaps_dict[cmap_name]
 
     length(limits)==2 && (colormap = clip_colormap(colormap, limits))
@@ -115,7 +174,8 @@ function (cmap::Colormap)(rval)
     idx = findfirst(>(rval), cmap.stops)
 
     t = (rval-cmap.stops[idx-1])/(cmap.stops[idx]-cmap.stops[idx-1])
-    return (1-t)*cmap.colors[idx-1] + t*cmap.colors[idx]
+    c =  (1-t).*cmap.colors[idx-1] .+ t.*cmap.colors[idx]
+    return Tuple(c)
 end
 
 function resize(cmap::Colormap, min, max; diverging=false)  # diverging from zero
@@ -203,5 +263,5 @@ _colormaps_dict = Dict(
         [(0.190, 0.072, 0.232), (0.217, 0.141, 0.400), (0.242, 0.219, 0.569), (0.259, 0.285, 0.693), (0.271, 0.359, 0.812), (0.276, 0.421, 0.891), (0.276, 0.481, 0.951), (0.269, 0.550, 0.993), (0.244, 0.609, 0.997), (0.207, 0.669, 0.974), (0.158, 0.736, 0.923), (0.122, 0.789, 0.866), (0.098, 0.837, 0.803), (0.097, 0.885, 0.733), (0.127, 0.917, 0.676), (0.197, 0.949, 0.595), (0.276, 0.971, 0.517), (0.366, 0.987, 0.437), (0.474, 0.998, 0.350), (0.560, 0.999, 0.286), (0.644, 0.990, 0.234), (0.706, 0.973, 0.210), (0.766, 0.946, 0.203), (0.832, 0.906, 0.208), (0.883, 0.866, 0.217), (0.927, 0.820, 0.226), (0.965, 0.764, 0.228), (0.985, 0.713, 0.216), (0.995, 0.653, 0.196), (0.995, 0.575, 0.164), (0.986, 0.505, 0.134), (0.966, 0.422, 0.098), (0.941, 0.356, 0.070), (0.910, 0.296, 0.048), (0.868, 0.237, 0.031), (0.824, 0.192, 0.020), (0.765, 0.144, 0.010), (0.707, 0.107, 0.006), (0.642, 0.074, 0.004), (0.559, 0.040, 0.006), (0.480, 0.016, 0.011), ]
     ),
 )
- 
+
 _colormaps_list = collect(keys(_colormaps_dict))

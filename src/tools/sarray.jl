@@ -7,7 +7,7 @@ struct SArray{S, T, N, L} <: AbstractArray{T, N} where {S,L}
     function SArray{S, T, N, L}(X::NTuple{L,T}) where {S, T, N, L}
         return new{S, T, N, L}(X)
     end
-    
+
     function SArray{S, T, N, L}(X::AbstractArray) where {S, T, N, L}
         return new{size(X), eltype(X), length(X), prod(S)}( (X...,) )
     end
@@ -85,7 +85,7 @@ function Base.getindex(A::SArray{S,T,N,L}, idxs::Int...) where {S,T,N,L}
         i, j = idxs
         k = S[1]*(j-1) + i
     end
-    
+
     k>length(A.data) && throw(BoundsError(A, idxs))
     return A.data[k]
 end

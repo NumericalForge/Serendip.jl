@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export XmlDocument, XmlElement
 
@@ -41,7 +41,7 @@ mutable struct XmlDocument
 end
 
 
-function addchild!(node::XmlDocument, child::XmlNode) 
+function addchild!(node::XmlDocument, child::XmlNode)
     push!(node.children, child)
     if child isa XmlElement
         node.root = child
@@ -70,7 +70,7 @@ end
 
 
 # Get a node from a nested sequence of names
-# If among the children there are more than one node with the 
+# If among the children there are more than one node with the
 # same name, the last one is considered.
 function (node::XmlElement)(args::String...)
     n = node
@@ -146,7 +146,7 @@ function readnode(text, pos)
     elseif m.captures[1][1]!='<' # non empty content
         return nothing, pos
     end
-    
+
     # get node name and attributes range
     rng = findnext(r" *<.+?>", text, pos)
     pos = rng.stop
@@ -163,7 +163,7 @@ function readnode(text, pos)
 
     name = match(r"<(\w+)", str).captures[1]
     attributes = OrderedDict{String,String}()
-    
+
     # get attributes
     apos = 1
     while true
@@ -188,7 +188,7 @@ function readnode(text, pos)
         if node!==nothing
             push!(children, node)
         else
-            rng = findnext("</$name>", text, pos) 
+            rng = findnext("</$name>", text, pos)
             content = strip(text[pos:rng.start-1])
             pos = rng.stop
             break
@@ -203,7 +203,7 @@ end
 # read a xml file into a XmlDocument
 function XmlDocument(input::String)
     # check if input is XML or file
-    if startswith(input, "<")  
+    if startswith(input, "<")
         text = input
     else
         text = read(input, String)
@@ -236,7 +236,7 @@ function XmlDocument(input::String)
         if node!==nothing
             push!(children, node)
         else
-            # rng = findnext("</$name>", text, pos) 
+            # rng = findnext("</$name>", text, pos)
             # content = strip(text[pos:rng.start-1])
             # pos = rng.stop
             break
@@ -351,7 +351,7 @@ function to_xml_node(dict::AbstractDict, name::String="Dict", attributes::Abstra
     s = split(s,".")[end]
     attributes["type"] = s
 
-    children = [ 
+    children = [
                 to_xml_node(collect(keys(dict)), "keys"),
                 to_xml_node(collect(values(dict)), "values")
                ]
@@ -392,7 +392,7 @@ function to_xml_node(obj::Any, name::String=""; exclude::Array{Symbol,1}=Symbol[
     end
 
     return XmlElement(name, attributes=attributes, children=children)
-    
+
 end
 
 

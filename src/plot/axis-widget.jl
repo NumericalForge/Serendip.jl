@@ -1,6 +1,6 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-_axes_widget_locations = [:none, :topright, :topleft, :bottomright, :bottomleft]
+_axes_widget_locations = [:none, :top_right, :top_left, :bottom_right, :bottom_left]
 
 mutable struct AxisWidget<:FigureComponent
     location::Symbol
@@ -13,21 +13,30 @@ mutable struct AxisWidget<:FigureComponent
     width::Float64
     height::Float64
 
-    function AxisWidget(; args...)
-        args = checkargs(args, 
-            [
-                KwArgInfo( :location, "AxisWidget location", :bottomleft, values=_axes_widget_locations ),
-                KwArgInfo( :labels, "Axis labels", "", type=Vector{AbstractString} ),
-                KwArgInfo( :font, "Font name", "NewComputerModern", type=AbstractString),
-                KwArgInfo( :font_size, "Font size", 9.0, cond=:(font_size>0)),
-                KwArgInfo( :azimut, "Azimut angle for 3d in degrees", 0 ),
-                KwArgInfo( :elevation, "Elevation angle for 3d in degrees", 0 ),
-                KwArgInfo( :arrow_length, "Length of axis arrow", 20 ),
-            ],
-            aliens=false,
-        )
+    function AxisWidget(;
+        location::Symbol = :bottom_left,
+        labels::Vector{<:AbstractString} = ["x", "y"],
+        font::String = "NewComputerModern",
+        font_size::Real = 9.0,
+        azimut::Real = 0.0,
+        elevation::Real = 0.0,
+        arrow_length::Real = 20.0,
+    )
+        # ; args...)
+        # args = checkargs(args,
+        #     [
+        #         KwArgInfo( :location, "AxisWidget location", :bottom_left, values=_axes_widget_locations ),
+        #         KwArgInfo( :labels, "Axis labels", "" ),
+        #         KwArgInfo( :font, "Font name", "NewComputerModern", type=AbstractString),
+        #         KwArgInfo( :font_size, "Font size", 9.0, cond=:(font_size>0)),
+        #         KwArgInfo( :azimut, "Azimut angle for 3d in degrees", 0 ),
+        #         KwArgInfo( :elevation, "Elevation angle for 3d in degrees", 0 ),
+        #         KwArgInfo( :arrow_length, "Length of axis arrow", 20 ),
+        #     ],
+        #     aliens=false,
+        # )
 
-        this = new(args.location, args.labels, args.font, args.font_size, args.azimut, args.elevation, args.arrow_length)
+        this = new(location, labels, font, font_size, azimut, elevation, arrow_length)
         return this
     end
 end
@@ -76,7 +85,7 @@ function draw!(ctx::CairoContext, aw::AxisWidget)
 
     Cairo.save(ctx)
     x0, y0 = get_current_point(ctx)
-    
+
     font = get_font(aw.font)
     select_font_face(ctx, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL )
     set_font_size(ctx, aw.font_size)
@@ -87,16 +96,16 @@ function draw!(ctx::CairoContext, aw::AxisWidget)
 
     translate(ctx, x0+head_width, y0+aw.arrow_length)
 
-    x_label_padding = 0.1*aw.arrow_length
-    y_label_padding = 0.18*aw.arrow_length
+    xlabel_padding = 0.1*aw.arrow_length
+    ylabel_padding = 0.18*aw.arrow_length
 
     set_source_rgb(ctx, _colors_dict[:indianred]...)
     draw_arrow(ctx, 0, 0, aw.arrow_length, 0)
-    draw_text(ctx, aw.arrow_length, -x_label_padding, aw.labels[1], halign="right", valign="bottom", angle=0)
+    draw_text(ctx, aw.arrow_length, -xlabel_padding, aw.labels[1], halign="right", valign="bottom", angle=0)
 
     set_source_rgb(ctx, _colors_dict[:green]...)
     draw_arrow(ctx, 0, 0, 0, -aw.arrow_length)
-    draw_text(ctx, y_label_padding, -aw.arrow_length, aw.labels[2], halign="left", valign="top", angle=0)
+    draw_text(ctx, ylabel_padding, -aw.arrow_length, aw.labels[2], halign="left", valign="top", angle=0)
 
 
 end

@@ -1,4 +1,4 @@
- #This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+ #This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export MCJointSeep
 
@@ -360,7 +360,7 @@ function calcD(mat::MCJointSeep, state::MCJointSeepState)
 end
 
 
-function update_state!(mat::MCJointSeep, state::MCJointSeepState, Δw::Array{Float64,1}, Δuw::Array{Float64,1},  G::Array{Float64,1}, BfUw::Array{Float64,1}, Δt::Float64)
+function update_state(mat::MCJointSeep, state::MCJointSeepState, Δw::Array{Float64,1}, Δuw::Array{Float64,1},  G::Array{Float64,1}, BfUw::Array{Float64,1}, Δt::Float64)
     ndim = state.ctx.ndim
     σini = copy(state.σ)
 
@@ -442,7 +442,7 @@ function update_state!(mat::MCJointSeep, state::MCJointSeepState, Δw::Array{Flo
 end
 
 
-function ip_state_vals(mat::MCJointSeep, state::MCJointSeepState)
+function state_values(mat::MCJointSeep, state::MCJointSeepState)
     ndim = state.ctx.ndim
     if ndim == 3
        return OrderedDict(

@@ -1,7 +1,7 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 """
-    $(TYPEDSIGNATURES)
+    EXTRUDE
 
 Gets a 3D `Block` by extruding a 2D `block` in the direction given by `axis` and a distance `length`.
 It also sets the number of divisions `n` in the extruded direction.
@@ -9,7 +9,7 @@ It also sets the number of divisions `n` in the extruded direction.
 # Examples
 
 ```julia
-julia> block2d = Block([ 0 0; 1 1 ], nx=3, ny=4, cellshape=QUAD8);
+julia> block2d = Block([ 0 0; 1 1 ], nx=3, ny=4, shape=QUAD8);
 julia> block3d = extrude(block2d, axis=[0,0,1], length=1, n=5)
 Block
   nodes: 8-element Vector{Node}:
@@ -66,7 +66,7 @@ function extrude(block::Block; axis=[0,0,1], length::Number=1.0, n::Int=1, quiet
         push!(points, Point(coord))
     end
 
-    return Block(points, nx=block.nx, ny=block.ny, nz=n, cellshape=newshape)
+    return Block(points, nx=block.nx, ny=block.ny, nz=n, shape=newshape)
 
 end
 
@@ -80,15 +80,15 @@ end
 """
     extrude(mesh; length=1.0, n=1, axis=nothing, quiet=true, lagrangian=false)
 
-Generates a 3D mesh by extruding a planar `mesh` using 
+Generates a 3D mesh by extruding a planar `mesh` using
 a direction `axis`, a `length` and a number of divisions `n`.
 """
 function extrude(mesh::Mesh; length::Real=1.0, n::Int=1, axis=nothing, quiet=true, lagrangian=false)
-    
+
     quiet || printstyled("Mesh extrude:\n", bold=true, color=:cyan)
 
     @check n>0
-    
+
     if axis !== nothing
         if axis==:x
             axis = Vec3(1,0,0)
@@ -104,7 +104,7 @@ function extrude(mesh::Mesh; length::Real=1.0, n::Int=1, axis=nothing, quiet=tru
     # check cells
     for cell in mesh.elems
         celldim = cell.shape.ndim
-        celldim==1 && mesh.ctx.ndim==3 && axis===nothing && error("extrude: cannot extrude cell of shape $(cell.shape.name) in dimension 3 using normal")    
+        celldim==1 && mesh.ctx.ndim==3 && axis===nothing && error("extrude: cannot extrude cell of shape $(cell.shape.name) in dimension 3 using normal")
         celldim==3 && error("extrude: cannot extrude cell of shape $(cell.shape.name)")
     end
 
@@ -115,8 +115,8 @@ function extrude(mesh::Mesh; length::Real=1.0, n::Int=1, axis=nothing, quiet=tru
         counts  = zeros(nnodes)
         for cell in mesh.elems
             celldim = cell.shape.ndim
-            # coords  = getcoords(cell, celldim)
-            coords  = getcoords(cell)
+            # coords  = get_coords(cell, celldim)
+            coords  = get_coords(cell)
             natcoords = cell.shape.nat_coords
             for (i,node) in enumerate(cell.nodes)
                 R = natcoords[i,:]
@@ -197,7 +197,8 @@ function extrude(mesh::Mesh; length::Real=1.0, n::Int=1, axis=nothing, quiet=tru
                 push!(nodes, Node(coord))
             end
 
-            newcell = Cell(newshape, nodes, tag=cell.tag)
+            role = newshape.ndim==2 ? :surface : :bulk
+            newcell = Cell(newshape, role, nodes, tag=cell.tag)
             isinverted(newcell) && flip!(newcell)
             push!(cells, newcell)
         end

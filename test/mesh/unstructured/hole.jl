@@ -1,4 +1,4 @@
-using Amaru, Test
+using Serendip, Test
 
 # 2D unstructured mesh with a hole
 geo = GeoModel()
@@ -36,11 +36,11 @@ plot = GeometryPlot(geo); save(plot, "geo.pdf")
 # Block based mesh
 mesh1 = Mesh(geo, quadratic=true)
 
-bl = Block([0 0; 0.25 0.25], nx=3, ny=3, cellshape=QUAD8)
+bl = Block([0 0; 0.25 0.25], nx=3, ny=3, shape=QUAD8)
 bl_corners = array(bl, nx=2, ny=2, dx=0.75, dy=0.75)
-bl = Block([0.25 0; 0.75 0.25], nx=6, ny=3, cellshape=QUAD8)
+bl = Block([0.25 0; 0.75 0.25], nx=6, ny=3, shape=QUAD8)
 bl_bu = array(bl, nx=1, ny=2, dy=0.75)
-bl = Block([0 0.25; 0.25 0.75], nx=3, ny=6, cellshape=QUAD8)
+bl = Block([0 0.25; 0.25 0.75], nx=3, ny=6, shape=QUAD8)
 bl_lr = array(bl, nx=2, ny=1, dx=0.75)
 
 mesh2 = Mesh(bl_corners, bl_bu, bl_lr)
@@ -49,9 +49,9 @@ mesh2 = Mesh(bl_corners, bl_bu, bl_lr)
 meshes = [ mesh1, mesh2 ]
 
 mats = [
-    :bulks => MechSolid => LinearElastic => (E=1e2, nu=0.25)
+    :bulks => MechBulk => LinearElastic => (E=1e2, nu=0.25)
 ]
-ctx = MechContext()
+ctx = Context()
 
 results = []
 for mesh in [mesh1, mesh2]
@@ -59,17 +59,17 @@ for mesh in [mesh1, mesh2]
     ana = MechAnalysis(model)
     log = NodeLogger()
     addlogger!(ana, :(x==0.5 && y==1) => log )
-    
+
     bcs = [
         :(y==0) => NodeBC(uy=0)
         :(x==0 && y==0) => NodeBC(ux=0)
         :(y==1) => SurfaceBC(ty=-1)
     ]
-    
+
     addstage!(ana, bcs)
     solve!(ana)
 
     push!(results, log.table.uy[end])
-end    
+end
 
 println(@test results[1] ≈ results[2] atol=1e-3)

@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export SeepJoint1D
 
@@ -9,14 +9,14 @@ struct SeepJoint1DProps<:ElemProperties
         names = (p="Perimeter",)
         required = (:p,)
         @checkmissing props required names
-        
+
         props   = (; props...)
         p = props.p
         @check p>0
 
         return new(p)
     end
-    
+
 end
 
 
@@ -30,7 +30,7 @@ mutable struct SeepJoint1D<:Hydromech
     mat::Material
     props ::SeepJoint1DProps
     active::Bool
-    linked_elems::Array{Element,1}
+    couplings::Array{Element,1}
     ctx::Context
 
     # specific fields
@@ -43,7 +43,7 @@ mutable struct SeepJoint1D<:Hydromech
     end
 end
 
-compat_shape_family(::Type{SeepJoint1D}) = LINEJOINTCELL
+compat_role(::Type{SeepJoint1D}) = LINEJOINTCELL
 compat_elem_props(::Type{SeepJoint1D}) = SeepJoint1DProps
 
 
@@ -56,10 +56,10 @@ function elem_init(elem::SeepJoint1D)
     # Only pore-pressure dofs
     elem.uw_dofs = get_dofs(elem, :uw)
 
-    hook = elem.linked_elems[1]
-    bar  = elem.linked_elems[2]
-    Ch = getcoords(hook)
-    Ct = getcoords(bar)
+    hook = elem.couplings[1]
+    bar  = elem.couplings[2]
+    Ch = get_coords(hook)
+    Ct = get_coords(bar)
     elem.cache_B = []
     elem.cache_detJ = []
     for ip in elem.ips
@@ -73,8 +73,8 @@ end
 
 
 function mountB(elem::SeepJoint1D, R, Ch, Ct)
-    hook = elem.linked_elems[1]
-    bar  = elem.linked_elems[2]
+    hook = elem.couplings[1]
+    bar  = elem.couplings[2]
     nbnodes = length(bar.nodes)
     D = bar.shape.deriv(R)
     J = Ct'*D
@@ -86,8 +86,8 @@ function mountB(elem::SeepJoint1D, R, Ch, Ct)
     # Babuška-Brezzi condition
     hookshape = hook.shape
     hook_uw_dofs = get_dofs(hook, :uw)
-    if length(hook.nodes)!=length(hook_uw_dofs) 
-        hookshape = hook.shape.basic_shape
+    if length(hook.nodes)!=length(hook_uw_dofs)
+        hookshape = hook.shape.base_shape
     end
 
     # Mount MM matrix
@@ -119,7 +119,7 @@ function elem_conductivity_matrix(elem::SeepJoint1D)
         Bp   = elem.cache_B[i]
         detJ = elem.cache_detJ[i]
 
-        coef = detJ*ip.w*(elem.mat.k/elem.ctx.γw)*p
+        coef = detJ*ip.w*(elem.pmodel.k/elem.ctx.γw)*p
         H -= coef*Bp'*Bp
     end
 
@@ -167,7 +167,7 @@ function update_elem!(elem::SeepJoint1D, DU::Array{Float64,1}, Δt::Float64)
 
         # poropression difference between solid and drain
         ΔFw = dot(Bp,Uw)/elem.ctx.γw
-        V = update_state!(elem.mat, ip.state, ΔFw, Δt)
+        V = update_state(elem.pmodel, ip.state, ΔFw, Δt)
 
         coef = Δt*detJ*ip.w*p
         dFw += coef*Bp'*V
@@ -178,7 +178,7 @@ end
 
 
 function elem_recover_nodal_values(elem::SeepJoint1D)
-    all_ip_vals = [ ip_state_vals(elem.mat, ip.state) for ip in elem.ips ]
+    all_ip_vals = [ state_values(elem.pmodel, ip.state) for ip in elem.ips ]
     nips        = length(elem.ips)
     fields      = keys(all_ip_vals[1])
     nfields     = length(fields)
@@ -186,8 +186,8 @@ function elem_recover_nodal_values(elem::SeepJoint1D)
     # matrix with all ip values (nip x nvals)
     W = mapreduce(transpose, vcat, collect.(values.(all_ip_vals)))
 
-    hook = elem.linked_elems[1]
-    bar  = elem.linked_elems[2]
+    hook = elem.couplings[1]
+    bar  = elem.couplings[2]
 
     E = extrapolator(bar.shape, nips)
     N = E*W # (nbnodes x nfields)

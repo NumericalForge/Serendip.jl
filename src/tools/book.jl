@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export DataBook, databook, push!, save
 
@@ -71,7 +71,7 @@ function save(book::DataBook, filename::String; quiet=false)
 
             # print table label
             print(f, "Table ")
-            if name == "" 
+            if name == ""
                 print(f, "(snapshot=$k rows=$nr)\n")
             else
                 print(f, "$name (rows=$nr)\n")

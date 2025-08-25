@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 include("aliases.jl")
 
@@ -18,7 +18,8 @@ include("signal.jl")
 include("quaternion.jl")
 
 include("expr.jl")
-include("arguments.jl")
+# include("arguments.jl")
+# include("arguments2.jl")
 include("threads.jl")
 include("table.jl")
 include("book.jl")
@@ -27,9 +28,9 @@ include("stopwatch.jl")
 include("xml.jl")
 include("encode.jl")
 
-include("array-pool.jl")
+# include("array-pool.jl")
 
-include("tex.jl")
+# include("tex.jl")
 include("error.jl")
 
 Base.show(io::IO, obj::XmlElement) = _show(io, obj, 3, "")

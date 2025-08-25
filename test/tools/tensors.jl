@@ -1,8 +1,8 @@
-using Amaru
+using Serendip
 
-tr, J2, J3, eigen, dev, I2 = Amaru.tr, Amaru.J2, Amaru.J3, Amaru.eigen, Amaru.dev, Amaru.I2
+tr, J2, J3, eigen, dev, I2 = Serendip.tr, Serendip.J2, Serendip.J3, Serendip.eigen, Serendip.dev, Serendip.I2
 
-σ = Amaru.Vec6(10,20,30,4,5,6)
+σ = Serendip.Vec6(10,20,30,4,5,6)
 s = dev(σ)
 
 println("Eigenvalues of the stress tensor")

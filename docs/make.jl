@@ -1,14 +1,14 @@
 # Inside make.jl
 push!(LOAD_PATH,"../src/")
-using Amaru, Documenter
+using Serendip, Documenter
 
-root = joinpath(dirname(pathof(Amaru)), "..", "docs")
+root = joinpath(dirname(pathof(Serendip)), "..", "docs")
 
 makedocs(
     # remotes = nothing,
     root = root,
-    modules  = [Amaru],
-    sitename = "Amaru",
+    modules  = [Serendip],
+    sitename = "Serendip",
     pagesonly = true,    # only listed pages are included
     checkdocs = :none,   # :missing, :all
     format = Documenter.HTML(
@@ -29,14 +29,14 @@ makedocs(
         # "Plotting" =>  "plotting/plotting.md",
     ],
     doctest = false,
-    repo = "https://github.com/NumSoftware/Amaru.jl",
+    repo = "https://github.com/NumericalForge/Serendip.jl",
     # edit_branch = "main",
 
     # repo = "github.com/JuliaGraphics/LuxorManual.git"
-    # repo = "github.com/NumSoftware/Amaru.git"
+    # repo = "github.com/NumericalForge/Serendip.jl.git"
 )
-        
-# ENV["GITHUB_REPOSITORY"] = "NumSoftware/Amaru.jl"
+
+# ENV["GITHUB_REPOSITORY"] = "NumericalForge/Serendip.jl"
 # ENV["GITHUB_EVENT_NAME"] = "push"
 # ENV["GITHUB_REF"]        = "main"
 # ENV["GITHUB_ACTOR"]      = "usr"
@@ -46,5 +46,5 @@ deploydocs(;
     devbranch = "main",
     target    = "build",
     branch    = "gh-pages",
-    repo      = "github.com/NumSoftware/Amaru.jl.git",
+    repo      = "github.com/NumericalForge/Serendip.jl.git",
 )

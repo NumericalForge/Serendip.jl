@@ -1,249 +1,103 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-
-abstract type BC end
-@inline Base.:(<<)(a, b::BC) = return (a, b)
-@inline Base.:(=>)(a, b::BC) = return (a, b)
-
-
-# NodeBC #
-mutable struct NodeBC<:BC
-    conds::AbstractDict
-    filter::Any
-    nodes::Array{Node,1}
-
-    function NodeBC(;conds...)
-        length(conds) == 0 && throw(ArgumentError("NodeBC must have at least one condition"))
-        return new(conds, :(), [])
-    end
+mutable struct BoundaryCondition{T}
+    kind  ::Symbol  # :node, :face, :curve, (:body for body loads)
+    selector::Any
+    conds ::AbstractDict
+    target::Vector{T}
 end
 
 
-function setup_bc!(model::AbstractDomain, filter, bc::NodeBC)
-    isa(filter, Int) && (filter = [filter])
-    bc.filter = filter
+"""
+    add_bc(stage::Stage, kind::Symbol, selector; conds...)
 
-    # Filter objects according to bc criteria
-    bc.nodes  = model.nodes[bc.filter]
-    filter!(n->!n.aux, bc.nodes)
-    length(bc.nodes)==0 && notify("setup_bc!: applying boundary conditions to empty array of nodes while evaluating expression ", string(bc.filter))
-    # not_found_keys = Set()
+Add a boundary condition (BC) to the given `stage` in the analysis.
 
-    # Find prescribed essential bcs
-    for (key,cond) in bc.conds
-        for node in bc.nodes
-            !haskey(node.dofdict, key) && continue
-            dof = node.dofdict[key]
+This function attaches a boundary condition to a specific set of entities in the model, identified by `kind` and filtered using a spatial expression or coordinates.
+
+# Arguments
+- `stage::Stage`: The analysis stage where the boundary condition will be applied.
+- `kind::Symbol`: The type of boundary entity to apply the condition on. Options:
+    - `:node` – apply on nodes.
+    - `:face` – apply on faces (in 3D) or edges (in 2D).
+    - `:edge` – apply on edges explicitly.
+- `selector`: A filtering expression or array of coordinates to select entities for the BC. If a coordinate array is provided for `:node`, it is converted into an equality selector.
+- `conds...`: Named keyword arguments specifying the boundary conditions to apply (e.g., `ux=0`, `uy=0`, `tz=-5`).
+
+# Behavior
+- Resolves the target entities (`nodes`, `faces`, or `edges`) in the finite element model using the provided `selector`.
+- If `kind == :face` in a 2D model, surface BCs are automatically mapped to edges with a notification.
+- Adds the resulting `BoundaryCondition` to `stage.bcs`.
+
+# Returns
+- `bc::BoundaryCondition`: The created boundary condition object.
+
+# Examples
+```julia
+add_bc(stage, :node, x==0, ux=0, uy=0)      # Fix displacement on nodes at x==0
+add_bc(stage, :face, z==1, tz=-10)       # Apply surface traction at z==1
+add_bc(stage, :edge, (y==0,z==1), qx=10)    # Apply linear traction at edges where y==0 && z==1
+add_bc(stage, :node, [0.0, 0.0, 0.0], ux=0) # Constrain node at origin
+```
+"""
+function add_bc(
+    stage::Stage,
+    kind::Symbol,
+    selector;
+    conds...
+    )
+
+    kind in (:node, :face, :edge, :body) || error("Invalid boundary condition kind: $kind. Use :node, :face, :edge or :body.")
+
+    model = stage.analysis.model
+
+    target_type = kind == :node ? Node : kind == :body ? AbstractCell : kind == :face ? CellFace : CellEdge
+    item_name = kind == :node ? :node : kind == :body ? :element : kind == :face ? :face : :edge
+    items = kind == :node ? model.nodes : kind == :body ? model.elems : kind == :face ? model.faces : model.edges
+    # if kind == :face && model.ctx.ndim==2
+        # notify("add_bc: Surface boundary conditions are not supported in 2D. Using edge boundary conditions instead.")
+        # items = model.edges
+    # end
+
+    if kind == :node && selector isa AbstractArray
+        X = Vec3(selector)
+        x, y, z = X
+        selector = :(x==$x && y==$y && z==$z)
+    end
+    target = select(items, selector)
+
+    length(target) == 0 && notify("setup_bc: No $(item_name)s found for selector expression: ", selector)
+
+    bc = BoundaryCondition{target_type}(kind, selector, conds, target)
+    push!(stage.bcs, bc)
+
+    return bc
+end
+
+
+function configure_bc_dofs(bc::BoundaryCondition)
+    if bc.kind == :node
+        nodes = bc.target
+    else
+        nodes = [ node for facet in bc.target for node in facet.nodes ]
+    end
+
+    # Set prescribed essential bcs
+    for node in nodes
+        for (key, cond) in bc.conds
+            dof = get_dof(node, key)
+            dof===nothing && continue
             dof.name==key && (dof.prescribed=true)
         end
     end
 end
 
 
-function compute_bc_vals!(model::AbstractDomain, bc::NodeBC, t::Float64, U::Array{Float64,1}, F::Array{Float64,1})
-    # essential_keys = Set( dof.name for node in bc.nodes for dof in node.dofs )
+# function add_body_load(stage::Stage, selector; conds...)  # Body load treated as a special case of boundary condition
+#     model = stage.analysis.model
+#     target = model.elems.active[selector]
+#     length(target) == 0 && notify("add_body_load: No elements found for selector expression: ", selector)
 
-    for node in bc.nodes
-        x, y, z = node.coord
-        for (key,cond) in bc.conds
-            !haskey(node.dofdict, key) && continue
-            dof = node.dofdict[key]
-            if key==dof.name # essential bc (dof.prescribed should not be modified!)
-                U[dof.eq_id] = evaluate(cond, x=x, y=y, z=z, t=t)
-            else # natural bc
-                F[dof.eq_id] += evaluate(cond, x=x, y=y, z=z, t=t)
-            end
-        end
-    end
-end
+#     return BoundaryCondition(:body, selector, conds, target)
+# end
 
-
-# SurfaceBC #
-mutable struct SurfaceBC<:BC
-    conds ::AbstractDict
-    filter::Any
-    facets ::Array{CellFace,1}
-
-    function SurfaceBC(;conds...)
-        return new(conds, :(), [])
-    end
-end
-
-FaceBC = SurfaceBC
-
-# EdgeBC #
-mutable struct EdgeBC<:BC
-    conds ::AbstractDict
-    filter::Any
-    edges ::Array{CellEdge,1}
-
-    function EdgeBC(;conds...)
-        return new(conds, :(), [])
-    end
-end
-
-
-function setup_bc!(model::AbstractDomain, filter, bc::Union{SurfaceBC,EdgeBC})
-    bc.filter = filter
-
-    # Filter objects according to bc criteria
-    if bc isa SurfaceBC
-        if model.ctx.ndim==2
-            bc.facets = model.edges[bc.filter]
-        else
-            bc.facets = model.faces[bc.filter]
-        end
-        facets = bc.facets
-    else
-        bc.edges = model.edges[bc.filter]
-        facets = bc.edges
-    end
-    length(facets)==0 && notify("setup_bc!: applying boundary conditions to empty array of faces/edges while evaluating expression ", string(bc.filter))
-
-    # Find prescribed essential bcs
-    for (key,val) in bc.conds
-        for facet in facets
-            for node in facet.nodes
-                !haskey(node.dofdict, key) && continue
-                dof = node.dofdict[key]
-                dof.name==key && (dof.prescribed=true)
-            end
-        end
-    end
-end
-
-
-function compute_bc_vals!(model::AbstractDomain, bc::Union{SurfaceBC,EdgeBC}, t::Float64, U::Array{Float64,1}, F::Array{Float64,1})
-    facets = bc isa SurfaceBC ? bc.facets : bc.edges
-    essential_keys = Set( dof.name for facet in facets for node in facet.nodes for dof in node.dofs )
-
-    for facet in facets
-        for (key,val) in bc.conds
-            if key in essential_keys
-                for node in facet.nodes
-                    if haskey(node.dofdict, key)
-                        dof = node.dofdict[key]
-                        x, y, z = node.coord
-                        U[dof.eq_id] = evaluate(val, x=x, y=y, z=z, t=t)
-                    end
-                end
-            else
-                Fd, map = distributed_bc(facet.owner, facet, t, key, val)
-                F[map] += Fd
-            end
-        end
-    end
-end
-
-
-# BodyC
-
-
-mutable struct BodyC<:BC
-    conds::AbstractDict
-    filter::Any
-    elems::Array{Element,1}
-
-    function BodyC(;conds...)
-        return new(conds, :(), [])
-    end
-end
-
-ElemBC = BodyC
-
-
-function setup_bc!(model::AbstractDomain, filter, bc::BodyC)
-    isa(filter, Int) && (filter = [filter])
-    bc.filter = filter
-    # Filter objects according to bc criteria
-    bc.elems = model.elems.active[bc.filter]
-    length(bc.elems)==0 && notify("setup_bc!: applying boundary conditions to empty array of elements while evaluating expression ", string(bc.filter))
-
-    # Find prescribed essential bcs
-    for (key,val) in bc.conds  # e.g. key = tx, ty, tn, etc...
-        for elem in bc.elems
-            for node in elem.nodes
-                !haskey(node.dofdict, key) && continue # if key not found, assume it is a natural bc
-                dof = node.dofdict[key]
-                dof.name==key && (dof.prescribed=true)
-            end
-        end
-    end
-end
-
-
-function compute_bc_vals!(model::AbstractDomain, bc::BodyC, t::Float64, U::Array{Float64,1}, F::Array{Float64,1})
-    essential_keys = Set( dof.name for elem in bc.elems for node in elem.nodes for dof in node.dofs )
-
-    for elem in bc.elems
-        for (key,val) in bc.conds
-            if key in essential_keys
-                for node in elem.nodes
-                    if haskey(node.dofdict, key)
-                        dof = node.dofdict[key]
-                        x, y, z = node.coord
-                        U[dof.eq_id] = evaluate(val, x=x, y=y, z=z, t=t)
-                    end
-                end
-            else
-                Fd, map = body_c(elem, key, val)
-                F[map] += Fd
-            end
-        end
-    end
-end
-
-
-# Return a vector with all model dofs and the number of unknown dofs according to bcs
-function configure_dofs!(model::AbstractDomain, bcbinds::AbstractArray)
-
-    # get active nodes
-    ids = [ node.id for elem in model.elems.active for node in elem.nodes ]
-    ids = sort(unique(ids)) # sort is required to preserve node numbering optimization
-    active_nodes = model.nodes[ids]
-
-    # All dofs
-    # dofs = Dof[dof for node in model.nodes for dof in node.dofs]
-    dofs = Dof[dof for node in active_nodes for dof in node.dofs]
-    dofs = Dof[dof for node in active_nodes if !node.aux for dof in node.dofs]
-
-    # Reset all dofs as natural conditions
-    for dof in dofs
-        dof.prescribed = false
-    end
-
-    # Setup bcs and prescribed marker for each dof
-    for (filter,bc) in bcbinds
-        setup_bc!(model, filter, bc)
-    end
-
-    # Split dofs
-    presc = [dof.prescribed for dof in dofs]
-    pdofs = dofs[presc]
-    udofs = dofs[.!presc]
-    dofs  = [udofs; pdofs]
-    nu    = length(udofs)
-
-    # set eq_id in dofs
-    for (i,dof) in enumerate(dofs)
-        dof.eq_id = i
-    end
-
-    return dofs, nu
-end
-
-
-# Returns the values for essential and natural boundary conditions according to bcs
-function get_bc_vals(model::AbstractDomain, bcs::AbstractArray, t=0.0)
-    # This function will be called for each time increment
-
-    ndofs = model.ndofs
-    U = zeros(ndofs)
-    F = zeros(ndofs)
-
-    for (key,bc) in bcs
-        compute_bc_vals!(model, bc, t, U, F)
-    end
-
-    return U, F
-end

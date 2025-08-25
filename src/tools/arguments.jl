@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
 # Returns a list containing the arguments for each method of function
@@ -107,12 +107,12 @@ function checkargs(args::AbstractArray, kwargs, fparams::AbstractArray; aliens=t
     n = length(args) # all args
     ninfos = length(PsInfos)
     check_ps = check_ps || ninfos==0
-    
+
     if check_ps
         # check number of positional arguments
         if n != ninfos
             msg = "Wrong number of positional arguments. Expected $n, got $ninfos."
-            throw(AmaruException("$(funcname()): $msg"))
+            throw(SerendipException("$(funcname()): $msg"))
         end
 
         # get a list of key=>val pairs of positional arguments
@@ -135,7 +135,7 @@ function checkargs(args::AbstractArray, kwargs, fparams::AbstractArray; aliens=t
         for key in keys(kwargs)
             if !(key in allkeys)
                 msg = "Wrong argument $(key). The named arguments are:\n"*get_args_descriptions(fparams)
-                throw(AmaruException("$(funcname()): $msg"))     
+                throw(SerendipException("$(funcname()): $msg"))
             end
         end
     end
@@ -165,7 +165,7 @@ function checkargs(args::AbstractArray, kwargs, fparams::AbstractArray; aliens=t
         if issubset(args1, argkeys) && issubset(args2, argkeys)
             s1 = join(args1, ", ")
             s2 = join(args2, ", ")
-            throw(AmaruException("$(funcname()): Invalid argument combination. Provide either argument(s) ($s1) or ($s2)"))
+            throw(SerendipException("$(funcname()): Invalid argument combination. Provide either argument(s) ($s1) or ($s2)"))
         end
 
         if all(key in argkeys for key in args1)
@@ -189,7 +189,7 @@ function checkargs(args::AbstractArray, kwargs, fparams::AbstractArray; aliens=t
             args2 = opt.args2 isa Symbol ? (opt.args2,) : opt.args2.args
             msg = msg*"\nArgument(s) $(join(args1, ", ", " and ")) can be used instead of $(join(args2, ", ", " and "))."
         end
-        throw(AmaruException("$(funcname()): $msg"))
+        throw(SerendipException("$(funcname()): $msg"))
     end
 
     # update kwargs with defaults args
@@ -235,14 +235,14 @@ function checkargs(args::AbstractArray, kwargs, fparams::AbstractArray; aliens=t
             func = Expr(:(->), key, arginfo.cond)
             if !invokelatest(eval(func), val)
                 msg = "Invalid value for argument $key which must satisfy $(arginfo.cond).\nGot $key = $(repr(val))"
-                throw(AmaruException("$(funcname()): $msg"))
+                throw(SerendipException("$(funcname()): $msg"))
             end
         end
 
         # check if in the given set
         if length(arginfo.values)>0 && !(val in arginfo.values)
             msg = "Invalid value for argument $key which must be one of $(arginfo.values).\nGot $key = $(repr(val))"
-            throw(AmaruException("$(funcname()): $msg"))
+            throw(SerendipException("$(funcname()): $msg"))
         end
 
         # check length
@@ -251,23 +251,23 @@ function checkargs(args::AbstractArray, kwargs, fparams::AbstractArray; aliens=t
             rightlength = haslength && length(val)==arginfo.length
             if !haslength || !rightlength
                 msg = "Invalid value for argument $key which must be of size $(arginfo.length).\nGot $key = $(repr(val))"
-                throw(AmaruException("$(funcname()): $msg"))
+                throw(SerendipException("$(funcname()): $msg"))
             end
         end
 
         # check type
         if arginfo.type !== nothing && !(val isa arginfo.type)
             msg = "Invalid value for argument $key which must be of type $(arginfo.type).\nGot $key = $(repr(val))"
-            throw(AmaruException("$(funcname()): $msg"))
+            throw(SerendipException("$(funcname()): $msg"))
         end
     end
-    
+
     # check relational conditions between all arguments
     allconds = [ item for item in fparams if item isa ArgCond ]
     for argcond in allconds
         if !evaluate(argcond.cond; args...) # todo: update with eval
             msg = argcond.message!="" ? argcond.message : "Given arguments do not satisfy condition $(argcond.cond)"
-            throw(AmaruException("$(funcname()): $msg"))
+            throw(SerendipException("$(funcname()): $msg"))
         end
     end
 
@@ -283,7 +283,7 @@ end
 function docstring(fparams)
     PsInfos = ArgInfo[ arg for arg in fparams if arg isa ArgInfo ]
     KwInfos = KwArgInfo[ arg for arg in fparams if arg isa KwArgInfo ]
-    
+
     # find description
     idx = findfirst(x->isa(x,FunInfo), fparams)
     fdesc = fparams[idx]
@@ -302,14 +302,14 @@ function docstring(fparams)
 
 
     push!(desc, "$(fdesc.desc)")
-    
+
     # add positional arguments descriptions
     if length(PsInfos)>0
         push!(desc, "# Positional arguments:\n")
         for item in PsInfos
             str = "- `$(item.key)` "
             str = str*": $(item.desc)."
-            
+
             # condition
             if item.cond != :()
                 str = str*" Requires $(item.cond)."
@@ -323,13 +323,13 @@ function docstring(fparams)
             push!(desc, str)
         end
     end
-    
+
     # add keyword arguments descriptions
     if length(KwInfos)>0
         push!(desc, "# Keyword arguments:\n")
         for item in KwInfos
             str = "- `$(item.key)` "
-            
+
             # aliases
             if length(item.aliases)>0
                 str_aliases = [ "`"*string(alias)*"`" for alias in item.aliases ]

@@ -1,10 +1,10 @@
-using Amaru
+using Serendip
 
 # Mesh generation
 L = 4.0
 c = 1500
 
-bl   = Block( [0 0; L 1], cellshape=QUAD4, nx=4, ny=2, tag="fluido" )
+bl   = Block( [0 0; L 1], shape=QUAD4, nx=4, ny=2, tag="fluido" )
 mesh = Mesh(bl)
 
 # Finite element analysis

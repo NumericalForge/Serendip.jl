@@ -3,7 +3,7 @@
 A finite element analysis of a cantilever beam fixed at the left end and a prescribed displacement at the right end.
 
 ```@example
-using Amaru
+using Serendip
 
 # Data
 th = 0.05  # thickness (m)
@@ -35,10 +35,10 @@ pull!(geo, geo.surfaces, axis=[0, 1, 0], length=th)
 mesh= Mesh(geo)
 
 # List of element types and constitutive model
-mat = [ :all => MechSolid => VonMises => (E=E, nu=nu, fy=fy, H=H) ]
+mat = [ :all => MechBulk => VonMises => (E=E, nu=nu, fy=fy, H=H) ]
 
 # A mechanical analysis context
-ctx = MechContext()
+ctx = Context()
 
 # A finite element model
 model = FEModel(mesh, mat, ctx)

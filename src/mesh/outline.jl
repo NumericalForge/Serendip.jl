@@ -1,7 +1,7 @@
 
 function get_facet_normal(face::AbstractCell)
     ndim = 1 + face.shape.ndim
-    C = getcoords(face, ndim)
+    C = get_coords(face, ndim)
 
     if ndim==2
         C .+= [pi pi^1.1]
@@ -29,19 +29,19 @@ export get_feature_edges, get_feature_mesh
 
 
 function get_feature_edges(cells::Vector{<:AbstractCell}; angle=150)
-    
+
     faces_dict = Dict{UInt64, Cell}()
 
     # Get faces
     for cell in cells
-        cell.shape.family == BULKCELL || continue # only bulk cells
+        cell.role == :bulk || continue # only bulk cells
         if cell.shape.ndim==2
             hs = hash(cell)
             faces_dict[hs] = cell
             continue
         end
 
-        for face in getedges(cell)
+        for face in get_edges(cell)
             hs = hash(face)
             if haskey(faces_dict, hs)
                 delete!(faces_dict, hs)
@@ -55,14 +55,14 @@ function get_feature_edges(cells::Vector{<:AbstractCell}; angle=150)
     # @show faces
 
     # Get normals
-    normals = Dict{CellFace,Array{Float64,1}}( f => get_facet_normal(f) for f in faces ) 
+    normals = Dict{CellFace,Array{Float64,1}}( f => get_facet_normal(f) for f in faces )
     face_edge_d = Dict{UInt64,Cell}()
     outline = CellEdge[]
 
     # Get edges with non-coplanar adjacent faces
     for face in faces
         n1 = normals[face]
-        for edge in getedges(face)
+        for edge in get_edges(face)
             hs = hash(edge)
             edge0 = get(face_edge_d, hs, nothing)
             if edge0===nothing

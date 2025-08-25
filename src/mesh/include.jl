@@ -3,27 +3,26 @@
 include("block.jl")
 export Block, BlockTruss, BlockCoords, BlockCylinder, BlockGrid
 
-include("mesh-env.jl")
+include("mesh-context.jl")
 
-#include("point.jl")
-export Node, Cell, hash, get_x, get_y, get_z
+export Cell, select
 include("cell.jl")
 include("collapse.jl")
 
-export get_coords, get_node, getnodes, getfacets, getfaces, getedges, get_patches, cell_extent, cell_quality, cell_aspect_ratio
+export get_coords, get_node, get_nodes, getfacets, getfaces, getedges, get_patches, cell_extent, cell_quality, cell_aspect_ratio
 include("partition.jl")
 
 include("mesh.jl")
 include("structured.jl")
 include("unstructured.jl")
-include("gen_insets.jl")
+include("gen-line-inset-elems.jl")
 include("genmesh.jl")
 
 include("io.jl")
 export Mesh, fixup!, quality!, sortnodes!, save, get_outer_facets, get_neighbors, threshold, datafields
 
-include("block_inset.jl")
-export BlockInset
+# include("block-inset.jl")
+# export BlockInset
 
 include("refine.jl")
 export hrefine, prefine
@@ -37,7 +36,7 @@ export extrude
 include("revolve.jl")
 export revolve
 
-include("convex_hull.jl")
+# include("convex_hull.jl")
 
 include("slice.jl")
 export slice
@@ -45,8 +44,9 @@ export slice
 include("smooth.jl")
 export smooth!, laplacian_smooth!, fast_smooth!
 
-include("split.jl")
-export insert_cohesive_elements!, cracksmesh
+include("gen-cohesive-elems.jl")
+export add_cohesive_elements, add_boundary_interface_elements
+# export insert_cohesive_elements!, cracksmesh
 
 include("embedded.jl")
 export generate_embedded_cells!

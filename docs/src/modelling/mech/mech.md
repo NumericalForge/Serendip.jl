@@ -4,12 +4,12 @@
 ## Elements
 
 ```@docs
-MechSolid
+MechBulk
 MechBar
 MechBeam
 MechShell
 MechLSJoint
-MechJoint
+MechInterface
 ```
 
 ## Material models

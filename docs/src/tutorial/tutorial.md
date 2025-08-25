@@ -1,19 +1,19 @@
 <!-- ```@meta
-CurrentModule = Amaru
+CurrentModule = Serendip
 DocTestSetup = quote
-    using Amaru
+    using Serendip
 end
 ```
 
 ```@setup 1
-using Amaru
+using Serendip
 ```
 
 # Tutorial
 
 ## Mesh generation
 
-A mesh is mainly composed by cells and nodes. in Amaru, a mesh is also composed by surface
+A mesh is mainly composed by cells and nodes. in Serendip, a mesh is also composed by surface
 cells and surface edges and are computed at the time of mesh generation.
 
 ### Nodes
@@ -23,7 +23,7 @@ It contains the node coordinates, a identification number and a tag
 string that can be used to label a group of nodes.
 
 ```@example
-using Amaru
+using Serendip
 node = Node(1.0, 2.0, 0.0, id=1, tag="vertex")
 ```
 
@@ -38,7 +38,7 @@ For example, a `TRI3` shape represents the shape of a linear triangular
 finite element.
 
 ```@example
-using Amaru
+using Serendip
 node1 = Node(0.0, 0.0, id=1)
 node2 = Node(1.0, 0.0, id=2)
 node3 = Node(1.0, 1.0, id=3)
@@ -47,7 +47,7 @@ nodes = [ node1, node2, node3 ]
 Cell(TRI3, nodes, id=1, tag="triangle")
 ```
 
-There are many shapes defined in Amaru, for instance: 
+There are many shapes defined in Serendip, for instance: 
 `LIN2`, `LIN3`, `TRI3`, `TRI6`, `QUAD4`, `QUAD8`, `QUAD9` `TET4`, `TET10`, `PYR5`, `WED6`, `WED15`, `HEX8`, `HEX20`, `HEX27`, etc.
 
 ### Blocks
@@ -60,7 +60,7 @@ The block below represents a 2D `Block` with `nx=7` and `ny=5`.
 The `mplot` function saves the block image to a file in svg format. Other formats as pdf and png can be used.
 
 ```@example
-using Amaru
+using Serendip
 block = Block([0 0; 4 0; 3 2; 1 2], nx=7, ny=5)
 mplot(block, "block.svg", markers=true)
 nothing # hide
@@ -68,7 +68,7 @@ nothing # hide
 ![](./block.svg)
 
 Blocks can be combined to define a complex geometry.
-To manipulate blocks, Amaru provides several operators as
+To manipulate blocks, Serendip provides several operators as
 `copy`, `move!`, `scale!`, `rotate`, `mirror`, `array`, `polar`, `extrude`, etc.
 
 For example, let's generate a square mesh with a central hole.
@@ -78,7 +78,7 @@ finite elements. Thus, the corner nodes are listed first, and then
 the middle nodes. All the nodes are listed couterclockwise.
 
 ```@example 2
-using Amaru
+using Serendip
 
 block1 = Block(
     [ 
@@ -91,7 +91,7 @@ block1 = Block(
         0.3333   1.0    
         0.0      0.5 
     ],
-    cellshape=QUAD8, nx=5, ny=5 
+    shape=QUAD8, nx=5, ny=5 
 )
 mplot(block1, "block1.svg", markers=true)
 nothing # hide
@@ -158,12 +158,12 @@ nothing # hide
 
 ## Mesh generation examples
 
-Below are presented some examples of structured mesh generation using Amaru.
+Below are presented some examples of structured mesh generation using Serendip.
 
 ### Simple 2D mesh
 
 ```@example
-using Amaru
+using Serendip
 
 block = Block([0 0 ; 2 2], nx=8, ny=6)
 mesh  = Mesh(block) 
@@ -175,9 +175,9 @@ nothing # hide
 ### Mesh with quadratic cells
 
 ```@example
-using Amaru
+using Serendip
 
-block = Block([0 0 ; 2 2], nx=8, ny=6, cellshape=QUAD8)
+block = Block([0 0 ; 2 2], nx=8, ny=6, shape=QUAD8)
 mesh  = Mesh(block) 
 mplot(mesh, "mesh-quad8.svg", markers=true)
 nothing # hide
@@ -187,7 +187,7 @@ nothing # hide
 ###  Simple 3D mesh
 
 ```@example
-using Amaru
+using Serendip
 block = Block([0 0 0; 2 4 3], nx=3, ny=6, nz=6)
 mesh = Mesh(block)
 mplot(mesh, "mesh-hex8.svg", markers=true)
@@ -198,7 +198,7 @@ nothing # hide
 ###  2D mesh constructed from two quadratic blocks
 
 ```@example
-using Amaru
+using Serendip
 block1 = Block(
     [ 
         0.0      0.0    
@@ -210,7 +210,7 @@ block1 = Block(
         0.3333   1.0    
         0.0      0.5 
     ],
-    cellshape=QUAD8, nx=5, ny=5
+    shape=QUAD8, nx=5, ny=5
 )
 block2 = mirror(block1, base=[0, 0], axis=[0.7643, -0.7643])
 mesh = Mesh(block1, block2)
@@ -223,7 +223,7 @@ nothing # hide
 ###  Mesh with cells growing in the ``x`` direction
 
 ```@example x
-using Amaru
+using Serendip
 
 R = 5.0
 r = 1.0
@@ -256,7 +256,7 @@ nothing # hide
 ###  Wire mesh
 
 ```@example y
-using Amaru
+using Serendip
 
 block1 = Block([0 0 0; 1 0 1; 0.7 0 0.3 ], n=7) # curved wire (quadratic)
 block2 = Block([1 0 1; 1 0 2], n=5) # straight wire
@@ -291,11 +291,11 @@ Based on the choosen materials, the `Model` object will setup the corresponding 
 
 ### Material definitions
 
-There are several material models implemented in Amaru and are associated to a corresponding type, e.g. 
+There are several material models implemented in Serendip and are associated to a corresponding type, e.g. 
 `LinearElastic`, `DruckerPrager`, `VonMises`, `ElasticRod`, etc.
 A particular material instance is defined by calling the construcor with set of corresponding parameters.
 ```@example
-using Amaru
+using Serendip
 
 steel = LinearElastic(E=2e8, nu=0.2) # E in kPa
 rock = DruckerPrager(E=2e8, nu=0.2, alpha=0.4, kappa=2500, H=1e4)
@@ -310,10 +310,10 @@ The following example shows the walk through of creating a `Model` object.
 Note that the list of materials contains a pair relating a domain region 
 to material instance.
 ```@example
-using Amaru
+using Serendip
 
 # Mesh generation
-block = Block([0 0 0; 1 0.1 0.1], nx=20, ny=2, nz=2, cellshape=HEX20)
+block = Block([0 0 0; 1 0.1 0.1], nx=20, ny=2, nz=2, shape=HEX20)
 mesh = Mesh(block)
 
 # Analysis model
@@ -334,14 +334,14 @@ to nodes, faces, edges or even elements (`NodeBC`, `SurfaceBC`, `EdgeBC` and `El
 
 The example below shows a nodal boundary condition where all displacements are set to zero.
 ```@example
-using Amaru
+using Serendip
 
 fixed_end = NodeBC(ux=0, uy=0, uz=0)
 ```
 
 This other example shows a face boudary condition where a traction is applied in the negative ``z`` direction.
 ```@example
-using Amaru
+using Serendip
 
 load = SurfaceBC(tz=-10)
 ```
@@ -366,10 +366,10 @@ model can save the current per node and per element values (e.g. displacements, 
 To save the full state of a domain model, the output in "xml" format is also supported; thus, the model can be reused in future analyses.
 
 ```@example fem
-using Amaru
+using Serendip
 
 # Mesh generation
-block = Block([0 0 0; 1 0.1 0.1], nx=20, ny=2, nz=2, cellshape=HEX8)
+block = Block([0 0 0; 1 0.1 0.1], nx=20, ny=2, nz=2, shape=HEX8)
 mesh = Mesh(block)
 
 # Analysis model
@@ -416,10 +416,10 @@ automatically compute and recompute the increment sizes.
 The `tol` paramter specifies the maximum force discrepancy between internal and external forces.
 
 ```@example fem
-using Amaru
+using Serendip
 
 # Mesh generation
-block = Block([0 0 0; 1 0.1 0.1], nx=20, ny=2, nz=4, cellshape=HEX8)
+block = Block([0 0 0; 1 0.1 0.1], nx=20, ny=2, nz=4, shape=HEX8)
 mesh = Mesh(block)
 
 # Analysis model
@@ -456,7 +456,7 @@ Loggers are objects designed to track the information of nodes, integration poin
 That information is updated at every increment and can be saved to a file.
 
 ```@example
-using Amaru
+using Serendip
 
 nodelog = NodeLogger("nodelog.table")
 iplog = IpLogger("nodelog.table")
@@ -470,10 +470,10 @@ coordinates or a tag string.
 Finally, the loggers have to be linked to a `Model` object by using the `setloggers!` function.
 
 ```@example loggers
-using Amaru
+using Serendip
 
 # Mesh generation
-block = Block([0 0 0; 1 0.1 0.1], nx=20, ny=2, nz=3, cellshape=HEX8)
+block = Block([0 0 0; 1 0.1 0.1], nx=20, ny=2, nz=3, shape=HEX8)
 mesh = Mesh(block)
 
 # Analysis model
@@ -513,24 +513,24 @@ Once the analysis is finished, the loggers data can be recovered in another scri
 calling the constructors of the types `DataTable` and `DataBook`.
 
 ```@example
-using Amaru
+using Serendip
 
 tip = DataTable("tip.table")
 ```
 
 ```@example
-using Amaru
+using Serendip
 
 long = DataBook("topgroup.book").tables[end]
 ```
 
 ## Plotting
 
-Amaru provides a chart ploting function `cplot`
+Serendip provides a chart ploting function `cplot`
 to ease the visualization of the data stored in `DataTable` and `DataBook` objects.
 
 ```@example plot
-using Amaru
+using Serendip
 
 tip = DataTable("tip.table")
 cplot(

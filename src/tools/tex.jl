@@ -125,7 +125,7 @@ function readtex(text::String, rng::UnitRange{Int})
             @show line
             #@show rng
 
-            if line=="" 
+            if line==""
                 pos +=1
                 continue
             end
@@ -154,7 +154,7 @@ function readtex(text::String, rng::UnitRange{Int})
             continue
         end
 
-        if c=='\\' 
+        if c=='\\'
             #@show 100
             if isletter(text[pos+1])
                 m = match(r"(\\[a-zA-Z]*\b)"m, text, pos)
@@ -221,7 +221,7 @@ function readtex(text::String, rng::UnitRange{Int})
             xnode = XmlElement("inline-comment", content=content)
             push!(children, xnode)
 
-        elseif c=='{' 
+        elseif c=='{'
             rng = findclosure("{", "}", text, pos)
             rng===nothing && break
             xtex = readtex(text, rng.start+1:rng.stop-1)
@@ -259,7 +259,7 @@ function tex2xml2(filename::String)
 
     # Preable
     # ≡≡≡≡≡≡≡≡≡
-    
+
     pos = 1
     while true
         # current line
@@ -318,7 +318,7 @@ function tex2xml2(filename::String)
     end
 
     # Document
-    
+
     linecommand = r"^ \s* (?: \$\$   |
                     \\[][] |
                     \\ (?: b(?:egin   | ibitem)            |

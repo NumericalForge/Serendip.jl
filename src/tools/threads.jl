@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 # Parallel loop with threads and the option of initializers for accumulators
 export @withthreads
@@ -48,7 +48,7 @@ macro withthreads(ex)
             inilenvar = Symbol("#_$(var)_ini")
             push!(init_exp.args, ini )
             push!(init_exp.args, :( $inilenvar = length($var) ))
-            push!(reduce_exp.args, 
+            push!(reduce_exp.args,
                 :(
                     if $inilenvar==0
                         append!($var, $fetchvar[$i])
@@ -58,8 +58,8 @@ macro withthreads(ex)
                 )
             )
         end
-        
-        # generating inner expressions 
+
+        # generating inner expressions
         inner_initializers = ex.args[1:end-1]
         inner_return_exp = Expr(:return, :())
         inner_init_exp = Expr(:block)
@@ -76,7 +76,7 @@ macro withthreads(ex)
         loop = ex
     end
 
-    if !(isa(loop, Expr) && loop.head === :for) 
+    if !(isa(loop, Expr) && loop.head === :for)
         throw(ArgumentError("@withthreads requires a `for` loop expression"))
     end
     itr  = loop.args[1].args[1]

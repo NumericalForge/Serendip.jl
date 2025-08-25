@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 function mesh_unstructured(geo::GeoModel; kwargs...)
     args      = checkargs([geo], kwargs, Mesh_Geo_params)
@@ -81,14 +81,14 @@ function mesh_unstructured(geo::GeoModel; kwargs...)
     vol_idxs = [ vol.id for vol in geo.volumes ]
 
     gmsh.model.geo.synchronize() # only after geometry entities are defined
-    
+
     for l in geo.edges
         # transfinite
         if l.n>0
             gmsh.model.mesh.set_transfinite_curve(l.id, l.n+1)
         end
     end
-    
+
     # generate mesh
     if algorithm==:delaunay
         gmsh.option.setNumber("Mesh.Algorithm", 5)
@@ -132,7 +132,7 @@ function mesh_unstructured(geo::GeoModel; kwargs...)
             end
         end
         found && continue
-    
+
         # search surfaces
         for s in geo.faces
             s.loops[1].flat || continue
@@ -169,7 +169,7 @@ function mesh_unstructured(geo::GeoModel; kwargs...)
     catch err
         error("Error generating unstructured mesh.")
     end
-    
+
     gmsh.finalize()
     mesh = Mesh(tempfile)
     rm(tempfile, force=true)
@@ -201,7 +201,7 @@ function mesh_unstructured(geo::GeoModel; kwargs...)
         p.tag!="" || continue
         ptagdict[p.coord] = p.tag
     end
-    
+
     for node in mesh.nodes
         tag = get(ptagdict, node.coord, "")
         tag != "" || continue

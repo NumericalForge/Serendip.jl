@@ -1,6 +1,6 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-function box_coords(C1::Array{<:Real,1}, C2::Array{<:Real,1}, ndim::Int)
+function box_coords(C1::AbstractArray{<:Real}, C2::AbstractArray{<:Real}, ndim::Int)
     x1 = C1[1]
     y1 = C1[2]
     lx = C2[1] - C1[1]
@@ -30,20 +30,12 @@ function box_coords(C1::Array{<:Real,1}, C2::Array{<:Real,1}, ndim::Int)
 end
 
 
-"""
-    Block
 
-A type that represents a segment, area or volume and is used to
-aid the generation of structured meshes by subdivision.
-
-# Fields
-$(FIELDS)
-"""
 mutable struct Block <: AbstractBlock
     ndim::Int
     points::Vector{Point}
+    blockshape::CellShape
     shape::CellShape
-    cellshape::CellShape
     nx::Int64
     ny::Int64
     nz::Int64
@@ -63,15 +55,14 @@ mutable struct Block <: AbstractBlock
         ry::Real = 1.0,
         rz::Real = 1.0,
         r ::Real = 0.0,
-        cellshape = nothing,
+        shape = nothing,
         tag       = "",
-        shape     = nothing,
         )
 
-        if cellshape===nothing && shape!==nothing
-            # notify("Block: argument shape was deprecated. Please use cellshape instead")
-            cellshape = shape
-        end
+        # if shape===nothing && shape!==nothing
+        #     # notify("Block: argument blockshape was deprecated. Please use shape instead")
+        #     shape = blockshape
+        # end
 
         shapes1d = (LIN2, LIN3, LIN4)
         shapes2d = (TRI3, TRI6, QUAD4, QUAD8, QUAD9, QUAD12)
@@ -90,36 +81,71 @@ mutable struct Block <: AbstractBlock
         # Check for surface or chord
         surface = ndim==3 && nz==0
         chord   = ndim>1 && ny==0 && nz==0
-        chord
 
         nz==0 && ndim==3 && (nz=1)
         ny==0 && ndim>=2 && (ny=1)
-        cellshape in shapes3d && (ndim==3 || error("Block: 3d points and nx, ny and nz are required for cell shape $(cellshape.name)"))
+        shape in shapes3d && (ndim==3 || error("Block: 3d points and nx, ny and nz are required for cell blockshape $(shape.name)"))
+
+        # prisma points if given just two points
+        if ndim in (2,3) && length(points)==2 && !surface && !chord
+            coords = box_coords(points[1].coord, points[2].coord, ndim)
+            points = Point[]
+            for i in 1:size(coords, 1)
+                push!(points, Point(coords[i, :]))
+            end
+        end
 
         npoints = length(points)
 
         if ndim==1 || chord
             npoints in (2, 3) || error("Block: invalid number of points ($npoints) for dimension $ndim or chord.")
-            cellshape===nothing && (cellshape=LIN2)
-            cellshape in shapes1d || error("Block: invalid cell type $(cellshape.name) for dimension $ndim.")
-            shape = npoints==2 ? LIN2 : LIN3
+            shape===nothing && (shape=LIN2)
+            shape in shapes1d || error("Block: invalid cell type $(shape.name) for dimension $ndim.")
+            blockshape = npoints==2 ? LIN2 : LIN3
         elseif ndim==2 || surface
             npoints in (4, 8) || error("Block: invalid number of points ($npoints) for dimension $ndim or surface.")
-            cellshape===nothing && (cellshape=QUAD4)
-            cellshape in shapes2d || error("Block: invalid cell type $(cellshape.name) for dimension $ndim or surface.")
-            shape = npoints==4 ? QUAD4 : QUAD8
+            shape===nothing && (shape=QUAD4)
+            shape in shapes2d || error("Block: invalid cell type $(shape.name) for dimension $ndim or surface.")
+            blockshape = npoints==4 ? QUAD4 : QUAD8
         else
             npoints in (8, 20) || error("Block: invalid number of points ($npoints) for dimension $ndim.")
-            cellshape===nothing && (cellshape=HEX8)
-            cellshape in shapes3d || error("Block: invalid cell type $(cellshape.name) for dimension $ndim.")
-            shape = npoints==8 ? HEX8 : HEX20
+            shape===nothing && (shape=HEX8)
+            shape in shapes3d || error("Block: invalid cell type $(shape.name) for dimension $ndim.")
+            blockshape = npoints==8 ? HEX8 : HEX20
         end
 
         for i in 1:length(points)
             points[i].id = i
         end
 
-        return new(ndim, points, shape, cellshape, nx, ny, nz, rx, ry, rz, tag)
+        return new(ndim, points, blockshape, shape, nx, ny, nz, rx, ry, rz, tag)
+    end
+
+
+    function Block(X1::Vector{<:Real}, X2::Vector{<:Real}; args...)
+        nz = get(args, :nz, 0)
+        ny = get(args, :ny, 0)
+
+        length(X1) == length(X2) || error("Block: X1 and X2 must have the same length")
+
+        ndim = max(length(X1))
+        ndim>3 && error("Block: invalid dimension $ndim for block")
+
+        # Check for surface or chord
+        surface = ndim==3 && nz==0
+        chord   = ndim>1 && ny==0 && nz==0
+
+        if ndim in (2,3) && !surface && !chord
+            coords = box_coords(X1, X2, ndim)
+            ncoord = size(coords,1)
+        else
+            coords = [ X1'; X2' ]
+            ncoord = 2
+        end
+
+        points = [ Point(coords[i,:]) for i in 1:ncoord ]
+
+        return Block(points; args...)
     end
 
 
@@ -153,23 +179,14 @@ mutable struct Block <: AbstractBlock
 end
 
 
-"""
-    $(TYPEDSIGNATURES)
-
-Creates a copy of `block`.
-"""
 function Base.copy(block::Block)
 
-    return Block(copy(getcoords(block.points)), nx=block.nx, ny=block.ny, nz=block.nz, cellshape=block.cellshape, tag=block.tag)
-    # return Block(copy(block.points), nx=block.nx, ny=block.ny, nz=block.nz, cellshape=block.cellshape, tag=block.tag)
+    return Block(copy(get_coords(block.points)), nx=block.nx, ny=block.ny, nz=block.nz, shape=block.shape, tag=block.tag)
+    # return Block(copy(block.points), nx=block.nx, ny=block.ny, nz=block.nz, shape=block.shape, tag=block.tag)
 end
 
 
-"""
-    $(SIGNATURES)
 
-Creates a copy of the array `blocks` containing `Block` objects.
-"""
 function Base.copy(blocks::Array{<:AbstractBlock,1})
     return [ copy(bl) for bl in blocks ]
 end
@@ -185,7 +202,7 @@ function BlockGrid(
     rx=[],  # list of divisions ratios in the x direction
     ry=[],  # list of divisions ratios in the x direction
     rz=[],  # list of divisions ratios in the x direction
-    cellshape=QUAD4, # element shape
+    shape=QUAD4, # element blockshape
     tag="",          # elements tag
     id=-1
     )
@@ -200,7 +217,7 @@ function BlockGrid(
                 X[i] Y[j]
                 X[i+1] Y[j+1]
             ]
-            bl = Block(coords, cellshape=cellshape, nx=nx[i], ny=ny[j], rx=rx[i], ry=ry[j])
+            bl = Block(coords, shape=shape, nx=nx[i], ny=ny[j], rx=rx[i], ry=ry[j])
             push!(blocks, bl)
         end
     end

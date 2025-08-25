@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 #using Revise
 nouts=20
 
@@ -11,24 +11,24 @@ c = 0.250
 L  = 2.0
 
 # mesh
-bl1 = Block( [a/2 a/2 0; a/2 -a/2 0], n=4, cellshape=LIN3, tag="shell1")
-bl2 = Block( [a/2 -a/2 0; -a/2 -a/2 0], n=4, cellshape=LIN3, tag="shell1")
-bl3 = Block( [-a/2 -a/2 0; -a/2 a/2 0], n=4, cellshape=LIN3, tag="shell1")
-bl4 = Block( [-a/2 a/2 0; a/2 a/2 0], n=4, cellshape=LIN3, tag="shell1")
+bl1 = Block( [a/2 a/2 0; a/2 -a/2 0], n=4, shape=LIN3, tag="shell1")
+bl2 = Block( [a/2 -a/2 0; -a/2 -a/2 0], n=4, shape=LIN3, tag="shell1")
+bl3 = Block( [-a/2 -a/2 0; -a/2 a/2 0], n=4, shape=LIN3, tag="shell1")
+bl4 = Block( [-a/2 a/2 0; a/2 a/2 0], n=4, shape=LIN3, tag="shell1")
 
-bl5 = Block( [0 b 0; 0 a/2 0], n=4, cellshape=LIN3, tag="shell2")
-bl6 = Block( [0 -b 0; 0 -a/2 0], n=4, cellshape=LIN3, tag="shell2")
+bl5 = Block( [0 b 0; 0 a/2 0], n=4, shape=LIN3, tag="shell2")
+bl6 = Block( [0 -b 0; 0 -a/2 0], n=4, shape=LIN3, tag="shell2")
 
 bls = [bl1,bl2,bl3,bl4,bl5,bl6]
 
 mesh = Mesh(bls,ndim=3)
 mesh = extrude(mesh, length=L, n=40, axis=[0,0,1])
 
- 
-plate1 = Block([-c/2 -c/2; c/2 c/2], nx=10, ny=10, cellshape=QUAD8, tag="placa")
+
+plate1 = Block([-c/2 -c/2; c/2 c/2], nx=10, ny=10, shape=QUAD8, tag="placa")
 mesh2 = Mesh(plate1, ndim=3)
 
-plate2 = Block([-c/2 -c/2 L; c/2 -c/2 L; c/2 c/2 L; -c/2 c/2 L], nx=10, ny=10, cellshape=QUAD8, tag="placa")
+plate2 = Block([-c/2 -c/2 L; c/2 -c/2 L; c/2 c/2 L; -c/2 c/2 L], nx=10, ny=10, shape=QUAD8, tag="placa")
 mesh3 = Mesh(plate2, ndim=3)
 
 mesh = Mesh(mesh,mesh2,mesh3)
@@ -70,8 +70,8 @@ mats = ["shell1" << TMShell << TMCombined{ConstConductivity,LinearElastic} <<  (
 #       "shell2" << TMShell << TMCombined{ConstConductivity,VonMises} <<  (E=E, fy=fy, nu=nu, thickness = th2, k=k, alpha = alpha, rho=rho, cv=cv) ]
 
 
-#ana = MechAnalysis(stressmodel="3d")
-#ana = ThermomechAnalysis(T0=0.0, stressmodel="3d")
+#ana = MechAnalysis(stress_state="3d")
+#ana = ThermomechAnalysis(T0=0.0, stress_state="3d")
 #save(mesh, "test.vtu")
 #error()
 

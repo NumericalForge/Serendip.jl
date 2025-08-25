@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 import Base.copy!
 
@@ -12,6 +12,8 @@ Abstract type for objects used to store material parameters and to define
 the behaviour of elements.
 """
 abstract type Material end
+
+const PhysicsModel = Material
 
 
 # function copy!(target::Material, source::Material)
@@ -31,15 +33,15 @@ abstract type Material end
 #     end
 # end
 
-"""
-`output_keys(mat)`
+# """
+# `output_keys(mat)`
 
-Returns a list of keys from an specified material
-for output at element level or nodal level.
-"""
-function output_keys(mat::Material)
-    return Symbol[]
-end
+# Returns a list of keys from an specified material
+# for output at element level or nodal level.
+# """
+# function output_keys(mat::Material)
+#     return Symbol[]
+# end
 
 
 function paramsdict(mat::Material)
@@ -47,17 +49,17 @@ function paramsdict(mat::Material)
 end
 
 
-function databook(mats::Array{<:Pair,1})
-    db = DataBook()
-    for (label, mat) in mats
-        # tab = DataTable(;paramsdict(mat)...)
-        dt = DataTable()
-        push!(dt, paramsdict(mat))
-        setfield!(dt, :name, string(label))
-        push!(db, dt)
-    end
-    return db
-end
+# function databook(mats::Array{<:Pair,1})
+#     db = DataBook()
+#     for (label, mat) in mats
+#         # tab = DataTable(;paramsdict(mat)...)
+#         dt = DataTable()
+#         push!(dt, paramsdict(mat))
+#         setfield!(dt, :name, string(label))
+#         push!(db, dt)
+#     end
+#     return db
+# end
 
 
 

@@ -1,4 +1,4 @@
-The Amaru.jl package is licensed under the GNU Public License, Version 3.0+:
+The Serendip.jl package is licensed under the GNU Public License, Version 3.0+:
 
 > Copyright (c) 2017:
 >  * Raul Durand

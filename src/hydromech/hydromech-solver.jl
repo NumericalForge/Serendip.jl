@@ -1,10 +1,10 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export HydroAnalysis, HydromechAnalysis
 
 HydromechAnalysis_params = [
     FunInfo(:HydromechAnalysis, "Hydromechanical analysis properties."),
-    KwArgInfo(:stressmodel, "Stress model", :d3, values=(:planestress, :planestrain, :axisymmetric, :d3)),
+    KwArgInfo(:stress_state, "Stress model", :d3, values=(:plane_stress, :plane_strain, :axisymmetric, :d3)),
     KwArgInfo(:thickness, "Thickness for 2d analyses", 1.0, cond=:(thickness>0)),
     KwArgInfo(:g, "Gravity acceleration", 0.0, cond=:(g>=0)),
     KwArgInfo(:gammaw, "Water unit weight", 0.0, cond=:(gammaw>0)),
@@ -12,14 +12,14 @@ HydromechAnalysis_params = [
 @doc docstring(HydromechAnalysis_params) HydromechAnalysis()
 
 mutable struct HydromechAnalysisProps<:TransientAnalysis
-    stressmodel::Symbol # plane stress, plane strain, etc.
+    stress_state::Symbol # plane stress, plane strain, etc.
     thickness::Float64  # thickness for 2d analyses
     g::Float64 # gravity acceleration
     γw::Float64 # water unit weight
-    
+
     function HydromechAnalysisProps(; kwargs...)
         args = checkargs(kwargs, HydromechAnalysis_params)
-        this = new(args.stressmodel, args.thickness, args.g, args.gammaw)
+        this = new(args.stress_state, args.thickness, args.g, args.gammaw)
         return this
     end
 end
@@ -139,10 +139,10 @@ function complete_uw_h(model::FEModel)
     H  = model.node_data["h"]
 
     for elem in model.elems
-        elem.shape.family==BULKCELL || continue
-        elem.shape==elem.shape.basic_shape && continue
+        elem.role==BULKCELL || continue
+        elem.shape==elem.shape.base_shape && continue
         npoints  = elem.shape.npoints
-        nbpoints = elem.shape.basic_shape.npoints
+        nbpoints = elem.shape.base_shape.npoints
         map = [ elem.nodes[i].id for i in 1:nbpoints ]
         Ue = Uw[map]
         He = H[map]
@@ -150,7 +150,7 @@ function complete_uw_h(model::FEModel)
         for i in nbpoints+1:npoints
             id = elem.nodes[i].id
             R = C[i,:]
-            N = elem.shape.basic_shape.func(R)
+            N = elem.shape.base_shape.func(R)
             Uw[id] = dot(N,Ue)
             H[id] = dot(N,He)
         end
@@ -160,7 +160,7 @@ end
 
 function solve!(model::FEModel, ana::HydromechAnalysis; args...)
     name = "Solver for seepage and hydromechanical analyses"
-    status = stage_iterator!(name, hm_stage_solver!, model; args...)
+    status = stage_iterator(name, hm_stage_solver!, model; args...)
     return status
 end
 
@@ -181,15 +181,15 @@ hm_stage_solver_params = [
 
 function hm_stage_solver!(model::FEModel, stage::Stage; args...)
     args = checkargs(args, mech_stage_solver_params)
-    
-    tol     = args.tol      
-    ΔTmin   = args.dTmin    
-    ΔTmax   = args.dTmax   
-    rspan   = args.rspan    
-    scheme  = args.scheme   
-    maxits  = args.maxits 
-    autoinc = args.autoinc  
-    quiet   = args.quiet 
+
+    tol     = args.tol
+    ΔTmin   = args.dTmin
+    ΔTmax   = args.dTmax
+    rspan   = args.rspan
+    scheme  = args.scheme
+    maxits  = args.maxits
+    autoinc = args.autoinc
+    quiet   = args.quiet
 
     ctx = model.ctx
     println(ctx.log, "Hydromech FE analysis: Stage $(stage.id)")
@@ -203,8 +203,8 @@ function hm_stage_solver!(model::FEModel, stage::Stage; args...)
     ctx       = model.ctx
     saveouts = stage.nouts > 0
 
-    stressmodel = ctx.stressmodel
-    ctx.ndim==3 && @check stressmodel==:d3
+    stress_state = ctx.stress_state
+    ctx.ndim==3 && @check stress_state==:d3
 
     # Get active elements
     for elem in stage.toactivate
@@ -213,7 +213,7 @@ function hm_stage_solver!(model::FEModel, stage::Stage; args...)
     active_elems = filter(elem -> elem.active, model.elems)
 
     # Get dofs organized according to boundary conditions
-    dofs, nu = configure_dofs!(model, stage.bcs) # unknown dofs first
+    dofs, nu = configure_dofs(model, stage.bcs) # unknown dofs first
     ndofs = length(dofs)
     umap  = 1:nu         # map for unknown bcs
     pmap  = nu+1:ndofs   # map for prescribed bcs
@@ -353,7 +353,7 @@ function hm_stage_solver!(model::FEModel, stage::Stage; args...)
 
                 copyto!.(State, StateBk)
                 ΔUt    = ΔUa + ΔUi
-                ΔFin, status = update_state!(model.elems, ΔUt, Δt)
+                ΔFin, status = update_state(model.elems, ΔUt, Δt)
                 failed(status) && (syserror=true; break)
 
                 residue = maximum(abs, (ΔFex-ΔFin)[umap] )
@@ -372,7 +372,7 @@ function hm_stage_solver!(model::FEModel, stage::Stage; args...)
 
                 copyto!.(State, StateBk)
                 ΔUt    = ΔUa + ΔUi
-                ΔFin, status = update_state!(model.elems, ΔUt, Δt)
+                ΔFin, status = update_state(model.elems, ΔUt, Δt)
                 failed(status) && (syserror=true; break)
 
                 residue = maximum(abs, (ΔFex-ΔFin)[umap])

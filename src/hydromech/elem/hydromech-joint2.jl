@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 mutable struct HMJoint2<:Hydromech
     id    ::Int
     shape ::CellShape
@@ -8,7 +8,7 @@ mutable struct HMJoint2<:Hydromech
     tag   ::String
     mat::Material
     active::Bool
-    linked_elems::Array{Element,1}
+    couplings::Array{Element,1}
     ctx::Context
 
     function HMJoint2()
@@ -17,13 +17,13 @@ mutable struct HMJoint2<:Hydromech
 end
 
 # Return the shape family that works with this element
-compat_shape_family(::Type{HMJoint2}) = JOINTCELL
+compat_role(::Type{HMJoint2}) = JOINTCELL
 
 
 function elem_config_dofs(elem::HMJoint2)
     nnodes   = length(elem.nodes)
     nlnodes  = div(nnodes, 2) # half the number of total nodes
-    nbsnodes = elem.shape.basic_shape.npoints
+    nbsnodes = elem.shape.base_shape.npoints
 
     for (i, node) in enumerate(elem.nodes)
         if  i<=(nbsnodes) || (nlnodes+nbsnodes)>=i>(nlnodes)
@@ -38,12 +38,12 @@ end
 
 function elem_init(elem::HMJoint2)
     # Get linked elements
-    e1 = elem.linked_elems[1]
-    e2 = elem.linked_elems[2]
+    e1 = elem.couplings[1]
+    e2 = elem.couplings[2]
 
     # Volume from first linked element
     V1 = 0.0
-    C1 = getcoords(e1)
+    C1 = get_coords(e1)
 
     for ip in e1.ips
         dNdR = e1.shape.deriv(ip.R)
@@ -54,7 +54,7 @@ function elem_init(elem::HMJoint2)
 
     # Volume from second linked element
     V2 = 0.0
-    C2 = getcoords(e2)
+    C2 = get_coords(e2)
     for ip in e2.ips
         dNdR = e2.shape.deriv(ip.R)
         J    = dNdR*C2
@@ -64,7 +64,7 @@ function elem_init(elem::HMJoint2)
 
     # Area of joint element
     A = 0.0
-    C = getcoords(elem)
+    C = get_coords(elem)
     n = div(length(elem.nodes), 2)
     C = C[1:n, :]
     fshape = elem.shape.facet_shape
@@ -89,9 +89,9 @@ function elem_stiffness(elem::HMJoint2)
     th       = elem.ctx.thickness
     nnodes   = length(elem.nodes)
     nlnodes  = div(nnodes, 2) # half the number of total nodes
-    nbsnodes = elem.shape.basic_shape.npoints
+    nbsnodes = elem.shape.base_shape.npoints
     fshape   = elem.shape.facet_shape
-    C        = getcoords(elem)[1:nlnodes,:]
+    C        = get_coords(elem)[1:nlnodes,:]
 
     J        = Array{Float64}(undef, ndim-1, ndim)
     NN       = zeros(ndim, nnodes*ndim)
@@ -122,7 +122,7 @@ function elem_stiffness(elem::HMJoint2)
 
         # compute K
         coef = detJ*ip.w*th
-        D    = calcD(elem.mat, ip.state)
+        D    = calcD(elem.pmodel, ip.state)
         @mul DBu = D*Bu
         @mul K  += coef*Bu'*DBu
     end
@@ -140,9 +140,9 @@ function elem_coupling_matrix(elem::HMJoint2)
     th       = elem.ctx.thickness
     nnodes   = length(elem.nodes)
     nlnodes  = div(nnodes, 2) # half the number of total nodes
-    nbsnodes = elem.shape.basic_shape.npoints
+    nbsnodes = elem.shape.base_shape.npoints
     fshape   = elem.shape.facet_shape
-    C        = getcoords(elem)[1:nlnodes,:]
+    C        = get_coords(elem)[1:nlnodes,:]
 
     J        = Array{Float64}(undef, ndim-1, ndim)
     NN       = zeros(ndim, nnodes*ndim)
@@ -168,7 +168,7 @@ function elem_coupling_matrix(elem::HMJoint2)
         detJ > 0.0 || error("Negative Jacobian determinant in cell $(elem.id)")
 
         # compute Np vector
-        Np = elem.shape.basic_shape.func(ip.R)
+        Np = elem.shape.base_shape.func(ip.R)
         Nf = [0.5*Np' 0.5*Np']
 
         # compute Bu matrix
@@ -204,10 +204,10 @@ function elem_conductivity_matrix(elem::HMJoint2)
     th       = elem.ctx.thickness
     nnodes   = length(elem.nodes)
     nlnodes  = div(nnodes, 2) # half the number of total nodes
-    nbsnodes = elem.shape.basic_shape.npoints
+    nbsnodes = elem.shape.base_shape.npoints
     fshape   = elem.shape.facet_shape
 
-    C        = getcoords(elem)[1:nbsnodes,:]
+    C        = get_coords(elem)[1:nbsnodes,:]
     Cl       = zeros(nbsnodes, ndim-1)
     J        = Array{Float64}(undef, ndim-1, ndim)
     Jl       = zeros(ndim-1, ndim-1)
@@ -226,7 +226,7 @@ function elem_conductivity_matrix(elem::HMJoint2)
     for ip in elem.ips
 
         # compute shape Jacobian
-        dNpdR = elem.shape.basic_shape.deriv(ip.R)
+        dNpdR = elem.shape.base_shape.deriv(ip.R)
 
         @mul J = dNpdR*C
         detJ = norm2(J)
@@ -241,31 +241,31 @@ function elem_conductivity_matrix(elem::HMJoint2)
         Bf = [0.5*Bp 0.5*Bp]
 
         # compute NN matrix
-        Np = elem.shape.basic_shape.func(ip.R)
+        Np = elem.shape.base_shape.func(ip.R)
         Nb = [-Np'  Np']
         Nt = [ Np' -Np']
 
         # compute H
-        coef  = detJ*ip.w*th*elem.mat.kt
+        coef  = detJ*ip.w*th*elem.pmodel.kt
         H -= coef*Nb'*Nb
         H -= coef*Nt'*Nt
 
          # compute crack aperture
-        if elem.mat.w == 0.0
+        if elem.pmodel.w == 0.0
             if ip.state.up == 0.0 || ip.state.w[1] <= 0.0
                 w = 0.0
             else
                 w = ip.state.w[1]
             end
         else
-            if elem.mat.w >= ip.state.w[1]
-                w = elem.mat.w
+            if elem.pmodel.w >= ip.state.w[1]
+                w = elem.pmodel.w
             else
                 w = ip.state.w[1]
             end
         end
 
-        coef = detJ*ip.w*th*(w^3)/(12*elem.mat.η)
+        coef = detJ*ip.w*th*(w^3)/(12*elem.pmodel.η)
         H -= coef*Bf'*Bf
     end
 
@@ -281,9 +281,9 @@ function elem_compressibility_matrix(elem::HMJoint2)
     th       = elem.ctx.thickness
     nnodes   = length(elem.nodes)
     nlnodes  = div(nnodes, 2) # half the number of total nodes
-    nbsnodes = elem.shape.basic_shape.npoints
+    nbsnodes = elem.shape.base_shape.npoints
     fshape   = elem.shape.facet_shape
-    C        = getcoords(elem)[1:nbsnodes,:]
+    C        = get_coords(elem)[1:nbsnodes,:]
 
     J   = Array{Float64}(undef, ndim-1, ndim)
     Cpp = zeros(2*nbsnodes, 2*nbsnodes)
@@ -298,32 +298,32 @@ function elem_compressibility_matrix(elem::HMJoint2)
 
     for ip in elem.ips
         # compute shape Jacobian
-        dNpdR = elem.shape.basic_shape.deriv(ip.R)
+        dNpdR = elem.shape.base_shape.deriv(ip.R)
         @mul J = dNpdR*C
         detJ = norm2(J)
         detJ > 0.0 || error("Negative Jacobian determinant in cell $(elem.id)")
 
         # compute Np matrix
-        Np = elem.shape.basic_shape.func(ip.R)
+        Np = elem.shape.base_shape.func(ip.R)
         Nf = [ 0.5*Np' 0.5*Np']
 
         # compute crack aperture
-        if elem.mat.w == 0.0
-            if ip.state.up == 0.0 || ip.state.w[1] <= 0.0  
+        if elem.pmodel.w == 0.0
+            if ip.state.up == 0.0 || ip.state.w[1] <= 0.0
                 w = 0.0
             else
                 w = ip.state.w[1]
             end
         else
-            if elem.mat.w >= ip.state.w[1]
-                w = elem.mat.w
-            else 
+            if elem.pmodel.w >= ip.state.w[1]
+                w = elem.pmodel.w
+            else
                 w = ip.state.w[1]
             end
-        end    
+        end
 
         # compute Cpp
-        coef = detJ*ip.w*elem.mat.β*w*th
+        coef = detJ*ip.w*elem.pmodel.β*w*th
         Cpp -= coef*Nf'*Nf
     end
 
@@ -339,9 +339,9 @@ function elem_RHS_vector(elem::HMJoint2)
     th       = elem.ctx.thickness
     nnodes   = length(elem.nodes)
     nlnodes  = div(nnodes, 2) # half the number of total nodes
-    nbsnodes = elem.shape.basic_shape.npoints
+    nbsnodes = elem.shape.base_shape.npoints
     fshape   = elem.shape.facet_shape
-    C        = getcoords(elem)[1:nbsnodes,:]
+    C        = get_coords(elem)[1:nbsnodes,:]
 
     J        = Array{Float64}(undef, ndim-1, ndim)
     Cl       = zeros(nbsnodes, ndim-1)
@@ -363,7 +363,7 @@ function elem_RHS_vector(elem::HMJoint2)
     for ip in elem.ips
 
         # compute shape Jacobian
-        dNpdR = elem.shape.basic_shape.deriv(ip.R)
+        dNpdR = elem.shape.base_shape.deriv(ip.R)
 
         @mul J = dNpdR*C
         detJ = norm2(J)
@@ -380,21 +380,21 @@ function elem_RHS_vector(elem::HMJoint2)
         # compute Q
 
         # compute crack aperture
-        if elem.mat.w == 0.0
+        if elem.pmodel.w == 0.0
             if ip.state.up == 0.0 || ip.state.w[1] <= 0.0
                 w = 0.0
             else
                 w = ip.state.w[1]
             end
         else
-            if elem.mat.w >= ip.state.w[1]
-                w = elem.mat.w
+            if elem.pmodel.w >= ip.state.w[1]
+                w = elem.pmodel.w
             else
                 w = ip.state.w[1]
             end
         end
 
-        coef = detJ*ip.w*th*(w^3)/(12*elem.mat.η)
+        coef = detJ*ip.w*th*(w^3)/(12*elem.pmodel.η)
         bf = T[(2:end), (1:end)]*Z*elem.ctx.γw
 
         @mul Q += coef*Bf'*bf
@@ -412,7 +412,7 @@ function elem_internal_forces(elem::HMJoint2, F::Array{Float64,1})
     th       = elem.ctx.thickness
     nnodes   = length(elem.nodes)
     nlnodes  = div(nnodes, 2) # half the number of total nodes
-    nbsnodes = elem.shape.basic_shape.npoints
+    nbsnodes = elem.shape.base_shape.npoints
     fshape   = elem.shape.facet_shape
 
     nodes_p  = []
@@ -435,7 +435,7 @@ function elem_internal_forces(elem::HMJoint2, F::Array{Float64,1})
     J      = Array{Float64}(undef, ndim-1, ndim)
     NN     = zeros(ndim, nnodes*ndim)
 
-    C      = getcoords(elem)[1:nbsnodes,:]
+    C      = get_coords(elem)[1:nbsnodes,:]
     Cl     = zeros(nbsnodes, ndim-1)
     Jl     = zeros(ndim-1, ndim-1)
     mf     = [1.0, 0.0, 0.0][1:ndim]
@@ -446,7 +446,7 @@ function elem_internal_forces(elem::HMJoint2, F::Array{Float64,1})
 
     for ip in elem.ips
         # compute shape Jacobian
-        dNpdR = elem.shape.basic_shape.deriv(ip.R)
+        dNpdR = elem.shape.base_shape.deriv(ip.R)
 
         @mul J = dNpdR*C
         detJ = norm2(J)
@@ -463,7 +463,7 @@ function elem_internal_forces(elem::HMJoint2, F::Array{Float64,1})
         bf = T[(2:end), (1:end)]*Z*elem.ctx.γw
 
         # compute Np vector
-        Np = elem.shape.basic_shape.func(ip.R)
+        Np = elem.shape.base_shape.func(ip.R)
         Nb = [-Np' Np']
         Nt = [ Np'  -Np']
         Nf = [ 0.5*Np' 0.5*Np']
@@ -492,7 +492,7 @@ function elem_internal_forces(elem::HMJoint2, F::Array{Float64,1})
         mfw = mf'*w
         dFw-= coef*Nf'*mfw
 
-        coef = detJ*ip.w*elem.mat.β*th
+        coef = detJ*ip.w*elem.pmodel.β*th
         dFw -= coef*Nf'*uwf
 
         # longitudinal flow
@@ -516,7 +516,7 @@ function update_elem!(elem::HMJoint2, U::Array{Float64,1}, Δt::Float64)
     th       = elem.ctx.thickness
     nnodes   = length(elem.nodes)
     nlnodes  = div(nnodes, 2) # half the number of total nodes
-    nbsnodes = elem.shape.basic_shape.npoints
+    nbsnodes = elem.shape.base_shape.npoints
     fshape   = elem.shape.facet_shape
 
     nodes_p  = []
@@ -544,7 +544,7 @@ function update_elem!(elem::HMJoint2, U::Array{Float64,1}, Δt::Float64)
     Δω     = zeros(ndim)
     Δuw    = zeros(3)
     Bu     = zeros(ndim, nnodes*ndim)
-    C      = getcoords(elem)[1:nbsnodes,:]
+    C      = get_coords(elem)[1:nbsnodes,:]
     Cl     = zeros(nbsnodes, ndim-1)
     Jl     = zeros(ndim-1, ndim-1)
     Bp     = zeros(ndim-1, nbsnodes)
@@ -556,15 +556,15 @@ function update_elem!(elem::HMJoint2, U::Array{Float64,1}, Δt::Float64)
     for ip in elem.ips
 
         # compute shape Jacobian
-        dNpdR = elem.shape.basic_shape.deriv(ip.R)
+        dNpdR = elem.shape.base_shape.deriv(ip.R)
 
         @mul J = dNpdR*C
         detJ = norm2(J)
         detJ > 0.0 || error("Negative Jacobian determinant in cell $(elem.id)")
 
         # compute Np vector
-        Np = elem.shape.basic_shape.func(ip.R)
-		Nb = [-Np'  Np']
+        Np = elem.shape.base_shape.func(ip.R)
+        Nb = [-Np'  Np']
         Nt = [ Np' -Np']
         Nf = [ 0.5*Np' 0.5*Np']
 
@@ -600,7 +600,7 @@ function update_elem!(elem::HMJoint2, U::Array{Float64,1}, Δt::Float64)
         @mul Δω = Bu*dU
 
         # internal force dF
-        Δσ, Vt, L = update_state!(elem.mat, ip.state, Δω, Δuw, G, BfUw, Δt)
+        Δσ, Vt, L = update_state(elem.pmodel, ip.state, Δω, Δuw, G, BfUw, Δt)
         Δσ -= mf*Δuw[3] # get total stress
         coef = detJ*ip.w*th
         @mul dF += coef*Bu'*Δσ
@@ -611,21 +611,21 @@ function update_elem!(elem::HMJoint2, U::Array{Float64,1}, Δt::Float64)
         dFw -= coef*Nf'*mfΔω
 
         # compute fluid compressibility
-        if elem.mat.w == 0.0
-            if ip.state.up == 0.0 || ip.state.w[1] <= 0.0  
+        if elem.pmodel.w == 0.0
+            if ip.state.up == 0.0 || ip.state.w[1] <= 0.0
                 w = 0.0
             else
                 w = ip.state.w[1]
             end
         else
-            if elem.mat.w >= ip.state.w[1]
-                w = elem.mat.w
-            else 
+            if elem.pmodel.w >= ip.state.w[1]
+                w = elem.pmodel.w
+            else
                 w = ip.state.w[1]
             end
-        end  
+        end
 
-        coef = detJ*ip.w*elem.mat.β*w*th
+        coef = detJ*ip.w*elem.pmodel.β*w*th
         dFw -= coef*Nf'*Δuw[3]
 
         # longitudinal flow
@@ -639,6 +639,6 @@ function update_elem!(elem::HMJoint2, U::Array{Float64,1}, Δt::Float64)
 
     F[map_u] .+= dF
     F[map_w] .+= dFw
-    
+
     return success()
 end

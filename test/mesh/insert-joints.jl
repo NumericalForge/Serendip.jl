@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 
 geo = GeoModel()
 s = 0.9
@@ -21,7 +21,7 @@ addsubpath!(geo, :M, pa, :L, pb, embedded=true)
 
 mesh = Mesh(geo)
 # plot = GeometryPlot(geo); save(plot, "geo.pdf")
-plot = MeshPlot(mesh, nodelabels=true); save(plot, "mesh.pdf")
+plot = DomainPlot(mesh, nodelabels=true); save(plot, "mesh.pdf")
 
 
 # insert_cohesive_elements!(mesh)

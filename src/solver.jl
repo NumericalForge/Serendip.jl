@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
 # Solves a system with unknowns in U and F vectors
@@ -27,7 +27,7 @@ function solve_system!(
     U2  = U[nu+1:end]
 
     # @showm K11
-    
+
     # Solve linear system
     F2 = K22*U2
     U1 = zeros(nu)
@@ -57,7 +57,7 @@ function solve_system!(
             F2 += K21*U1
         catch err
             err isa InterruptException && rethrow(err)
-            if any(isnan.(K11)) 
+            if any(isnan.(K11))
                 msg = "$msg\nsolve_system!: NaN values in coefficients matrix"
             end
             # U1 .= NaN
@@ -66,7 +66,7 @@ function solve_system!(
     end
 
     maxU = 1e8 # maximum essential value
-    if maximum(abs, U1)>maxU 
+    if maximum(abs, U1)>maxU
         return failure("$msg\nsolve_system!: Possible syngular matrix")
     end
 
@@ -79,24 +79,63 @@ function solve_system!(
 end
 
 
-function stage_iterator!(stage_solver!::Function, ana::Analysis; args...)
-    autoinc = get(args, :autoinc, false)
-    quiet   = get(args, :quiet, false)
-    # ctx     = ana.ctx
-    sctx    = ana.sctx
-    
-    cstage = findfirst(st->st.status!=:done, ana.stages)
-    cstage === nothing && throw(AmaruException("stage_iterator!: No stages have been set for $(ana.name)"))
+struct SolverSettings
+    tol::Float64
+    rtol::Float64
+    autoinc::Bool
+    dT0::Float64
+    dTmin::Float64
+    dTmax::Float64
+    scheme::Symbol
+    maxits::Int
+    rspan::Float64
+
+    @doc """
+        SolverSettings(; tol=0.01, rtol=0.01, dT0=0.01, dTmin=1e-7, dTmax=0.1,
+                          rspan=0.01, scheme=:FE, maxits=5, autoinc=false, quiet=false)
+
+    Defines configuration parameters for controlling the analysis process.
+
+    # Arguments
+    - `tol::Float64`: Absolute tolerance for convergence checks (default: `0.01`).
+    - `rtol::Float64`: Relative tolerance for convergence checks (default: `0.01`).
+    - `autoinc::Bool`: Enable automatic increment control (default: `false`).
+    - `dT0::Float64`: Initial increment of pseudo-time (default: `0.01`).
+    - `dTmin::Float64`: Minimum allowed increment of pseudo-time (default: `1e-7`).
+    - `dTmax::Float64`: Maximum allowed increment of pseudo-time (default: `0.1`).
+    - `scheme::Symbol`: Solution scheme (e.g., `:FE` for finite elements, default: `:FE`).
+    - `maxits::Int`: Maximum number of iterations per increment (default: `5`).
+    - `rspan::Float64`: Progression span for reapplying the residual in nonlinear iterations (default: `0.01`).
+
+    # Example
+    ```julia
+    settings = SolverSettings(tol=1e-4, rtol=1e-3, autoinc=true, quiet=true)
+    ```
+    """
+    function SolverSettings(;
+        tol=0.01, rtol=0.01, autoinc=false, dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01,
+        scheme=:FE, maxits=5,  quiet=false)
+        return new(tol, rtol, autoinc, dT0, dTmin, dTmax, scheme, maxits, rspan)
+    end
+end
+
+
+function stage_iterator(ana::Analysis, solver_settings::SolverSettings; quiet::Bool=false)
+    autoinc = solver_settings.autoinc
+    data    = ana.data
+
+    cstage = findfirst(st->st.status!=:done, ana.data.stages)
+    cstage === nothing && throw(SerendipException("stage_iterator: No stages have been set for $(ana.name)"))
 
     solstatus = success()
 
-    # if !quiet && cstage==1 
+    # if !quiet && cstage==1
     if !quiet
         # printstyled(ana.name, "\n", bold=true, color=:cyan)
         println("  active threads: ", Threads.nthreads())
     end
 
-    outdir = ana.sctx.outdir
+    outdir = ana.data.outdir
 
     if !isdir(outdir)
         info("solve!: creating output directory ./$outdir")
@@ -105,21 +144,21 @@ function stage_iterator!(stage_solver!::Function, ana::Analysis; args...)
 
 
     if cstage==1
-        sctx.log = open("$outdir/solve.log", "w")
+        data.log = open("$outdir/solve.log", "w")
     else
-        sctx.log = open("$outdir/solve.log", "a")
+        data.log = open("$outdir/solve.log", "a")
     end
 
-    
-    for stage in ana.stages[cstage:end]
+
+    for stage in ana.data.stages[cstage:end]
         stage.status = :solving
 
         nincs  = stage.nincs
         nouts  = stage.nouts
-        
-        sctx.stage = stage.id
-        sctx.inc   = 0
-        sctx.T = 0.0
+
+        data.stage = stage.id
+        data.inc   = 0
+        data.T = 0.0
 
         if !quiet
             printstyled("Stage $(stage.id)\n", bold=true, color=:cyan)
@@ -149,15 +188,15 @@ function stage_iterator!(stage_solver!::Function, ana::Analysis; args...)
         local runerror
         local error_st
         try
-            solstatus = stage_solver!(ana, stage; args...)
+            solstatus = stage_solver(ana, stage, solver_settings; quiet=quiet)
             if succeeded(solstatus)
                 stage.status = :done
             else
                 stage.status = :failed
             end
-        catch err            
+        catch err
             runerror = err
-            flush(sctx.log)
+            flush(data.log)
             if err isa InterruptException
                 stage.status = :interrupted
             else
@@ -165,15 +204,15 @@ function stage_iterator!(stage_solver!::Function, ana::Analysis; args...)
                 error_st = stacktrace(catch_backtrace())
             end
         end
-        close(sctx.log)
+        close(data.log)
 
         if !quiet
             wait(status_cycler_task)
             solstatus.message != "" && println(solstatus.message)
         end
 
-        if stage.status == :interrupted 
-            throw(AmaruException("The analysis was interrupted"))
+        if stage.status == :interrupted
+            throw(SerendipException("The analysis was interrupted"))
         elseif stage.status == :error
             # trim not important frames; try to find the frame that contains REPL/_iterator
             # idx = findfirst(contains("_iterator"), string(frame) for frame in error_st)
@@ -182,7 +221,7 @@ function stage_iterator!(stage_solver!::Function, ana::Analysis; args...)
                 error_st = error_st[1:idx-1]
             end
 
-            alert("Amaru internal error", level=1)
+            alert("Serendip internal error", level=1)
             showerror(stdout, runerror, error_st)
             # Base.show_backtrace(stdout, error_st) # shows only the stacktrace
             println()
@@ -197,15 +236,38 @@ function stage_iterator!(stage_solver!::Function, ana::Analysis; args...)
 
 end
 
-# # Main function to call specific solvers
-# function solve!(model::FEModel; args...)
-#     solve!(model, model.ctx.ana; args...)
-# end
+
+function Base.run(ana::Analysis;
+    tol     ::Float64 = 0.01,
+    rtol    ::Float64 = 0.01,
+    autoinc ::Bool = false,
+    dT0     ::Float64 = 0.01,
+    dTmin   ::Float64 = 1e-7,
+    dTmax   ::Float64 = 0.1,
+    rspan   ::Float64 = 0.01,
+    scheme  ::Symbol = :FE,
+    maxits  ::Int = 5,
+    quiet   ::Bool=false)
+
+    if !quiet
+        printstyled("FE solver\n", bold=true, color=:cyan)
+        println("  type: ", ana.name)
+        println("  stress model: ", ana.model.ctx.stress_state)
+    end
+
+    solver_settings = SolverSettings(
+        tol=tol, rtol=rtol, autoinc=autoinc, dT0=dT0, dTmin=dTmin, dTmax=dTmax,
+        rspan=rspan, scheme=scheme, maxits=maxits, quiet=quiet
+    )
+
+    status = stage_iterator(ana, solver_settings; quiet=quiet)
+    return status
+end
 
 
 function progress_bar(T::Float64)
     dwidth  = displaysize(stdout)[2]-2
-    width   = max(2, min(25, dwidth-35))
+    width   = max(2, min(20, dwidth-35))
     ch_done = T*width
     frac    = ch_done - floor(ch_done)
 
@@ -213,7 +275,6 @@ function progress_bar(T::Float64)
     barr = Char[]
 
     if frac<=0.25
-        # @show 10
         push!(barr, '╶')
         push!(barr, '─')
     elseif 0.25<frac<0.75
@@ -228,14 +289,14 @@ function progress_bar(T::Float64)
         barl = barl[1:width]
         barr = Char[]
     end
-    
+
     if length(barl)+length(barr)==width+1
         barr = Char[barr[1]]
     end
 
     append!(barr, repeat(['─'], width -length(barl) -length(barr) ))
-    barls = reduce(*, barl) 
-    barrs = reduce(*, barr) 
+    barls = reduce(*, barl)
+    barrs = reduce(*, barr)
 
     iscolor = get(stdout, :color, false)
     if iscolor
@@ -258,7 +319,7 @@ end
 function status_cycler(ana::Analysis, sw::StopWatch)
     print("\e[?25l") # disable cursor
 
-    stage     = ana.stages[ana.sctx.stage]
+    stage     = ana.data.stages[ana.data.stage]
     last_loop = false
     alerts    = String[]
     while true
@@ -267,7 +328,7 @@ function status_cycler(ana::Analysis, sw::StopWatch)
         nlines += print_info(ana)
         nlines += print_alerts(ana, alerts)
         nlines += print_summary(ana, sw)
-        
+
         last_loop && break
 
         print("\e[$(nlines)A")
@@ -281,7 +342,7 @@ end
 
 
 function print_info(ana::Analysis)
-    str = strip(String(take!(ana.sctx.info)))
+    str = strip(String(take!(ana.data.info)))
     str!="" && println("  ", str, "\e[K")
 
     return 0
@@ -289,14 +350,14 @@ end
 
 
 function print_alerts(ana::Analysis, alerts::Array{String,1})
-    str = strip(String(take!(ana.sctx.alerts)))
-    
+    str = strip(String(take!(ana.data.alerts)))
+
     if str!=""
         list = split(str, "\n")
         list = String[ string("  ", Time(now()), "  ", m) for m in list ]
         append!(alerts, list)
     end
-    
+
     n = length(alerts)
     if n>5
         splice!(alerts, 1:n-5)
@@ -312,22 +373,22 @@ end
 
 
 function print_summary(ana::Analysis, sw::StopWatch)
-    sctx = ana.sctx
+    data = ana.data
     nlines = 2
 
     # line 1:
-    T  = sctx.T
-    ΔT = sctx.ΔT
-    printstyled("  inc $(sctx.inc) output $(sctx.out)", bold=true, color=:light_blue)
-    if sctx.transient
-        t = round(sctx.t, sigdigits=3)
+    T  = data.T
+    ΔT = data.ΔT
+    printstyled("  inc $(data.inc) output $(data.out)", bold=true, color=:light_blue)
+    if data.transient
+        t = round(data.t, sigdigits=3)
         printstyled(" t=$t", bold=true, color=:light_blue)
     end
     dT  = round(ΔT,sigdigits=4)
-    res = round(sctx.residue,sigdigits=4)
+    res = round(data.residue,sigdigits=4)
 
     printstyled(" dT=$dT res=$res\e[K\n", bold=true, color=:light_blue)
-    
+
     # line 2:
     bar = progress_bar(T)
     progress = @sprintf("%5.3f", T*100)
@@ -336,10 +397,26 @@ function print_summary(ana::Analysis, sw::StopWatch)
     printstyled(" $(progress)% \e[K\n", bold=true, color=:light_blue)
 
     # print monitors
-    for mon in ana.monitors
-        str     = output(mon)
-        nlines += count("\n", str)
-        printstyled(str, color=:light_blue)
+    heads  = String[]
+    labels = String[]
+    values = String[]
+    for mon in ana.data.monitors
+        h, ls, vs = output(mon)
+        length(ls) > 0 || continue
+        hs = repeat([""], length(ls))
+        hs[1] = h * " :"
+        append!(heads, hs)
+        append!(labels, ls)
+        append!(values, vs)
+    end
+
+    head_len = maximum(length.(heads), init=0)
+    label_len = maximum(length.(labels), init=0)
+    print("\e[K") # clear line
+    for (h, l, v) in zip(heads, labels, values)
+        str = "  " * h * " "^(head_len - length(h)) * " " * " "^(label_len - length(l)) * l *" = " * v * "\e[K\n"
+        printstyled("  ", str, color=:light_blue)
+        nlines += 1
     end
 
     return nlines

@@ -3,7 +3,7 @@ function hrefine(mesh::Mesh; n=2, quiet=true)
     newmesh = Mesh()
 
     for cell in mesh.elems
-        coords =getcoords(cell.nodes)
+        coords =get_coords(cell.nodes)
 
         if cell.shape==TRI3
             p_arr = Array{Node}(undef, n+1, n+1)
@@ -111,7 +111,7 @@ function prefine(mesh::Mesh; n=2, quiet=true)
 
     for cell in mesh.elems
         newshape = NS[cell.shape]
-        coords = getcoords(cell.nodes)
+        coords = get_coords(cell.nodes)
         points = Node[]
         for i in 1:newshape.npoints
             R = newshape.nat_coords[i,:]

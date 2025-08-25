@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export Symbolic
 export symbols, evaluate
@@ -27,14 +27,14 @@ getexpr(symbolic::Any) = symbolic
 
 
 function Base.show(io::IO, symbolic::Symbolic)
-    if symbolic.expr==:() 
+    if symbolic.expr==:()
         str = "Symbolic $(symbolic.sym)"
     else
         str = replace(string(symbolic.expr), r" ([*\^]) " => s"\1")
     end
     print(io, str)
 end
- 
+
 for op in (:+, :-, :*, :/, :^, :>, :(>=), :<, :(<=), :(==), :(!=))
     @eval begin
         Base.$op(x::Symbolic, y::Symbolic) = Symbolic(Expr(:call, Symbol($op), getexpr(x), getexpr(y)))
@@ -60,7 +60,7 @@ end
 
 
 # macro symbols(syms...)
-#     if syms[1] isa Expr && syms[1].head==:tuple 
+#     if syms[1] isa Expr && syms[1].head==:tuple
 #         syms = syms[1].args
 #     end
 #     expr = Expr(:block)
@@ -77,7 +77,7 @@ macro define(syms...)
     for symbolic in syms
         if symbolic isa Symbol
             push!(expr.args, :($(esc(symbolic)) = Symbolic($(QuoteNode(symbolic)))))
-        elseif symbolic isa Expr && symbolic.head == :(=) 
+        elseif symbolic isa Expr && symbolic.head == :(=)
             lhs = symbolic.args[1]
             rhs = symbolic.args[2]
             !(lhs isa Symbol) && error("@define: Invalid definition $symbolic")
@@ -252,6 +252,11 @@ function fix_expr_maximum_minimum!(expr::Expr)
 
 end
 
+function fix_expr_maximum_minimum!(expr)
+    return expr
+end
+
+
 function round_floats!(expr::Expr)
     start  = expr.head == :call ? 2 : 1
     finish = length(expr.args)
@@ -266,4 +271,8 @@ function round_floats!(expr::Expr)
     end
     return expr
 
+end
+
+function round_floats!(expr)
+    return expr
 end

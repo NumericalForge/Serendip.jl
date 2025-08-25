@@ -40,12 +40,12 @@ end
 
 function Base.delete!(os::OSet{T}, element::T) where T
     hash_value = hash(element)
-    
+
     # Check if the hash value is in the dictionary
     if haskey(os.dict, hash_value)
         # Remove the element from the vector
         filter!(x -> x != element, os.vals)
-        
+
         # Remove the element from the dictionary
         delete!(os.dict, hash_value)
         return os

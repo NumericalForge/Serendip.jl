@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 """
 Returns max(x,0)
@@ -226,7 +226,7 @@ function findroot_default(f::Function, a, b, tol, ftol)
     for i in 1:maxits
 
         # find x3
-        if (y2-y1)*(y2-y4)>0 
+        if (y2-y1)*(y2-y4)>0
             # bissection
             x3 = (x1+x4)/2
         else
@@ -260,7 +260,7 @@ function findroot_default(f::Function, a, b, tol, ftol)
                 x3 = (y4*x1 - x4*y1)/(y4-y1)
             end
         end
-        
+
         y3 = f(x3)
 
         # order x2 and x3
@@ -318,7 +318,7 @@ function brent(f::Function, a, b, tol; maxits::Int=50)
     fc = fa
     d  = c
     x0 = NaN
-    
+
     bisect = true
     for i in 1:maxits
         abs(b-a) < tol && return b
@@ -421,7 +421,7 @@ function spline_coefficients(X,Y)
     k += 1
     M[k, end-1] = 2
     M[k, end-0] = 6*X[end]
-    
+
     return inv(M)*B
 end
 
@@ -476,7 +476,7 @@ end
 #     @assert a <= x <= b
 
 #     # s = (x-a)/(b-a)
-    
+
 #     # Find polynomial function
 #     i = max(1, findfirst(xi->x<=xi, X) - 1)
 
@@ -484,13 +484,13 @@ end
 #     # t = (s-S[i])/(S[i+1]-S[i])
 #     t = (x-X[i])/(X[i+1]-X[i])
 
-    
+
 #     # Spline coefficients
 #     a = Y[i]
 #     b = D[i]
 #     c = 3*(Y[i+1]-Y[i]) - 2*D[i] - D[i+1]
 #     d = 2*(Y[i]-Y[i+1]) + D[i] + D[i+1]
-    
+
 #     return a + b*t + c*t^2 + d*t^3
 # end
 
@@ -513,7 +513,7 @@ function deriv(spline::Spline, x::Real)
     # Parametric coordinate
     # t = (s-S[i])/(S[i+1]-S[i])
     t = (x-X[i])/(X[i+1]-X[i])
-    
+
     # Spline coefficients
     a = Y[i]
     b = D[i]
@@ -522,6 +522,6 @@ function deriv(spline::Spline, x::Real)
 
     dydt = b + 2*c*t + 3*d*t^2
     dtdx = 1/(X[i+1]-X[i])
-    
+
     return dydt*dtdx
 end

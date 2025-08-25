@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 
 # Geometry
 Lrock    = 30.00;
@@ -7,9 +7,9 @@ Lgap      = 0.50;
 Hgap      = 8.00;
 
 blocks = [
-    Block( [0 0; (Lrock/2-Lgap/2) Hrock], nx=14, ny=15, cellshape=QUAD8, tag="solids"),
-    Block( [(Lrock/2-Lgap/2) 0; (Lrock/2+Lgap/2) (Hrock-Hgap)], nx=1, ny=7, cellshape=QUAD8, tag="solids"),
-    Block( [(Lrock/2+Lgap/2) 0; Lrock Hrock], nx=14, ny=15, cellshape=QUAD8, tag="solids"),
+    Block( [0 0; (Lrock/2-Lgap/2) Hrock], nx=14, ny=15, shape=QUAD8, tag="solids"),
+    Block( [(Lrock/2-Lgap/2) 0; (Lrock/2+Lgap/2) (Hrock-Hgap)], nx=1, ny=7, shape=QUAD8, tag="solids"),
+    Block( [(Lrock/2+Lgap/2) 0; Lrock Hrock], nx=14, ny=15, shape=QUAD8, tag="solids"),
 ]
 
 mesh  = Mesh(blocks)

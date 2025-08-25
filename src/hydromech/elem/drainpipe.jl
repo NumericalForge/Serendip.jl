@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export DrainPipe
 
@@ -15,7 +15,7 @@ struct DrainPipeProps<:ElemProperties
 
         @check A>0.0
         return new(A)
-    end    
+    end
 end
 
 
@@ -30,7 +30,7 @@ mutable struct DrainPipe<:Hydromech
     mat::Material
     props ::DrainPipeProps
     active::Bool
-    linked_elems::Array{Element,1}
+    couplings::Array{Element,1}
     ctx::Context
 
     function DrainPipe()
@@ -38,7 +38,7 @@ mutable struct DrainPipe<:Hydromech
     end
 end
 
-compat_shape_family(::Type{DrainPipe}) = LINECELL
+compat_role(::Type{DrainPipe}) = LINECELL
 compat_elem_props(::Type{DrainPipe}) = DrainPipeProps
 
 
@@ -56,7 +56,7 @@ local k::Float64, A::Float64, coef::Float64, dNdR::Matrix{Float64}
     nnodes = length(elem.nodes)
 
     A  = elem.props.A
-    C  = getcoords(elem)
+    C  = get_coords(elem)
     H  = zeros(nnodes, nnodes)
     Bw = zeros(1, nnodes)
     J  = Array{Float64}(undef, ndim, 1)
@@ -73,7 +73,7 @@ local k::Float64, A::Float64, coef::Float64, dNdR::Matrix{Float64}
         Bw = dNdR'/detJ
 
         # compute H
-        coef = detJ*ip.w*(elem.mat.k/elem.ctx.γw)*A
+        coef = detJ*ip.w*(elem.pmodel.k/elem.ctx.γw)*A
         @mul H -= coef*Bw'*Bw
     end
 
@@ -89,7 +89,7 @@ function elem_RHS_vector(elem::DrainPipe)
     nnodes = length(elem.nodes)
 
     A  = elem.props.A
-    C  = getcoords(elem)
+    C  = get_coords(elem)
     Q  = zeros(nnodes)
     Bw = zeros(1, nnodes)
     J  = Array{Float64}(undef, ndim, 1)
@@ -104,8 +104,8 @@ function elem_RHS_vector(elem::DrainPipe)
         # mount Bw
         Bw = dNdR'/detJ
 
-        # compute Q 
-        coef = detJ*ip.w*elem.mat.k*A*Jvert
+        # compute Q
+        coef = detJ*ip.w*elem.pmodel.k*A*Jvert
         Q .+= coef*Bw'
     end
 
@@ -123,7 +123,7 @@ function elem_internal_forces(elem::DrainPipe, F::Array{Float64,1})
     nnodes = length(elem.nodes)
 
     A  = elem.props.A
-    C  = getcoords(elem)
+    C  = get_coords(elem)
     Bw = zeros(1, nnodes)
     J  = Array{Float64}(undef, ndim, 1)
     dFw = zeros(nnodes)
@@ -158,7 +158,7 @@ function update_elem!(elem::DrainPipe, DU::Array{Float64,1}, Δt::Float64)
     nnodes = length(elem.nodes)
 
     A  = elem.props.A
-    C  = getcoords(elem)
+    C  = get_coords(elem)
     Bw = zeros(1, nnodes)
 
     map_w  = [ node.dofdict[:uw].eq_id for node in elem.nodes ]
@@ -190,7 +190,7 @@ function update_elem!(elem::DrainPipe, DU::Array{Float64,1}, Δt::Float64)
         G += Jvert; # gradient due to gravity
         Δuw = dot(Nw,dUw) # interpolation to the integ. point
 
-        V = update_state!(elem.mat, ip.state, Δuw, G, Δt)
+        V = update_state(elem.pmodel, ip.state, Δuw, G, Δt)
 
         coef = Δt*detJ*ip.w*A
         dFw += coef*Bw'*V
@@ -203,7 +203,7 @@ end
 function elem_vals(elem::DrainPipe)
     # get area and average fluid velocity and flow
     vals = OrderedDict(:A => elem.props.A )
-    mean_va = mean( ip_state_vals(elem.mat, ip.state)[:va] for ip in elem.ips )
+    mean_va = mean( state_values(elem.pmodel, ip.state)[:va] for ip in elem.ips )
     vals[:va] = mean_va
     vals[:Qa] = elem.props.A*mean_va
     return vals

@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export LinearAcousticFluid
 
@@ -6,7 +6,7 @@ mutable struct LinearAcousticFluidState<:IpState
     ctx::Context
     up ::Float64          # pressure
     # V  ::Array{Float64,1} # fluid velocity?
-    
+
     function LinearAcousticFluidState(ctx::Context)
         this = new(ctx)
         # this.V  = zeros(ctx.ndim)
@@ -29,13 +29,13 @@ end
 compat_state_type(::Type{LinearAcousticFluid}, ::Type{AcousticFluid}, ctx::Context) = LinearAcousticFluidState
 
 
-function update_state!(mat::LinearAcousticFluid, state::LinearAcousticFluidState, Δup::Float64, G::Array{Float64,1}, Δt::Float64)
+function update_state(mat::LinearAcousticFluid, state::LinearAcousticFluidState, Δup::Float64, G::Array{Float64,1}, Δt::Float64)
     state.up += Δup
     return nothing
 end
 
 
-function ip_state_vals(mat::LinearAcousticFluid, state::LinearAcousticFluidState)
+function state_values(mat::LinearAcousticFluid, state::LinearAcousticFluidState)
     D = OrderedDict{Symbol, Float64}()
     # D[:up] = state.up
 

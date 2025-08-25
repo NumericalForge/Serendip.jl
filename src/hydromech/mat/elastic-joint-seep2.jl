@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export ElasticJointSeep2
 
@@ -83,7 +83,7 @@ function calcD(mat::ElasticJointSeep2, state::JointSeepState2)
 end
 
 
-function update_state!(mat::ElasticJointSeep2, state::JointSeepState2, Δu::Array{Float64,1}, Δuw::Array{Float64,1}, G::Array{Float64,1}, BfUw::Array{Float64,1}, Δt::Float64)
+function update_state(mat::ElasticJointSeep2, state::JointSeepState2, Δu::Array{Float64,1}, Δuw::Array{Float64,1}, G::Array{Float64,1}, BfUw::Array{Float64,1}, Δt::Float64)
     ndim = state.ctx.ndim
     D  = calcD(mat, state)
     Δσ = D*Δu
@@ -113,7 +113,7 @@ function update_state!(mat::ElasticJointSeep2, state::JointSeepState2, Δu::Arra
 end
 
 
-function ip_state_vals(mat::ElasticJointSeep2, state::JointSeepState2)
+function state_values(mat::ElasticJointSeep2, state::JointSeepState2)
     ndim = state.ctx.ndim
     if ndim == 2
         return OrderedDict(

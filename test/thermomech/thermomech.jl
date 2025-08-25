@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 #using Test
 
 # Mesh generation
@@ -19,7 +19,7 @@ alpha = 1.2e-5 # thermal expansion coefficient  1/K or 1/°C
 # materials = ["solids" => TMSolid => LinearElasticThermo => (E=E, nu=nu, k=k, alpha = alpha, rho=rho, cv=cv) ]
 materials = ["solids" => TMSolid => TMCombined{ConstConductivity,LinearElastic} => (E=E, nu=nu, k=k, alpha=alpha, rho=rho, cv=cv) ]
 
-ctx = ThermoMechContext(T0=0.0, stressmodel=:planestrain)
+ctx = ThermoContext(T0=0.0, stress_state=:plane_strain)
 model = FEModel(msh, materials, ctx)
 ana = ThermoMechAnalysis(model)
 

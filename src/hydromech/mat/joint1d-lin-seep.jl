@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export Joint1DConstPermeability
 
@@ -39,7 +39,7 @@ compat_state_type(::Type{Joint1DConstPermeability}, ::Type{SeepJoint1D}, ctx::Co
 # compat_elem_types(::Type{Joint1DConstPermeability}) = (SeepJoint1D,)
 
 
-function update_state!(mat::Joint1DConstPermeability, state::Joint1DConstPermeabilityState, ΔFw::Float64, Δt::Float64)
+function update_state(mat::Joint1DConstPermeability, state::Joint1DConstPermeabilityState, ΔFw::Float64, Δt::Float64)
     k = mat.k
     state.V  = -k*ΔFw
     state.D  += state.V*Δt
@@ -47,7 +47,7 @@ function update_state!(mat::Joint1DConstPermeability, state::Joint1DConstPermeab
 end
 
 
-function ip_state_vals(mat::Joint1DConstPermeability, state::Joint1DConstPermeabilityState)
+function state_values(mat::Joint1DConstPermeability, state::Joint1DConstPermeabilityState)
     return OrderedDict(
       :vj => state.V)
 end

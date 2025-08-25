@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export ThermoShell
 
@@ -31,7 +31,7 @@ mutable struct ThermoShell<:ThermoMech
     mat   ::Material
     props ::ThermoShellProps
     active::Bool
-    linked_elems::Array{Element,1}
+    couplings::Array{Element,1}
     ctx::Context
 
     function ThermoShell();
@@ -39,7 +39,7 @@ mutable struct ThermoShell<:ThermoMech
     end
 end
 
-compat_shape_family(::Type{ThermoShell}) = BULKCELL
+compat_role(::Type{ThermoShell}) = BULKCELL
 compat_elem_props(::Type{ThermoShell}) = ThermoShellProps
 
 
@@ -76,7 +76,7 @@ function distributed_bc(elem::ThermoShell, facet::Union{Facet,Nothing}, key::Sym
     nnodes = length(nodes)
 
     # Calculate the target coordinates matrix
-    C = getcoords(nodes, ndim)
+    C = get_coords(nodes, ndim)
 
     # Calculate the nodal values
     F     = zeros(nnodes)
@@ -95,7 +95,7 @@ function distributed_bc(elem::ThermoShell, facet::Union{Facet,Nothing}, key::Sym
         if ndim==2
             x, y = X
             vip = evaluate(val, t=t, x=x, y=y)
-            if elem.ctx.stressmodel==:axisymmetric
+            if elem.ctx.stress_state==:axisymmetric
                 th = 2*pi*X[1]
             end
         else
@@ -133,7 +133,7 @@ function elem_conductivity_matrix(elem::ThermoShell)
     ndim   = elem.ctx.ndim
     th     = elem.props.th   # elem.ctx.thickness
     nnodes = length(elem.nodes)
-    C      = getcoords(elem)
+    C      = get_coords(elem)
     H      = zeros(nnodes, nnodes)
     Bt     = zeros(ndim, nnodes)
     L      = zeros(3,3)
@@ -150,10 +150,10 @@ function elem_conductivity_matrix(elem::ThermoShell)
 
         Bt   .= dNdX′'
 
-        K = calcK(elem.mat, ip.state)
+        K = calcK(elem.pmodel, ip.state)
         detJ′ = det(J′)
         @assert detJ′>0
-        
+
         coef = detJ′*ip.w
         H -= coef*Bt'*K*Bt
 
@@ -168,8 +168,8 @@ function elem_mass_matrix(elem::ThermoShell)
     ndim   = elem.ctx.ndim
     th     = elem.props.th
     nnodes = length(elem.nodes)
-    
-    C      = getcoords(elem)
+
+    C      = get_coords(elem)
     M      = zeros(nnodes, nnodes)
 
     J  = Array{Float64}(undef, ndim, ndim)
@@ -186,7 +186,7 @@ function elem_mass_matrix(elem::ThermoShell)
         @assert detJ′>0
 
         # compute Cut
-        coef  = elem.props.ρ*elem.mat.cv
+        coef  = elem.props.ρ*elem.pmodel.cv
         coef *= detJ′*ip.w
         M    -= coef*N*N'
 
@@ -203,8 +203,8 @@ function elem_internal_forces(elem::ThermoShell, F::Array{Float64,1})
     ndim   = elem.ctx.ndim
     th     = thickness   # elem.ctx.thickness
     nnodes = length(elem.nodes)
-    
-    C   = getcoords(elem)
+
+    C   = get_coords(elem)
     T0     = elem.ctx.T0 + 273.15
     keys   = (:ux, :uy, :uz)[1:ndim]
     map_u  = [ node.dofdict[key].eq_id for node in elem.nodes for key in keys ]
@@ -220,7 +220,7 @@ function elem_internal_forces(elem::ThermoShell, F::Array{Float64,1})
     dNtdX = Array{Float64}(undef, ndim, nbnodes)
     dUt = DU[mat_t] # nodal temperature increments
     for ip in elem.ips
-        elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+        elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
         # compute Bu matrix and Bt
         dNdR = elem.shape.deriv(ip.R)
         @mul J = C'*dNdR
@@ -235,7 +235,7 @@ function elem_internal_forces(elem::ThermoShell, F::Array{Float64,1})
         # compute N
         # internal force
         ut   = ip.state.ut + 273
-        β   = elem.mat.E*elem.mat.α/(1-2*elem.mat.ν)
+        β   = elem.pmodel.E*elem.pmodel.α/(1-2*elem.pmodel.ν)
         σ    = ip.state.σ - β*ut*m # get total stress
         coef = detJ*ip.w*th
         @mul dF += coef*Bu'*σ
@@ -244,7 +244,7 @@ function elem_internal_forces(elem::ThermoShell, F::Array{Float64,1})
         εvol = dot(m, ε)
         coef = β*detJ*ip.w*th
         dFt  -= coef*N*εvol
-        coef = detJ*ip.w*elem.props.ρ*elem.mat.cv*th/T0
+        coef = detJ*ip.w*elem.props.ρ*elem.pmodel.cv*th/T0
         dFt -= coef*N*ut
         QQ   = ip.state.QQ
         coef = detJ*ip.w*th/T0
@@ -264,7 +264,7 @@ function update_elem!(elem::ThermoShell, DU::Array{Float64,1}, Δt::Float64)
 
     map_t = elem_map_t(elem)
 
-    C      = getcoords(elem)
+    C      = get_coords(elem)
 
     dUt = DU[map_t] # nodal temperature increments
     Ut  = [ node.dofdict[:ut].vals[:ut] for node in elem.nodes]
@@ -277,12 +277,12 @@ function update_elem!(elem::ThermoShell, DU::Array{Float64,1}, Δt::Float64)
     #Rrot = zeros(5,ndof)
 
     for ip in elem.ips
-        #elem.ctx.stressmodel==:axisymmetric && (th = 2*pi*ip.coord.x)
+        #elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
 
         # compute Bu and Bt matrices
         N = elem.shape.func(ip.R)
         dNdR = elem.shape.deriv(ip.R) # 3xn
-        
+
         J2D = C'*dNdR
         set_rot_x_xp(elem, J2D, L)
         J′ = [ L*J2D [ 0,0,th/2]  ]
@@ -298,9 +298,9 @@ function update_elem!(elem::ThermoShell, DU::Array{Float64,1}, Δt::Float64)
         # compute Δut
         Δut = N'*dUt # interpolation to the integ. point
 
-        q = update_state!(elem.mat, ip.state, Δut, G, Δt)
+        q = update_state(elem.pmodel, ip.state, Δut, G, Δt)
 
-        coef  = elem.props.ρ*elem.mat.cv
+        coef  = elem.props.ρ*elem.pmodel.cv
         coef *= detJ′*ip.w
         dFt  -= coef*N*Δut
 

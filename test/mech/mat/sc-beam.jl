@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 using Test
 
 # mesh generation
@@ -22,7 +22,7 @@ mats = [
 # Loggers
 log_edge = EdgeLogger(10)
 
-#model = FEModel(msh, mats, stressmodel=:planestress, thickness=1.0)
+#model = FEModel(msh, mats, stress_state=:plane_stress, thickness=1.0)
 model = FEModel(msh, mats, log_edge)
 
 # Boundary conditions

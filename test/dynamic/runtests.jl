@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 
 @runfiles [
         #  "dyn-spring.jl",

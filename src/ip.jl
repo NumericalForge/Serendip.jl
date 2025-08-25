@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 import Base.maximum
 import Base.minimum
@@ -78,59 +78,110 @@ mutable struct Ip<:AbstractPoint
 end
 
 # The functions below can be used in conjuntion with sort
-get_x(ip::Ip) = ip.coord[1]
-get_y(ip::Ip) = ip.coord[2]
-get_z(ip::Ip) = ip.coord[3]
+# get_x(ip::Ip) = ip.coord[1]
+# get_y(ip::Ip) = ip.coord[2]
+# get_z(ip::Ip) = ip.coord[3]
 
 
-"""
-`ip_vals`
-
-Returns a dictionary with keys and vals for the integration point `ip`.
-"""
-function ip_vals(ip::Ip)
+function get_values(ip::Ip)
     coords = OrderedDict( :x => ip.coord[1], :y => ip.coord[2], :z => ip.coord[3] )
-    vals   = ip_state_vals(ip.owner.mat, ip.state)
+    vals   = state_values(ip.owner.pmodel, ip.state)
     return merge(coords, vals)
 end
 
 
-function Base.getindex(ips::Array{<:Ip,1}, filters::NTuple; kwargs...)
-    return getindex(ips, filters...; kwargs...)
-end
-
-
-# Index operator for an collection of ips
-function Base.getindex(
-    ips::Array{Ip,1}, 
-    filters::Union{Expr,Symbolic,String}...;
-    invert = false
+function select(
+    ips::Vector{Ip},
+    selectors::Union{Symbol, Symbolic, Expr, String, Vector{Float64}, NTuple{N, Symbolic} where N}...;
+    invert = false,
+    tag = ""
     )
-    
-    filtered = collect(1:length(ips))
 
-    for filter in filters
-        if typeof(filter) in (Expr, Symbolic)
-            fips = ips[filtered]
+    selectors = flatten(selectors)
+    selected = collect(1:length(ips))
+
+    for selector in selectors
+
+        if typeof(selector) == Symbol
+            if selector == :all
+                continue
+            else
+                error("select: unknown symbol selector $(repr(selector))")
+            end
+        elseif typeof(selector) in (Expr, Symbolic)
+            fips = ips[selected]
 
             T = Bool[]
             for ip in fips
                 x, y, z = ip.coord.x, ip.coord.y, ip.coord.z
-                push!(T, evaluate(filter, x=x, y=y, z=z))
+                push!(T, evaluate(selector, x=x, y=y, z=z))
             end
-    
-            filtered = filtered[T]
-        elseif filter isa String
-            filtered = [ i for i in filtered if ips[i].tag==filter ]
+
+            selected = selected[T]
+        elseif selector isa String
+            selected = [ i for i in selected if ips[i].tag==selector ]
+        # elseif selector isa Vector{Int} # selector is a vector of indexes
+            # selected = intersect(selected, selector)
+        elseif selector isa Array{Float64}
+            X = Vec3(selector)
+            T = Bool[]
+            for i in selected
+                push!(T, norm(ips[i].coord-X) < 1e-8)
+            end
+            selected = selected[T]
         end
     end
 
     if invert
-        filtered = setdiff(1:length(ips), filtered)
+        selected = setdiff(1:length(ips), selected)
     end
 
-    return ips[filtered]
+    # Set tag for selected ips
+    if tag != ""
+        for i in selected
+            ips[i].tag = tag
+        end
+    end
+
+    return ips[selected]
 end
+
+# function Base.getindex(ips::Array{<:Ip,1}, filters::NTuple; kwargs...)
+#     return getindex(ips, filters...; kwargs...)
+# end
+
+
+# Index operator for an collection of ips
+# function Base.getindex(
+#     ips::Array{Ip,1},
+#     filters::Union{Expr,Symbolic,String}...;
+#     invert = false
+#     )
+
+#     filtered = collect(1:length(ips))
+
+#     for filter in filters
+#         if typeof(filter) in (Expr, Symbolic)
+#             fips = ips[filtered]
+
+#             T = Bool[]
+#             for ip in fips
+#                 x, y, z = ip.coord.x, ip.coord.y, ip.coord.z
+#                 push!(T, evaluate(filter, x=x, y=y, z=z))
+#             end
+
+#             filtered = filtered[T]
+#         elseif filter isa String
+#             filtered = [ i for i in filtered if ips[i].tag==filter ]
+#         end
+#     end
+
+#     if invert
+#         filtered = setdiff(1:length(ips), filtered)
+#     end
+
+#     return ips[filtered]
+# end
 
 
 # # Index operator for a ip collection using expression

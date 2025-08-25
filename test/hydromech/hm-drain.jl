@@ -1,9 +1,9 @@
-using Amaru
+using Serendip
 
 # Mesh generation
-bl  = Block( [0 0; 2.0 2.0], nx=2, ny=2, cellshape=QUAD8, tag="solids")
-bl1 = BlockInset( [1.5 2.0; 1.5 1.5], curvetype="polyline", tag="drains", cellshape=LIN2, jointtag="joints") 
-bl2 = BlockInset( [1.5 1.4; 0.001 0.001], curvetype="polyline", tag="drains", cellshape=LIN2, jointtag="joints")
+bl  = Block( [0 0; 2.0 2.0], nx=2, ny=2, shape=QUAD8, tag="solids")
+bl1 = BlockInset( [1.5 2.0; 1.5 1.5], curvetype="polyline", tag="drains", shape=LIN2, jointtag="joints") 
+bl2 = BlockInset( [1.5 1.4; 0.001 0.001], curvetype="polyline", tag="drains", shape=LIN2, jointtag="joints")
 bls = [bl, bl1, bl2]
 
 mesh = Mesh(bls)

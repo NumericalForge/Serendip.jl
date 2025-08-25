@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 
 # Mesh generation
 blocks = [
@@ -9,7 +9,7 @@ msh = Mesh(blocks)
 
 # Finite element modeling
 materials = [
-             "solids" => MechSolid => LinearElastic => (E=36e6, nu=0.2, rho=24.0),
+             "solids" => MechBulk => LinearElastic => (E=36e6, nu=0.2, rho=24.0),
             ]
 
 # Finite element model

@@ -1,8 +1,8 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
 """
-    $(SIGNATURES)
+    move!
 
 Moves a `block` position by updating its coordinates according
 to `dx`, `dy` and `dz`.
@@ -45,11 +45,6 @@ function move!(block::AbstractBlock; dx=0.0, dy=0.0, dz=0.0)
 end
 
 
-"""
-    $(SIGNATURES)
-
-Moves each `Block` in the array `blocks` according to `dx`, `dy` and `dz`.
-"""
 function move!(blocks::AbstractArray; dx=0.0, dy=0.0, dz=0.0)
     move!.(blocks, dx=dx, dy=dy, dz=dz)
     return blocks
@@ -57,10 +52,10 @@ end
 
 
 """
-    $(SIGNATURES)
+    scale!
 
 Scales a `block` from the point `base` using the given `factor`.
-If `axis` is provided, the scaling is performent only in the 
+If `axis` is provided, the scaling is performent only in the
 `axis` direction.
 
 # Examples
@@ -68,7 +63,7 @@ If `axis` is provided, the scaling is performent only in the
 ```julia
 julia> block = Block([ 0 0; 1 1 ], nx=2, ny=2);
 
-julia> getcoords(block)
+julia> get_coords(block)
 4×3 Matrix{Float64}:
  0.0  0.0  0.0
  1.0  0.0  0.0
@@ -77,7 +72,7 @@ julia> getcoords(block)
 
 julia> scale!(block, factor=0.5, base=[ 0, 0 ], axis=[ 1, 0 ]);
 
-julia> getcoords(block)
+julia> get_coords(block)
 4×3 Matrix{Float64}:
  0.0  0.0  0.0
  0.5  0.0  0.0
@@ -86,7 +81,7 @@ julia> getcoords(block)
 ```
 """
 function scale!(block::AbstractBlock; factor=1.0, base=[0,0,0], axis=nothing)
-    coords = getcoords(block)
+    coords = get_coords(block)
     base = Vec3(base)
 
     if axis===nothing
@@ -105,13 +100,7 @@ function scale!(block::AbstractBlock; factor=1.0, base=[0,0,0], axis=nothing)
     return block
 end
 
-"""
-    $(SIGNATURES)
 
-Scales each `Block` in the array `blocks` according to `factor`, `base`.
-If `axis` is provided, the scaling is performent only in the `axis` direction.
-```
-"""
 function scale!(blocks::Array{<:AbstractBlock,1}; factor=1.0, base=[0.0,0,0], axis=nothing)
     for bl in blocks
         scale!(bl, factor=factor, base=base, axis=axis)
@@ -121,9 +110,9 @@ end
 
 
 """
-    $(TYPEDSIGNATURES)
+    mirror
 
-Creates a new Block by mirroring `block` according to a plane defined by 
+Creates a new Block by mirroring `block` according to a plane defined by
 a normal `axis` and `base` point.
 
 # Examples
@@ -162,7 +151,7 @@ function mirror(block::AbstractBlock;  axis=[0.0, 0, 1], base=[0.0, 0, 0] )
         dist = dot(L, axis) # dist = n^.(xi - xp)
 
         X .= node.coord .- (2*dist).*axis .+ 0.0 # xi = xi - 2*d*n^
-        node.coord .= round.(X, digits=digs) 
+        node.coord .= round.(X, digits=digs)
     end
 
     #! Inversion is required to generate valid cells (det>0)
@@ -192,7 +181,7 @@ function mirror(mesh::Mesh; axis=[0.0, 0, 1], base=[0.0, 0, 0])
         dist = dot(L, axis) # dist = n^.(xi - xp)
 
         X .= node.coord .- (2*dist).*axis .+ 0.0 # xi = xi - 2*d*n^
-        node.coord .= round.(X, digits=8) 
+        node.coord .= round.(X, digits=8)
     end
 
     for elem in mesh.elems
@@ -205,7 +194,7 @@ end
 
 
 """
-    $(SIGNATURES)
+    array(block::AbstractBlock; nx=1, ny=1, nz=1, dx=0.0, dy=0.0, dz=0.0)
 
 Creates a rectangular array of blocks of size `nx`×`ny`×`nz`
 using copies of `block` spaced at `dx`, `dy` and `dz`.
@@ -239,7 +228,7 @@ end
 
 
 """
-    $(TYPEDSIGNATURES)
+    rotate!
 
 Rotates `block` an `angle` (default 90 degrees) around an `axis` that passes by a `base` point.
 
@@ -248,7 +237,7 @@ Rotates `block` an `angle` (default 90 degrees) around an `axis` that passes by 
 ```
 julia> block = Block([ 0 0; 1 1 ], nx=2, ny=2);
 
-julia> getcoords(block)
+julia> get_coords(block)
 4×3 Matrix{Float64}:
  0.0  0.0  0.0
  1.0  0.0  0.0
@@ -257,7 +246,7 @@ julia> getcoords(block)
 
 julia> rotate!(block, base=[ 0, 0, 0 ], axis=[ 0, 0, 1], angle=45);
 
-julia> getcoords(block)
+julia> get_coords(block)
 4×3 Matrix{Float64}:
  0.0       0.0       0.0
  0.707107  0.707107  0.0
@@ -277,7 +266,7 @@ function LinearAlgebra.rotate!(bl::AbstractBlock; base=[0.0,0,0], axis=[0.0,0,1]
     local X
     for node in bl.points
         X = base + R*(node.coord-base)*conj(R)
-        node.coord = round.(X, digits=digs) 
+        node.coord = round.(X, digits=digs)
     end
 
     # isinverted(bl) && flip!(bl)
@@ -323,7 +312,7 @@ function LinearAlgebra.rotate!(bl::AbstractBlock; base=[0.0,0,0], axis=[0.0,0,1]
     #     R = Ryi*Rz*Ry
     # end
 
-    # coords =getcoords(bl.points)
+    # coords =get_coords(bl.points)
 
     # # equation: p2 = base + R*(p-base)
     # coords = ( base .+ R*(coords' .- base) )'
@@ -333,13 +322,7 @@ function LinearAlgebra.rotate!(bl::AbstractBlock; base=[0.0,0,0], axis=[0.0,0,1]
     # return bl
 end
 
-"""
-    $(SIGNATURES)
 
-    Rotates `blocks` an `angle` (default 90 degrees) around an `axis` 
-    that passes by a `base` point. The elements in `blocks` can be `Block`
-    objects or even lists of `Block` objects.
-"""
 function LinearAlgebra.rotate!(blocks::AbstractArray; base=[0.0,0,0], axis=[0.0,0,1], angle=90.0 )
     rotate!.(blocks, base=base, axis=axis, angle=angle)
     return blocks
@@ -351,10 +334,10 @@ end
 
 
 """
-    $(SIGNATURES)
+    polar
 
     Creates a `polar` array using copies of `block` by rotating it
-    around `axis` along an `angle` domain. `n` representes 
+    around `axis` along an `angle` domain. `n` representes
     the number of cells in the polar direction.
 
     # Examples
@@ -381,12 +364,12 @@ end
 
 
 """
-    $(SIGNATURES)
+    polar
 
     Creates a `polar` array from `blocks` by rotating it
-    around `axis` along an `angle` domain. `n` representes 
+    around `axis` along an `angle` domain. `n` representes
     the number of cells in the polar direction.
-    The elements in `blocks` can be `Block` objects or even lists of 
+    The elements in `blocks` can be `Block` objects or even lists of
     `Block` objects.
 """
 function polar(blocks::AbstractArray; base=[0.0,0,0], axis=[0.0,0,1], angle=360, n=2 )
@@ -545,7 +528,7 @@ end
 #         idxs = [dirs; setdiff([1,2,3], dirs)]
 #         mesh.node_data["U"] = mesh.node_data["U"][:, idxs]
 #     end
-    
+
 #     return mesh
 # end
 
@@ -561,25 +544,25 @@ function warp(mesh::Mesh; scale=1.0)
     end
 
     for (i,node) in enumerate(newmesh.nodes)
-        node.coord = node.coord + scale*U[i,:]  
+        node.coord = node.coord + scale*U[i,:]
     end
     return newmesh
 end
 
 
 function isinverted(elem::AbstractCell)
-    elem.shape.family==BULKCELL || return false
+    elem.role==:bulk || return false
 
     if elem.shape.ndim==2
-        coords = getcoords(elem)
+        coords = get_coords(elem)
         #dx, dy, dz = std(coords, dims=1)
         dz = mean(abs, coords[:,3])
         tol = 1e-8
         dz>tol && return false
 
-        if elem.shape.basic_shape == TRI3
+        if elem.shape.base_shape == TRI3
             nidx = [1,2,3]
-        elseif elem.shape.basic_shape == QUAD4
+        elseif elem.shape.base_shape == QUAD4
             nidx = [1,2,4]
         else
             error("isinverted: Cell shape $(elem.shape.name) is not supported")
@@ -590,9 +573,9 @@ function isinverted(elem::AbstractCell)
         V2 = X3-X1
         V3 = Vec3(0,0,1)
     elseif elem.shape.ndim==3
-        if elem.shape.basic_shape in (TET4,WED6)
+        if elem.shape.base_shape in (TET4,WED6)
             nidx = [1,2,3,4]
-        elseif elem.shape.basic_shape in (PYR5,HEX8)
+        elseif elem.shape.base_shape in (PYR5,HEX8)
             nidx = [1,2,4,5]
         else
             error("isinverted: Cell shape $(elem.shape.name) is not supported")
@@ -611,7 +594,7 @@ end
 
 
 function flip!(elem::AbstractCell)
-    elem.shape.family==LINECELL && return elem
+    elem.role==:line && return elem
 
     if elem.shape==TRI3
         nidx = [1,3,2]

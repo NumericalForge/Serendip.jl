@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 
 fc = -30e3
 ft = 3e3
@@ -23,9 +23,9 @@ Y = fc_fun.(X)
 
 
 
-series = [ 
-    LineSeries(X, -Y),
+series = [
+    DataSeries(X, -Y),
 ]
 
-addseries!(chart, series)
+add_series(chart, series)
 save(chart, "fun.pdf")

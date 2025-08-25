@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 # Distributed natural boundary conditions for faces and edges of bulk elements
 function acoustic_mech_bc(elem::Element, facet::Cell, t::Float64, key::Symbol, val::Union{Real,Symbol,Expr})
@@ -16,7 +16,7 @@ function acoustic_mech_bc(elem::Element, facet::Cell, t::Float64, key::Symbol, v
     nnodes = length(nodes)
 
     # Calculate the facet coordinates matrix
-    C = getcoords(nodes, ndim)
+    C = get_coords(nodes, ndim)
 
     # Calculate the nodal values
     F     = zeros(nnodes)
@@ -34,7 +34,7 @@ function acoustic_mech_bc(elem::Element, facet::Cell, t::Float64, key::Symbol, v
         if ndim==2
             x, y = X
             vip = evaluate(val, t=t, x=x, y=y)
-            if elem.ctx.stressmodel==:axisymmetric
+            if elem.ctx.stress_state==:axisymmetric
                 th = 2*pi*X[1]
             end
         else

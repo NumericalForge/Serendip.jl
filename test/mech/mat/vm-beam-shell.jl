@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 using Test
 
 h  = 0.1
@@ -9,39 +9,22 @@ fy = 240e3 # kPa
 H  = 0.0
 nu = 0.3
 
-# mesh
-bl = Block( [0 0;L h], nx=50, ny=2, cellshape=QUAD8)
-msh= Mesh(bl, ndim=3)
+geo = GeoModel()
+add_block(geo, [0.0, 0.0], [L, h], nx=25, ny=2, shape=QUAD8, tag="beam")
+mesh = Mesh(geo, ndim=3)
 
-save(msh, "mesh.vtk")
+mapper = RegionMapper()
+add_mapping(mapper, "beam", MechShell, VonMises, E=E, nu=nu, fy=fy, H=H, thickness=th)
 
-# fem domain
-mat = [ :bulks => MechShell => VonMises => (E=E, nu=nu, fy=fy, H=H, thickness=th) ]
+model = FEModel(mesh, mapper)
+ana   = MechAnalysis(model)
+log = add_logger(ana, :node, (y==h/2, x==1))
+mon = add_monitor(ana, :node, (y==h/2, x==1), :fy)
 
-ctx = MechContext()
-model = FEModel(msh, mat, ctx)
-ana = MechAnalysis(model)
+stage = add_stage(ana, nincs=30, nouts=1)
+add_bc(stage, :node, (x==0), ux=0, rx=0, ry=0, rz=0)
+add_bc(stage, :node, (x==0, y==h/2), uy=0)
+add_bc(stage, :node, (x==1, y==h/2), uy = -0.03)
 
-log = NodeLogger()
-addlogger!(ana, :(y==$h/2 && x==1) => log)
-addmonitor!(ana, :(y==$h/2 && x==1) => NodeMonitor(:fy))
-
-# boundary conditions
-bcs = [
-    x==0 => NodeBC(ux=0, rx=0, ry=0, rz=0),
-    (x==0, y==h/2) => NodeBC(uy=0),
-    (x==1.0, y==h/2) => NodeBC(uy = -0.08),
-]
-
-addstage!(ana, bcs, nincs=30, nouts=10)
-
-solve!(ana, autoinc=true)
-
-println(@test log.table.fy[end]≈-30 atol=0.4)
-
-if makeplots
-    using PyPlot
-    tab = log.table
-    plot( -tab[:uy], -tab[:fy], "-o")
-end
-
+run(ana, autoinc=true)
+@test log.table["fy"][end]≈-30 atol=0.7

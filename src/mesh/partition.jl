@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
 mutable struct ElemPartition
@@ -58,7 +58,7 @@ function build_bins(cells::Array{<:AbstractCell,1}, cellpartition::ElemPartition
     # Get max cell lengths
     max_l = 0.0
     for cell in cells
-        cell.shape.family==BULKCELL || continue
+        cell.role==:bulk || continue
         bbox = bounding_box(cell)
         l    = maximum(bbox[2,:] - bbox[1,:])
         if l>max_l; max_l = l end
@@ -100,7 +100,7 @@ function build_bins(cells::Array{<:AbstractCell,1}, cellpartition::ElemPartition
 end
 
 # Find the cell that contains a given point
-function find_elem(X::AbstractArray{Float64,1}, cells::Array{<:AbstractCell,1}, cellpartition::ElemPartition, tol::Float64=1e-7; exclude::Array{<:AbstractCell,1}=AbstractCell[])
+function find_elem(X::AbstractArray{Float64,1}, cells::Array{<:AbstractCell,1}, cellpartition::ElemPartition; tol::Float64=1e-7, exclude::Array{<:AbstractCell,1}=AbstractCell[])
     X = vcat(X, 0)[1:3]
     # Node coordinates
     x, y, z = X
@@ -126,8 +126,8 @@ function find_elem(X::AbstractArray{Float64,1}, cells::Array{<:AbstractCell,1}, 
         # Search cell in bin
         bin = cellpartition.partition[ix, iy, iz]
         for cell in bin
-            coords =getcoords(cell)
-            if is_inside(cell.shape, coords, X, tol) && !(cell in exclude)
+            C = get_coords(cell)
+            if is_inside(cell.shape, C, X; tol=tol) && !(cell in exclude)
                 return cell
             end
         end

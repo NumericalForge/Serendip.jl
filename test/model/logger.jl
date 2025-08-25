@@ -1,37 +1,32 @@
-using Amaru
+using Serendip
 using Test
 
-bl = Block( [0 0 0; 1 1 1], nx=2, ny=2, nz=2, cellshape=HEX8, tag="solids")
-mesh = Mesh(bl)
+geo = GeoModel()
+add_block(geo, [0,0,0], [1,1,1], nx=2, ny=2, nz=2, tag="solids")
+mesh = Mesh(geo)
 
-mats = [ "solids" => MechSolid => LinearElastic => (E=100.0, nu=0.2) ]
+mapper = RegionMapper()
+add_mapping(mapper, "solids", MechBulk, LinearElastic, E=100.0, nu=0.2)
 
-ctx = MechContext()
-model = FEModel(mesh, mats, ctx)
+model = FEModel(mesh, mapper)
 ana = MechAnalysis(model)
 
-# Loggers
-loggers = [
-    (x==1, y==1, z==1) => NodeLogger("node.table")
-    (x==1, y==0) => NodeLogger()
-    (x==1, y==1) => NodeGroupLogger("nodes.book")
+add_logger(ana, :node, (x==1, y==1, z==1), "node.table")
+add_logger(ana, :node, (x==1, y==0))
+add_logger(ana, :nodegroup, (x==1, y==1), "nodes.book")
 
-    z==1 => FaceLogger("face.table")
-    z==1 => EdgeLogger("edge.table")
+# add_logger(ana, :face, z==1, "face.table")
+# add_logger(ana, :edge, z==1, "edge.table")
+add_logger(ana, :ip, (x>0.5, y>0.5, z>0.5), "ip.table")
 
-    (x>0.5, y>0.5, z>0.5) => IpLogger("ip.table")
-    (x>0.5, y>0.5) => IpGroupLogger("ips.book")
-    [0.5,0.5,0.0] => IpLogger()
-    [0.5,0.5,0.0] => PointLogger("point.table")
-    [0.5 0.5 0.0; 1 1 0] => SegmentLogger("segment.book")
-]
+add_logger(ana, :ipgroup, (x>0.5, y>0.5), "ips.book")
+add_logger(ana, :ip, [0.5,0.5,0.0])
 
-setloggers!(ana, loggers)
+# add_logger(ana, :point, [0.5,0.5,0.0], "point.table")
+# add_logger(ana, :segment, [0.5 0.5 0; 1 1 0], "segment.book")
 
-bcs = [
-       z==0 => NodeBC(ux=0, uy=0, uz=0 ),
-       z==1 => SurfaceBC(tz=-10.0),
-      ]
-addstage!(ana, bcs, nincs=4, nouts=4)
+stage = add_stage(ana, nincs=4, nouts=4)
+add_bc(stage, :node, z==0, ux=0, uy=0, uz=0 )
+add_bc(stage, :face, z==1, tz=-10.0)
 
-@test solve!(ana).success
+@test run(ana).success

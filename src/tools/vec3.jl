@@ -88,7 +88,7 @@ end
 #macro commutative(expr)
     #expr2 = deepcopy(expr)
     #fargs = expr2.args[1].args
-    #fargs[2], fargs[3] = fargs[3], fargs[2] 
+    #fargs[2], fargs[3] = fargs[3], fargs[2]
     #return quote
         #$(esc(expr))
         #$(esc(expr2))

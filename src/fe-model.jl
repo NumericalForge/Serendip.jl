@@ -1,18 +1,10 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-"""
-    FEModel
-
-A type that represents a finite element model.
-
-# Fields
-$(FIELDS)
-"""
 mutable struct FEModel<:AbstractDomain
-    nodes::Array{Node,1}
-    elems::Array{Element,1}
-    faces::Array{CellFace,1}
-    edges::Array{CellEdge,1}
+    nodes::Vector{Node}
+    elems::Vector{Element}
+    faces::Vector{CellFace}
+    edges::Vector{CellEdge}
     thickness::Float64
     ndofs   ::Integer
     ctx     ::Context
@@ -31,7 +23,7 @@ mutable struct FEModel<:AbstractDomain
         this.elems = []
         this.faces = []
         this.edges = []
-        
+
         this.thickness = 1.0
         this.ndofs   = 0
 
@@ -42,35 +34,15 @@ mutable struct FEModel<:AbstractDomain
     end
 end
 
-# const FEModel = FEModel
+
+typeofargs(f) = [ ((t for t in fieldtypes(m.sig)[2:end])...,) for m in methods(f) ]
 
 
-"""
-    FEModel(mesh, mats, options...)
-
-Uses a mesh and a list of meterial especifications to construct a finite element `FEModel`.
-
-# Arguments
-
-`mesh` : A finite element mesh
-
-`mats` : Material definitions given as an array of pairs ( tag or location => constitutive model instance )
-
-# Keyword arguments
-
-`stressmodel`
-`thickness`
-`quiet = false` : If true, provides information of the model construction
-
-"""
 function FEModel(
-    mesh    :: Mesh,
-    matbinds:: Vector{<:Pair},
-    ctx :: Context;
-    thickness :: Real = 1.0,
-    quiet   :: Bool = false,
-    # outdir  :: String=".",
-    # outkey  :: String="out"
+    mesh::Mesh,
+    mapper::RegionMapper,
+    ctx::Context = Context();
+    quiet::Bool  = false,
 )
 
     ndim = mesh.ctx.ndim
@@ -78,15 +50,9 @@ function FEModel(
 
     # FEModel and environment data
     model  = FEModel()
-    model.thickness = thickness
+    model.thickness = ctx.thickness
     model.ctx = ctx
     ctx.ndim = ndim
-    # ctx.t = 0.0
-    # ctx.outdir = rstrip(outdir, ['/', '\\'])
-    # ctx.outkey = outkey
-
-    # check if outdir exists
-    # isdir(ctx.outdir) || mkdir(ctx.outdir)
 
     quiet || printstyled("FE model setup\n", bold=true, color=:cyan)
 
@@ -95,70 +61,81 @@ function FEModel(
 
     # Setting new elements
     ncells      = length(mesh.elems)
-    model.elems = Array{Element,1}(undef, ncells)
-    for matbind in matbinds
-        matbind isa Pair{<:Any, <:Pair{DataType, <:Pair{DataType, <:NamedTuple}}} || throw(AmaruException("FEModel: Assigments of element and material models should be specified as: filter => Element => Material => properties"))
-        
-        filter    = matbind.first
-        elem_type = matbind.second.first
-        mat_type  = matbind.second.second.first
-        args      = matbind.second.second.second
-        # Check if material is compatible with the element
-        comp_elem_types = [ argtps[2] for argtps in typeofargs(compat_state_type) if length(argtps)>1 && mat_type isa argtps[1] ]
+    model.elems = Vector{Element}(undef, ncells)
+    for mapping in mapper.mappings
+        selector = mapping.selector
+        eform  = mapping.eform
+        pmodel = mapping.pmodel
+        kwargs = mapping.params
 
-        if !any(isa.(elem_type, comp_elem_types))
-            comp_mat_types  = [ argtps[1].parameters[1] for argtps in typeofargs(compat_state_type) if length(argtps)>1 && typeof(argtps[1])!=UnionAll && argtps[2].parameters[1]==elem_type ]
-
-            message = "FEModel: Material model $(mat_type) is not compatible with Element $(elem_type) \n\
-            Compatible elements for material $(mat_type): $(join(comp_elem_types, ", ", " and ")) \n\
-            Compatible materials for element $(elem_type): $(join(comp_mat_types, ", ", " and "))"
-            message = replace(message, r"Amaru\." => "")
-            throw(AmaruException(message))
-        end
-
-
-        cells = mesh.elems[filter]
+        cells = select(mesh, :element, selector)
         if !(cells isa Array)
             cells = [ cells ]
         end
+
         if isempty(cells)
-            warn("FEModel: No elements found for expression $(repr(filter))")
+            warn("FEModel: No elements found for expression $(repr(selector))")
         end
 
-        mat   = mat_type(;args...)
-        if hasmethod(compat_elem_props, Tuple{Type{elem_type}})
-            props = compat_elem_props(elem_type)(;args...)
-        else
-            props = (;)
+        # Check if Physics model is compatible with the Element model
+        compatible_elem_models = [ argtps[2] for argtps in typeofargs(compat_state_type) if length(argtps)>1 && pmodel isa argtps[1] ]
+
+        if !any(isa.(eform, compatible_elem_models))
+            comp_phys_model  = [ argtps[1].parameters[1] for argtps in typeofargs(compat_state_type) if length(argtps)>1 && typeof(argtps[1])!=UnionAll && argtps[2].parameters[1]==eform ]
+
+            msg = "FEModel: Element formulation $(eform) is not compatible with Physics model $(pmodel) (selector: $(repr(selector)))\n\
+            Compatible element formulations for model $(pmodel): $(join(compatible_elem_models, ", ", " and ")) \n\
+            Compatible physics models for element formulation $(eform): $(join(comp_phys_model, ", ", " and "))"
+            msg = replace(msg, r"Serendip\." => "")
+            throw(SerendipException(msg))
         end
+
+        # material parameters and arguments
+        phys_params = Base.kwarg_decl( methods(pmodel)[1] )
+        elem_params = Base.kwarg_decl( methods(eform)[1] )
+
+        for key in keys(kwargs)
+            if !(key in phys_params) && !(key in elem_params)
+                warn("FEModel: Ignoring unknown parameter `$key` for `$eform` with `$pmodel`.")
+            end
+        end
+
+        phys_kwargs = NamedTuple(key => kwargs[key] for key in phys_params if haskey(kwargs, key))
+
+        phys_model  = pmodel(;phys_kwargs...)
+        elem_kwargs = NamedTuple(key => kwargs[key] for key in elem_params if haskey(kwargs, key))
+        elem_form   = eform(;elem_kwargs...)
 
         for cell in cells
+
+            elem = Element{eform}()
+
             if cell.embedded
-                elem_t = embedded_type(elem_type)
-            else
-                elem_t = elem_type
+                emb_form = embedded_formulation(eform)
+                elem_form = emb_form(;elem_kwargs...)
+                elem = Element{emb_form}()
             end
 
-            if compat_shape_family(elem_t) != cell.shape.family
-                error("FEModel: Material model $(typeof(mat)) cannot be used with elements for expr. $(repr(filter)) with shape $(cell.shape.name)\n")
+            # @show eform
+            if compat_role(eform) != cell.role
+                error("FEModel: Element formulation $(eform) is not compatible with elements type $(repr(cell.role)) (selector: $(repr(selector)), shape: $(cell.shape.name))\n")
             end
 
-            elem = elem_t()
-            
             conn = [ p.id for p in cell.nodes ]
 
-            elem.id     = cell.id
-            elem.ctx    = ctx
-            elem.shape  = cell.shape
-            elem.tag    = cell.tag
-            elem.nodes  = model.nodes[conn]
-            elem.mat    = mat
-            elem.active = true
-            elem.ips    = [] # jet to be set
-            elem.linked_elems = [] # jet to be set
-            props!=(;) && (elem.props=props)
+            elem.id        = cell.id
+            elem.shape     = cell.shape
+            elem.role      = cell.role
+            elem.tag       = cell.tag
+            elem.nodes     = model.nodes[conn]
+            elem.pmodel    = phys_model
+            elem.eform     = elem_form
+            elem.active    = true
+            elem.ips       = [] # jet to be set
+            elem.couplings = [] # jet to be set
+            elem.ctx       = ctx
 
-            model.elems[cell.id] = elem 
+            model.elems[cell.id] = elem
         end
     end
 
@@ -175,8 +152,8 @@ function FEModel(
 
     # Setting linked elements
     for cell in mesh.elems
-        for lcell in cell.linked_elems
-            push!(model.elems[cell.id].linked_elems, model.elems[lcell.id])
+        for lcell in cell.couplings
+            push!(model.elems[cell.id].couplings, model.elems[lcell.id])
         end
     end
 
@@ -191,7 +168,7 @@ function FEModel(
     model.faces = CellFace[]
     for (i,cell) in enumerate(mesh.faces)
         conn = [ p.id for p in cell.nodes ]
-        face = CellFace(cell.shape, model.nodes[conn], tag=cell.tag)
+        face = CellFace(cell.shape, cell.role, model.nodes[conn], tag=cell.tag)
         if cell.owner!==nothing
             face.owner = model.elems[cell.owner.id]
         else
@@ -205,7 +182,7 @@ function FEModel(
     model.edges = CellEdge[]
     for (i,cell) in enumerate(mesh.edges)
         conn = [ p.id for p in cell.nodes ]
-        edge = CellEdge(cell.shape, model.nodes[conn], tag=cell.tag)
+        edge = CellEdge(cell.shape, cell.role, model.nodes[conn], tag=cell.tag)
         if cell.owner!==nothing
             edge.owner = model.elems[cell.owner.id]
         end
@@ -217,7 +194,7 @@ function FEModel(
     ip_id = 0
     for elem in model.elems
         elem_config_dofs(elem)  # dofs
-        setquadrature!(elem)    # ips
+        set_quadrature(elem)    # ips
         for ip in elem.ips      # ip ids
             ip_id += 1
             ip.id = ip_id
@@ -230,7 +207,6 @@ function FEModel(
     end
 
     if !quiet
-        # print("  ", "$stressmodel model      \n")
         @printf "  %5d nodes\n" length(model.nodes)
         @printf "  %5d elements\n" length(model.elems)
     end
@@ -242,8 +218,7 @@ function FEModel(
             @printf "  %5d faces\n" length(model.faces)
             @printf "  %5d edges\n" length(model.edges)
         end
-        @printf "  %5d materials\n" length(matbinds)
-        # @printf "  %5d loggers\n" length(model.loggers)
+        @printf "  %5d materials\n" length(mapper.mappings)
     end
 
     # Setting data
@@ -269,14 +244,14 @@ function FEModel(elems::Array{<:Element,1})
     # Map for nodes
     nodemap = zeros(Int, maximum(node.id for node in nodes))
     for (i,node) in enumerate(nodes)
-        nodemap[node.id] = i 
+        nodemap[node.id] = i
         model.nodes[i].id = i
     end
 
     # Map for elements
     elemmap = zeros(Int, maximum(elem.id for elem in elems))
     for (i,elem) in enumerate(elems)
-        elemmap[elem.id] = i 
+        elemmap[elem.id] = i
     end
 
     # Get ndim
@@ -293,18 +268,18 @@ function FEModel(elems::Array{<:Element,1})
         elemnodes = nodes[nodeidxs]
         newelem = new_element(typeof(elem), elem.shape, elemnodes, elem.tag, model.ctx)
         newelem.id = i
-        newelem.mat = elem.mat
+        newelem.pmodel = elem.pmodel
         newelem.props = elem.props
         push!(model.elems, newelem)
     end
-    
+
     # Setting linked elements
     missing_linked = false
     for (i,elem) in enumerate(elems)
-        for lelem in elem.linked_elems
+        for lelem in elem.couplings
             idx = elemmap[lelem.id]
             idx==0 && (missing_linked=true; continue)
-            push!(model.elems[i].linked_elems, model.elems[idx])
+            push!(model.elems[i].couplings, model.elems[idx])
         end
     end
     missing_linked && error("FEModel: Missing linked elements while generating a model from a list of elements.")
@@ -312,7 +287,7 @@ function FEModel(elems::Array{<:Element,1})
     # Setting quadrature
     ip_id = 0
     for (newelem, elem) in zip(model.elems, elems)
-        setquadrature!(newelem, length(elem.ips))   # ips
+        set_quadrature(newelem, length(elem.ips))   # ips
         for ip in newelem.ips      # ip ids
             ip_id += 1
             ip.id = ip_id
@@ -329,7 +304,7 @@ function FEModel(elems::Array{<:Element,1})
 
     # Setting faces and edges
     model.faces = get_outer_facets(model.elems)
-    model.edges = getedges(model.faces)
+    model.edges = get_edges(model.faces)
 
     # Setting data
     update_output_data!(model)
@@ -532,8 +507,8 @@ function nodal_patch_recovery(model::FEModel)
     patches     = [ Element[] for i in 1:nnodes ] # internal patches
     bry_patches = [ Element[] for i in 1:nnodes ] # boundary patches
     for elem in model.elems
-        elem.shape.family != BULKCELL && continue
-        for node in elem.nodes[1:elem.shape.basic_shape.npoints] # only at corners
+        elem.role != :bulk && continue
+        for node in elem.nodes[1:elem.shape.base_shape.npoints] # only at corners
             if at_bound[node.id]
                 push!(bry_patches[node.id], elem)
             else
@@ -581,8 +556,8 @@ function nodal_patch_recovery(model::FEModel)
     all_ips_vals   = Array{Array{OrderedDict{Symbol,Float64}},1}()
     all_fields_set = OrderedSet{Symbol}()
     for elem in model.elems
-        if elem.shape.family==BULKCELL
-            ips_vals = [ ip_state_vals(elem.mat, ip.state) for ip in elem.ips ]
+        if elem.role==:bulk
+            ips_vals = [ state_values(elem.pmodel, ip.state) for ip in elem.ips ]
             push!(all_ips_vals, ips_vals)
             union!(all_fields_set, keys(ips_vals[1]))
 
@@ -613,7 +588,7 @@ function nodal_patch_recovery(model::FEModel)
 
             last_subpatch  = [] # elements of a subpatch for a particular field
             invM = Array{Float64,2}(undef,0,0)
-            
+
             local N
             subpatch_ips = Ip[]
             subpatch_nodes = Node[]
@@ -705,7 +680,7 @@ function nodal_local_recovery(model::FEModel)
     rec_elements   = Array{Element, 1}()
 
     for elem in model.elems
-        elem.shape.family == BULKCELL && continue
+        elem.role == :bulk && continue
         node_vals = elem_recover_nodal_values(elem)
         length(node_vals) == 0 && continue
 
@@ -745,4 +720,3 @@ function nodal_local_recovery(model::FEModel)
 end
 
 
-  

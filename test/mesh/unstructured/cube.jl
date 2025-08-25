@@ -1,4 +1,4 @@
-using Amaru, Test
+using Serendip, Test
 
 # 3D unstructured mesh
 geo = GeoModel()
@@ -27,7 +27,7 @@ addline!(geo, p1, p2)
 pull!(geo, geo.faces, axis=[0, 1, 0], length=1)
 
 # add a point to be embedded in top surface
-addpoint!(geo, [0.5, 0.5, 1], size=s) 
+addpoint!(geo, [0.5, 0.5, 1], size=s)
 
 # plot = GeometryPlot(geo); save(plot, "geo.pdf")
 
@@ -44,30 +44,30 @@ println(@test length(geo.faces) ==17)
 
 # # FE analysis
 # mats = [
-#     :bulks => MechSolid => LinearElastic => (E=1e2, nu=0.499)
+#     :bulks => MechBulk => LinearElastic => (E=1e2, nu=0.499)
 # ]
 
-# ctx = MechContext()
+# ctx = Context()
 # results = []
 # for mesh in [mesh1, mesh2]
 #     model = FEModel(mesh, mats, ctx)
 #     ana = MechAnalysis(model)
-    
+
 #     log = NodeLogger()
 #     addlogger!(ana, :(x==1 && y==1 && z==1) => log )
-    
+
 #     bcs = [
 #         :(z==0) => NodeBC(uz=0)
 #         :(x==0 && y==0 && z==0) => NodeBC(ux=0, uy=0)
 #         :(z==1) => SurfaceBC(tz=-1)
 #     ]
-    
+
 #     addstage!(ana, bcs)
 #     solve!(ana)
 
 #     push!(results, log.table.uz[end])
 
-# end    
+# end
 
 # plot = GeometryPlot(geo)
 # save(plot, "geo.pdf")

@@ -1,10 +1,10 @@
-abstract type Figure 
+abstract type Figure
     # width::Float64
     # height::Float64
 end
 
 abstract type FigureComponent end
-abstract type DataSeries end
+# abstract type DataSeries end
 
 const _available_formats = [
     ".pdf",
@@ -30,11 +30,12 @@ function save(figure::Figure, files::String...)
             surf = CairoImageSurface(width, height, Cairo.FORMAT_ARGB32)
         else
             formats = join(_available_formats, ", ", " and ")
-            throw(AmaruException("Cannot save image to format $fmt. Available formats are: $formats"))
+            throw(SerendipException("Cannot save image to format $fmt. Available formats are: $formats"))
         end
 
-        ctx = CairoContext(surf)  
+        ctx = CairoContext(surf)
         set_antialias(ctx, Cairo.ANTIALIAS_NONE) # ANTIALIAS_DEFAULT, ANTIALIAS_NONE, ANTIALIAS_GRAY, ANTIALIAS_SUBPIXEL
+        # set_operator(ctx, Cairo.OPERATOR_SOURCE) # makes to look rasterized
 
         if fmt==".png"
             set_source_rgb(ctx, 1.0, 1.0, 1.0) # RGB values for white
@@ -42,7 +43,7 @@ function save(figure::Figure, files::String...)
         end
 
         draw!(figure, ctx)
-        
+
         if fmt==".png"
             write_to_png(surf, file)
         else

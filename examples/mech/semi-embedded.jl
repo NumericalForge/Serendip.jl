@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 
 # Mesh generation
 bl  = Block( [0 0 0; 0.5 6.0 0.5], nx=1, ny=10, nz=3, tag="solids")
@@ -20,12 +20,12 @@ nu = 0.3
 
 # FEM analysis
 mats = [
-        "solids" => MechSolid => LinearElastic => (E=24e3, nu=0.25),
-        "bars"  => MechTruss => VonMises => (E=200e6, A=0.0001, fy=500e3),
-        "interface" => MechLSInterface => LinearLSInterface => (ks=1e9, kn=1e9, p=0.02),
+        "solids" => MechBulk => LinearElastic => (E=24e3, nu=0.25),
+        "bars"  => MechBar => VonMises => (E=200e6, A=0.0001, fy=500e3),
+        "interface" => MechBondSlip => LinearBondSlip => (ks=1e9, kn=1e9, p=0.02),
 ]
 
-ctx = MechContext()
+ctx = Context()
 model = FEModel(msh, mats, ctx)
 ana = MechAnalysis(model)
 
@@ -38,8 +38,8 @@ addstage!(ana, bcs, nincs=20)
 
 solve!(ana, autoinc=true)
 
-# mplot(model, "beam.pdf", 
-#     field="sa", 
+# mplot(model, "beam.pdf",
+#     field="sa",
 #     fieldmult=1e-3,
 #     axis=false,
 #     opacity=0.1,

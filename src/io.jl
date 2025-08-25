@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
 function save_xml(model::FEModel, filename::String)
@@ -25,9 +25,9 @@ function save_xml(model::FEModel, filename::String)
     xmats = XmlElement("Materials")
     mat_dict = OrderedDict{UInt, Material}()
     for elem in model.elems
-        hs = hash(elem.mat)
+        hs = hash(elem.pmodel)
         haskey(mat_dict, hs) && continue
-        mat_dict[hs] = elem.mat
+        mat_dict[hs] = elem.pmodel
     end
 
     mat_idx_dict = OrderedDict{UInt, Int}()
@@ -71,13 +71,13 @@ function save_xml(model::FEModel, filename::String)
                            "id"=>string(elem.id),
                            "shape"=>string(elem.shape.name),
                            "tag"=>string(elem.tag),
-                           "material"=>string(mat_idx_dict[hash(elem.mat)]),
+                           "material"=>string(mat_idx_dict[hash(elem.pmodel)]),
                            "active"=>string(elem.active),
                            "nodes"=>join((n.id for n in elem.nodes), ","),
-                           "linked_elems"=>join((e.id for e in elem.linked_elems), ","),
+                           "couplings"=>join((e.id for e in elem.couplings), ","),
                           )
         elemname = split(string(typeof(elem)), ".")[end]
-        xelem = XmlElement(elemname, attributes=atts) 
+        xelem = XmlElement(elemname, attributes=atts)
         for ip in elem.ips
             atts = OrderedDict(
                                "id"=>string(ip.id),
@@ -161,7 +161,7 @@ function save(domain::FEModel, filename::String; quiet=false)
     _, format = splitext(filename)
     format in formats || error("save: Cannot save FEModel to $filename. Available formats are $formats.")
 
-    if format==".xml"; 
+    if format==".xml";
         save_xml(domain, filename)
         quiet || printstyled( "  file $filename written \e[K \n", color=:cyan)
     else
@@ -209,7 +209,7 @@ end
 
 function FEModel(filename::String; quiet=false)
     suitable_formats = (".xml",)
-    
+
 
     quiet || printstyled("Loading FEModel: filename $filename\n", bold=true, color=:cyan)
 
@@ -253,7 +253,7 @@ function FEModel(filename::String; quiet=false)
             dof.vals = OrderedDict(keys .=> vals)
             push!(node.dofs, dof)
         end
-        
+
         push!(domain.nodes, node)
     end
 
@@ -267,22 +267,22 @@ function FEModel(filename::String; quiet=false)
         nodes = domain.nodes[nodesidx]
 
         elem = new_element(T, shape, nodes, "", domain.ctx)
-        setfields!(elem, xelem.attributes, exclude=(:shape, :material, :nodes, :linked_elems))
+        setfields!(elem, xelem.attributes, exclude=(:shape, :material, :nodes, :couplings))
 
         matidx = parse(Int,xelem.attributes["material"])
-        elem.mat = materials[matidx]
+        elem.pmodel = materials[matidx]
         nips = length(xelem.children)
-      
+
         push!(domain.elems, elem)
     end
 
     # Setting linked elements
     quiet || printstyled("  setting linked elements...\e[K\r", color=:cyan)
     for (i,xelem) in enumerate(xelems.children)
-        linked_str = xelem.attributes["linked_elems"]
+        linked_str = xelem.attributes["couplings"]
         linked_str == "" && continue
         linked_idx = parse.(Int, split(linked_str,","))
-        domain.elems[i].linked_elems = domain.elems[linked_idx]
+        domain.elems[i].couplings = domain.elems[linked_idx]
     end
 
     # Quadrature and initialization
@@ -291,22 +291,22 @@ function FEModel(filename::String; quiet=false)
         elem = domain.elems[i]
         nips = length(xelem.children)
 
-        setquadrature!(elem, nips)
+        set_quadrature(elem, nips)
         elem_init(elem)
 
         for (i,xip) in enumerate(xelem.children)
             ip = elem.ips[i]
             setfields!(ip, xip.attributes, exclude=(:keys, :vals))
-            keys = Symbol.(split(xip.attributes["keys"], ",")) 
+            keys = Symbol.(split(xip.attributes["keys"], ","))
             vals = split(xip.attributes["vals"], r",(?! )")
             setfields!(elem.ips[i].state, keys, vals)
         end
-        
+
         push!(domain.elems, elem)
     end
 
     domain.faces = get_outer_facets(domain.elems)
-    domain.edges = getedges(domain.faces)
+    domain.edges = get_edges(domain.faces)
 
     quiet || printstyled("  setting additional data...\e[K\r", color=:cyan)
 
@@ -360,7 +360,7 @@ function get_segment_data(model::FEModel, X1::Array{<:Real,1}, X2::Array{<:Real,
         X = X1 + Δ*(i-1)
         s = s1 + Δs*(i-1)
         cell = find_elem(X, model.elems, model._elempartition, 1e-7, Cell[])
-        coords = getcoords(cell)
+        coords = get_coords(cell)
         R = inverse_map(cell.shape, coords, X)
         N = cell.shape.func(R)
         map = [ p.id for p in cell.nodes ]

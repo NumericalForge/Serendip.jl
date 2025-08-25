@@ -1,4 +1,4 @@
-using Amaru
+using Serendip
 using Test
 
 # Mesh generation
@@ -6,50 +6,44 @@ b = 0.5
 h = 0.6
 ℓ = 4.0
 bl  = Block( [0 0 0; b ℓ h], nx=1, ny=25, nz=3, tag="solid")
-# bl1 = BlockInset( [0.2 0.2 0.2; 0.2 5.8 0.2], curvetype="polyline", embedded=true, tag="embedded")
-# bl2 = copy(bl1)
-# move!(bl2, dx=0.6)
-# bls = [ bl, bl1, bl2 ]
 
 # mesh = Mesh(bls)
 geo = GeoModel()
-addblock!(geo, bl)
+add_block(geo, [0,0,0], [b, ℓ, h]; nx=1, ny=25, nz=3, tag="solid")
 
-p1 = addpoint!(geo, 0.2, 0.1, 0.1)
-p2 = addpoint!(geo, 0.2, 3.6, 0.1)
-px = addpoint!(geo, 0.2, 3.6, 0.4)
-p3 = addpoint!(geo, 0.2, 3.9, 0.4)
-# addsubpath!(geo, :M, p1, :L, p2, embedded=true, tag="embedded")
-addsubpath!(geo, :M, p1, :L, p2, :A, px, p3, embedded=true, tag="embedded")
+p1 = add_point(geo, [0.2, 0.1, 0.1])
+p2 = add_point(geo, [0.2, 3.6, 0.1])
+pc = add_point(geo, [0.2, 3.6, 0.4])
+p3 = add_point(geo, [0.2, 3.9, 0.4])
+
+l1 = add_line(geo, p1, p2)
+arc = add_circle_arc(geo, p2, pc, p3)
+add_path(geo, [l1, arc]; embedded=true, tag="embedded", shape=LIN3)
 
 mesh = Mesh(geo)
 
-
 # FEM analysis
-mats = [
-        "solid" => MechSolid => LinearElastic => (E=1.e4, nu=0.25),
-        "embedded" => MechBar => VonMises => (E=1.e8, fy=500e3, A=0.005),
-        # "embedded" => MechBar => LinearElastic => (E=1.e8, A=0.005),
-       ]
+mapper = RegionMapper()
+add_mapping(mapper, "solid", MechBulk, LinearElastic, E=1.e4, nu=0.25)
+add_mapping(mapper, "embedded", MechBar, VonMises, E=1.e8, fy=500e3, A=0.005)
 
-ctx = MechContext()
-model = FEModel(mesh, mats, ctx)
+ctx = Context()
+model = FEModel(mesh, mapper, ctx)
+
 ana = MechAnalysis(model)
 
-bcs = [
-       (y==0, z==0) => NodeBC(ux=0, uy=0, uz=0),
-       (y==ℓ, z==0) => NodeBC(ux=0, uy=0, uz=0),
-       z==h => SurfaceBC(tz=-1000),
-      ]
-addstage!(ana, bcs, nincs=1)
+stage = add_stage(ana)
+add_bc(stage, :node, (y==0, z==0), ux=0, uy=0, uz=0)
+add_bc(stage, :node, (y==ℓ, z==0), ux=0, uy=0, uz=0)
+add_bc(stage, :face, (z==h), tz=-1000)
 
-solve!(ana, autoinc=true)
+run(ana, autoinc=true)
 
 save(model, "embedded.vtu")
 
-mplot = MeshPlot(model,
-    view_mode  = :wireframe,
-    elevation = 3,
-    azimut    = 5,
-)
-save(mplot, "embedded.pdf")
+# mplot = DomainPlot(model,
+#     view_mode  = :wireframe,
+#     field     = "σx´",
+#     azimut    = 5.0,
+# )
+# save(mplot, "embedded.pdf")

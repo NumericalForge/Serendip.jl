@@ -1,4 +1,4 @@
-# This file is part of Amaru package. See copyright license in https://github.com/NumSoftware/Amaru
+# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
 # Assemble the global stiffness matrix
@@ -155,10 +155,10 @@ function complete_uw_h(model::Model)
     H  = model.node_data["h"]
 
     for elem in model.elems
-        elem.shape.family==BULKCELL || continue
-        elem.shape==elem.shape.basic_shape && continue
+        elem.role==BULKCELL || continue
+        elem.shape==elem.shape.base_shape && continue
         npoints  = elem.shape.npoints
-        nbpoints = elem.shape.basic_shape.npoints
+        nbpoints = elem.shape.base_shape.npoints
         map = [ elem.nodes[i].id for i in 1:nbpoints ]
         Ue = Uw[map]
         He = H[map]
@@ -166,7 +166,7 @@ function complete_uw_h(model::Model)
         for i in nbpoints+1:npoints
             id = elem.nodes[i].id
             R = C[i,:]
-            N = elem.shape.basic_shape.func(R)
+            N = elem.shape.base_shape.func(R)
             Uw[id] = dot(N,Ue)
             H[id] = dot(N,He)
         end
@@ -262,7 +262,7 @@ function solve!(
         println("  from t=$(round(ctx.t,sigdigits=4)) to t=$(round(end_time,sigdigits=4))")
     end
 
-    verbosity>1 && println("  model type: ", ctx.stressmodel)
+    verbosity>1 && println("  model type: ", ctx.stress_state)
 
     save_outs = nouts>0
     if save_outs
@@ -281,13 +281,13 @@ function solve!(
     end
 
     # Get dofs organized according to boundary conditions
-    dofs, nu = configure_dofs!(model, bcs) # unknown dofs first
+    dofs, nu = configure_dofs(model, bcs) # unknown dofs first
     ndofs = length(dofs)
     umap  = 1:nu         # map for unknown displacements and pw
     pmap  = nu+1:ndofs   # map for prescribed displacements and pw
     model.ndofs = length(dofs)
     verbosity>0 && println("  unknown dofs: $nu")
-    
+
     # get elevation Z for all Dofs
     Z = zeros(ndofs)
     for node in model.nodes
@@ -524,9 +524,9 @@ function solve!(
     end
 
     if !save_outs
-	update_output_data!(model)
-	complete_uw_h(model)
-	update_composed_loggers!(model)
+    update_output_data!(model)
+    complete_uw_h(model)
+    update_composed_loggers!(model)
     end
 
     # time spent
