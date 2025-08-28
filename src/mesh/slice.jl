@@ -180,19 +180,19 @@ function makecells(nodes::Array{Node,1}; quadratic=false)
 
         # nodes = getpolygon(nodes)
     if nnodes==3
-        cell = Cell(TRI3, nodes)
+        cell = Cell(TRI3, :bulk, nodes)
         push!(cells, cell)
     elseif nnodes==4
-        cell = Cell(QUAD4, nodes)
+        cell = Cell(QUAD4, :bulk, nodes)
         push!(cells, cell)
     elseif nnodes==6
-        cell1 = Cell(QUAD4, nodes[1:4])
-        cell2 = Cell(QUAD4, nodes[[4,5,6,1]])
+        cell1 = Cell(QUAD4, :bulk, nodes[1:4])
+        cell2 = Cell(QUAD4, :bulk, nodes[[4,5,6,1]])
         push!(cells, cell1)
         push!(cells, cell2)
     elseif nnodes==5
-        cell1 = Cell(TRI3, nodes[1:3])
-        cell2 = Cell(QUAD4, nodes[[3,4,5,1]])
+        cell1 = Cell(TRI3, :bulk, nodes[1:3])
+        cell2 = Cell(QUAD4, :bulk, nodes[[3,4,5,1]])
         push!(cells, cell1)
         push!(cells, cell2)
     end
@@ -313,7 +313,7 @@ function slice(
         cell.role == :bulk || continue
 
         nodedict = Dict{UInt,Node}()
-        for edge in cell.edges
+        for edge in get_edges(cell)
             Xi = get(edge_node_d, hash(edge), nothing)
             Xi === nothing && continue
             Xi = int_nodes_d[hash(Xi)]
@@ -339,7 +339,8 @@ function slice(
     # non bulk elements
     d = dot(base, axis)
     l, m, n = axis
-    other_elems = mesh.elems[:($l*x + $m*y + $n*z == $d) ]
+    # other_elems = mesh.elems[:($l*x + $m*y + $n*z == $d) ]
+    other_elems = select(mesh, :element, :( $l*x + $m*y + $n*z == $d ) )
     new_nodes = [ new_nodes; get_nodes(other_elems) ]
 
     # Numberig nodes

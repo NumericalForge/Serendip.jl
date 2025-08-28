@@ -44,7 +44,7 @@ include("constitutive/asinh-yield-crack.jl")
 # Models for 1D joint elements
 include("constitutive/linear-bondslip.jl")
 include("constitutive/ceb-bondslip.jl")
-include("constitutive/expdecay-bondslip.jl")
+include("constitutive/power-exp-bondslip.jl")
 include("constitutive/cyclic-bondslip.jl")
 include("constitutive/linear-bondtip.jl")
 include("constitutive/linear-bearingtip.jl")

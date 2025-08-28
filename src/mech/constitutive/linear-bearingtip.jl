@@ -21,7 +21,7 @@ end
 # ]
 # @doc docstring(LinearBearingTip_params) LinearBearingTip
 
-mutable struct LinearBearingTip<:Material
+mutable struct LinearBearingTip<:Constitutive
     k::Float64
     fixed::Bool
 

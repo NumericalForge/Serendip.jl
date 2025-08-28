@@ -51,11 +51,9 @@ meshes = [ mesh1, mesh2 ]
 mats = [
     :bulks => MechBulk => LinearElastic => (E=1e2, nu=0.25)
 ]
-ctx = Context()
-
 results = []
 for mesh in [mesh1, mesh2]
-    model = FEModel(mesh, mats, ctx)
+    model = FEModel(mesh, mats)
     ana = MechAnalysis(model)
     log = NodeLogger()
     addlogger!(ana, :(x==0.5 && y==1) => log )

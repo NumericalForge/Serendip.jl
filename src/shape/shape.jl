@@ -121,8 +121,8 @@ function get_shape_from_vtk(vtk_type::VTKCellType, npoints::Int64, ndim::Int64, 
     end
 
     # Check for other cells
-    if     npoints==2   return JLINK2
-    elseif npoints==3   return JLINK3
+    if     npoints==2   return LIN2
+    elseif npoints==3   return LIN3
     elseif npoints==9   return TRI9
     elseif npoints==10  return TRI10
     end

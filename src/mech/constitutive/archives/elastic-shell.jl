@@ -18,7 +18,7 @@ mutable struct ElasticShellState<:IpState
     end
 end
 
-mutable struct LinearElastic<:Material
+mutable struct LinearElastic<:Constitutive
     E::Float64
     ν::Float64
     th::Float64

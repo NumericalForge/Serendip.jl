@@ -10,15 +10,9 @@ using Test
 geo = GeoModel()
 add_block(geo, [0, 0, 0], [1, 1, 1], nx=1, ny=1, nz=1, shape=HEX8)
 mesh = Mesh(geo, quiet=true)
-# block = Block( [0 0 0; 1 1 1], nx=1, ny=1, nz=1, shape=HEX8, tag="solid")
-# mesh = Mesh(block, quiet=true)
 
 # Model definition
 mapper = RegionModel(MechBulk, LinearElastic, E=1.0, nu=0.3)
-
-# materials = [
-    # "solid" => MechBulk => LinearElastic => (E=1.0, nu=0.3),
-# ]
 
 # Load cases
 
@@ -66,8 +60,7 @@ for (lc, bcs, dis) in zip(lc_list, bcs_list, dis_list)
 
     println("\nLoad case: $lc \n")
 
-    ctx = Context()
-    global model = FEModel(mesh, mapper, ctx)
+    global model = FEModel(mesh, mapper)
     ana = MechAnalysis(model)
     stage = add_stage(ana, nouts=1)
     for bc in bcs
@@ -81,7 +74,7 @@ for (lc, bcs, dis) in zip(lc_list, bcs_list, dis_list)
     D = get_values(model.nodes)[[:ux, :uy, :uz]]
     println(D)
 
-    @test dis ≈ D[:uz] atol=1e-5
+    println(@test dis ≈ D[:uz] atol=1e-5)
 
     println("Stress:")
     S = get_values(model.elems[1])[[:σxx, :σyy, :σzz, :σyz, :σxz, :σxy]]

@@ -33,8 +33,7 @@ mats = [
         # :linejoints => MechBondSlip => CebBondSlip => (taumax=12, taures=3, s1=0.001, s2=0.0011, s3=0.004, alpha=0.5, beta=0.5, ks=(12/0.001)*5, kn=5000, p=0.25)
        ]
 
-ctx = Context(stress_state=:plane_stress)
-model = FEModel(mesh, mats, ctx, thickness=0.1)
+model = FEModel(mesh, mats, stress_state=:plane_stress, ctx, thickness=0.1)
 tag!(model.elems.lines.nodes[x>=1], "outside")
 
 ana = MechAnalysis(model)

@@ -1,6 +1,6 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export Context, MechAnalysis
+export MechAnalysis
 
 """
     MechAnalysis(model::FEModel; outdir="", outkey="")
@@ -16,7 +16,6 @@ Create a static mechanical analysis for the given finite element model.
 - Initializes an `AnalysisData` instance with the given output settings.
 - If `model.ctx.stress_state == :auto` and `model.ctx.ndim == 2`, the stress state is set to `:plane_strain`.
 
-
 # Example
 ```julia
 model = FEModel(mapper) # mapper is a RegionMapper with defined mappings
@@ -28,7 +27,7 @@ mutable struct MechAnalysis<:Analysis
     model ::FEModel
     data::AnalysisData
 
-    function MechAnalysis(model::FEModel; outdir="", outkey="")
+    function MechAnalysis(model::FEModel; outdir="./output", outkey="out")
         name = "Mechanical analysis"
         data = AnalysisData(outdir=outdir, outkey=outkey)
         this = new(name, model, data)
@@ -129,7 +128,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     autoinc = solver_settings.autoinc
 
     model = ana.model
-    data = ana.data
+    data  = ana.data
     println(data.log, "Mechanical FE analysis: Stage $(stage.id)")
 
     solstatus = success()

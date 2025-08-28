@@ -37,7 +37,7 @@ Block
 ```
 
 """
-function move!(block::AbstractBlock; dx=0.0, dy=0.0, dz=0.0)
+function move!(block::Block; dx=0.0, dy=0.0, dz=0.0)
     for p in block.points
         p.coord = round.( p.coord .+ (dx, dy, dz), digits=8)
     end
@@ -80,7 +80,7 @@ julia> get_coords(block)
  0.0  0.0  0.0
 ```
 """
-function scale!(block::AbstractBlock; factor=1.0, base=[0,0,0], axis=nothing)
+function scale!(block::Block; factor=1.0, base=[0,0,0], axis=nothing)
     coords = get_coords(block)
     base = Vec3(base)
 
@@ -101,7 +101,7 @@ function scale!(block::AbstractBlock; factor=1.0, base=[0,0,0], axis=nothing)
 end
 
 
-function scale!(blocks::Array{<:AbstractBlock,1}; factor=1.0, base=[0.0,0,0], axis=nothing)
+function scale!(blocks::Vector{Block}; factor=1.0, base=[0.0,0,0], axis=nothing)
     for bl in blocks
         scale!(bl, factor=factor, base=base, axis=axis)
     end
@@ -137,7 +137,7 @@ Block
   tag: ""
 ```
 """
-function mirror(block::AbstractBlock;  axis=[0.0, 0, 1], base=[0.0, 0, 0] )
+function mirror(block::Block;  axis=[0.0, 0, 1], base=[0.0, 0, 0] )
     newblock = copy(block)
     axis = normalize(Vec3(axis))
     base = Vec3(base)
@@ -161,7 +161,7 @@ function mirror(block::AbstractBlock;  axis=[0.0, 0, 1], base=[0.0, 0, 0] )
 end
 
 
-function mirror(blocks::Array{<:AbstractBlock,1}; axis=[0.0, 0, 1], base=[0.0, 0, 0] )
+function mirror(blocks::Vector{Block}; axis=[0.0, 0, 1], base=[0.0, 0, 0] )
     return [ mirror(bl, axis=axis, base=base) for bl in blocks ]
 end
 
@@ -194,7 +194,7 @@ end
 
 
 """
-    array(block::AbstractBlock; nx=1, ny=1, nz=1, dx=0.0, dy=0.0, dz=0.0)
+    array(block::Block; nx=1, ny=1, nz=1, dx=0.0, dy=0.0, dz=0.0)
 
 Creates a rectangular array of blocks of size `nx`×`ny`×`nz`
 using copies of `block` spaced at `dx`, `dy` and `dz`.
@@ -211,7 +211,7 @@ julia> length(blocks)
 4
     ```
 """
-function array(block::AbstractBlock; nx=1, ny=1, nz=1, dx=0.0, dy=0.0, dz=0.0)
+function array(block::Block; nx=1, ny=1, nz=1, dx=0.0, dy=0.0, dz=0.0)
     blocks = [ block ]
     for k in 0:nz-1
         for j in 0:ny-1
@@ -254,7 +254,7 @@ julia> get_coords(block)
  0.0       0.707107  0.0
 ```
 """
-function LinearAlgebra.rotate!(bl::AbstractBlock; base=[0.0,0,0], axis=[0.0,0,1], angle=90.0 )
+function LinearAlgebra.rotate!(bl::Block; base=[0.0,0,0], axis=[0.0,0,1], angle=90.0 )
     # see also: https://lucidar.me/en/quaternions/quaternions-rotations/
 
     axis = normalize(Vec3(axis))
@@ -351,7 +351,7 @@ end
     4
     ```
 """
-function polar(block::AbstractBlock; base=[0.0,0,0], axis=[0.0,0,1], angle=360.0, n=2 )
+function polar(block::Block; base=[0.0,0,0], axis=[0.0,0,1], angle=360.0, n=2 )
     blocks = [ block ]
     angle = angle/n
     for i in 1:n-1
@@ -460,7 +460,7 @@ function LinearAlgebra.rotate!(mesh::Mesh; base=[0.0,0,0], axis=[0.0,0,1], angle
 end
 
 
-function changeaxes!(bl::AbstractBlock, order::String)
+function changeaxes!(bl::Block, order::String)
     @assert length(order)==3
     idxs = [ char-'w' for char in order ]
     for p in bl.points
@@ -468,7 +468,7 @@ function changeaxes!(bl::AbstractBlock, order::String)
     end
 end
 
-changeaxes!(bls::Array{<:AbstractBlock,1}, order::String) = (changeaxes!.(bls, order); nothing)
+changeaxes!(bls::Vector{Block}, order::String) = (changeaxes!.(bls, order); nothing)
 
 
 """

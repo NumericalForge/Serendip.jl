@@ -2,7 +2,7 @@
 
 export DamageConcrete
 
-mutable struct DamageConcrete<:Material
+mutable struct DamageConcrete<:Constitutive
     E0::Float64  # initial Young modulus
     ν::Float64
     ft::Float64

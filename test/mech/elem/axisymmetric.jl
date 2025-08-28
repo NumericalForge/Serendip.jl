@@ -12,8 +12,7 @@ for shape in (TRI3, TRI6, QUAD4, QUAD8)
 
     mapper = RegionModel(MechBulk, LinearElastic, E=100.0, nu=0.2)
 
-    ctx   = Context(stress_state=:axisymmetric)
-    model = FEModel(mesh, mapper, ctx)
+    model = FEModel(mesh, mapper, stress_state=:axisymmetric)
     ana   = MechAnalysis(model)
 
     stage = add_stage(ana)
@@ -32,8 +31,7 @@ for shape in (TRI3, TRI6, QUAD4, QUAD8)
 
     mesh = revolve(mesh, base=[0,0,0], axis=[0,1,0], n=12)
 
-    ctx   = Context()
-    model = FEModel(mesh, mapper, ctx)
+    model = FEModel(mesh, mapper)
     ana   = MechAnalysis(model)
 
     stage = add_stage(ana)

@@ -4,14 +4,13 @@ using Test
 bl  = Block( [0 0 0; 1. 1. 1.], nx=2, ny=2, nz=2, shape=HEX8, tag="solids")
 
 # mesh generation
-msh = Mesh(bl)
+mesh = Mesh(bl)
 
 mats = [
         "solids" => MechBulk => Mazars => (E=30000, nu=0.2, eps0=1.e-4, At=0.9, Bt=5000., Ac=1.0, Bc=1500.0)
        ]
 
-ctx = Context()
-model = FEModel(msh, mats, ctx)
+model = FEModel(mesh, mats)
 ana = MechAnalysis(model)
 
 tag!(model.elems.ips[1], "ip")

@@ -12,8 +12,7 @@ mats = [
     "fluido" => AcousticFluid => LinearAcousticFluid => (c=c,)
 ]
 
-ctx = AcousticContext()
-model = FEModel(mesh, mats, ctx, thickness=1.0)
+model = FEModel(mesh, mats, thickness=1.0)
 ana = AcousticMechAnalysis(model)
 
 addlogger!(ana, :(x==4 && y==0.5) => NodeLogger("node.dat") )

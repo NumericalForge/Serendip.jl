@@ -12,8 +12,7 @@ mats = [
     "fluido" => AcousticFluid => LinearAcousticFluid => (rho=1000.0, c=c)
 ]
 
-ctx = AcousticContext()
-model = FEModel(mesh, mats, ctx, thickness=1.0)
+model = FEModel(mesh, mats, thickness=1.0)
 ana = AcousticModalAnalysis(model)
 
 bcs = [

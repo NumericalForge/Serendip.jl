@@ -48,7 +48,7 @@ according to the CEB (Comité Euro-International du Béton) formulation.
 # References
 CEB-FIP Model Code recommendations for bond–slip laws in reinforced concrete.
 """
-mutable struct CebBondSlip<:Material
+mutable struct CebBondSlip<:Constitutive
     τmax:: Float64
     τres:: Float64
     s1  :: Float64

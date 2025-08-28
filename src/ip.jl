@@ -15,7 +15,7 @@ abstract type IpState
 end
 
 
-function init_state(::Material, ::IpState; args...)
+function init_state(::Constitutive, ::IpState; args...)
 end
 
 
@@ -58,7 +58,7 @@ end
 Creates an `Ip` object that represents an Integration Point in finite element analyses.
 `R` is a vector with the integration point local coordinates and `w` is the corresponding integration weight.
 """
-mutable struct Ip<:AbstractPoint
+mutable struct Ip
     R    ::Vec3
     w    ::Float64
     coord::Vec3
@@ -92,8 +92,9 @@ end
 
 function select(
     ips::Vector{Ip},
-    selectors::Union{Symbol, Symbolic, Expr, String, Vector{Float64}, NTuple{N, Symbolic} where N}...;
+    selectors::Union{Symbol, Symbolic, Expr, String, Vector{<:Real}, NTuple{N, Symbolic} where N}...;
     invert = false,
+    nearest = true,
     tag = ""
     )
 
@@ -122,13 +123,19 @@ function select(
             selected = [ i for i in selected if ips[i].tag==selector ]
         # elseif selector isa Vector{Int} # selector is a vector of indexes
             # selected = intersect(selected, selector)
-        elseif selector isa Array{Float64}
+        elseif selector isa Vector{<:Real}
             X = Vec3(selector)
-            T = Bool[]
-            for i in selected
-                push!(T, norm(ips[i].coord-X) < 1e-8)
+            if nearest
+                ip = nearest(ips[selected], X)
+                i = findfirst(isequal(ip), ips)
+                selected = [ i ]
+            else
+                R = Bool[]
+                for i in selected
+                    push!(R, norm(ips[i].coord-X) < 1e-8)
+                end
+                selected = selected[R]
             end
-            selected = selected[T]
         end
     end
 

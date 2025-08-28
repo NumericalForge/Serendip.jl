@@ -15,4 +15,4 @@ include("chart.jl")
 include("colorbar.jl")
 
 include("axis-widget.jl")
-include("mesh-plot.jl")
+include("domain-plot.jl")

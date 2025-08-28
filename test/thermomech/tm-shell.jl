@@ -33,8 +33,7 @@ th    = 0.1
 materials = ["shell"=> TMShell => TMCombined{ConstConductivity, LinearElastic} => (E=E, nu=nu, k=k, alpha=alpha, thickness=th, rho=rho, cv=cv) ]
 # materials = ["shell"=> TMShell => TMCombined{ConstConductivity, VonMises} => (E=E, nu=nu, k=k, alpha=alpha, thickness=th, rho=rho, cv=cv, H=0.0, fy=100000.0) ]
 
-ctx = ThermoContext(T0=0.0)
-model = FEModel(mesh, materials, ctx)
+model = FEModel(mesh, materials, T0=0.0)
 ana = ThermoMechAnalysis(model)
 addmonitor!(ana, :(x==0 && y==0 && z==$R) => NodeMonitor(:uz))
 addmonitor!(ana, :(x==0 && y==0 && z==$R) => NodeMonitor(:ut))

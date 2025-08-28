@@ -62,5 +62,3 @@ mutable struct Context
         return new(ndim, stress_state, transient, thickness, g, T0)
     end
 end
-
-Base.show(io::IO, obj::Context) = _show(io, obj, 2, "")

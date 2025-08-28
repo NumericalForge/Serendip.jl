@@ -27,7 +27,7 @@ mutable struct SeepJoint1D<:Hydromech
     nodes ::Array{Node,1}
     ips   ::Array{Ip,1}
     tag   ::String
-    mat::Material
+    mat::Constitutive
     props ::SeepJoint1DProps
     active::Bool
     couplings::Array{Element,1}

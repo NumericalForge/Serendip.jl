@@ -3,50 +3,19 @@
 export MechBeam
 
 
-# MechBeam_params = [
-#     FunInfo( :MechBeam, "A straight or curved 2D/3D beam element"),
-#     KwArgInfo( :thy, "y' thickness", cond=:(thy>0) ),
-#     KwArgInfo( :thz, "z' thickness", cond=:(thz>0.0) ),
-#     KwArgInfo( :A, "Section area",  cond=:(A>0.0)  ),
-#     KwArgInfo( :gamma, "Specific weight", 0, cond=:(gamma>=0.0) ),
-#     KwArgInfo( :rho, "Density", 0, cond=:(rho>=0.0)  ),
-#     # KwArgInfo( :alpha_s, "Shear correction coef.", 5/6, cond=:(alpha_s>0) ),
-#     ArgOpt( :A, (:thy, :thz) ),
-# ]
-# @doc docstring(MechBeam_params) MechBeam
-
-# struct MechBeamProps<:ElemProperties
-#     ρ::Float64
-#     γ::Float64
-#     # αs::Float64
-#     thy::Float64
-#     thz::Float64
-
-#     function MechBeamProps(; args...)
-#         args = checkargs(args, MechBeam_params)
-
-#         if haskey(args, :A)
-#             # thy = thz = √args.A # assuming circular section
-#             r = √(args.A/π)
-#             thy = thz = (3*pi)^0.25*r # assuming circular section
-#         else
-#             thy, thz = args.thy, args.thz
-#         end
-
-#         return new(args.rho, args.gamma, thy, thz)
-#     end
-# end
-
-
 mutable struct MechBeam<:MechFormulation
     thy::Float64
     thz::Float64
     ρ::Float64
     γ::Float64
 
-    function MechBeam(;rho=0.0, gamma=0.0, thy=0.0, thz=0.0)
+    function MechBeam(;rho=0.0, gamma=0.0, thy=0.0, thz=0.0, A=0)
         @check rho >= 0.0
         @check gamma >= 0.0
+        if A>0
+            r = √(A/π)
+            thy = thz = (3*pi)^0.25*r # assuming circular section
+        end
         @check thy > 0.0
         @check thz > 0.0
         return new(thy, thz, rho, gamma)
@@ -55,31 +24,7 @@ end
 
 
 compat_role(::Type{MechBeam}) = :line
-
-# mutable struct MechBeam<:MechFormulation
-#     id    ::Int
-#     shape ::CellShape
-#     nodes ::Array{Node,1}
-#     ips   ::Array{Ip,1}
-#     tag   ::String
-#     mat   ::Material
-#     props ::Element{MechBeamProps}
-#     active::Bool
-#     couplings::Array{Element,1}
-#     ctx   ::Context
-#     Dlmn  ::Array{ Array{Float64,2}, 1}
-
-#     function MechBeam()
-#         return new()
-#     end
-# end
-
-
-# compat_role(::Type{MechBeam}) = LINE_CELL
-# compat_elem_props(::Type{MechBeam}) = MechBeamProps
 embedded_formulation(::Type{MechBeam}) = error("MechBeam: this element cannot be embedded")
-# embedded_formulation(::Type{MechBar}) = MechEmbBar
-
 
 
 function elem_init(elem::Element{MechBeam})

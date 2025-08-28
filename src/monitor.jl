@@ -125,7 +125,7 @@ function add_monitor(
     if kind in (:node, :ip) && selector isa AbstractArray
         X = Vec3(selector)
         x, y, z = X
-        target = select(ana.model, item_kind, :(x==$x && y==$y && z==$z))
+        target = select(ana.model, item_kind, :(x==$x && y==$y && z==$z), nearest=false)
 
         n = length(target)
         if n==0

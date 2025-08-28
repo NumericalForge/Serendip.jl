@@ -17,7 +17,7 @@ mutable struct ConstPermeabilityState<:IpState
 end
 
 
-mutable struct ConstPermeability<:Material
+mutable struct ConstPermeability<:Constitutive
     k ::Float64 # specific permeability
     S ::Float64 # storativity coefficient
 

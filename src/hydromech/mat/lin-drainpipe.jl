@@ -16,7 +16,7 @@ mutable struct LinDrainPipeState<:IpState
     end
 end
 
-mutable struct LinDrainPipe<:Material
+mutable struct LinDrainPipe<:Constitutive
     k ::Float64     # specific permeability
 
     function LinDrainPipe(; params...)

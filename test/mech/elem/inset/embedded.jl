@@ -27,10 +27,8 @@ mapper = RegionMapper()
 add_mapping(mapper, "solid", MechBulk, LinearElastic, E=1.e4, nu=0.25)
 add_mapping(mapper, "embedded", MechBar, VonMises, E=1.e8, fy=500e3, A=0.005)
 
-ctx = Context()
-model = FEModel(mesh, mapper, ctx)
-
-ana = MechAnalysis(model)
+model = FEModel(mesh, mapper)
+ana   = MechAnalysis(model)
 
 stage = add_stage(ana)
 add_bc(stage, :node, (y==0, z==0), ux=0, uy=0, uz=0)
@@ -40,10 +38,3 @@ add_bc(stage, :face, (z==h), tz=-1000)
 run(ana, autoinc=true)
 
 save(model, "embedded.vtu")
-
-# mplot = DomainPlot(model,
-#     view_mode  = :wireframe,
-#     field     = "σx´",
-#     azimut    = 5.0,
-# )
-# save(mplot, "embedded.pdf")

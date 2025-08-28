@@ -27,7 +27,7 @@ mutable struct DrainPipe<:Hydromech
     nodes ::Array{Node,1}
     ips   ::Array{Ip,1}
     tag   ::String
-    mat::Material
+    mat::Constitutive
     props ::DrainPipeProps
     active::Bool
     couplings::Array{Element,1}

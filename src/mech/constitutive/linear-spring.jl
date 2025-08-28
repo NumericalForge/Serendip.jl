@@ -9,7 +9,7 @@ mutable struct ElasticSpringState<:IpState
     end
 end
 
-mutable struct ElasticSpring<:Material
+mutable struct ElasticSpring<:Constitutive
     kx::Float64
     ky::Float64
     kz::Float64

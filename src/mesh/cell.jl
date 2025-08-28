@@ -113,7 +113,7 @@ function select(
     selectors = flatten(selectors)
     selected = collect(1:length(elems)) # selected indexes
 
-    for selector in selectors
+    for (i,selector) in enumerate(selectors)
 
         if isa(selector, Symbol)
             if selector == :all
@@ -193,8 +193,9 @@ Selectors can be:
 function select(
     domain::AbstractDomain,
     kind::Symbol,
-    selectors::Union{Symbol,Expr,Symbolic,String,CellShape, NTuple{N, Symbolic} where N}...;
+    selectors::Union{Symbol,Expr,Symbolic,String,CellShape,Vector{<:Real},NTuple{N, Symbolic} where N}...;
     invert = false,
+    nearest = true,
     tag::String = ""
     )
 
@@ -205,10 +206,10 @@ function select(
     elseif kind == :edge
         return select(domain.edges, selectors...; invert=invert, tag=tag)
     elseif kind == :node
-        return select(domain.nodes, selectors...; invert=invert, tag=tag)
+        return select(domain.nodes, selectors...; invert=invert, nearest=nearest, tag=tag)
     elseif kind == :ip
         ips = [ ip for elem in domain.elems for ip in elem.ips ]
-        return select(ips, selectors...; invert=invert, tag=tag)
+        return select(ips, selectors...; invert=invert, nearest=nearest, tag=tag)
     else
         error("select: unknown kind $(repr(kind))")
     end
@@ -288,7 +289,7 @@ end
 
 
 # Gets the coordinates of a bounding box for an array of nodes
-function bounding_box(nodes::Array{<:AbstractPoint,1})
+function bounding_box(nodes::Vector{Node})
     minx = miny = minz =  Inf
     maxx = maxy = maxz = -Inf
     for node in nodes

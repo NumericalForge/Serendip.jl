@@ -21,7 +21,7 @@ mutable struct PJointState<:IpState
     end
 end
 
-mutable struct PJoint<:Material
+mutable struct PJoint<:Constitutive
     E ::Float64      # Young's modulus
     ν ::Float64      # Poisson ratio
     ft::Float64      # tensile strength (internal variable)

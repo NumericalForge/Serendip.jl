@@ -11,7 +11,7 @@ mutable struct  Element{T}<:AbstractCell where T<:ElementFormulation
     active::Bool
     nodes ::Vector{Node}
     ips   ::Vector{Ip}
-    cmodel::PhysicsModel
+    cmodel::Constitutive
     couplings::Vector{Element}
     cacheV::Vector{FixedSizeVector{Float64}}
     cacheM::Vector{FixedSizeMatrix{Float64}}
@@ -168,7 +168,7 @@ function changequadrature!(elems::Array{<:Element,1}, n::Int=0)
 end
 
 
-function update_material!(elem::Element, mat::Material)
+function update_material!(elem::Element, mat::Constitutive)
     typeof(elem.cmodel) == typeof(mat) || error("update_material!: The same material type should be used.")
     elem.cmodel = mat
 end
@@ -178,7 +178,7 @@ end
 
 Especifies the material model `mat` to be used to represent the behavior of a set of `Element` objects `elems`.
 """
-function update_material!(elems::Array{<:Element,1}, mat::Material)
+function update_material!(elems::Array{<:Element,1}, mat::Constitutive)
     length(elems)==0 && notify("update_material!: Defining material model $(typeof(mat)) for an empty array of elements.")
 
     for elem in elems

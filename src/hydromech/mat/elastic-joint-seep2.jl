@@ -29,7 +29,7 @@ mutable struct JointSeepState2<:IpState
     end
 end
 
-mutable struct ElasticJointSeep2<:Material
+mutable struct ElasticJointSeep2<:Constitutive
     E  ::Float64        # Young's modulus
     ν::Float64        # Poisson ratio
     ζ  ::Float64        # factor ζ controls the elastic relative displacements

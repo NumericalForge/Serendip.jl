@@ -21,7 +21,7 @@ mutable struct PowerYieldCrackState<:IpState
 end
 
 
-mutable struct PowerYieldCrack<:Material
+mutable struct PowerYieldCrack<:Constitutive
     E ::Float64
     ν ::Float64
     ft::Float64

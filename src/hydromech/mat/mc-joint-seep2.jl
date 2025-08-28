@@ -31,7 +31,7 @@ mutable struct MCJointSeepState2<:IpState
     end
 end
 
-mutable struct MCJointSeep2<:Material
+mutable struct MCJointSeep2<:Constitutive
     E  ::Float64       # Young's modulus
     ν  ::Float64       # Poisson ratio
     σmax0::Float64     # tensile strength (internal variable)

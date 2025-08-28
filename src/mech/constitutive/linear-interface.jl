@@ -17,7 +17,7 @@ mutable struct LinearInterfaceState<:IpState
 end
 
 
-mutable struct LinearInterface<:Material
+mutable struct LinearInterface<:Constitutive
     kn::Float64 # Normal stiffness
     ks::Float64 # Shear stiffness
 

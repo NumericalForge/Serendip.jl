@@ -1,8 +1,5 @@
 
 
-include("block.jl")
-export Block, BlockTruss, BlockCoords, BlockCylinder, BlockGrid
-
 include("mesh-context.jl")
 
 export Cell, select
@@ -16,13 +13,10 @@ include("mesh.jl")
 include("structured.jl")
 include("unstructured.jl")
 include("gen-line-inset-elems.jl")
-include("genmesh.jl")
+include("gen-mesh.jl")
 
 include("io.jl")
 export Mesh, fixup!, quality!, sortnodes!, save, get_outer_facets, get_neighbors, threshold, datafields
-
-# include("block-inset.jl")
-# export BlockInset
 
 include("refine.jl")
 export hrefine, prefine
@@ -36,8 +30,6 @@ export extrude
 include("revolve.jl")
 export revolve
 
-# include("convex_hull.jl")
-
 include("slice.jl")
 export slice
 
@@ -46,7 +38,6 @@ export smooth!, laplacian_smooth!, fast_smooth!
 
 include("gen-cohesive-elems.jl")
 export add_cohesive_elements, add_boundary_interface_elements
-# export insert_cohesive_elements!, cracksmesh
 
 include("embedded.jl")
 export generate_embedded_cells!

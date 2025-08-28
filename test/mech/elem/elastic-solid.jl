@@ -24,8 +24,7 @@ add_mapping(mapper, x>=0, MechBulk, LinearElastic, rho=10, E=1.0, nu=0.3, alpha_
 select(mesh, :element, x==0, tag="base")
 select(mesh, :node, x==0, tag="base")
 
-ctx   = Context(thickness=1.0)
-model = FEModel(mesh, mapper, ctx)
+model = FEModel(mesh, mapper, thickness=1.0)
 ana      = MechAnalysis(model)
 
 add_logger(ana, :node, x==0, "aa.table")

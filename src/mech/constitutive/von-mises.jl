@@ -26,7 +26,7 @@ Stored in `VonMisesState` (and its variants for reduced kinematics):
 - `VonMisesBeamState`: Beam elements (axial + bending stress/strain).
 - `VonMisesTrussState`: Truss elements (uniaxial stress/strain).
 """
-mutable struct VonMises<:Material
+mutable struct VonMises<:Constitutive
     E ::Float64
     ν ::Float64
     σy::Float64

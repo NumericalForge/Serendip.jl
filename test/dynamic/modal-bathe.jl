@@ -57,8 +57,7 @@ matl.add_material(:solids, MechBulk, DruckerPrager, E=Ec, nu=0.2, rho=roc, alpha
 matl.add_material(:lines,  MechBar, LinearElastic, E=Ea, A=Aa, rho=roa)
 matl.add_material(:joints1d, MechBondSlip, ElasticBondSlip, ks=1.e7, kn=1.e7, p=p)
 
-ctx   = Context()
-model = FEModel(mesh, mats, ctx)
+model = FEModel(mesh, mats)
 ana   = MechModalAnalysis(model)
 
 

@@ -22,7 +22,7 @@ mutable struct TCFJointState<:IpState
     end
 end
 
-mutable struct TCFJoint<:Material
+mutable struct TCFJoint<:Constitutive
     E     ::Float64 # Young's modulus
     ν     ::Float64 # Poisson ratio
     ft    ::Float64 # tensile strength

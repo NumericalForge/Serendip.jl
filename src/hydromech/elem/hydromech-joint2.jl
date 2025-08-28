@@ -6,7 +6,7 @@ mutable struct HMJoint2<:Hydromech
     nodes ::Array{Node,1}
     ips   ::Array{Ip,1}
     tag   ::String
-    mat::Material
+    mat::Constitutive
     active::Bool
     couplings::Array{Element,1}
     ctx::Context

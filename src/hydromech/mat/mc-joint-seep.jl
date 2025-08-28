@@ -47,7 +47,7 @@ MCJointSeep_params = [
 ]
 @doc docstring(MCJointSeep_params) MCJointSeep
 
-mutable struct MCJointSeep<:Material
+mutable struct MCJointSeep<:Constitutive
     E  ::Float64       # Young's modulus
     ν  ::Float64       # Poisson ratio
     ft ::Float64     # tensile strength (internal variable)

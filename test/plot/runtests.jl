@@ -1,5 +1,5 @@
 using Serendip
-@runfiles [
+@run_files [
             "chart.jl",
             "mesh.jl",
         #  "mplot.jl",

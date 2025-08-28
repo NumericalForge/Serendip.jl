@@ -19,8 +19,7 @@ alpha = 1.2e-5 # thermal expansion coefficient  1/K or 1/°C
 # materials = ["solids" => TMSolid => LinearElasticThermo => (E=E, nu=nu, k=k, alpha = alpha, rho=rho, cv=cv) ]
 materials = ["solids" => TMSolid => TMCombined{ConstConductivity,LinearElastic} => (E=E, nu=nu, k=k, alpha=alpha, rho=rho, cv=cv) ]
 
-ctx = ThermoContext(T0=0.0, stress_state=:plane_strain)
-model = FEModel(msh, materials, ctx)
+model = FEModel(msh, materials, T0=0.0, stress_state=:plane_strain)
 ana = ThermoMechAnalysis(model)
 
 loggers = [y==1 => NodeGroupLogger("book3.dat")]

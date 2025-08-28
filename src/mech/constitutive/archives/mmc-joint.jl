@@ -21,7 +21,7 @@ mutable struct MMCJointState<:IpState
     end
 end
 
-mutable struct MMCJoint<:Material
+mutable struct MMCJoint<:Constitutive
     E ::Float64      # Young's modulus
     ν ::Float64      # Poisson ratio
     ζ ::Float64      # factor ζ controls the elastic relative displacements (formerly α)

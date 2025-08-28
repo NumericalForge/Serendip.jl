@@ -18,7 +18,7 @@ CSCP_params = [
     KwArgInfo(:Hp, "Plastic modulus for the isotropic compression", 0.0, cond=:(Hp>=0)),
 ]
 
-mutable struct CSCP<:Material
+mutable struct CSCP<:Constitutive
     E::Float64
     ν::Float64
     e::Float64

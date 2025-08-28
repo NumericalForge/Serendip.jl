@@ -12,7 +12,7 @@ MechLSJoint
 MechInterface
 ```
 
-## Material models
+## Constitutive models
 
 ```@docs
 LinearElastic

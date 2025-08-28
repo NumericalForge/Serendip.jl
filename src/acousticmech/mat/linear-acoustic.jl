@@ -16,7 +16,7 @@ mutable struct LinearAcousticFluidState<:IpState
 end
 
 
-mutable struct LinearAcousticFluid<:Material
+mutable struct LinearAcousticFluid<:Constitutive
     # μ::Float64 # viscocity
 
     function LinearAcousticFluid(; kwargs...)

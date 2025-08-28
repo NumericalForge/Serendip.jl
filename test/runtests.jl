@@ -8,7 +8,7 @@ printstyled("\x1b[1m", "\nRunning tests...\n", "\x1b[0m", color=:green)
 
 let
     @testset begin
-        @runfiles [
+        @run_files [
             "mesh/runtests.jl",
             "model/runtests.jl",
             "plot/runtests.jl",

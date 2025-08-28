@@ -9,7 +9,7 @@ mutable struct LumpedMassState<:IpState
     end
 end
 
-mutable struct LumpedMass<:Material
+mutable struct LumpedMass<:Constitutive
     m::Float64
 
     function LumpedMass(prms::Dict{Symbol,Float64})

@@ -1,6 +1,6 @@
 using Serendip
 
-@runfiles [
+@run_files [
          "seep.jl",
          "cutoff.jl",
          "terzaghi.jl",

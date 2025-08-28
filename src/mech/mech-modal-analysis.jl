@@ -10,38 +10,53 @@ export MechModalAnalysis
 
 
 mutable struct MechModalAnalysis<:Analysis
+    name::String
     model ::FEModel
-    ctx   ::Context
-    # sctx  ::SolverContext
+    data::AnalysisData
 
-    stages  ::Vector{Stage}
-    loggers ::Vector{Logger}
-    monitors::Vector{Monitor}
+    # model ::FEModel
+    # ctx   ::Context
+    # # sctx  ::SolverContext
 
-    freqs::Vector{Float64} # frequencies
+    # stages  ::Vector{Stage}
+    # loggers ::Vector{Logger}
+    # monitors::Vector{Monitor}
+
+    frequencies::Vector{Float64} # frequencies
     modes::Array{Float64,2} # modes
 
-    function MechModalAnalysis(model::FEModel; outdir=".", outkey="out")
-        this = new(model, model.ctx)
-        this.stages = []
-        this.loggers = []
-        this.monitors = []
+    function MechModalAnalysis(model::FEModel; outdir="./output", outkey="out")
+        name = "Mechanical modal analysis"
+        data = AnalysisData(outdir=outdir, outkey=outkey)
+        this = new(name, model, data)
 
-        this.freqs = zeros(0)
+        if model.ctx.stress_state==:auto && model.ctx.ndim==2
+            model.ctx.stress_state = :plane_strain
+        end
+        this.data.transient = false
+        this.frequencies = zeros(0)
         this.modes = zeros(0,0)
 
-        this.sctx = SolverContext()
-        this.sctx.outdir = outdir
-        this.sctx.outkey = outkey
+        return this
 
-        model.ctx.thickness = model.thickness
-        if model.ctx.stress_state==:none
-            if model.ctx.ndim==2
-                model.ctx.stress_state = :plane_strain
-            else
-                model.ctx.stress_state = :d3
-            end
-        end
+        # this = new(model, model.ctx)
+        # this.stages = []
+        # this.loggers = []
+        # this.monitors = []
+
+
+        # this.sctx = SolverContext()
+        # this.sctx.outdir = outdir
+        # this.sctx.outkey = outkey
+
+        # model.ctx.thickness = model.thickness
+        # if model.ctx.stress_state==:none
+        #     if model.ctx.ndim==2
+        #         model.ctx.stress_state = :plane_strain
+        #     else
+        #         model.ctx.stress_state = :d3
+        #     end
+        # end
 
         return this
     end
@@ -58,42 +73,48 @@ end
 # ]
 # @doc docstring(mech_modal_solver_params) solve!(::MechModalAnalysis; args...)
 
-function solve!(ana::MechModalAnalysis; args...)
-    args = checkargs(args, mech_modal_solver_params)
-    if !args.quiet
-        printstyled("Solver for mechanical modal analyses", "\n", bold=true, color=:cyan)
-        println("  stress model: ", ana.ctx.stress_state)
-    end
+# function solve!(ana::MechModalAnalysis; args...)
+#     args = checkargs(args, mech_modal_solver_params)
+#     if !args.quiet
+#         printstyled("Solver for mechanical modal analyses", "\n", bold=true, color=:cyan)
+#         println("  stress model: ", ana.ctx.stress_state)
+#     end
 
-    status = stage_iterator(mech_modal_solver!, ana; args...)
-    return status
-end
+#     status = stage_iterator(mech_modal_solver!, ana; args...)
+#     return status
+# end
 
 
-function mech_modal_solver!(ana::MechModalAnalysis, stage::Stage; kwargs...)
-    # args = NamedTuple(kwargs)
-    args = checkargs(kwargs, mech_modal_solver_params)
-    nmodes = args.nmodes
-    quiet  = args.quiet
-    rayleigh = args.rayleigh
+function stage_solver(ana::MechModalAnalysis, stage::Stage, solver_settings::SolverSettings; quiet=quiet)
+    # stage::Stage; kwargs...)
+    # args = checkargs(kwargs, mech_modal_solver_params)
+
+    nmodes = solver_settings.nmodes
+    rayleigh = solver_settings.rayleigh
 
     model = ana.model
     ctx = model.ctx
-    sctx = ana.sctx
+    data = ana.data
 
-    quiet || println(sctx.log, "Modal analysis for mechanical systems")
+    # quiet || println(sctx.log, "Modal analysis for mechanical systems")
+    println(data.log, "Mechanical modal FE analysis")
+
+    solstatus = success()
+
+
 
     stress_state = ctx.stress_state
-    ctx.ndim==3 && @check stress_state==:d3
+    ctx.ndim==3 && @check stress_state==:auto
 
     # todo: check there are not force boundary conditions
 
     # get only bulk elements # todo: improve this
-    model = FEModel(model.elems.bulks)
+    model = FEModel(select(model, :element, :bulk))
+    warn("mech_modal_solver: model was changed to contain only bulk elements (needs improvement)")
 
     # check density
     for elem in model.elems
-        elem.props.ρ==0 && error("mech_modal_solver: density should not be zero")
+        elem.eform.ρ==0 && error("mech_modal_solver: density should not be zero")
     end
 
     # get dofs organized according to boundary conditions
@@ -226,7 +247,7 @@ function mech_modal_solver!(ana::MechModalAnalysis, stage::Stage; kwargs...)
     end
 
     # save frequencies and modes
-    ana.freqs = ω
+    ana.frequencies = ω
     ana.modes = V
 
     return success()

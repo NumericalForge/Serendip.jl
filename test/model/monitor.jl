@@ -25,7 +25,6 @@ add_monitor(ana, :ipgroup, (x>0.5, y>0.5), :σyy, "ips.table")
 
 # mats = [ "solids" => MechBulk => LinearElastic => (E=100.0, nu=0.2) ]
 
-# ctx = Context()
 # model = FEModel(mesh, mats, ctx)
 # ana = MechAnalysis(model)
 

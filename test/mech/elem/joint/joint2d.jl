@@ -27,8 +27,7 @@ add_mapping(mapper, "joint", MechInterface, LinearInterface, ks=1e8, kn=1e8)
 # for i in (2,3)
 # for i in 2
 
-    ctx = Context(stress_state=:plane_stress, thickness=1.0)
-    model = FEModel(mesh, mapper, ctx)
+    model = FEModel(mesh, mapper, stress_state=:plane_stress, thickness=1.0)
     ana = MechAnalysis(model)
 
     joint = select(model.elems, "joint")

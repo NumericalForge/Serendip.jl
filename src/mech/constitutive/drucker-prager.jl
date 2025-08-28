@@ -14,7 +14,7 @@ The model combines elastic response, pressure-dependent plastic yielding, and op
 - `alpha::Float64`: Drucker–Prager friction parameter (> 0.0).
 - `kappa::Float64`: Drucker–Prager cohesion parameter (> 0.0).
 - `H::Float64`: Hardening modulus (≥ 0.0). A value of 0.0 corresponds to perfect plasticity.
-- `rho::Float64`: Material density (≥ 0.0).
+- `rho::Float64`: Constitutive density (≥ 0.0).
 
 # State Variables
 Stored internally in `DruckerPragerState`:
@@ -27,7 +27,7 @@ Stored internally in `DruckerPragerState`:
 - `alpha` and `kappa` define the Drucker–Prager yield surface.
 - Linear isotropic hardening is controlled by `H`.
 """
-mutable struct DruckerPrager<:Material
+mutable struct DruckerPrager<:Constitutive
     E::Float64
     ν::Float64
     α::Float64

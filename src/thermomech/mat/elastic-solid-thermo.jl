@@ -21,7 +21,7 @@ mutable struct LinearElasticThermoState<:IpState
 end
 
 
-mutable struct LinearElasticThermo<:Material
+mutable struct LinearElasticThermo<:Constitutive
     E ::Float64 # Young's Modulus kN/m2
     ν::Float64 # Poisson coefficient
     k ::Float64 # thermal conductivity  w/m/k

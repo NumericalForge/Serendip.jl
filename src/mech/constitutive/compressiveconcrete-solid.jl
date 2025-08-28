@@ -2,7 +2,7 @@
 
 export CompressiveConcrete
 
-mutable struct CompressiveConcrete<:Material
+mutable struct CompressiveConcrete<:Constitutive
     E0   ::Float64  # initial Young modulus
     ν    ::Float64
     fc   ::Float64

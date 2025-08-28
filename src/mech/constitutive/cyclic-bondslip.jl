@@ -48,7 +48,7 @@ end
 #     ArgCond(:(ks>=taumax/speak)),
 # ]
 
-mutable struct CyclicBondSlip<:Material
+mutable struct CyclicBondSlip<:Constitutive
     τmax:: Float64
     τres:: Float64
     speak:: Float64

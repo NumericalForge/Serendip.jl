@@ -1,6 +1,6 @@
 using Serendip
 
-@runfiles [
+@run_files [
     # Static analysis: bulk elements
     "elem/elastic-solid.jl",
     "elem/elastic-elems.jl",
@@ -29,7 +29,7 @@ using Serendip
     "elem/inset/ceb.jl",
     "elem/inset/tip.jl",
 
-    # Material models
+    # Constitutive models
     "mat/dp.jl",
     "mat/vm-2d.jl",
     "mat/vm-3d.jl",

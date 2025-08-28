@@ -37,7 +37,7 @@ function Base.setproperty!(state::HMCombinedState, s::Symbol, value)
 end
 
 
-mutable struct HMCombined{M1,M2}<:Material
+mutable struct HMCombined{M1,M2}<:Constitutive
     tmat::M1 # hydro
     mmat::M2 # mech
 

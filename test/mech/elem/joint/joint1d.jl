@@ -31,8 +31,7 @@ add_mapping(mapper, "interface", MechBondSlip, LinearBondSlip, ks=1.e5, kn=1.e5,
     # "bars"   => MechBar => LinearElastic => (E=1.e8, A=0.005),
 # ]
 
-ctx = Context()
-model = FEModel(mesh, mapper, ctx)
+model = FEModel(mesh, mapper)
 ana = MechAnalysis(model)
 
 add_logger(ana, :node, (x==0.5, y==3.0, z==0.5))

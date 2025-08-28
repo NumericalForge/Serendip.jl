@@ -8,7 +8,7 @@ LinearElasticFluid_params = [
 ]
 @doc docstring(LinearElasticFluid_params) LinearElasticFluid
 
-mutable struct LinearElasticFluid<:Material
+mutable struct LinearElasticFluid<:Constitutive
     K ::Float64
 
     function LinearElasticFluid(; kwargs...)

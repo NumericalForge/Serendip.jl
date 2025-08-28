@@ -24,7 +24,6 @@ table = DataTable("output/node.table")
 book  = DataBook("output/nodes.book")
 
 println(mesh)
-println(mats)
 println(log1)
 println(stage.bcs)
 println(model.nodes[1].dofs[1])

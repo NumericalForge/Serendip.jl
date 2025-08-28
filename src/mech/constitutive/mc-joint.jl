@@ -37,7 +37,7 @@ end
 # ]
 # @doc docstring(MCJoint_params) MCJoint
 
-mutable struct MCJoint<:Material
+mutable struct MCJoint<:Constitutive
     E  ::Float64      # Young's modulus
     ν  ::Float64      # Poisson ratio
     ft ::Float64      # tensile strength (internal variable)

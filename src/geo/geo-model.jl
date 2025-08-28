@@ -75,7 +75,7 @@ end
 
 mutable struct GeoModel
     added_entities::OrderedDict{Tuple{Int,Int},GeoEntity}
-    blocks::Vector{AbstractBlock}
+    blocks::Vector{Block}
     gpaths::Vector{GPath}
 
     function GeoModel(; quiet::Bool=false)
@@ -86,7 +86,7 @@ mutable struct GeoModel
         gmsh.initialize()
         gmsh.option.setNumber("General.Terminal", 0)
         this = new()
-        this.blocks = AbstractBlock[]
+        this.blocks = Block[]
         this.added_entities = OrderedDict{Tuple{Int,Int},GeoEntity}()
         this.gpaths = GPath[]
         return this
@@ -161,6 +161,7 @@ end
 
 function add_path(geometry::GeoModel, coords::Vector{<:Real}...; embedded::Bool=false, shape::CellShape=LIN3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
     @check tips in (:none, :start, :end, :both)
+    embedded && interface_tag!="" && warn("add_path: 'interface_tag' is ignored when 'embedded=true'")
 
     path = Path(coords...)
 

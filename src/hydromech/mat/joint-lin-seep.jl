@@ -23,7 +23,7 @@ mutable struct LeakoffJointState<:IpState
     end
 end
 
-mutable struct LeakoffJoint<:Material
+mutable struct LeakoffJoint<:Constitutive
     # γw ::Float64        # specific weight of the fluid
     # β  ::Float64        # compressibility of fluid
     η  ::Float64        # viscosity

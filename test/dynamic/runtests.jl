@@ -1,6 +1,6 @@
 using Serendip
 
-@runfiles [
+@run_files [
         #  "dyn-spring.jl",
          "dyn-solid.jl",
          "modal.jl",

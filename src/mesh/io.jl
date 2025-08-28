@@ -664,6 +664,7 @@ function Mesh(coords, connects, vtk_types, node_data, elem_data)
                 cell.couplings[1].crossed = true # host cell is crossed
                 n = length(cell.couplings[2].nodes)
                 cell.shape = get_shape_from_vtk(VTK_POLY_VERTEX, n, ndim)
+                cell.role = :line_interface
             end
         end
     end
@@ -682,6 +683,7 @@ function Mesh(coords, connects, vtk_types, node_data, elem_data)
                 cell.couplings = mesh.elems[linked_ids]
                 n = length(cell.nodes)
                 cell.shape = get_shape_from_vtk(VTK_POLY_VERTEX, n, ndim, nlayers)
+                cell.role = :interface
             end
         end
     end
@@ -711,132 +713,7 @@ function Mesh(coords, connects, vtk_types, node_data, elem_data)
         end
     end
 
-
     synchronize!(mesh)
-
-    # remaining polyvertex cells
-    #cell.shape = get_shape_from_vtk(VTK_POLY_VERTEX, n, ndim)
-
-    #=
-    # Fix shape for polyvertex cells
-    if has_polyvertex
-        # mount dictionary of cells
-        cdict = Dict{UInt64, Cell}()
-        for cell in mesh.elems
-            hs = hash(cell)
-            cdict[hs] = cell
-        end
-
-        # check cells
-        for cell in mesh.elems
-            if cell.shape == POLYVERTEX
-                n = length(cell.nodes)
-                # look for joints1D and fix shape
-                if n>=5
-                    # check if cell is related to a JLINK2
-                    hss = hash( [ cell.nodes[i] for i in 1:n-2] )
-                    if haskey(cdict, hss)
-                        cell.shape = JLINK2
-                        hs0   = hash( [ cell.nodes[i] for i in n-1:n] )
-                        hcell = cdict[hss]
-                        lcell = cdict[hs0]
-                        cell.couplings = [hcell, lcell]
-                        hcell.crossed = true
-                        continue
-                    end
-
-                    # check if cell is related to a JLINK3
-                    hss = hash( [ cell.nodes[i] for i in 1:n-3] )
-                    if haskey(cdict, hss)
-                        cell.shape = JLINK3
-                        hs0   = hash( [ cell.nodes[i] for i in n-2:n] )
-                        hcell = cdict[hss]
-                        lcell = cdict[hs0]
-                        cell.couplings = [hcell, lcell]
-                        hcell.crossed = true
-                        continue
-                    end
-                end
-
-                # look for conventional joints and fix shape
-                if n%2==0 && n>=4
-                    isjoint = true
-                    for i in 1:div(n,2)
-                        p1 = cell.nodes[i]
-                        p2 = cell.nodes[div(n,2)+i]
-                        if hash(p1) != hash(p2)
-                            isjoint = false
-                            break
-                        end
-                    end
-                    if isjoint
-                        cell.shape = get_shape_from_vtk(VTK_POLY_VERTEX, n, ndim, 2)
-                        continue
-                    end
-                end
-
-                # look for joint elements with 3 layers and fix shape
-                if n%3==0 && n>=6
-                    isjoint = true
-                    stride= div(n,3)
-                    delta = 0.0
-                    for i in 1:stride
-                        p1 = cell.nodes[i]
-                        p2 = cell.nodes[stride+i]
-                        if hash(p1) != hash(p2)
-                            isjoint = false
-                            break
-                        end
-                    end
-                    if isjoint
-                        cell.shape = get_shape_from_vtk(VTK_POLY_VERTEX, n, ndim, 3)
-                        continue
-                    end
-                end
-
-                # remaining polyvertex cells
-                cell.shape = get_shape_from_vtk(VTK_POLY_VERTEX, n, ndim)
-            end
-        end
-
-        # Update linked cells in joints
-
-        # check if there are joints
-        has_joints = any( C -> C.role==JOINT_CELL, mesh.elems )
-
-        if has_joints
-            # generate dict of faces
-            facedict = Dict{UInt64, Cell}()
-            for cell in mesh.elems
-                for face in getfacets(cell)
-                    hs = hash(face)
-                    #f  = get(facedict, hs, nothing)
-                    facedict[hs] = face
-                end
-            end
-
-            for cell in mesh.elems
-                if cell.role == JOINT_CELL
-                    n = length(cell.nodes)
-                    hs1 = hash( [ cell.nodes[i] for i in 1:div(n,2)] )
-                    hs2 = hash( [ cell.nodes[i] for i in div(n,2)+1:n] )
-                    cell1 = facedict[hs1].owner
-                    cell2 = facedict[hs2].owner
-                    cell.couplings = [ cell1, cell2 ]
-                end
-            end
-        end
-    end
-    =#
-
-    #=
-
-    # Fix couplings for embedded elements (line cells not connected to other elements)
-    has_line = any(C->C.role==LINE_CELL, mesh.elems)
-    if has_line
-        # TODO: find the owner of orphan line cells OR use parent id information
-    end
-    =#
 
     return mesh
 
@@ -850,7 +727,7 @@ Constructs a `Mesh` object based on a file.
 """
 function Mesh(filename::String; sortnodes=false, quiet=true)
 
-    formats = (".vtk", ".vtu", ".tetgen")
+    formats = (".vtk", ".vtu")
 
     quiet || printstyled("Mesh loading: filename $filename\n", bold=true, color=:cyan)
 
@@ -864,9 +741,6 @@ function Mesh(filename::String; sortnodes=false, quiet=true)
     elseif format==".vtu"
         quiet || print("  Reading VTU format...\n")
         mesh = read_vtu(filename)
-    elseif format==".tetgen"
-        quiet || print("  Reading tetgen output files...\n")
-        mesh = read_tetgen(filename)
     end
 
     quiet || printstyled( "  file $filename loaded \e[K \n", color=:cyan)

@@ -19,8 +19,7 @@ materials = [
              "solids" => ThermoSolid => ConstConductivity => (k=k, rho=rho, cv=cv)
 ]
 
-ctx   = ThermoContext(T0=0)
-model = FEModel(msh, materials, ctx)
+model = FEModel(msh, materials, T0=0)
 ana   = ThermoAnalysis(model)
 
 log1 = NodeGroupLogger()

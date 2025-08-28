@@ -31,7 +31,7 @@ end
 
 
 
-mutable struct Block <: AbstractBlock
+mutable struct Block
     ndim::Int
     points::Vector{Point}
     blockshape::CellShape
@@ -187,7 +187,7 @@ end
 
 
 
-function Base.copy(blocks::Array{<:AbstractBlock,1})
+function Base.copy(blocks::Vector{Block})
     return [ copy(bl) for bl in blocks ]
 end
 

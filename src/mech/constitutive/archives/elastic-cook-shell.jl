@@ -18,7 +18,7 @@ mutable struct ElasticCookShellState<:IpState
     end
 end
 
-mutable struct ElasticCookShell<:Material
+mutable struct ElasticCookShell<:Constitutive
     E::Float64
     ν::Float64
     th::Float64

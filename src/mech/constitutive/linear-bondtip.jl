@@ -15,7 +15,7 @@ mutable struct LinearBondTipState<:IpState
 end
 
 
-mutable struct LinearBondTip<:Material
+mutable struct LinearBondTip<:Constitutive
     k::Float64
 
     function LinearBondTip(;k=NaN)

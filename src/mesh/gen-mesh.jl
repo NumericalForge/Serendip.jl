@@ -1,5 +1,40 @@
 
+"""
+    Mesh(geo::GeoModel; ndim = 0, recombine = false, quadratic = false, algorithm = :delaunay, sort_nodes = true, quiet = false)
 
+Generate a finite element mesh from a geometric model. The function supports both unstructured (via Gmsh OCC surfaces/volumes) and 
+structured (via `geo.blocks`) meshing. When both are present, unstructured meshing takes precedence.
+
+# Arguments
+- `geo::GeoModel`: Geometry model with OCC entities or structured blocks.
+- `ndim::Int`: Target mesh dimension (1, 2, or 3). Defaults to maximum found in geometry.
+- `recombine::Bool`: If `true`, recombines triangular/tetrahedral elements into quads/hexas when possible.
+- `quadratic::Bool`: If `true`, generates quadratic (second-order) elements.
+- `algorithm::Symbol`: Mesh algorithm selector:
+    - `:delaunay` → Delaunay (default)
+    - `:mesh_adapt` → Mesh adapt
+    - `:best` → Frontal Delaunay (surface) + Delaunay (3D)
+    - `:frontal` → Frontal Delaunay (surface and 3D)
+- `sort_nodes::Bool`: If `true`, sorts element node ordering consistently.
+- `quiet::Bool`: If `true`, suppresses console output.
+
+# Behavior
+- Sets Gmsh meshing options according to algorithm and element order.
+- Defines physical groups for all top-dimensional entities.
+- Handles embedded points (`p.embedded == true`) by embedding them in host surfaces.
+- Removes orphan vertices without adjacencies.
+- Builds `Node` and `Cell` objects from Gmsh mesh data, including element connectivity.
+
+# Returns
+- `mesh::Mesh`: A mesh object containing nodes, elements, faces, edges, and context information.
+
+# Example
+```julia
+geo = GeoModel() 
+# ... build geometry with OCC or blocks ...
+mesh = Mesh(geo; ndim=3, quadratic=true, algorithm=:frontal)
+```
+"""
 function Mesh(geo::GeoModel;
     ndim      ::Int = 0,
     recombine ::Bool = false,
@@ -62,16 +97,15 @@ function Mesh(geo::GeoModel;
         end
         gmsh.model.occ.synchronize()
 
-        tempfile = "_temp.vtk"
         logfile = "_gmsh.log"
         try
             open(logfile, "w") do out
                 redirect_stdout(out) do
                     # gmsh.write("_temp.geo_unrolled")
-                    gmsh.model.mesh.generate(gmsh_ndim)
+                    gmsh.model.mesh.generate(gmsh_ndim) # mesh generation
                     quadratic && gmsh.model.mesh.setOrder(2)
                     recombine && gmsh.model.mesh.recombine()
-                    gmsh.write(tempfile)
+                    # gmsh.write("_temp.vtk")
                 end
             end
         catch err

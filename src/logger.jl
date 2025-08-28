@@ -67,7 +67,7 @@ function add_logger(
     selector::Any,
     filename::String = ""
 )
-    @check kind in (:node, :ip, :nodegroup, :ipgroup, :nodalreduce) "add_logger: Unknown logger kind: $kind. Supported kinds are :node, :ip, :nodegroup, :ipgroup, :nodalreduce"
+    @check kind in (:node, :ip, :nodegroup, :ipgroup, :nodalreduce) "Unknown logger kind: $kind. Supported kinds are :node, :ip, :nodegroup, :ipgroup, :nodalreduce"
 
     item_name = kind in (:node, :nodegroup, :nodalreduce) ? :node : :ip
     target_type = item_name == :node ? Node : Ip
@@ -78,7 +78,7 @@ function add_logger(
     if kind in (:node, :ip) && selector isa AbstractArray
         X = Vec3(selector)
         x, y, z = X
-        target = select(ana.model, item_name, :(x==$x && y==$y && z==$z))
+        target = select(ana.model, item_name, :(x==$x && y==$y && z==$z), nearest=false)
         n = length(target)
         if n==0
             notify("add_logger: No $kind found at $(selector). Picking the nearest at $X")

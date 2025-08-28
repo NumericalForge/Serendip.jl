@@ -11,7 +11,7 @@ mutable struct ElasticPlateRMState<:IpState
     end
 end
 
-mutable struct ElasticPlateRM<:Material
+mutable struct ElasticPlateRM<:Constitutive
     E::Float64
     ν::Float64
     ρ::Float64

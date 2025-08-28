@@ -42,7 +42,7 @@ end
 # @doc docstring(AsinhYieldCrack_params) AsinhYieldCrack
 
 
-mutable struct AsinhYieldCrack<:Material
+mutable struct AsinhYieldCrack<:Constitutive
     E ::Float64
     ν ::Float64
     ft::Float64

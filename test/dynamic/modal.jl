@@ -1,33 +1,34 @@
 using Serendip
 
 geo = GeoModel()
-s = 0.25
-p1 = addpoint!(geo, 0, 0, 0, size=s)
-p2 = addpoint!(geo, 1, 0, 0, size=s)
-p3 = addpoint!(geo, 1, 10, 0, size=s)
-p4 = addpoint!(geo, 0, 10, 0, size=s)
-
-addline!(geo, p1, p2)
-addline!(geo, p2, p3)
-addline!(geo, p3, p4)
-addline!(geo, p4, p1)
+add_block(geo, [0.0, 0.0], [1.0, 10.0], nx=1, ny=10, tag="bulks")
 
 mesh = Mesh(geo)
+select(mesh, :element, tag="bulks")
 
 # mplot(mesh, "mesh.pdf")
 
+mapper = RegionMapper()
+add_mapping(mapper, "bulks", MechBulk, LinearElastic, E=2e6, nu=0.2, rho=15.0)
 
-mats = [ :bulks => MechBulk => LinearElastic => (E=2e6, nu=0.2, rho=15.0) ]
-
-ctx = Context()
-model = FEModel(mesh, mats, ctx)
+model = FEModel(mesh, mapper)
 ana = MechModalAnalysis(model)
 
-bcs = [
-    :(y==0.0) => NodeBC(ux=0, uy=0)
-]
+stage = add_stage(ana)
+add_bc(stage, :node, (y==0.0), ux=0, uy=0)
 
-addstage!(ana, bcs)
+run(ana, nmodes=5)
 
-solve!(ana, quiet=false, nmods=5)
+# mats = [ :bulks => MechBulk => LinearElastic => (E=2e6, nu=0.2, rho=15.0) ]
+
+# model = FEModel(mesh, mats, )
+# ana = MechModalAnalysis(model)
+
+# bcs = [
+#     :(y==0.0) => NodeBC(ux=0, uy=0)
+# ]
+
+# addstage!(ana, bcs)
+
+# solve!(ana, quiet=false, nmodes=5)
 

@@ -14,7 +14,7 @@ It assumes small deformations and linear stress-strain response.
 - `nu = 0.0`: *Poisson's ratio*. Must satisfy `0 ≤ ν < 0.5`.
 - `alpha_s = 5/6`: *Shear correction factor*, used in beam/shell formulations. Must be positive.
 """
-mutable struct LinearElastic<:Material
+mutable struct LinearElastic<:Constitutive
     E ::Float64
     ν::Float64
     αs::Float64

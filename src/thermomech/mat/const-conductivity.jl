@@ -24,7 +24,7 @@ ConstConductivity_params = [
 @doc docstring(ConstConductivity_params) ConstConductivity(; kwargs...)
 
 
-mutable struct ConstConductivity<:Material
+mutable struct ConstConductivity<:Constitutive
     k ::Float64 # thermal conductivity with/m/K
     cv::Float64
 

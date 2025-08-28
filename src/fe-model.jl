@@ -34,16 +34,54 @@ mutable struct FEModel<:AbstractDomain
     end
 end
 
-
 typeofargs(f) = [ ((t for t in fieldtypes(m.sig)[2:end])...,) for m in methods(f) ]
 
 
+
+"""
+    FEModel(mesh::Mesh, mapper::RegionMapper;
+            ndim::Int=0, stress_state::Symbol=:auto, thickness::Real=1.0, 
+            g::Real=0.0, T0::Real=0.0, quiet::Bool=false)
+
+Construct a finite element model from a `Mesh` and a `RegionMapper`.
+
+# Arguments
+- `mesh::Mesh`: Discretized geometry containing nodes, elements, faces, and edges.
+- `mapper::RegionMapper`: Provides mapping rules between geometric entities, element formulations, and constitutive models.
+- `ndim::Int=0`: Spatial dimension of the analysis (default uses `mesh.ctx.ndim`).
+- `stress_state::Symbol=:auto`: Stress assumption (`:plane_stress`, `:plane_strain`, `:axisymmetric`, `:auto`).
+- `thickness::Real=1.0`: Domain thickness for 2D analyses.
+- `g::Real=0.0`: Gravity acceleration.
+- `T0::Real=0.0`: Reference temperature.
+- `quiet::Bool=false`: Suppress console output if `true`.
+
+# Returns
+- `FEModel`: Finite element model with nodes, elements, faces, edges, and context fully configured.
+
+# Notes
+- Checks compatibility between element formulations and constitutive models.
+- Initializes nodes, elements, integration points, quadrature, and couplings.
+- Prints model statistics unless `quiet=true`.
+"""
 function FEModel(
     mesh::Mesh,
-    mapper::RegionMapper,
-    ctx::Context = Context();
-    quiet::Bool  = false,
+    mapper::RegionMapper;
+    ndim::Int            = 0,
+    stress_state::Symbol = :auto,
+    thickness::Real      = 1.0,
+    g::Real              = 0.0,
+    T0::Real             = 0.0,
+    quiet::Bool          = false,
 )
+
+    ctx = Context(
+        ndim        = max(ndim, mesh.ctx.ndim),
+        stress_state= stress_state,
+        transient   = nothing,
+        thickness   = thickness,
+        g           = g,
+        T0          = T0,
+    )
 
     ndim = mesh.ctx.ndim
     @assert ndim>0
@@ -109,6 +147,8 @@ function FEModel(
         for cell in cells
 
             elem = Element{eform}()
+
+            # @show cell.shape.name cell.embedded
 
             if cell.embedded
                 emb_form = embedded_formulation(eform)

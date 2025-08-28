@@ -21,7 +21,7 @@ end
 # ]
 # @doc docstring(LinearBondSlip_params) LinearBondSlip(; kwargs...)
 
-mutable struct LinearBondSlip<:Material
+mutable struct LinearBondSlip<:Constitutive
     ks::Float64
     kn::Float64
 

@@ -11,7 +11,7 @@ mutable struct ElasticShellDegeneratedState<:IpState
     end
 end
 
-mutable struct ElasticShellDegenerated<:Material
+mutable struct ElasticShellDegenerated<:Constitutive
     E::Float64
     ν::Float64
     t::Float64

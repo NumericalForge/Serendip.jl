@@ -24,7 +24,7 @@ NLConductivity_params = [
 ]
 @doc docstring(NLConductivity_params) NLConductivity
 
-mutable struct NLConductivity<:Material
+mutable struct NLConductivity<:Constitutive
     #   T   C
     #   0   55
     #   800  28

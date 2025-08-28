@@ -30,12 +30,8 @@ module Serendip
     # generic exports
     export max, min, sort, reset, getindex, sort, copy!, show
 
-    abstract type AbstractPoint end
     abstract type AbstractCell end
-    # abstract type AbstractBlock<:AbstractCell end
-    abstract type AbstractBlock end
     abstract type AbstractDomain end
-
 
     # FEM
     include("dof.jl")
@@ -49,7 +45,7 @@ module Serendip
 
     # Geometry
     include("geo/include.jl")
-    export GeoModel
+    export GeoModel, Block, Path, GPath, Point, Edge, Surface, Volume
 
     # Mesh
     include("mesh/include.jl")
@@ -58,8 +54,8 @@ module Serendip
     include("context.jl")
     export Context
 
-    include("material.jl")
-    export Material, read_prms
+    abstract type Constitutive end
+    export Constitutive
 
     include("ip.jl")
     export Ip, ip_vals, maximum, minimum, sort
@@ -92,16 +88,16 @@ module Serendip
     export add_monitor
 
     include("analysis.jl")
-    export SolverSettings
-
+    
     include("fe-model.jl")
     export Model
     export FEModel
     export Domain
     export addlogger!, addmonitor!, addloggers!, addmonitors!
     export setloggers!, setmonitors!
-
+    
     include("solver.jl")
+    export SolverSettings, run
 
     include("io.jl")
 
@@ -116,8 +112,6 @@ module Serendip
 
     # Acoustic module
     # include("acousticmech/include.jl")
-
-    export run
 
     include("deprecated.jl")
 
@@ -137,26 +131,28 @@ module Serendip
     Base.show(io::IO, obj::Block)     = _show(io, obj, 2)
 
     # show function for FE related types
-    Base.show(io::IO, obj::Dof)               = _show(io, obj, 2, "")
-    Base.show(io::IO, obj::Node)              = _show(io, obj, 2, "")
-    Base.show(io::IO, obj::Ip)                = _show(io, obj, 2, "")
-    Base.show(io::IO, obj::IpState)           = _show(io, obj, 2, "")
-    Base.show(io::IO, obj::Element)           = _show(io, obj, 2, "")
-    Base.show(io::IO, obj::Material)          = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::Dof)          = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::Node)         = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::Ip)           = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::Facet)        = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::IpState)      = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::Element)      = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::Constitutive) = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::Logger)       = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::Monitor)      = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::RegionMapper) = _show(io, obj, 4, "")
+    Base.show(io::IO, obj::Context)      = _show(io, obj, 2, "")
+    Base.show(io::IO, obj::FEModel)      = _show(io, obj, 2, "")
+
     Base.show(io::IO, obj::BoundaryCondition) = _show(io, obj, 2, "")
-    Base.show(io::IO, obj::Facet)             = _show(io, obj, 2, "")
-    Base.show(io::IO, obj::Logger)            = _show(io, obj, 2, "")
-    Base.show(io::IO, obj::Monitor)           = _show(io, obj, 2, "")
-    Base.show(io::IO, obj::RegionMapper)      = _show(io, obj, 4, "")
-    Base.show(io::IO, obj::FEModel)           = _show(io, obj, 2, "")
     Base.show(io::IO, obj::Analysis)          = _show(io, obj, 2, "")
     Base.show(io::IO, obj::Stage)             = _show(io, obj, 2, "")
 
 
 
     # testing
-    export @runfiles
-    macro runfiles(files)
+    export @run_files
+    macro run_files(files)
         return esc(quote
             for file in $files
                 printstyled("\nRunning file ", file,"...\n", color=:yellow, bold=true)

@@ -13,8 +13,7 @@ mesh = Mesh(geo, quiet=true)
 
 mapper = RegionModel(MechBulk, LinearElastic, E=1.0, nu=0.25)
 
-ctx = Context(stress_state=:plane_strain)
-model = FEModel(mesh, mapper, ctx)
+model = FEModel(mesh, mapper, stress_state=:plane_strain)
 ana = MechAnalysis(model)
 
 stage = add_stage(ana, nincs=1)

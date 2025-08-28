@@ -21,7 +21,7 @@ mutable struct LinearElasticSeepState<:IpState
 end
 
 
-mutable struct LinearElasticSeep<:Material
+mutable struct LinearElasticSeep<:Constitutive
     E ::Float64 # Young's modulus
     ν::Float64 # Poisson ratio
     k ::Float64 # specific permeability

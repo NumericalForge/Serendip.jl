@@ -11,7 +11,7 @@ mutable struct ElasticShellQuad4State<:IpState
     end
 end
 
-mutable struct ElasticShellQUAD4<:Material
+mutable struct ElasticShellQUAD4<:Constitutive
     E::Float64
     ν::Float64
     t::Float64

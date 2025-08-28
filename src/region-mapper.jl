@@ -2,7 +2,7 @@
 struct RegionMapping
     selector::Any
     eform::Type{<:ElementFormulation}
-    cmodel::Type{<:PhysicsModel}
+    cmodel::Type{<:Constitutive}
     params::NamedTuple
 end
 
@@ -53,7 +53,7 @@ add_mapping(mapper, x>=0, MechBulk, LinearElastic; rho=10.0, E=30.0e6, nu=0.3)
 # Trows
 An error if a mapping with the same `selector` already exists in the mapper.
 """
-function add_mapping(mapper::RegionMapper, selector, eform::Type{S}, cmodel::Type{T}; params...) where S<:ElementFormulation where T<:PhysicsModel
+function add_mapping(mapper::RegionMapper, selector, eform::Type{S}, cmodel::Type{T}; params...) where S<:ElementFormulation where T<:Constitutive
     mapping = RegionMapping(selector, eform, cmodel, NamedTuple(params))
     for m in mapper.mappings
         # m.selector == selector && error("Mapping already exists for selector: $selector")
@@ -79,7 +79,7 @@ This is a convenience shortcut equivalent to manually creating a `RegionMapper` 
 model = RegionModel(MechBulk, LinearElastic; rho=10, E=1.0, nu=0.3)
 ```
 """
-function RegionModel(eform::Type{S}, cmodel::Type{T}; params...) where S<:ElementFormulation where T<:PhysicsModel
+function RegionModel(eform::Type{S}, cmodel::Type{T}; params...) where S<:ElementFormulation where T<:Constitutive
     mapper = RegionMapper()
     add_mapping(mapper, :all, eform, cmodel; params...)
     return mapper

@@ -1,7 +1,7 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
-mutable struct Node<:AbstractPoint
+mutable struct Node
     id     ::Int
     coord  ::Vec3
     tag    ::String
@@ -118,8 +118,9 @@ end
 
 function select(
     nodes::Vector{Node},
-    selectors::Union{Symbolic, Expr, String, Vector{Int}, Vector{Float64}, NTuple{N, Symbolic} where N}...;
+    selectors::Union{Symbolic, Expr, String, Vector{Int}, Vector{<:Real}, NTuple{N, Symbolic} where N}...;
     invert = false,
+    nearest = true,
     tag = ""
     )
 
@@ -141,13 +142,19 @@ function select(
             selected = [ i for i in selected if nodes[i].tag==selector ]
         elseif selector isa Vector{Int} # selector is a vector of indexes
             selected = intersect(selected, selector)
-        elseif selector isa Array{Float64}
+        elseif selector isa Vector{<:Real}
             X = Vec3(selector)
-            T = Bool[]
-            for i in selected
-                push!(T, norm(nodes[i].coord-X) < 1e-8)
+            if nearest
+                node = nearest(nodes[selected], X)
+                i = findfirst(isequal(node), ips)
+                selected = [ i ]
+            else
+                R = Bool[]
+                for i in selected
+                    push!(R, norm(nodes[i].coord-X) < 1e-8)
+                end
+                selected = selected[R]
             end
-            selected = selected[T]
         else
             error("select: unknown selector type $(typeof(selector))")
         end

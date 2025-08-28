@@ -28,8 +28,7 @@ mats = [
        "solids" => MechBulk => CSCP => (E=30e6, nu=0.2, alpha=0.666, beta=1.15, fc=fc, ft=ft, epsc=0.002, GF=0.1, wc=0.00005)
       ]
 
-ctx = Context()
-model = FEModel(msh, mats, ctx)
+model = FEModel(msh, mats)
 ana = MechAnalysis(model)
 
 loggers = [

@@ -16,8 +16,7 @@ mesh = Mesh(geo)
 mapper = RegionMapper()
 add_mapping(mapper, "beam", MechBulk, VonMises, E=E, nu=nu, fy=fy, H=H)
 
-ctx = Context(stress_state=:plane_stress, thickness=th)
-model = FEModel(mesh, mapper, ctx)
+model = FEModel(mesh, mapper, stress_state=:plane_stress, thickness=th)
 
 ana   = MechAnalysis(model)
 log = add_logger(ana, :node, (y==h/2, x==1))

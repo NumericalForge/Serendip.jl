@@ -1,6 +1,6 @@
 using Serendip
 
-@runfiles [
+@run_files [
     "elem/acoustic-fluid.jl",
     "acoustic-modal.jl"
 ]

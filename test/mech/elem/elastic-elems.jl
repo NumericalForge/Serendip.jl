@@ -7,7 +7,6 @@ top_node = nothing
 
 for shape in (TRI3, TRI6, QUAD4, QUAD8, QUAD9)
     printstyled(shape.name, color=:cyan); println()
-    # bl = Block( [0, 0], [1, 1], nx=2, ny=2, shape=shape, tag="solids")
     geo = GeoModel()
     add_block(geo, [0, 0], [1, 1], nx=2, ny=2, shape=shape)
     mesh = Mesh(geo)
@@ -15,12 +14,8 @@ for shape in (TRI3, TRI6, QUAD4, QUAD8, QUAD9)
     select(mesh, :face, y==1, tag="top") # top face
 
     mapper = RegionModel(MechBulk, LinearElastic, E=100.0, nu=0.2)
-    # materials = [
-        # "solids" => MechBulk => LinearElastic => (E=100.0, nu=0.2)
-    # ]
 
-    ctx = Context()
-    model = FEModel(mesh, mapper, ctx)
+    model = FEModel(mesh, mapper)
 
     ana = MechAnalysis(model)
     stage = add_stage(ana)
@@ -42,7 +37,6 @@ for shape in (TET4, TET10, HEX8, HEX20, HEX27)
     printstyled(shape.name, color=:cyan); println()
     geo = GeoModel()
     add_block(geo, [0, 0, 0], [1, 1, 1], nx=2, ny=2, nz=2, shape=shape)
-    # bl = Block( [0 0 0; 1 1 1], nx=2, ny=2, nz=2, shape=shape, tag="solids")
     mesh = Mesh(geo)
 
     select(mesh, :face, z==0, tag="bottom") # bottom face
@@ -50,13 +44,8 @@ for shape in (TET4, TET10, HEX8, HEX20, HEX27)
     select(mesh, :face, x==0, tag="sides") # lateral face
     select(mesh, :face, x==1, tag="sides") # lateral face
 
-    # tag!(mesh.faces[:(z==0)], "bottom") # bottom face
-    # tag!(mesh.faces[:(z==1)], "top") # top face
-    # tag!(mesh.faces[:(x==0 || x==1)], "sides") # lateral face
-
     mapper = RegionModel(MechBulk, LinearElastic, E=100.0, nu=0.2)
-    ctx = Context()
-    model = FEModel(mesh, mapper, ctx)
+    model = FEModel(mesh, mapper)
 
     ana = MechAnalysis(model)
     stage = add_stage(ana)
@@ -65,22 +54,6 @@ for shape in (TET4, TET10, HEX8, HEX20, HEX27)
     add_bc(stage, :face, "top", tz=-10.)
     run(ana).success
 
-
-    # materials = [
-    #     "solids" => MechBulk => LinearElastic => (E=100.0, nu=0.2)
-    # ]
-
-    # ctx = Context()
-    # model = FEModel(mesh, materials, ctx)
-    # ana = MechAnalysis(model)
-    # bcs = [
-    #     "bottom" => SurfaceBC(ux=0, uy=0, uz=0),
-    #     "sides"  => SurfaceBC(ux=0),
-    #     "top"    => SurfaceBC(tz=-10.)
-    # ]
-    # addstage!(ana, bcs)
-    # solve!(ana).success
-
     # top_node = model.nodes[:(z==1)][1]
     global top_node = select(model, :node, z==1)[1]
 
@@ -88,6 +61,5 @@ for shape in (TET4, TET10, HEX8, HEX20, HEX27)
     uz = top_node.dofs[:uz].vals[:uz]
 
     # println( get_values(top_node) )
-
     @test [uy, uz] ≈ dis atol=1e-2
 end

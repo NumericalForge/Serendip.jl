@@ -27,7 +27,7 @@ mutable struct TCJointSeepState<:IpState
     end
 end
 
-mutable struct TCJointSeep<:Material
+mutable struct TCJointSeep<:Constitutive
     E ::Float64       # Young's modulus
     ν ::Float64       # Poisson ratio
     ft::Float64       # tensile strength
@@ -107,13 +107,13 @@ function calcD(mat::TCJointSeep, state::TCJointSeepState)
         # mat.fracture = false
     end 
 
-    invoke(calcD, Tuple{Material, IpState}, mat, state)
+    invoke(calcD, Tuple{Constitutive, IpState}, mat, state)
 end
 
 
 function update_state(mat::TCJointSeep, state::TCJointSeepState, Δw::Array{Float64,1}, Δuw::Array{Float64,1},  G::Array{Float64,1}, BfUw::Array{Float64,1}, Δt::Float64)
     
-    Δσ, status = invoke(update_state, Tuple{Material, IpState, Vector{Float64}}, mat, state, Δw)
+    Δσ, status = invoke(update_state, Tuple{Constitutive, IpState, Vector{Float64}}, mat, state, Δw)
 
     state.uw += Δuw
     state.Vt  = -mat.kt*G

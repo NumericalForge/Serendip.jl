@@ -9,7 +9,7 @@ mutable struct ElasticPlateMZCState<:IpState
     end
 end
 
-mutable struct ElasticPlateMZC<:Material
+mutable struct ElasticPlateMZC<:Constitutive
     E::Float64
     ν::Float64
     thick::Float64

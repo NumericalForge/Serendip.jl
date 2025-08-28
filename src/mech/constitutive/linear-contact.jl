@@ -17,7 +17,7 @@ mutable struct LinearContactState<:IpState
 end
 
 
-mutable struct LinearContact<:Material
+mutable struct LinearContact<:Constitutive
     kn::Float64 # Normal stiffness
     ks::Float64 # Shear stiffness
 

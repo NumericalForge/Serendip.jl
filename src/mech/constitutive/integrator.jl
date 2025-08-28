@@ -3,9 +3,9 @@ export update_state
 
 mutable struct MechIntegrator
     state::IpState
-    mat::Material
+    mat::Constitutive
     table::DataTable
-    function MechIntegrator(mat::Material)
+    function MechIntegrator(mat::Constitutive)
         this = new()
         ctx = Context()
         this.state = compat_state_type(mat)(ctx)

@@ -15,7 +15,7 @@ WillamWarnke_params = [
 ]
 @doc docstring(WillamWarnke_params) WillamWarnke
 
-mutable struct WillamWarnke<:Material
+mutable struct WillamWarnke<:Constitutive
     E::Float64
     ν::Float64
     e::Float64  # eccentricity of the yield surface

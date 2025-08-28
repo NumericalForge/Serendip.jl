@@ -94,7 +94,7 @@ function draw!(ctx::CairoContext, aw::AxisWidget)
     set_matrix(ctx, CairoMatrix([1, 0, 0, 1, 0, 0]...))
     head_width = 0.15*aw.arrow_length
 
-    translate(ctx, x0+head_width, y0+aw.arrow_length)
+    Cairo.translate(ctx, x0+head_width, y0+aw.arrow_length)
 
     xlabel_padding = 0.1*aw.arrow_length
     ylabel_padding = 0.18*aw.arrow_length

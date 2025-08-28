@@ -31,7 +31,7 @@ ElasticShellThermo_params = [
 ]
 @doc docstring(ElasticShellThermo_params) ElasticShellThermo
 
-mutable struct ElasticShellThermo<:Material
+mutable struct ElasticShellThermo<:Constitutive
     E ::Float64 # Young's Modulus kN/m2
     ν::Float64 # Poisson coefficient
     k ::Float64 # thermal conductivity  w/m/k

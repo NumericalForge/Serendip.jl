@@ -15,7 +15,7 @@ mutable struct Joint1DConstPermeabilityState<:IpState
     end
 end
 
-mutable struct Joint1DConstPermeability<:Material
+mutable struct Joint1DConstPermeability<:Constitutive
     k ::Float64    # specific permeability per meter
 
     function Joint1DConstPermeability(; params...)

@@ -11,7 +11,7 @@ mutable struct ElasticPlateRM8nodeState<:IpState
     end
 end
 
-mutable struct ElasticPlateRM8node<:Material
+mutable struct ElasticPlateRM8node<:Constitutive
     E::Float64
     ν::Float64
     ρ::Float64

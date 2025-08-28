@@ -1,6 +1,6 @@
 using Serendip
 
-@runfiles [
+@run_files [
          # Meshing
          "shape/shape_deriv.jl",
          "shape/extrapolation.jl",

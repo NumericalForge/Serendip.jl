@@ -23,7 +23,7 @@ function save_xml(model::FEModel, filename::String)
 
     # Materials
     xmats = XmlElement("Materials")
-    mat_dict = OrderedDict{UInt, Material}()
+    mat_dict = OrderedDict{UInt, Constitutive}()
     for elem in model.elems
         hs = hash(elem.cmodel)
         haskey(mat_dict, hs) && continue
@@ -229,7 +229,7 @@ function FEModel(filename::String; quiet=false)
     domain.ndim = ctx.ndim
 
     quiet || printstyled("  setting materials...\e[K\r", color=:cyan)
-    materials = Material[]
+    materials = Constitutive[]
     xmats = xdomain("Materials")
     for xmat in xmats.children
         T = eval(Symbol(xmat.name))

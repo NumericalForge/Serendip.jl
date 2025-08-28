@@ -4,7 +4,7 @@
 export Compressible
 
 
-mutable struct Compressible<:Material
+mutable struct Compressible<:Constitutive
     E   ::Float64  # initial Young modulus
     ν   ::Float64
     J1y ::Float64

@@ -89,6 +89,10 @@ struct SolverSettings
     scheme::Symbol
     maxits::Int
     rspan::Float64
+    alpha::Float64
+    beta::Float64
+    nmodes::Float64
+    rayleigh::Bool
 
     @doc """
         SolverSettings(; tol=0.01, rtol=0.01, dT0=0.01, dTmin=1e-7, dTmax=0.1,
@@ -106,16 +110,19 @@ struct SolverSettings
     - `scheme::Symbol`: Solution scheme (e.g., `:FE` for finite elements, default: `:FE`).
     - `maxits::Int`: Maximum number of iterations per increment (default: `5`).
     - `rspan::Float64`: Progression span for reapplying the residual in nonlinear iterations (default: `0.01`).
+    - `alpha::Float64`: Damping coefficient for the mass matrix used in dynamic analyses (default: `0.0`).
+    - `beta::Float64`: Damping coefficient for the stiffness matrix used in dynamic analyses (default: `0.0`).
+    - `nmodes::Int`: Number of modes to compute in modal analysis (default: `5`).
 
     # Example
     ```julia
-    settings = SolverSettings(tol=1e-4, rtol=1e-3, autoinc=true, quiet=true)
+    settings = SolverSettings(tol=1e-4, rtol=1e-3, autoinc=true)
     ```
     """
     function SolverSettings(;
         tol=0.01, rtol=0.01, autoinc=false, dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01,
-        scheme=:FE, maxits=5,  quiet=false)
-        return new(tol, rtol, autoinc, dT0, dTmin, dTmax, scheme, maxits, rspan)
+        scheme=:FE, maxits=5, alpha=0.0, beta=0.0, nmodes=5, rayleigh=false)
+        return new(tol, rtol, autoinc, dT0, dTmin, dTmax, scheme, maxits, rspan, alpha, beta, nmodes, rayleigh)
     end
 end
 
@@ -129,10 +136,14 @@ function stage_iterator(ana::Analysis, solver_settings::SolverSettings; quiet::B
 
     solstatus = success()
 
-    # if !quiet && cstage==1
     if !quiet
-        # printstyled(ana.name, "\n", bold=true, color=:cyan)
-        println("  active threads: ", Threads.nthreads())
+        print("  active threads: ")
+        nthreads = Threads.nthreads()
+        if nthreads==1
+            printstyled(Threads.nthreads(), "\n", color=:red)
+        else
+            printstyled(Threads.nthreads(), "\n", color=:green)
+        end
     end
 
     outdir = ana.data.outdir
@@ -247,17 +258,22 @@ function Base.run(ana::Analysis;
     rspan   ::Float64 = 0.01,
     scheme  ::Symbol = :FE,
     maxits  ::Int = 5,
-    quiet   ::Bool=false)
+    alpha   ::Float64 = 0.0,
+    beta    ::Float64 = 0.0,
+    nmodes  ::Int = 5,
+    rayleigh::Bool = false,
+    quiet   ::Bool=false
+)
 
     if !quiet
-        printstyled("FE solver\n", bold=true, color=:cyan)
+        printstyled("FE analisys\n", bold=true, color=:cyan)
         println("  type: ", ana.name)
         println("  stress model: ", ana.model.ctx.stress_state)
     end
 
     solver_settings = SolverSettings(
         tol=tol, rtol=rtol, autoinc=autoinc, dT0=dT0, dTmin=dTmin, dTmax=dTmax,
-        rspan=rspan, scheme=scheme, maxits=maxits, quiet=quiet
+        rspan=rspan, scheme=scheme, maxits=maxits, alpha=alpha, beta=beta, nmodes=nmodes, rayleigh=rayleigh,
     )
 
     status = stage_iterator(ana, solver_settings; quiet=quiet)

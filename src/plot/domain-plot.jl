@@ -21,7 +21,7 @@ Creates a customizable `DomainPlot` to visualize Mesh and FEModel objects.
 - `field_kind::Symbol=:auto` : `:auto | :none | :node | :element`.
 - `field_factor::Float64=1.0` : Multiplier applied to field values.
 - `label::AbstractString=""` : Colorbar label (alias: `colorbar_label`).
-- `colormap::Union{Symbol,Colormap}=:coolwarm` : Colormap for field display.
+- `colormap::Union{Symbol,Colormap}=:coolwarm` : Colormap for field display: `:coolwarm`, `:coolwarm2`,  `:bone`, `:inferno`, `:spectral`, `:seismic`, `:bwr`, `:rainbow`, `:jet` and `:turbo`.
 - `diverging::Bool=false` : Center colormap at zero for diverging fields.
 - `colorbar::Symbol=:right` : `:none | :right | :bottom`.
 - `colorbar_length_factor::Float64=0.9` : Colorbar length scale (> 0).
@@ -104,22 +104,22 @@ mutable struct DomainPlot<:Figure
     function DomainPlot(mesh;
         size::Tuple{Int,Int}=(220,150),
         face_color::Symbol=:aliceblue,
-        warp::Float64=0.0,
-        line_width::Float64=0.3,
-        outline_width::Float64=0.4,
-        frame_width::Float64=0.6,
+        warp::Real=0.0,
+        line_width::Real=0.3,
+        outline_width::Real=0.4,
+        frame_width::Real=0.6,
         field::AbstractString="",
         field_kind::Symbol=:auto,
         limits::Vector{Float64}=[0.0,0.0],
-        field_factor::Float64=1.0,
+        field_factor::Real=1.0,
         label::AbstractString="",
         colormap::Union{Symbol,Colormap}=:coolwarm,
         diverging::Bool=false,
         colorbar::Symbol=:right,
-        colorbar_length_factor::Float64=0.9,
+        colorbar_length_factor::Real=0.9,
         bins::Int=6,
         font::AbstractString="NewComputerModern",
-        font_size::Float64=7.0,
+        font_size::Real=7.0,
         interpolation::Symbol=:linear,
         azimut::Real=30.0,
         elevation::Real=30.0,
@@ -820,6 +820,7 @@ function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::Abstract
             move_to(ctx, x, y)
             pts = bezier_points(edge)
             curve_to(ctx, pts[2]..., pts[3]..., pts[4]...)
+            set_line_width(ctx, mplot.outline_width)
             stroke(ctx)
         end
     end

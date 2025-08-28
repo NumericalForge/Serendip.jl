@@ -31,7 +31,7 @@ TMCombined_params = [
 ]
 @doc docstring(TMCombined_params) TMCombined
 
-mutable struct TMCombined{M1,M2}<:Material
+mutable struct TMCombined{M1,M2}<:Constitutive
     tmat::M1 # thermo
     mmat::M2 # mech
     α::Float64 # thermal expansion coefficient

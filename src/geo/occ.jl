@@ -1,7 +1,7 @@
 # using Gmsh
 export add_box, add_cylinder, add_sphere, add_surface_filling, add_volume, add_rectangle, add_disk
 export add_point, add_line, add_circle_arc, add_circle, add_bezier, add_loop, add_wire
-export add_plane_surface
+export add_plane_surface, add_polygon
 export add_surface_loop, get_boundary, get_entities, get_points, get_curves
 export get_surfaces, get_volumes, get_point, get_curve, get_surface, get_volume
 export translate, rotate, extrude, revolve, mirror
@@ -17,37 +17,38 @@ Add a point at coordinates `X = [x, y, z]` to the geometry model `geo`. Optional
 # Returns
 - `Point`: Reference to the created point.
 """
-function add_point(geo::GeoModel, X::Vector{<:Real}; size=0, embedded=false, tag::String="")
+function add_point(geo::GeoModel, X::Vector{<:Real}; size=0, embedded::Bool=false, tag::String="")
     id = gmsh.model.occ.addPoint(X[1], X[2], X[3], size)
     gmsh.model.occ.synchronize()
-    P = Point(id, float.(X), embedded=embedded, tag=tag)
-    geo.added_entities[(0,id)] = P
-    return P
+    ent = Point(id, float.(X), embedded=embedded, tag=tag)
+    geo.added_entities[(0,id)] = ent
+    return ent
 end
 
 
 """
-    add_line(geo, p1, p2; tag="")
+    add_line(geo, p1, p2)
 
-Add a straight line between points `p1` and `p2` to the geometry model `geo`. Optionally assign a tag.
+Add a straight line between points `p1` and `p2` to the geometry model `geo`.
 
 # Returns
 - `Edge`: Reference to the created edge.
 """
-function add_line(geo::GeoModel, p1::Point, p2::Point; tag::String="")
+function add_line(geo::GeoModel, p1::Point, p2::Point, tag::String="")
     id = gmsh.model.occ.addLine(p1.id, p2.id)
     gmsh.model.occ.synchronize()
-    E = Edge(id, "Line", [p1, p2], tag=tag)
-    geo.added_entities[(1,id)] = E
-    return E
+    ent = Edge(id, "Line", [p1, p2], tag=tag)
+    geo.added_entities[(1,id)] = ent
+    return ent
 end
 
+
 """
-    add_circle_arc(geo, p1, p2, p3, center=true; tag="")
+    add_circle_arc(geo, p1, p2, p3, center=true)
 
 Add a circle arc passing through points `p1`, `p2`, and `p3` to the geometry model `geo`.
 If center is true, the middle point is the center of the circle; otherwise the circle goes through
-the middle point. Optionally assign a tag.
+the middle point.
 
 # Returns
 - `Edge`: Reference to the created edge.
@@ -56,16 +57,16 @@ function add_circle_arc(geo::GeoModel, p1::Point, p2::Point, p3::Point; center=t
     id = gmsh.model.occ.addCircleArc(p1.id, p2.id, p3.id, -1, center)
     gmsh.model.occ.synchronize()
     type = center ? "CircleArcCenter" : "CircleArcNoCenter"
-    E = Edge(id, type, [p1, p2, p3], tag=tag)
-    geo.added_entities[(1,id)] = E
-    return E
+    ent = Edge(id, type, [p1, p2, p3], tag=tag)
+    geo.added_entities[(1,id)] = ent
+    return ent
 end
 
 
 """
-    add_circle(geo, X, A, r; angle1=0.0, angle2=2π, tag="")
+    add_circle(geo, X, A, r; angle1=0.0, angle2=2π)
 
-Add a circular curve centered at `X` with normal vector `A` and radius `r`. Define angular range with `angle1` and `angle2`. Optionally assign a tag.
+Add a circular curve centered at `X` with normal vector `A` and radius `r`. Define angular range with `angle1` and `angle2`.
 
 # Returns
 - `Edge`: Reference to the created edge.
@@ -73,14 +74,17 @@ Add a circular curve centered at `X` with normal vector `A` and radius `r`. Defi
 function add_circle(geo::GeoModel, X::Vector{<:Real}, A::Vector{<:Real}, r; angle1=0.0, angle2=2π, tag::String="")
     id = gmsh.model.occ.addCircle(X..., r, -1, angle1, angle2, A)
     gmsh.model.occ.synchronize()
-    # tag!= "" && (geo.tags[(1,id)] = tag)
-    return Edge(id)
+    p = Point(-1, float.(X))
+    ent = Edge(id, "Circle", [p], tag=tag)
+    geo.added_entities[(1,id)] = ent
+    return ent
 end
 
-"""
-    add_bezier(geo, points; tag="")
 
-Add a Bezier curve through the given sequence of `points`. Optionally assign a tag.
+"""
+    add_bezier(geo, points)
+
+Add a Bezier curve through the given sequence of `points`.
 
 # Returns
 - `Edge`: Reference to the created edge.
@@ -89,16 +93,16 @@ function add_bezier(geo::GeoModel, points::Vector{Point}; tag::String="")
     ids = [ p.id for p in points ]
     id = gmsh.model.occ.addBezier(ids)
     gmsh.model.occ.synchronize()
-    E = Edge(id, "Bezier", points, tag=tag)
-    geo.added_entities[(1,id)] = E
-    return E
+    ent = Edge(id, "Bezier", points, tag=tag)
+    geo.added_entities[(1,id)] = ent
+    return ent
 end
 
 
 """
-    add_wire(geo, edges; tag="")
+    add_wire(geo, edges)
 
-Add a wire (open or closed sequence of edges) to the geometry model `geo`. Optionally assign a tag.
+Add a wire (open or closed sequence of edges) to the geometry model `geo`.
 
 # Returns
 - `Wire`: Reference to the created wire.
@@ -107,8 +111,9 @@ function add_wire(geo::GeoModel, edges::Vector{Edge}; tag::String="")
     ids = [ edge.id for edge in edges ]
     id = gmsh.model.occ.addWire(ids)
     gmsh.model.occ.synchronize()
-    # tag == "" || (geo.tags[(1,id)] = tag)
-    return Wire(id)
+    ent =  Wire(id, tag=tag)
+    geo.added_entities[(1,id)] = ent
+    return ent
 end
 
 
@@ -129,9 +134,9 @@ end
 
 
 """
-    add_plane_surface(geo, loops...; tag="")
+    add_plane_surface(geo, loops...)
 
-Create a planar surface bounded by one or more `loops`. Optionally assign a tag.
+Create a planar surface bounded by one or more `loops`.
 
 # Returns
 - `Surface`: Reference to the created surface.
@@ -140,15 +145,43 @@ function add_plane_surface(geo::GeoModel, loops::Loop...; tag::String="")
     ids = [ loop.id for loop in loops ]
     id = gmsh.model.occ.addPlaneSurface(ids)
     gmsh.model.occ.synchronize()
-    # tag == "" || (geo.tags[(2,id)] = tag)
-    return Surface(id)
+    ent =  Surface(id, tag=tag)
+    geo.added_entities[(2,id)] = ent
+    return ent
 end
 
 
 """
-    add_disk(geo, X, A, r1, r2=0; tag="")
+    add_polygon(geo, points::Vector{Point}; tag::String="")
 
-Create a disk or elliptical surface centered at `X`, oriented along normal vector `A`, with radii `r1` and `r2`. If `r2=0`, creates a circular disk. Optionally assign a tag.
+Create a planar polygonal surface from an ordered list of `points`.
+
+# Arguments
+- `geo::GeoModel`: Geometry model where the polygon will be added.
+- `points::Vector{Point}`: Ordered vertices of the polygon. Edges are created sequentially and closed automatically.
+- `tag::String`: Optional label for identifying the created surface.
+
+# Returns
+- `Surface`: Reference to the created surface.
+"""
+function add_polygon(geo, points::Vector{Point}; tag::String="")
+    edges = Edge[]
+    np = length(points)
+    for i in 1:np
+        p1 = points[i]
+        p2 = points[ i == np ? 1 : i+1 ]
+        e = add_line(geo, p1, p2)
+        push!(edges, e)
+    end
+    loop = add_loop(geo, edges)
+    return add_plane_surface(geo, loop; tag=tag)
+end
+
+
+"""
+    add_disk(geo, X, A, r1, r2=0)
+
+Create a disk or elliptical surface centered at `X`, oriented along normal vector `A`, with radii `r1` and `r2`. If `r2=0`, creates a circular disk.
 
 # Returns
 - `Surface`: Reference to the created surface.
@@ -156,40 +189,44 @@ Create a disk or elliptical surface centered at `X`, oriented along normal vecto
 function add_disk(geo::GeoModel, X::Vector{<:Real}, A::Vector{<:Real}, r1::Real, r2::Real=0; tag::String="")
     r2==0 && (r2 = r1)  # If r2 is not provided, use r1 for a full disk
     id = gmsh.model.occ.addDisk(X..., r1, r2, -1, A)
-    # tag!= "" && (geo.tags[(2,id)] = tag)
-    return Surface(id)
+    ent =  Surface(id, tag=tag)
+    geo.added_entities[(2,id)] = ent
+    return ent
 end
 
 
 """
-    add_rectangle(geo, X, dx, dy; tag="")
+    add_rectangle(geo, X, dx, dy)
 
-Add a rectangular surface starting at corner `X` with dimensions `dx` and `dy`. Optionally assign a tag.
+Add a rectangular surface starting at corner `X` with dimensions `dx` and `dy`.
 
 # Returns
 - `Surface`: Reference to the created surface.
 """
 function add_rectangle(geo::GeoModel, X::Vector{<:Real}, dx::Real, dy::Real; tag::String="")
-    id = gmsh.model.occ.addRectangle(X..., dx, dy)
+    Y = Vec3(X)
+    id = gmsh.model.occ.addRectangle(Y..., dx, dy)
     gmsh.model.occ.synchronize()
-    # tag == "" || (geo.tags[(2,id)] = tag)
-    return Surface(id, tag=tag)
+    ent = Surface(id, tag=tag)
+    geo.added_entities[(2,id)] = ent
+    return ent
 end
 
 
 """
-    add_surface_filling(loop; tag="")
+    add_surface_filling(loop)
 
-Create a filled surface bounded by the closed `loop`. Used for non-planar boundaries. Optionally assign a tag.
+Create a filled surface bounded by the closed `loop`. Used for non-planar boundaries.
 
 # Returns
 - `Surface`: Reference to the created surface.
 """
-function add_surface_filling(loop::Loop; tag::String="")
+function add_surface_filling(loop::Loop)
     id = gmsh.model.occ.addSurfaceFilling(loop.id)
     gmsh.model.occ.synchronize()
-    # tag == "" || (geo.tags[(2,id)] = tag)
-    return Surface(id)
+    ent = Surface(id, tag=tag)
+    geo.added_entities[(2,id)] = ent
+    return ent
 end
 
 
@@ -209,26 +246,27 @@ end
 
 
 """
-    add_volume(sloops; tag="")
+    add_volume(sloops)
 
-Create a 3D volume bounded by the given `sloops` (surface loops). Optionally assign a tag.
+Create a 3D volume bounded by the given `sloops` (surface loops).
 
 # Returns
 - `Volume`: Reference to the created volume.
 """
-function add_volume(sloops::Vector{SurfaceLoop}; tag::String="")
+function add_volume(sloops::Vector{SurfaceLoop})
     ids = [ sloop.id for sloop in sloops ]
     id = gmsh.model.occ.addVolume(ids)
     gmsh.model.occ.synchronize()
-    # tag == "" || (geo.tags[(3,id)] = tag)
-    return Volume(id)
+    ent = Volume(id, tag=tag)
+    geo.added_entities[(3,id)] = ent
+    return ent
 end
 
 
 """
-    add_box(geo, X, dx, dy, dz; tag="")
+    add_box(geo, X, dx, dy, dz)
 
-Add a box starting at corner `X` with dimensions `dx`, `dy`, and `dz`. Optionally assign a tag.
+Add a box starting at corner `X` with dimensions `dx`, `dy`, and `dz`.
 
 # Returns
 - `Volume`: Reference to the created volume.
@@ -236,9 +274,9 @@ Add a box starting at corner `X` with dimensions `dx`, `dy`, and `dz`. Optionall
 function add_box(geo::GeoModel, X::Vector{<:Real}, dx::Real, dy::Real, dz::Real; tag::String="")
     id = gmsh.model.occ.add_box(X..., dx, dy, dz)
     gmsh.model.occ.synchronize()
-    vol = Volume(id, tag=tag)
-    # tag == "" || (geo.tags[(3,id)] = tag)
-    return vol
+    ent = Volume(id, tag=tag)
+    geo.added_entities[(3,id)] = ent
+    return ent
 end
 
 
@@ -250,12 +288,14 @@ Create a cylindrical volume with base center `X`, axis vector `A`, radius `r`, a
 # Returns
 - `Volume`: Reference to the created volume.
 """
-function add_cylinder(geo::GeoModel, X::Vector{<:Real}, A::Vector{<:Real}, r, angle=2π)
+function add_cylinder(geo::GeoModel, X::Vector{<:Real}, A::Vector{<:Real}, r, angle=2π; tag::String="")
     # X = [x, y, z] center of the base
     # A = [a, b, c] direction vector of the cylinder axis
     id = gmsh.model.occ.add_cylinder(X..., A..., r, -1, angle)
     gmsh.model.occ.synchronize()
-    return Volume(id, false)
+    ent = Volume(id, tag=tag)
+    geo.added_entities[(3,id)] = ent
+    return ent
 end
 
 
@@ -267,11 +307,13 @@ Create a spherical volume centered at `X` with radius `r`.
 # Returns
 - `Volume`: Reference to the created volume.
 """
-function add_sphere(geo::GeoModel, X::Vector{<:Real}, r::Real)
+function add_sphere(geo::GeoModel, X::Vector{<:Real}, r::Real; tag::String="")
     # X = [x, y, z] center of the sphere
     id = gmsh.model.occ.addSphere(X..., r)
     gmsh.model.occ.synchronize()
-    return Volume(id, false)
+    ent = Volume(id, tag=tag)
+    geo.added_entities[(3,id)] = ent
+    return ent
 end
 
 
@@ -347,6 +389,62 @@ function get_volume(geo::GeoModel, X::Vector{<:Real})
     ent === nothing && return nothing
     return get(geo.added_entities, ent, Volume(ent[2]))
 end
+
+# function select(geo::GeoModel, kind::Symbol; tag::String="")
+#     ents = []
+#     if kind == :point
+#         ents = get_entities(geo, 0)
+#     elseif kind in (:line, :curve)
+#         ents = get_entities(geo, 1)
+#     elseif kind in (:face, :surface)
+#         ents = get_entities(geo, 2)
+#     elseif kind == :volume
+#         ents = get_entities(geo, 3)
+#     else
+#         error("select: Unknown kind '$kind'")
+#     end
+
+#     if tag != ""
+#         ents = [ e for e in ents if e.tag == tag ]
+#     end
+
+#     return ents
+# end
+
+
+function select(geo::GeoModel, kind::Symbol, selector::Union{String,Vector{<:Real}}; tag::String="")
+    kind in (:point, :line, :curve, :face, :surface, :volume) || error("select: Unknown kind '$kind'")
+    dim = kind == :point ? 0 : kind in (:line, :curve) ? 1 : kind in (:face, :surface) ? 2 : 3
+
+    if selector isa Vector
+        dim_id = _get_entity(dim, selector)
+        dim_id === nothing && return GeoEntity[]
+
+        if kind== :point
+            obj = get(geo.added_entities, dim_id, Point(dim_id[2], X))
+        elseif kind in (:line, :curve)
+            type = gmsh.model.getType(1, dim_id[2])
+            obj = get(geo.added_entities, dim_id, Edge(dim_id[2], type))
+        elseif kind in (:face, :surface)
+            obj = get(geo.added_entities, dim_id, Surface(dim_id[2]))
+        elseif kind == :volume
+            obj = get(geo.added_entities, dim_id, Volume(dim_id[2]))
+        end
+        tag!= "" && (obj.tag = tag)
+        geo.added_entities[dim_id] = obj
+        return obj
+    else # string tag
+        ents = GeoEntity[]
+        for (dim_id, obj) in geo.added_entities
+            dim_id[1] == dim && obj.tag == selector && push!(ents, obj)
+        end
+        return ents
+    end
+end
+
+
+# function select(geo::GeoModel, kind::Symbol, selector::String; tag::String="")
+# end
 
 
 
@@ -470,7 +568,6 @@ function _get_dimids_from_entities(entities)
 end
 
 
-
 """
     Base.copy(geo, ents::Vector{<:GeoEntity})
 
@@ -552,7 +649,6 @@ end
 
 
 # Boolean operations on entities
-
 
 function cut(geo::GeoModel, ents1, ents2; remove_object=false, remove_tool=true)
     ents1 = ents1 isa Vector ? ents1 : [ents1]
@@ -655,15 +751,18 @@ function set_transfinite_curve(geo::GeoModel, ent, num_nodes)
     gmsh.model.mesh.set_transfinite_curve(ent.id, num_nodes)
 end
 
+
 function set_transfinite_surface(geo::GeoModel, ent)
     gmsh.model.occ.synchronize()
     gmsh.model.mesh.set_transfinite_surface(ent.id)
 end
 
+
 function set_recombine(geo::GeoModel, ent)
     gmsh.model.occ.synchronize()
     gmsh.model.mesh.set_recombine(2, ent.id)
 end
+
 
 function set_transfinite_volume(ent)
     gmsh.model.occ.synchronize()
@@ -671,12 +770,30 @@ function set_transfinite_volume(ent)
 end
 
 
-function set_size(geo::GeoModel, points, size::Real)
-    points = points isa Vector ? points : Point[points]
-    all([ent isa Point for ent in points]) || error("set_size: Only Point entities can have a size set")
+# Mesh size
+
+function set_size(geo::GeoModel, point::Point, size::Real)
+    set_size(geo, [point], size)
+end
+
+function set_size(geo::GeoModel, points::Vector{Point}, size::Real)
     gmsh.model.occ.synchronize()
     dim_ids = [ (0, ent.id) for ent in points]
     gmsh.model.mesh.set_size(dim_ids, size)
+end
+
+
+function set_size(geo::GeoModel, kind::Symbol, tag::String, size::Real)
+    gmsh.model.occ.synchronize()
+    ents = select(geo, kind, tag)
+    dim_ids = _get_dimids_from_entities(ents)
+    pts_dim_ids = gmsh.model.get_boundary(dim_ids, true, false, true)
+
+    length(pts_dim_ids) == 0 && return
+    gmsh.model.mesh.set_size(pts_dim_ids, size)
+
+    # pts = get_points(geo, ents)
+    # length(pts) > 0 && set_size(geo, pts, size)
 end
 
 

@@ -29,7 +29,7 @@ function get_coords(points::Vector{Point}, ndim=3)
 end
 
 
-struct Edge<:GeoEntity
+mutable struct Edge<:GeoEntity
     id::Int
     type::String
     points::Vector{Point}
@@ -47,12 +47,13 @@ struct Loop<:GeoEntity
 end
 
 
-struct Wire<:GeoEntity
+mutable struct Wire<:GeoEntity
     id::Int
+    tag::String
 end
 
 
-struct Surface<:GeoEntity
+mutable struct Surface<:GeoEntity
     id::Int
     transfinite::Bool
     recombine::Bool
@@ -67,7 +68,7 @@ struct SurfaceLoop<:GeoEntity
     id::Int
 end
 
-struct Volume<:GeoEntity
+mutable struct Volume<:GeoEntity
     id::Int
     transfinite::Bool
     tag::String

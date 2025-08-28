@@ -1,6 +1,6 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export DynAnalysis
+export DynamicAnalysis
 
 # DynAnalysis_params = [
 #     FunInfo(:DynAnalysis, "Dynamic mechanical analyses."),
@@ -31,42 +31,45 @@ export DynAnalysis
 # ]
 # @doc docstring(DynamicAnalysis_params) DynamicAnalysis
 
+"""
+    DynamicAnalysis(model::FEModel; outdir="", outkey="")
 
+Create a dynamic mechanical analysis for the given finite element model.
+
+# Arguments
+- `model::FEModel`: Finite element model definition.
+- `outdir::String`: Directory for output files. Defaults to `"./output"`.
+- `outkey::String`: Key prefix for output files. Defaults to `"out"`.
+
+# Behavior
+- Initializes an `AnalysisData` instance with the given output settings.
+- If `model.ctx.stress_state == :auto` and `model.ctx.ndim == 2`, the stress state is set to `:plane_strain`.
+- Marks the analysis as transient (`this.data.transient = true`).
+
+# Example
+```julia
+model = FEModel(mapper)
+analysis = DynamicAnalysis(model; outdir="results", outkey="run1")
+```
+"""
 mutable struct DynamicAnalysis<:Analysis
+    name::String
     model ::FEModel
-    ctx   ::Context
-    # sctx  ::SolverContext
+    data::AnalysisData
 
-    stages  ::Vector{Stage}
-    loggers ::Vector{Logger}
-    monitors::Vector{Monitor}
+    function DynamicAnalysis(model::FEModel; outdir="./output", outkey="out")
+        name = "Dynamic mechanical analysis"
+        data = AnalysisData(outdir=outdir, outkey=outkey)
+        this = new(name, model, data)
 
-    function DynamicAnalysis(model::FEModel; outdir=".", outkey="out")
-        this = new(model, model.ctx)
-        this.stages = []
-        this.loggers = []
-        this.monitors = []
-        this.sctx = SolverContext()
-
-        this.sctx.outkey = outkey
-        this.sctx.outdir = rstrip(outdir, ['/', '\\'])
-        isdir(this.sctx.outdir) || mkdir(this.sctx.outdir) # create output directory if it does not exist
-
-        model.ctx.thickness = model.thickness
-        if model.ctx.stress_state==:none
-            if model.ctx.ndim==2
-                model.ctx.stress_state = :plane_strain
-            else
-                model.ctx.stress_state = :d3
-            end
+        if model.ctx.stress_state==:auto && model.ctx.ndim==2
+            model.ctx.stress_state = :plane_strain
         end
+        this.data.transient = true
 
         return this
     end
 end
-
-const DynAnalysis = DynamicAnalysis
-
 
 # Assemble the global mass matrix
 function mount_M(elems::Array{<:Element,1}, ndofs::Int )
@@ -160,83 +163,67 @@ function sismic_force(model::FEModel, bcs, M::SparseMatrixCSC{Float64, Int}, F::
 end
 
 
-# # function solve!(model::FEModel, ana::DynAnalysis; args...)
-# #     name = "Solver for dynamic analyses"
-# #     status = stage_iterator(name, dyn_stage_solver!, model; args...)
-# #     return status
-# # end
 
-# dyn_solver_params = [
-#     FunInfo( :solve!, "Solves a dynamic mechanical analysis."),
-#     KwArgInfo( :tol, "Force tolerance", 0.01, cond=:(tol>0)),
-#     # ArgInfo( :rtol, "Relative tolerance in terms of displacements", 0.01, cond=:(rtol>0)),
-#     KwArgInfo( :dTmin, "Relative minimum increment size", 1e-7, cond=:(0<dTmin<1) ),
-#     KwArgInfo( :dTmax, "Relative maximum increment size", 0.1, cond=:(0<dTmax<1) ),
-#     KwArgInfo( :rspan, "Relative span to residue reapplication", 0.01, cond=:(0<rspan<1) ),
-#     KwArgInfo( :scheme, "Global solving scheme", :FE, values=(:FE, :ME, :BE, :Ralston) ),
-#     KwArgInfo( :maxits, "Maximum number of NR iterations", 5, cond=:(1<=maxits<=10)),
-#     KwArgInfo( :autoinc, "Flag to set auto-increments", false),
-#     KwArgInfo( :quiet, "Flat to set silent mode", false),
-#     KwArgInfo( :alpha, "", 0.0),
-#     KwArgInfo( :beta, "", 0.0),
-#     KwArgInfo( :sism, "", false),
-#     KwArgInfo( :tss, "", 0.0),
-#     KwArgInfo( :tds, "", 0.0),
-#     KwArgInfo( :sism_file, "", ""),
-#     KwArgInfo( :sism_dir, "", "fx"),
-# ]
-# @doc docstring(dyn_solver_params) solve!(::DynAnalysis; args...)
+function stage_solver(ana::DynamicAnalysis, stage::Stage, solver_settings::SolverSettings; quiet=quiet)
+# function dyn_stage_solver!(ana::DynamicAnalysis, stage::Stage; args...)
 
+    tol     = solver_settings.tol
+    # rtol    = solver_settings.rtol
+    # ΔT0     = solver_settings.dT0
+    ΔTmin   = solver_settings.dTmin
+    ΔTmax   = solver_settings.dTmax
+    rspan   = solver_settings.rspan
+    scheme  = solver_settings.scheme
+    maxits  = solver_settings.maxits
+    autoinc = solver_settings.autoinc
+    alpha   = solver_settings.alpha
+    beta    = solver_settings.beta
 
-function solve!(ana::DynamicAnalysis; args...)
-    args = checkargs(args, dyn_solver_params)
-    if !args.quiet
-        printstyled("Solver for mechanical dynamic analyses", "\n", bold=true, color=:cyan)
-        println("  stress model: ", ana.ctx.stress_state)
-    end
-
-    status = stage_iterator(dyn_stage_solver!, ana; args...)
-    return status
-end
-
-
-function dyn_stage_solver!(ana::DynamicAnalysis, stage::Stage; args...)
-    args = NamedTuple(args)
-
-
-    tol     = args.tol
-    ΔTmin   = args.dTmin
-    ΔTmax   = args.dTmax
-    rspan   = args.rspan
-    scheme  = args.scheme
-    maxits  = args.maxits
-    autoinc = args.autoinc
-    quiet   = args.quiet
-    sism    = args.sism
-    alpha   = args.alpha
-    beta    = args.beta
-
-
-    sctx = ana.sctx
     model = ana.model
-    ctx  = model.ctx
-
-    println(sctx.log, "Dynamic FE analysis: Stage $(stage.id)")
+    data  = ana.data
+    println(data.log, "Dynamic mechanical FE analysis: Stage $(stage.id)")
 
     solstatus = success()
-    # scheme in ("FE", "ME", "BE", "Ralston") || error("solve! : invalid scheme \"$(scheme)\"")
 
     nincs    = stage.nincs
     nouts    = stage.nouts
     bcs      = stage.bcs
+    ctx      = model.ctx
     tspan    = stage.tspan
     saveouts = stage.nouts > 0
+    ftol     = tol
+
+    # args = NamedTuple(args)
+
+
+    # tol     = args.tol
+    # ΔTmin   = args.dTmin
+    # ΔTmax   = args.dTmax
+    # rspan   = args.rspan
+    # scheme  = args.scheme
+    # maxits  = args.maxits
+    # autoinc = args.autoinc
+    # quiet   = args.quiet
+    # sism    = args.sism
+    # alpha   = args.alpha
+    # beta    = args.beta
+
+
+    # sctx = ana.sctx
+    # model = ana.model
+    # ctx  = model.ctx
+
+    # println(data.log, "Dynamic FE analysis: Stage $(stage.id)")
+
+    # solstatus = success()
+    # scheme in ("FE", "ME", "BE", "Ralston") || error("solve! : invalid scheme \"$(scheme)\"")
+
 
     stress_state = ctx.stress_state
-    ctx.ndim==3 && @check stress_state==:d3
+    ctx.ndim==3 && @check stress_state==:auto
 
     # Get active elements
-    for elem in stage.toactivate
+    for elem in stage.activate
         elem.active = true
     end
     active_elems = filter(elem -> elem.active, model.elems)
@@ -247,8 +234,11 @@ function dyn_stage_solver!(ana::DynamicAnalysis, stage::Stage; args...)
     umap  = 1:nu         # map for unknown displacements
     pmap  = nu+1:ndofs   # map for prescribed displacements
     model.ndofs = length(dofs)
-    println(sctx.log, "unknown dofs: $nu")
-    println(sctx.info, "unknown dofs: $nu")
+
+    println(data.log, "unknown dofs: $nu")
+    println(data.info, "unknown dofs: $nu")
+
+    quiet || nu==ndofs && println(data.alerts, "No essential boundary conditions")
 
     # Dictionary of data keys related with a dof
     components_dict = Dict(:ux => (:ux, :fx, :vx, :ax),
@@ -269,23 +259,30 @@ function dyn_stage_solver!(ana::DynamicAnalysis, stage::Stage; args...)
         end
 
         #If the problem is sismic, read the sismic acelerations asking to user the file's name AS:SeismicAcelerations
-        if sism
-            AS = readdlm(sism_file)
-            AS= 9.81*AS
-            keysis = Symbol(sism_dir)
-        end
+        # if sism
+        #     AS = readdlm(sism_file)
+        #     AS= 9.81*AS
+        #     keysis = Symbol(sism_dir)
+        # end
 
         # Initial accelerations
         K = mount_K(model.elems, ndofs)
         M = mount_M(model.elems, ndofs)
         A = zeros(ndofs)
         V = zeros(ndofs)
-        Uex, Fex = get_bc_vals(model, bcs) # get values at time t
+        # Uex, Fex = get_bc_vals(model, bcs) # get values at time t
+
+        Uex = zeros(ndofs)  # essential displacements
+        Fex = zeros(ndofs)  # external forces
+
+        for bc in stage.bcs
+            compute_bc_values(ana, bc, data.t, Uex, Fex) # get values at time t+Δt
+        end
 
         # if the problem has a sism, add the sismic force
-        if sism && tss<=0 # tss:time when seismic activity starts tds: time of seismic duration 0:current time =0s
-            Fex = sismic_force(model, bcs, M, Fex, AS, keysis, 0.0, tds)
-        end
+        # if sism && tss<=0 # tss:time when seismic activity starts tds: time of seismic duration 0:current time =0s
+        #     Fex = sismic_force(model, bcs, M, Fex, AS, keysis, 0.0, tds)
+        # end
         solve_system!(M, A, Fex, nu)
 
         # Initial values at nodes
@@ -313,10 +310,11 @@ function dyn_stage_solver!(ana::DynamicAnalysis, stage::Stage; args...)
     ΔT = 1.0/nincs       # initial ΔT value
     autoinc && (ΔT=min(ΔT, ΔTmax, ΔTcheck))
 
-    t  = sctx.t
+    t = data.t
+    # t  = data.t
 
     inc  = 0             # increment counter
-    iout = sctx.out       # file output counter
+    iout = data.out  # file output counter
     U    = zeros(ndofs)  # total displacements for current stage
     R    = zeros(ndofs)  # vector for residuals of natural values
     Fin  = zeros(ndofs)  # total internal force
@@ -331,27 +329,31 @@ function dyn_stage_solver!(ana::DynamicAnalysis, stage::Stage; args...)
 
     sysstatus = ReturnStatus()
 
-    # while t < tend - ttol
     while T < 1.0-ΔTmin
-        sctx.ΔT = ΔT
+        data.ΔT = ΔT
         Δt = tspan*ΔT
-        sctx.t = t
+        data.t = t
 
         # Update counters
         inc += 1
-        sctx.inc = inc
+        data.inc = inc
 
-        println(sctx.log, "  inc $inc")
+        println(data.log, "  inc $inc")
 
-        Uex, Fex = get_bc_vals(model, bcs, t+Δt) # get values at time t+Δt
+        # Get boundary conditions
+        Uex = zeros(ndofs)  # essential displacements
+        Fex = zeros(ndofs)  # external forces
 
-        # If the problem has a sism, the force sismic is added
-        if sism && tss<=t+Δt && tds+tss>=t+Δt
-            M = mount_M(model.elems, ndofs)
-            Fex = sismic_force(model, bcs, M, Fex, AS, keysis, t+Δt, tds)
+        for bc in stage.bcs
+            compute_bc_values(ana, bc, t+Δt, Uex, Fex) # get values at time t+Δt
         end
 
-        #R   .= FexN - F    # residual
+        # If the problem has a sism, the force sismic is added
+        # if sism && tss<=t+Δt && tds+tss>=t+Δt
+        #     M = mount_M(model.elems, ndofs)
+        #     Fex = sismic_force(model, bcs, M, Fex, AS, keysis, t+Δt, tds)
+        # end
+
         Fex_Fin = Fex-Fina    # residual
         ΔUa .= 0.0
         ΔUi .= Uex    # essential values at iteration i # TODO: check for prescribed disps
@@ -407,7 +409,7 @@ function dyn_stage_solver!(ana::DynamicAnalysis, stage::Stage; args...)
             Fex_Fin .= Fex .- Fina  # Check this variable, it is not the residue actually
             Fex_Fin[pmap] .= 0.0  # Zero at prescribed positions
 
-            @printf(sctx.log, "    it %d  residue: %-10.4e\n", it, residue)
+            @printf(data.log, "    it %d  residue: %-10.4e\n", it, residue)
 
             it==1 && (residue1=residue)
             residue > tol && (Fina -= ΔFin)
@@ -444,23 +446,23 @@ function dyn_stage_solver!(ana::DynamicAnalysis, stage::Stage; args...)
 
             # Update time t and Δt
             T += ΔT
-            sctx.T = T
+            data.T = T
             t += Δt
-            sctx.t = t
-            sctx.residue = residue
+            data.t = t
+            data.residue = residue
 
             # Check for saving output file
             checkpoint = T>Tcheck-ΔTmin
             if checkpoint
-                sctx.out += 1
+                data.out += 1
                 # update_embedded_disps!(active_elems, model.node_data["U"])
                 Tcheck += ΔTcheck # find the next output time
             end
 
             # Check for saving output file
             # if T>Tcheck-ΔTmin && saveouts
-            #     sctx.out += 1
-            #     iout = sctx.out
+            #     data.out += 1
+            #     iout = data.out
 
             #     rm.(glob("*conflicted*.dat", "$outdir/"), force=true)
 
@@ -475,11 +477,11 @@ function dyn_stage_solver!(ana::DynamicAnalysis, stage::Stage; args...)
 
             # update_single_loggers!(model)
             # update_monitors!(model)
-            # flush(sctx.log)
+            # flush(data.log)
 
             rstatus = update_records!(ana, checkpoint=checkpoint)
             if failed(rstatus)
-                println(sctx.alerts, rstatus.message)
+                println(data.alerts, rstatus.message)
                 return rstatus
             end
 
@@ -508,22 +510,22 @@ function dyn_stage_solver!(ana::DynamicAnalysis, stage::Stage; args...)
         else
             # Restore counters
             inc -= 1
-            sctx.inc -= 1
+            data.inc -= 1
 
             copyto!.(State, StateBk)
 
             if autoinc
-                println(sctx.log, "      increment failed")
+                println(data.log, "      increment failed")
                 q = (1+tanh(log10(tol/residue1)))
                 q = clamp(q, 0.2, 0.9)
                 ΔT = q*ΔT
                 ΔT = round(ΔT, sigdigits=3)  # round to 3 significant digits
                 if ΔT < ΔTmin
-                    solstatus = failure("solver did not converge")
+                    solstatus = failure("Solver did not converge")
                     break
                 end
             else
-                solstatus = failure("solver did not converge")
+                solstatus = failure("Solver did not converge. Try `autoinc=true`. ")
                 break
             end
         end
