@@ -119,8 +119,9 @@ function get_edges(surf_cells::Array{<:AbstractCell,1})
     return collect(values(edges_dict))
 end
 
+
 # Return a list of neighbors for each cell
-function get_neighbors(cells::Array{Cell,1})::Array{Cell,1}
+function get_neighbors(cells::Vector{Cell})
     faces_dict = Dict{UInt64, Cell}()
     neighbors = [ Cell[] for i in 1:length(cells) ]
 
@@ -155,161 +156,123 @@ function get_patches(mesh::Mesh)
     return mesh.nodes, patches
 end
 
-# Reverse Cuthill–McKee algorithm (RCM)
-function sortnodes!(mesh::Mesh; sort_degrees=true, reversed=true)
 
-    # Get all mesh edges
-    all_edges = Cell[]  # using array ( the use of dictionary got hash collisions for some embedded cells)
-    for cell in mesh.elems
+"""
+    sort_mesh(mesh; reverse=true) -> Mesh
 
-        # adding cell edges
-        if cell.role == :bulk
-            for edge in get_edges(cell)
-                push!(all_edges, edge)
-            end
+Reorder the nodes and elements of a finite element `mesh` to improve 
+sparsity structure and cache locality in FEM analysis.
+Nodes are renumbered using the **Reverse Cuthill–McKee (RCM) algorithm.
+Elements are subsequently sorted by the minimum node id they contain.
 
-            #check for lagrangian elements
-            if cell.shape==QUAD9
-                edge = Cell(POLYVERTEX, [ cell.nodes[1], cell.nodes[end] ] )
-                push!(all_edges, edge)
-            end
-            if cell.shape==HEX27
-                edge = Cell(POLYVERTEX, [ cell.nodes[1], cell.nodes[end] ] )
-                push!(all_edges, edge)
-                for i in (21,22,23,24,25,26)
-                    edge = Cell(POLYVERTEX, [ cell.nodes[i], cell.nodes[end] ] )
-                    push!(all_edges, edge)
-                end
-            end
-            continue
-        end
+# Arguments
+- `mesh::Mesh`: The mesh to be reordered.
+- `reverse::Bool=true`: If true, apply Reverse Cuthill–McKee; if false, 
+  use standard Cuthill–McKee.
 
-        # line interface
-        if cell.role == :line_interface
-            npts = cell.shape.npoints
-            edge = Cell(POLYVERTEX, :line_interface, [ cell.nodes[1]; cell.nodes[end-npts+1:end] ])
-            push!(all_edges, edge)
-            continue
-        end
-
-        # embedded line cells
-        if cell.role == :line && length(cell.couplings)>0
-            edge1 = Cell(cell.shape, cell.role, cell.nodes)
-            edge2 = Cell(LIN2, cell.role, [ cell.nodes[1], cell.couplings[1].nodes[1] ])
-            push!(all_edges, edge1)
-            push!(all_edges, edge2)
-            continue
-        end
-
-        # all other cells
-        edge = Cell(cell.shape, :line, cell.nodes)
-        push!(all_edges, edge)
-
-    end
-
-    # Get neighbors ids
+# Returns
+The same `mesh` object, modified in place, with reordered nodes and elements.
+"""
+function sort_mesh(mesh::Mesh; reverse::Bool=true)
     nnodes = length(mesh.nodes)
-    neighs_ids = Array{Int64}[ [] for i in 1:nnodes ]
 
-    for edge in all_edges
-        nodes = edge.nodes
-        np = length(nodes)
+    # Build node–node adjacency from cell connectivities
+    adjacents = [Int[] for _ in 1:nnodes]
+    for cell in mesh.elems
+        ids = getfield.(cell.nodes, :id)
+        ncellnodes = length(ids)
+        for i in 1:ncellnodes-1, j in i+1:ncellnodes
+            u, v = ids[i], ids[j]
+            push!(adjacents[u], v)
+            push!(adjacents[v], u)
+        end
+    end
 
-        for i in 1:np-1
-            for j in i+1:np
-                push!(neighs_ids[nodes[i].id], nodes[j].id)
-                push!(neighs_ids[nodes[j].id], nodes[i].id)
+    unique!.(adjacents)
+    deg = length.(adjacents)
+
+    # RCM: BFS starting at min-degree nodes, neighbors sorted by degree
+    visited = falses(nnodes)
+    perm = Int[]
+
+    while length(perm) < nnodes
+        # start at unvisited node with minimal degree
+        start = argmin([(visited[i] ? typemax(Int) : deg[i]) for i in 1:nnodes])
+        queue = Int[]
+        push!(queue, start)
+        visited[start] = true
+        head_idx = 1
+
+        while head_idx <= length(queue)
+            u = queue[head_idx]
+            head_idx += 1
+            push!(perm, u)
+            # enqueue neighbors by increasing degree
+            
+            buffer = filter(v -> !visited[v], adjacents[u])
+            sorted = sort!(buffer, by = v -> deg[v])
+            for v in sorted
+                visited[v] = true
+                push!(queue, v)
             end
         end
     end
 
-    # remove duplicates
-    neighs_ids = [ unique(list) for list in neighs_ids ]
+    reverse && reverse!(perm)
+    mesh.nodes = mesh.nodes[perm]
 
-    # get neighbors
-    neighs = Array{Node}[ mesh.nodes[list] for list in neighs_ids ]
-
-    # list of degrees per point
-    degrees = Int64[ length(list) for list in neighs]
-    mindeg, idx  = findmin(degrees)
-
-    if mindeg == 0
-        # Case of overlapping elements where edges have at least one point with the same coordinates
-        notify("sortnodes!: Reordering nodes failed. Possible causes: disconnected domain or non used nodes.")
-        return
-    end
-
-    N = [ mesh.nodes[idx] ] # new list of nodes
-    L = Dict{Int64,Node}()  # last levelset. Use ids as keys instead of hash to avoid collisions of nodes with same coordinates
-    L[idx] = mesh.nodes[idx]
-    LL = Dict{Int64,Node}()  # levelset before the last one
-
-    while length(N) < nnodes
-        # Generating current levelset A
-        A = Dict{Int64,Node}()
-
-        for p in values(L)
-            for q in neighs[p.id]
-                (haskey(L, q.id) || haskey(LL, q.id)) && continue
-                A[q.id] = q
-            end
-        end
-        if length(A)==0
-            #@error "sortnodes!: Reordering nodes failed! Possible error with cell connectivities."
-            notify("sortnodes!: Reordering nodes failed. Possible causes: disconnected domain, non used nodes and overlapping cells.")
-            return
-        end
-
-        # Convert A into an array RA
-        RA = collect(values(A))
-        if sort_degrees
-            D  = [ degrees[point.id] for point in RA ]
-            RA = RA[sortperm(D)]
-        end
-
-        append!(N, RA)
-        LL, L = L, A
-    end
-
-    # Reverse list of new nodes
-    if reversed
-        N = reverse(N)
-    end
-
-    ids = [ node.id for node in N ]
-
-    # update nodal fields
+    # Update nodal fields
     for (key, data) in mesh.node_data
         key == "node-id" && continue
         sz = size(data)
         if length(sz)==1
-            mesh.node_data[key] = data[ids]
+            mesh.node_data[key] = data[perm]
         else
-            mesh.node_data[key] = data[ids,:]
+            mesh.node_data[key] = data[perm,:]
         end
     end
 
-    # Renumerating
-    for (i,p) in enumerate(N)
-        p.id = i
+    # Renumbering node ids
+    for (i, node) in enumerate(mesh.nodes)
+        node.id = i
+    end
+    mesh.node_data["node-id"]   = collect(1:length(mesh.nodes))
+
+    # Sorting elements
+    keys = [ minimum(getfield.(cell.nodes, :id)) for cell in mesh.elems]
+    perm = sortperm(keys)
+    mesh.elems = mesh.elems[perm]
+
+    # Update cell fields
+    for (key, data) in mesh.elem_data
+        key == "elem-id" && continue
+        sz = size(data)
+        if length(sz)==1
+            mesh.elem_data[key] = data[perm]
+        else
+            mesh.elem_data[key] = data[perm,:]
+        end
     end
 
-    mesh.nodes = N
+    # Renumbering element ids
+    for (i, elem) in enumerate(mesh.elems)
+        elem.id = i
+    end
+    mesh.elem_data["elem-id"]   = collect(1:length(mesh.elems))
 
-    return nothing
-
+    return mesh
 end
 
 
-function update_quality!(mesh::Mesh)
-    # Quality
-    Q = Float64[]
-    for c in mesh.elems
-        c.quality = cell_quality(c)
-        push!(Q, c.quality)
-    end
-    mesh.elem_data["quality"] = Q
-end
+# function update_quality!(mesh::Mesh)
+#     # Quality
+#     Q = Float64[]
+#     for c in mesh.elems
+#         c.quality = cell_quality(c)
+#         push!(Q, c.quality)
+#     end
+#     mesh.elem_data["quality"] = Q
+# end
 
 
 function compute_facets(mesh::Mesh)
@@ -337,7 +300,7 @@ end
 
 
 # Syncs the mesh data
-function synchronize!(mesh::Mesh; sortnodes=false, cleandata=false)
+function synchronize!(mesh::Mesh; sort=false, cleandata=false)
 
     ndim = mesh.ctx.ndim
     if ndim!=3
@@ -376,29 +339,20 @@ function synchronize!(mesh::Mesh; sortnodes=false, cleandata=false)
         push!(Q, c.quality)
     end
 
-    # Ordering
-    sortnodes && sortnodes!(mesh)
-
+    
     # update data
     if cleandata
         empty!(mesh.node_data)
         empty!(mesh.elem_data)
     end
-
-    # tag
-    # tags = sort(unique([elem.tag for elem in mesh.elems]))
-    # tag_dict = Dict( tag=>i-1 for (i,tag) in enumerate(tags) )
-
+    
     mesh.node_data["node-id"]   = collect(1:length(mesh.nodes))
     mesh.elem_data["quality"]   = Q
     mesh.elem_data["elem-id"]   = collect(1:length(mesh.elems))
     mesh.elem_data["cell-type"] = [ Int(cell.shape.vtk_type) for cell in mesh.elems ]
 
-    # tag
-    # tags  = collect(Set(elem.tag for elem in mesh.elems))
-    # tag_d = Dict( tag=>i for (i,tag) in enumerate(tags) )
-    # T     = Int[ tag_d[elem.tag]-1 for elem in mesh.elems ]
-    # mesh.elem_data["tag"] = T
+    # Ordering
+    sort && sort_mesh(mesh)
 end
 
 
@@ -439,7 +393,7 @@ function join_mesh!(mesh::Mesh, m2::Mesh)
     mesh.elems = elems
     mesh._pointdict = pointdict
 
-    synchronize!(mesh, sortnodes=false)
+    synchronize!(mesh, sort=false)
 
     return nothing
 end
@@ -497,10 +451,48 @@ Mesh
     "cell-type" => [5, 5]
 ```
 """
+
+
+"""
+    Mesh(coordinates, connectivities, cellshapes=CellShape[]; tag="", quiet=true) -> Mesh
+
+Construct a `Mesh` object directly from nodal coordinates and element connectivities.
+
+# Arguments
+- `coordinates::Matrix{<:Real}`: Node coordinate matrix of size `(nnodes, ndim)`.
+- `connectivities::Vector{Vector{Int}}`: Connectivity list, where each entry is a vector
+  of node indices (1-based) defining an element.
+- `cellshapes::Vector{CellShape}=CellShape[]`: Optional vector of element shapes (LIN2, QUAD4, etc.).  
+  If not provided, shapes are inferred automatically from the number of nodes and
+  spatial dimension.
+- `tag::String=""`: Optional tag applied to all created elements.
+- `quiet::Bool=false`: If `true`, suppresses console output during construction.
+
+# Returns
+- `mesh::Mesh`: A finite element mesh with nodes and elements created from
+  the input data.
+
+# Example
+```julia
+using Serendip
+
+# square domain with 4 points and 2 triangular elements
+coordinates = [ 0.0 0.0;
+                1.0 0.0;
+                1.0 1.0;
+                0.0 1.0 ]
+
+connectivities = [ [1, 2, 3], [1, 3, 4] ]
+cellshapes     = [ TRI3, TRI3 ]
+
+mesh = Mesh(coordinates, connectivities, cellshapes; tag="tri")
+println(mesh)
+```
+"""
 function Mesh(
-              coordinates::Array{<:Real},
-              connectivities::Array{Array{Int64,1},1},
-              cellshapes ::Array{CellShape,1}=CellShape[];
+              coordinates::Matrix{<:Real},
+              connectivities::Vector{Vector{Int64}},
+              cellshapes ::Vector{CellShape}=CellShape[];
               tag        ::String="",
               quiet      ::Bool=false,
              )
@@ -536,7 +528,7 @@ function Mesh(
     mesh.ctx.ndim = ndim
     mesh.nodes = nodes
     mesh.elems = cells
-    synchronize!(mesh, sortnodes=false) # no node ordering
+    synchronize!(mesh, sort=false) # no node ordering
 
     return mesh
 end
@@ -604,55 +596,9 @@ function Mesh(elems::Vector{Cell})
     newmesh.nodes = newnodes
     newmesh.elems = newelems
 
-    synchronize!(newmesh, sortnodes=true)
+    synchronize!(newmesh, sort=true)
     return newmesh
 end
-
-
-# function Base.getindex(mesh::Mesh, filter::Union{String,Expr,Symbol,Symbolic,CellFamily,CellShape})
-#     elems = mesh.elems[filter]
-#     length(elems)==0 && return Mesh()
-
-#     # newnodes
-#     nodes    = [ node for elem in elems for node in elem.nodes ]
-#     nodes_d  = Dict{Int,Node}( node.id => copy(node) for node in nodes )
-#     newnodes = collect(values(nodes_d))
-#     node_ids = collect(keys(nodes_d))
-#     ndim     = any( node.coord[3] != 0.0 for node in newnodes ) ? 3 : 2
-
-#     # copy elements
-#     newelems = Cell[]
-#     for elem in elems
-#         elem_nodes = Node[ nodes_d[node.id] for node in elem.nodes ]
-#         newelem    = Cell(elem.shape, elem_nodes, tag=elem.tag)
-#         push!(newelems, newelem)
-#     end
-
-#     # create new mesh
-#     newmesh       = Mesh(ndim)
-#     newmesh.nodes = newnodes
-#     newmesh.elems = newelems
-
-#     # update node fields
-#     for (key, data) in mesh.node_data
-#         sz = size(data)
-#         if length(sz)==1
-#             newmesh.node_data[key] = data[node_ids]
-#         else
-#             newmesh.node_data[key] = data[node_ids,:]
-#         end
-#     end
-
-#     # update elem fields
-#     elem_ids = [ elem.id for elem in elems ]
-#     for (key, data) in mesh.elem_data
-#         newmesh.elem_data[key] = data[elem_ids]
-#     end
-
-#     synchronize!(newmesh, sortnodes=true)
-
-#     return newmesh
-# end
 
 
 function threshold(mesh::Mesh, field::Union{Symbol,String}, minval::Float64, maxval::Float64)
@@ -699,7 +645,7 @@ function threshold(mesh::Mesh, field::Union{Symbol,String}, minval::Float64, max
     end
 
     # update node numbering, facets and edges
-    synchronize!(new_mesh, sortnodes=false)
+    synchronize!(new_mesh, sort=false)
 
     return new_mesh
 

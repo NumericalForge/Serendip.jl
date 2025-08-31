@@ -286,11 +286,9 @@ end
 
 
 function output(monitor::Monitor)
-
-    # out = IOBuffer()
     selector = monitor.selector
 
-    if selector isa Expr || selector isa Symbolic
+    if selector isa Expr || selector isa Tuple
         loc = replace( string(round_floats!(getexpr(selector))), " " => "")
     elseif selector isa Integer
         loc = "$item_name $selector"
@@ -300,19 +298,9 @@ function output(monitor::Monitor)
 
     head = string(monitor.kind) * " at " * loc
 
-    # head = "    $(monitor.kind) at " * label * "    "
-    # head_len = length(head)
-    # n = 5
-    # rem = head_len%n
-    # if rem != 0
-    #     head *= " "^(n - rem)
-    # end
-
-    # print(out, head, "\e[K")
-
     labels = String[]
     values = String[]
-    # first = true
+    
     for (k,v) in monitor.values
         k in (:stage, :T, :t) && continue
         if v isa Real && !(v isa Bool)
@@ -321,15 +309,7 @@ function output(monitor::Monitor)
         push!(labels, string(k))
         push!(values, string(v))
 
-        # first || print(out, " "^length(head))
-
-
-        # println(out, replace(string(k), " " => ""), " : ", v, "\e[K")
-        # first = false
     end
-    # labels[1] = label
-    # str = String(take!(out))
-    # return str
     return head, labels, values
 end
 

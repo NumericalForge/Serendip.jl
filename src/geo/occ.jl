@@ -21,7 +21,7 @@ function add_point(geo::GeoModel, X::Vector{<:Real}; size=0, embedded::Bool=fals
     id = gmsh.model.occ.addPoint(X[1], X[2], X[3], size)
     gmsh.model.occ.synchronize()
     ent = Point(id, float.(X), embedded=embedded, tag=tag)
-    geo.added_entities[(0,id)] = ent
+    geo.entities[(0,id)] = ent
     return ent
 end
 
@@ -38,7 +38,7 @@ function add_line(geo::GeoModel, p1::Point, p2::Point, tag::String="")
     id = gmsh.model.occ.addLine(p1.id, p2.id)
     gmsh.model.occ.synchronize()
     ent = Edge(id, "Line", [p1, p2], tag=tag)
-    geo.added_entities[(1,id)] = ent
+    geo.entities[(1,id)] = ent
     return ent
 end
 
@@ -58,7 +58,7 @@ function add_circle_arc(geo::GeoModel, p1::Point, p2::Point, p3::Point; center=t
     gmsh.model.occ.synchronize()
     type = center ? "CircleArcCenter" : "CircleArcNoCenter"
     ent = Edge(id, type, [p1, p2, p3], tag=tag)
-    geo.added_entities[(1,id)] = ent
+    geo.entities[(1,id)] = ent
     return ent
 end
 
@@ -76,7 +76,7 @@ function add_circle(geo::GeoModel, X::Vector{<:Real}, A::Vector{<:Real}, r; angl
     gmsh.model.occ.synchronize()
     p = Point(-1, float.(X))
     ent = Edge(id, "Circle", [p], tag=tag)
-    geo.added_entities[(1,id)] = ent
+    geo.entities[(1,id)] = ent
     return ent
 end
 
@@ -94,7 +94,7 @@ function add_bezier(geo::GeoModel, points::Vector{Point}; tag::String="")
     id = gmsh.model.occ.addBezier(ids)
     gmsh.model.occ.synchronize()
     ent = Edge(id, "Bezier", points, tag=tag)
-    geo.added_entities[(1,id)] = ent
+    geo.entities[(1,id)] = ent
     return ent
 end
 
@@ -112,7 +112,7 @@ function add_wire(geo::GeoModel, edges::Vector{Edge}; tag::String="")
     id = gmsh.model.occ.addWire(ids)
     gmsh.model.occ.synchronize()
     ent =  Wire(id, tag=tag)
-    geo.added_entities[(1,id)] = ent
+    geo.entities[(1,id)] = ent
     return ent
 end
 
@@ -146,7 +146,7 @@ function add_plane_surface(geo::GeoModel, loops::Loop...; tag::String="")
     id = gmsh.model.occ.addPlaneSurface(ids)
     gmsh.model.occ.synchronize()
     ent =  Surface(id, tag=tag)
-    geo.added_entities[(2,id)] = ent
+    geo.entities[(2,id)] = ent
     return ent
 end
 
@@ -190,7 +190,7 @@ function add_disk(geo::GeoModel, X::Vector{<:Real}, A::Vector{<:Real}, r1::Real,
     r2==0 && (r2 = r1)  # If r2 is not provided, use r1 for a full disk
     id = gmsh.model.occ.addDisk(X..., r1, r2, -1, A)
     ent =  Surface(id, tag=tag)
-    geo.added_entities[(2,id)] = ent
+    geo.entities[(2,id)] = ent
     return ent
 end
 
@@ -208,7 +208,7 @@ function add_rectangle(geo::GeoModel, X::Vector{<:Real}, dx::Real, dy::Real; tag
     id = gmsh.model.occ.addRectangle(Y..., dx, dy)
     gmsh.model.occ.synchronize()
     ent = Surface(id, tag=tag)
-    geo.added_entities[(2,id)] = ent
+    geo.entities[(2,id)] = ent
     return ent
 end
 
@@ -225,7 +225,7 @@ function add_surface_filling(loop::Loop)
     id = gmsh.model.occ.addSurfaceFilling(loop.id)
     gmsh.model.occ.synchronize()
     ent = Surface(id, tag=tag)
-    geo.added_entities[(2,id)] = ent
+    geo.entities[(2,id)] = ent
     return ent
 end
 
@@ -258,7 +258,7 @@ function add_volume(sloops::Vector{SurfaceLoop})
     id = gmsh.model.occ.addVolume(ids)
     gmsh.model.occ.synchronize()
     ent = Volume(id, tag=tag)
-    geo.added_entities[(3,id)] = ent
+    geo.entities[(3,id)] = ent
     return ent
 end
 
@@ -275,7 +275,7 @@ function add_box(geo::GeoModel, X::Vector{<:Real}, dx::Real, dy::Real, dz::Real;
     id = gmsh.model.occ.add_box(X..., dx, dy, dz)
     gmsh.model.occ.synchronize()
     ent = Volume(id, tag=tag)
-    geo.added_entities[(3,id)] = ent
+    geo.entities[(3,id)] = ent
     return ent
 end
 
@@ -294,7 +294,7 @@ function add_cylinder(geo::GeoModel, X::Vector{<:Real}, A::Vector{<:Real}, r, an
     id = gmsh.model.occ.add_cylinder(X..., A..., r, -1, angle)
     gmsh.model.occ.synchronize()
     ent = Volume(id, tag=tag)
-    geo.added_entities[(3,id)] = ent
+    geo.entities[(3,id)] = ent
     return ent
 end
 
@@ -312,7 +312,7 @@ function add_sphere(geo::GeoModel, X::Vector{<:Real}, r::Real; tag::String="")
     id = gmsh.model.occ.addSphere(X..., r)
     gmsh.model.occ.synchronize()
     ent = Volume(id, tag=tag)
-    geo.added_entities[(3,id)] = ent
+    geo.entities[(3,id)] = ent
     return ent
 end
 
@@ -365,7 +365,7 @@ end
 function get_point(geo::GeoModel, X::Vector{<:Real})
     ent = _get_entity(0, X)
     ent === nothing && return nothing
-    return get(geo.added_entities, ent, Point(ent[2], X))
+    return get(geo.entities, ent, Point(ent[2], X))
 end
 
 
@@ -373,21 +373,21 @@ function get_curve(geo::GeoModel, X::Vector{<:Real})
     ent = _get_entity(1, X)
     ent === nothing && return nothing
     type = gmsh.model.getType(1, ent[2])
-    return get(geo.added_entities, ent, Edge(ent[2], type))
+    return get(geo.entities, ent, Edge(ent[2], type))
 end
 
 
 function get_surface(geo::GeoModel, X::Vector{<:Real})
     ent = _get_entity(2, X)
     ent === nothing && return nothing
-    return get(geo.added_entities, ent, Surface(ent[2]))
+    return get(geo.entities, ent, Surface(ent[2]))
 end
 
 
 function get_volume(geo::GeoModel, X::Vector{<:Real})
     ent = _get_entity(3, X)
     ent === nothing && return nothing
-    return get(geo.added_entities, ent, Volume(ent[2]))
+    return get(geo.entities, ent, Volume(ent[2]))
 end
 
 # function select(geo::GeoModel, kind::Symbol; tag::String="")
@@ -421,21 +421,21 @@ function select(geo::GeoModel, kind::Symbol, selector::Union{String,Vector{<:Rea
         dim_id === nothing && return GeoEntity[]
 
         if kind== :point
-            obj = get(geo.added_entities, dim_id, Point(dim_id[2], X))
+            obj = get(geo.entities, dim_id, Point(dim_id[2], X))
         elseif kind in (:line, :curve)
             type = gmsh.model.getType(1, dim_id[2])
-            obj = get(geo.added_entities, dim_id, Edge(dim_id[2], type))
+            obj = get(geo.entities, dim_id, Edge(dim_id[2], type))
         elseif kind in (:face, :surface)
-            obj = get(geo.added_entities, dim_id, Surface(dim_id[2]))
+            obj = get(geo.entities, dim_id, Surface(dim_id[2]))
         elseif kind == :volume
-            obj = get(geo.added_entities, dim_id, Volume(dim_id[2]))
+            obj = get(geo.entities, dim_id, Volume(dim_id[2]))
         end
         tag!= "" && (obj.tag = tag)
-        geo.added_entities[dim_id] = obj
+        geo.entities[dim_id] = obj
         return obj
     else # string tag
         ents = GeoEntity[]
-        for (dim_id, obj) in geo.added_entities
+        for (dim_id, obj) in geo.entities
             dim_id[1] == dim && obj.tag == selector && push!(ents, obj)
         end
         return ents
@@ -531,7 +531,7 @@ end
 function _get_entities_from_dimids(geo::GeoModel, dimids)
     entities = []
     for (d, id) in dimids
-        ent = get(geo.added_entities, (d, id), nothing)
+        ent = get(geo.entities, (d, id), nothing)
         if ent !== nothing
             push!(entities, ent)
             continue
@@ -772,17 +772,34 @@ end
 
 # Mesh size
 
-function set_size(geo::GeoModel, point::Point, size::Real)
-    set_size(geo, [point], size)
-end
+# function set_size(geo::GeoModel, point::Point, size::Real)
+#     set_size(geo, [point], size)
+# end
 
-function set_size(geo::GeoModel, points::Vector{Point}, size::Real)
-    gmsh.model.occ.synchronize()
-    dim_ids = [ (0, ent.id) for ent in points]
-    gmsh.model.mesh.set_size(dim_ids, size)
-end
+# function set_size(geo::GeoModel, points::Vector{Point}, size::Real)
+#     gmsh.model.occ.synchronize()
+#     dim_ids = [ (0, ent.id) for ent in points]
+#     gmsh.model.mesh.set_size(dim_ids, size)
+# end
 
+"""
+    set_size(geo, kind, tag, size)
 
+Assigns a local mesh size to all points on the boundary of entities selected by type (`kind`) and tag within a `GeoModel`.
+
+This function selects entities of a specific geometric type (`:point`, `:edge`, `:surface`, `:volume`) and tag, and sets the mesh size at the corresponding points.
+
+# Arguments
+- `geo::GeoModel`: The geometry model where the mesh size is applied.
+- `kind::Symbol`: Type of geometric entity to target (`:point, ``:edge`, `:face`, `:volume`).
+- `tag::String`: Tag string used to select the target entities.
+- `size::Real`: Target mesh size to assign at the boundary points of the selected entities.
+
+# Example
+```julia
+set_size(geo, :surface, "foundation_zone", 0.05)
+```
+"""
 function set_size(geo::GeoModel, kind::Symbol, tag::String, size::Real)
     gmsh.model.occ.synchronize()
     ents = select(geo, kind, tag)
@@ -791,12 +808,55 @@ function set_size(geo::GeoModel, kind::Symbol, tag::String, size::Real)
 
     length(pts_dim_ids) == 0 && return
     gmsh.model.mesh.set_size(pts_dim_ids, size)
-
-    # pts = get_points(geo, ents)
-    # length(pts) > 0 && set_size(geo, pts, size)
 end
 
 
+"""
+    set_size(geo, target, size)
+
+Assigns a target mesh size to the point entities on the boundary of the given `target` geometry entity or entities.
+If a single `GeoEntity` is passed, it is internally wrapped in a vector.
+
+# Arguments
+- `geo::GeoModel`: The geometry model where the mesh size will be assigned.
+- `target::Union{GeoEntity,Vector{<:GeoEntity}`: A single `GeoEntity` or a vector of them.
+- `size::Real`: The target mesh size to assign to the boundary points of the given entities.
+
+# Example
+```julia
+set_size(geo, some_line_entity, 0.05)
+set_size(geo, [curve1, surface1], 0.1)
+```
+"""
+function set_size(geo::GeoModel, target::Union{GeoEntity, Vector{<:GeoEntity}}, size::Real)
+    if target isa GeoEntity
+        set_size(geo, [target], size)
+    else
+        ents = target
+        dim_ids = _get_dimids_from_entities(ents)
+        pts_dim_ids = gmsh.model.get_boundary(dim_ids, true, false, true)
+
+        length(pts_dim_ids) == 0 && return
+        gmsh.model.mesh.set_size(pts_dim_ids, size)
+    end
+end
+
+
+"""
+    set_size(geo::GeoModel, size::Real)
+
+Sets the global target mesh size for all entities in the Gmsh-based geometry model.
+It enforces a uniform mesh size across the model.
+
+# Arguments
+- `geo::GeoModel`: The geometry model whose mesh settings will be modified.
+- `size::Real`: The desired global mesh size.
+
+# Example
+```julia
+set_size(geo, 0.05)  # Set global mesh size to 0.05 units
+```
+"""
 function set_size(geo::GeoModel, size::Real)
     gmsh.option.setNumber("Mesh.CharacteristicLengthMax", size)
     gmsh.option.setNumber("Mesh.CharacteristicLengthMin", size)

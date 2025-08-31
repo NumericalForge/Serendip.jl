@@ -515,7 +515,7 @@ function draw!(mplot::DomainPlot, ctx::CairoContext)
         elem.role in ( :line, :bulk, :surface ) || continue
 
         # culling back faces
-        if elem.owner !== nothing && mplot.view_mode != :outline
+        if elem.owner !== nothing && mplot.view_mode in (:surface, :surface_with_edges)
             if elem.owner.shape.ndim==3
                 !iscounterclockwise( elem.nodes ) && continue
             end

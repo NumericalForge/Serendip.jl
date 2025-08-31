@@ -156,7 +156,7 @@ function gen_insets!(mesh::Mesh, subpath::GPath)
                     jntcell.couplings = [ccell, lcell]
 
                     # generate tip joints
-                    if first_segment && tips in (:front, :both)
+                    if first_segment && tips in (:start, :both)
                         tip = P1
                         tipjointnodes = vcat(ccell.nodes, tip)
                         tipjointcell = Cell(POLYVERTEX, :tip, tipjointnodes, tag=tip_tag)

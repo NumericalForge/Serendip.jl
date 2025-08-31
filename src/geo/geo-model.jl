@@ -1,35 +1,3 @@
-struct GPath<:GeoEntity
-    path::Path
-    embedded::Bool
-    shape::CellShape
-    tag::String
-    interface_tag::String
-    tip_tag::String
-    tips::Symbol
-
-    function GPath(path::Path; embedded::Bool=false, shape::CellShape=LIN3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
-        this = new(path, embedded, shape, tag, interface_tag, tip_tag, tips)
-        return this
-    end
-end
-
-export add_path, add_array, add_block
-
-
-function Base.copy(p::GPath)
-    # copy the path
-    path = copy(p.path)
-
-    # create a new GPath with the copied path
-    return GPath(path; embedded=p.embedded, shape=p.shape, tag=p.tag, interface_tag=p.interface_tag, tip_tag=p.tip_tag, tips=p.tips)
-end
-
-function move!(gpath::GPath; dx::Real=0.0, dy::Real=0.0, dz::Real=0.0)
-    for p in gpath.path.points
-        p.coord = p.coord + Vec3(dx, dy, dz)
-    end
-end
-
 
 function Path(edges::Vector{Edge})
     # points = Point[]
@@ -72,9 +40,83 @@ function Path(edges::Vector{Edge})
 
 end
 
+"""
+    GPath(path; embedded=false, shape=LIN3, tag="", interface_tag="", tip_tag="", tips=:none)
 
+Creates a geometric path (`GPath`) entity, which represents a curve (typically a sequence of connected edges) embedded or placed in the geometry model.
+This structure is typically used to represent linear inclusions such as reinforcements, drains, etc.
+If embedded is `false`, interface elements will be created along the path.
+If `tips` is not `:none`, tip elements will be created at the endpoints of the path.
+
+# Arguments
+- `path::Path`: The geometric path (sequence of edges and points) to be wrapped as a GPath.
+- `embedded::Bool=false`: Whether this path should be embedded in the bulk mesh during meshing (e.g. cracks, reinforcements).
+- `shape::CellShape=LIN3`: Shape function used for discretizing the path (e.g., quadratic line `LIN3`, cubic, etc.).
+- `tag::String=""`: Optional label or name for this path (e.g. to identify or filter later).
+- `interface_tag::String=""`: Optional tag for use when interface elements are generated from the path.
+- `tips::Symbol=:none`: Specify witch tips are considered (:start, :end, :both, :none) for the generation of tip interface elements.
+- `tip_tag::String=""`: Optional tag for tip elements if tip elements are enabled.
+
+Note: Original OCC edges are removed from the geometry after constructing the path.
+"""
+struct GPath<:GeoEntity
+    path::Path
+    embedded::Bool
+    shape::CellShape
+    tag::String
+    interface_tag::String
+    tip_tag::String
+    tips::Symbol
+
+    function GPath(path::Path; embedded::Bool=false, shape::CellShape=LIN3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
+        @check tips in (:none, :start, :end, :both)
+        this = new(path, embedded, shape, tag, interface_tag, tip_tag, tips)
+        return this
+    end
+end
+
+export add_path, add_array, add_block
+
+
+function Base.copy(p::GPath)
+    # copy the path
+    path = copy(p.path)
+
+    # create a new GPath with the copied path
+    return GPath(path; embedded=p.embedded, shape=p.shape, tag=p.tag, interface_tag=p.interface_tag, tip_tag=p.tip_tag, tips=p.tips)
+end
+
+function move!(gpath::GPath; dx::Real=0.0, dy::Real=0.0, dz::Real=0.0)
+    for p in gpath.path.points
+        p.coord = p.coord + Vec3(dx, dy, dz)
+    end
+end
+
+
+
+"""
+    GeoModel(; quiet = false)
+
+Creates a new geometry model (`GeoModel`) using Gmsh's OpenCASCADE (OCC) backend
+or blocks for structured meshing.
+This struct serves as a container for user-defined geometry entities and geometric paths (e.g., composed by line or arc definitions).
+
+# Arguments
+- `quiet::Bool=false`: If `true`, suppresses Gmsh initialization messages in the console.
+
+# Fields Initialized
+- `entities`: A dictionary mapping Gmsh entity identifiers `(dim, tag)` to `GeoEntity` objects explicitly added by the user.
+- `blocks`: A list of meshing `Block` structures used for meshing control or volume/surface definitions.
+- `gpaths`: A list of `GPath` objects used to represent embedded geometric paths (e.g., for reinforcement, interfaces, or spring elements).
+
+# Example
+```julia
+geo = GeoModel()               # with messages
+geo = GeoModel(quiet=true)     # silent initialization
+```
+"""
 mutable struct GeoModel
-    added_entities::OrderedDict{Tuple{Int,Int},GeoEntity}
+    entities::OrderedDict{Tuple{Int,Int},GeoEntity}
     blocks::Vector{Block}
     gpaths::Vector{GPath}
 
@@ -87,7 +129,7 @@ mutable struct GeoModel
         gmsh.option.setNumber("General.Terminal", 0)
         this = new()
         this.blocks = Block[]
-        this.added_entities = OrderedDict{Tuple{Int,Int},GeoEntity}()
+        this.entities = OrderedDict{Tuple{Int,Int},GeoEntity}()
         this.gpaths = GPath[]
         return this
     end
@@ -139,9 +181,21 @@ This is useful for modeling discrete and embedded 1D elements such as reinforcem
 - `GPath`: The path structure added to the model.
 
 Note: Original OCC edges are removed from the geometry after constructing the path.
+
+# Example
+```julia
+geo = GeoModel()
+point1 = add_point(geo, [0,0,0])
+point2 = add_point(geo, [1,0,0])
+point3 = add_point(geo, [2,0,0])
+edge1 = add_line(geo, p1, p2)
+edge2 = add_line(geo, p2, p3)
+
+path = add_path(geo, [edge1, edge2]; tag="reinforcement", interface_tag="contact")
+```
 """
 function add_path(geometry::GeoModel, edges::Vector{Edge}; embedded::Bool=false, shape::CellShape=LIN3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
-    @check tips in (:none, :start, :end, :both)
+    @check tips in (:none, :start, :end, :both) "'tips' must be one of :none, :start, :end, :both"
 
     path = Path(edges)
     gpath = GPath(path; tag=tag, embedded=embedded, shape=shape, interface_tag=interface_tag, tip_tag=tip_tag, tips=tips)

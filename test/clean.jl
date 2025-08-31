@@ -9,7 +9,7 @@ for (root, dirs, files) in walkdir(path)
         ext = split(file*".", ".")[2]
         if ext in ["vtk", "vtu", "dat", "log", "table", "book"]
             fullname = joinpath(root, file)
-            rm(fullname)
+            rm(fullname, force=true)
         end
     end
 end

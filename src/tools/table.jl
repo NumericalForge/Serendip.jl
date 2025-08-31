@@ -11,10 +11,10 @@ const KeyType = Union{Symbol,AbstractString}
 mutable struct DataTable
     columns::Vector{AbstractVector}
     colidx ::OrderedDict{String,Int} # Data index
-    header ::Array{String,1}
+    header ::Vector{String}
     name   ::String
-    function DataTable(header::AbstractArray, columns::Array{<:AbstractVector,1}=Array{Any,1}[]; name="")
-        @assert length(header) == length(unique(header))
+    function DataTable(header::AbstractArray, columns::Vector{<:AbstractVector}=Vector{Any}[]; name="")
+        @check length(header) == length(unique(header)) "header contains repeated keys"
         if length(columns)==0
             columns = AbstractVector[ [] for i in 1:length(header) ]
         end
@@ -32,7 +32,6 @@ getname(table::DataTable) = getfield(table, :name)
 
 
 function DataTable(; pairs...)
-
     columns = AbstractVector[]
     header  = KeyType[]
     for (key, val) in pairs
@@ -107,7 +106,6 @@ function Base.push!(table::DataTable, row::Array{T,1} where T)
         push!(columns[i], v)
     end
 end
-
 
 
 function Base.push!(table::DataTable, row::Union{NTuple, AbstractDict, Vector{<:Pair}, NTuple{N, <:Pair} where N})
@@ -195,9 +193,9 @@ end
 
 
 function Base.setindex!(table::DataTable, column::AbstractVector, key::KeyType)
-    columns  = getcolumns(table)
-    colidx = getcolidx(table)
-    header   = getheader(table)
+    columns = getcolumns(table)
+    colidx  = getcolidx(table)
+    header  = getheader(table)
 
     if length(columns)>0
         n1 = length(columns[1])
@@ -572,7 +570,7 @@ end
 
 # TODO: Improve column width for string items
 function save(table::DataTable, filename::String; quiet=true, digits::AbstractArray=[])
-    suitable_formats = (".dat", ".table", ".tex")
+    suitable_formats = (".dat", ".table", ".json", ".tex")
 
     basename, format = splitext(filename)
     format in suitable_formats || error("DataTable: cannot save in \"$format\" format. Suitable formats $suitable_formats.")
@@ -611,6 +609,12 @@ function save(table::DataTable, filename::String; quiet=true, digits::AbstractAr
             end
         end
 
+        quiet || printstyled("  file $filename written\n", color=:cyan)
+    end
+
+    if format==".json"
+        dict = OrderedDict{String,Any}( k=>c for (k,c) in zip(header, columns) )
+        JSON.print(f, dict, 4)
         quiet || printstyled("  file $filename written\n", color=:cyan)
     end
 

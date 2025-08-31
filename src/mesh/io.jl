@@ -721,11 +721,26 @@ end
 
 
 """
-    Mesh(filename)
+    Mesh(filename::String; sort=false, quiet=true) -> Mesh
 
-Constructs a `Mesh` object based on a file.
+Load a finite element mesh from file. Supports VTK legacy (`.vtk`) and 
+VTK XML unstructured (`.vtu`) formats (preferred).
+
+# Arguments
+- `filename::String`: Path to the mesh file. Must have extension `.vtk` or `.vtu`.
+- `sort::Bool=false`: If `true`, renumber nodes using a bandwidth-reduction
+  algorithm after loading.
+- `quiet::Bool=true`: If `true`, suppress console messages during loading.
+
+# Returns
+- `mesh::Mesh`: Mesh object containing nodes, elements, faces and edges.
+
+# Example
+```julia
+mesh = Mesh("model.vtu"; sort=true, quiet=false)
+```
 """
-function Mesh(filename::String; sortnodes=false, quiet=true)
+function Mesh(filename::String; sort=false, quiet=true)
 
     formats = (".vtk", ".vtu")
 
@@ -746,9 +761,9 @@ function Mesh(filename::String; sortnodes=false, quiet=true)
     quiet || printstyled( "  file $filename loaded \e[K \n", color=:cyan)
 
     # Reorder nodal numbering
-    if sortnodes
+    if sort
         quiet || print("  reordering points...\r")
-        sortnodes!(mesh)
+        sort_mesh(mesh)
     end
 
     if !quiet

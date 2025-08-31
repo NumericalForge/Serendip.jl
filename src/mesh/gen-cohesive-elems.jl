@@ -81,7 +81,7 @@ function add_boundary_interface_elements(
     append!(mesh.nodes, new_nodes)
 
     # Update and reorder mesh
-    synchronize!(mesh, sortnodes=true, cleandata=true)
+    synchronize!(mesh, sort=true, cleandata=true)
 
     if !quiet
         @printf "  %4dd mesh                             \n" mesh.ctx.ndim
@@ -382,7 +382,7 @@ function add_cohesive_elements(
     mesh.nodes = collect(values(nodesdict))
 
     # Update and reorder mesh
-    synchronize!(mesh, sortnodes=true, cleandata=true)
+    synchronize!(mesh, sort=true, cleandata=true)
 
     if !quiet
         @printf "  %4dd mesh                             \n" mesh.ctx.ndim

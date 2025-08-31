@@ -16,7 +16,7 @@ include("gen-line-inset-elems.jl")
 include("gen-mesh.jl")
 
 include("io.jl")
-export Mesh, fixup!, quality!, sortnodes!, save, get_outer_facets, get_neighbors, threshold, datafields
+export Mesh, save, get_outer_facets, threshold
 
 include("refine.jl")
 export hrefine, prefine

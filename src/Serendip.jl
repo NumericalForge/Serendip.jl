@@ -16,7 +16,7 @@ module Serendip
 
     using StatsBase, Statistics, LinearAlgebra
     using StaticArrays, FixedSizeArrays, SparseArrays, Arpack, Gmsh
-    using Printf, DelimitedFiles, DataStructures, Glob, Dates
+    using Printf, DelimitedFiles, DataStructures, Glob, Dates, JSON
     using Cairo, LaTeXStrings, MathTeXEngine
     import FreeTypeAbstraction
 

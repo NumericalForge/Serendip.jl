@@ -5,7 +5,7 @@ export DataBook, databook, push!, save
 
 # DataBook type
 mutable struct DataBook
-    tables::Array{DataTable, 1}
+    tables::Vector{DataTable}
     function DataBook()
         this = new()
         this.tables = DataTable[]
@@ -45,7 +45,7 @@ end
 
 function save(book::DataBook, filename::String; quiet=false)
     _, format = splitext(filename)
-    formats = (".dat", ".book")
+    formats = (".dat", ".book", ".json")
     format in formats || error("DataBook: cannot save in  \"$format\". Suitable formats are $formats")
 
     local f::IOStream
@@ -56,7 +56,18 @@ function save(book::DataBook, filename::String; quiet=false)
         return
     end
 
-    if format in formats
+    if format == ".json"
+        data = Dict{String,Any}()
+        for (k,table) in enumerate(book.tables)
+            name = getname(table)
+            header = getheader(table)
+            columns = getcolumns(table)
+            name == "" && (name = "table_$k")
+            data[name] = OrderedDict{String,Any}( key=>col for (key,col) in zip(header, columns) )
+        end
+        
+        JSON.print(f, data, 4)
+    else
 
         for (k,table) in enumerate(book.tables)
 
@@ -99,9 +110,9 @@ function save(book::DataBook, filename::String; quiet=false)
             end
             print(f, "\n")
         end
-
-        quiet || printstyled("  file $filename written\n", color=:cyan)
     end
+
+    quiet || printstyled("  file $filename written\n", color=:cyan)
     close(f)
     return nothing
 
@@ -166,4 +177,19 @@ function Base.show(io::IO, book::DataBook)
         print(io, str)
         k<n && print(io, "\n")
     end
+end
+
+export randbook
+function randbook(n::Int=2; ncols=3, nrows=7)
+    book = DataBook()
+    for i in 1:n
+        header = [ "col$j" for j in 1:ncols ]
+        table = DataTable(header)
+        for r in 1:nrows
+            row = [ rand()*10 for j in 1:ncols ]
+            push!(table, row)
+        end
+        push!(book, table)
+    end
+    return book
 end

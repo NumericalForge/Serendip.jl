@@ -77,43 +77,9 @@ end
 
 
 function sortnodes(nodes::Vector{Node}, Vx´, Vy´)
-
     # find the best fit plane
     C = get_coords(nodes, 3)
     nnodes = length(nodes)
-
-    # # move the coordinates to avoid singular case
-    # # when the regression line/planes crosses the origin
-    # Cm =  C .+ [pi 2*pi 3*pi]
-
-    # I = ones(nnodes)
-    # N = pinv(Cm)*I # best fit normal
-    # N = round.(N, digits=15) # to avoid almost zero values
-
-    # # rotation matrix
-    # if N[1]==0.0
-    #     V1 = [ 1.0, 0.0, 0.0 ]
-    # elseif N[2]==0.0
-    #     V1 = [ 0.0, 1.0, 0.0 ]
-    # else
-    #     V1 = [ 0.0, 0.0, 1.0 ]
-    # end
-
-    # V2 = cross(N, V1)
-    # V3 = cross(V1, V2)
-
-    # normalize!(V2)
-    # normalize!(V3)
-
-    # R = [ V1 V2 V3 ]
-    # C = C*R
-
-    # for node in newmesh.nodes
-    #     X = node.coord
-    #     x = dot(X-base, Vx´)
-    #     y = dot(X-base, Vy´)
-    #     node.coord = Vec3(x, y, 0.0)
-    # end
 
     # get center
     Xc = vec(sum(C, dims=1))./nnodes
@@ -131,24 +97,6 @@ function sortnodes(nodes::Vector{Node}, Vx´, Vy´)
     perm = sortperm(angles)
     C = C[perm,:]
 
-
-    # # get polar angles
-    # angles = zeros(nnodes)
-    # for i in 1:nnodes
-    #     X = C[i,:]
-    #     x = dot(X - base, Vx´)
-    #     y = dot(X - base, Vy´)
-
-    #     x, y, _ = C[i,:]-Xc
-    #     angles[i] = atan(y,x)
-    # end
-
-    # perm = sortperm(angles)
-    # C = C[perm,:]
-
-    # get internal angles
-    # minα = 2*pi
-    # mini = 0
     angles = zeros(nnodes) # polygon internal angles
     for i in 1:nnodes
         prev = mod1(i-1, nnodes)
@@ -158,10 +106,6 @@ function sortnodes(nodes::Vector{Node}, Vx´, Vy´)
         V2   = normalize(C[next,:]-X)
         α    = acos(clamp(dot(V1,V2), -1, 1))
         angles[i] = α
-        # if α < minα
-        #     minα = α
-        #     mini = i
-        # end
     end
     _, min_idx = findmin(angles)
 
@@ -484,7 +428,7 @@ function slice(
     newmesh.elems = [ bulk_elems; other_elems ]
     newmesh.node_data = node_data
     newmesh.elem_data = elem_data
-    synchronize!(newmesh, sortnodes=false)
+    synchronize!(newmesh, sort=false)
 
     return newmesh
 end

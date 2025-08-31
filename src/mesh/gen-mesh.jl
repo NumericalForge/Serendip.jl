@@ -1,22 +1,26 @@
-
 """
-    Mesh(geo::GeoModel; ndim = 0, recombine = false, quadratic = false, algorithm = :delaunay, sort_nodes = true, quiet = false)
+    Mesh(geo::GeoModel; ndim=0, recombine=false, quadratic=false, algorithm=:delaunay,
+         sort=true, quiet=false) -> Mesh
 
-Generate a finite element mesh from a geometric model. The function supports both unstructured (via Gmsh OCC surfaces/volumes) and 
-structured (via `geo.blocks`) meshing. When both are present, unstructured meshing takes precedence.
+Generate a finite element mesh from a geometric model using Gmsh or structured
+blocks. Supports both **unstructured** meshing from OCC entities and **structured**
+meshing from `geo.blocks`. If both are present, unstructured meshing takes precedence.
 
 # Arguments
-- `geo::GeoModel`: Geometry model with OCC entities or structured blocks.
-- `ndim::Int`: Target mesh dimension (1, 2, or 3). Defaults to maximum found in geometry.
-- `recombine::Bool`: If `true`, recombines triangular/tetrahedral elements into quads/hexas when possible.
-- `quadratic::Bool`: If `true`, generates quadratic (second-order) elements.
-- `algorithm::Symbol`: Mesh algorithm selector:
-    - `:delaunay` → Delaunay (default)
-    - `:mesh_adapt` → Mesh adapt
-    - `:best` → Frontal Delaunay (surface) + Delaunay (3D)
-    - `:frontal` → Frontal Delaunay (surface and 3D)
-- `sort_nodes::Bool`: If `true`, sorts element node ordering consistently.
-- `quiet::Bool`: If `true`, suppresses console output.
+- `geo::GeoModel`: Geometry model containing OCC entities and/or structured blocks.
+- `ndim::Int=0`: Target mesh dimension (1, 2, or 3). Defaults to the maximum dimension
+  present in the geometry.
+- `recombine::Bool=false`: If `true`, recombines simplices (triangles, tetrahedra)
+  into quads/hexas when possible.
+- `quadratic::Bool=false`: If `true`, generates quadratic (second-order) elements.
+- `algorithm::Symbol=:delaunay`: Meshing algorithm:
+    - `:delaunay` → Delaunay (surface and 3D).
+    - `:mesh_adapt` → Adaptive meshing.
+    - `:best` → Frontal Delaunay (surface) + Delaunay (3D).
+    - `:frontal` → Frontal Delaunay (surface and 3D).
+- `sort::Bool=true`: If `true`, reorder mesh entities (nodes, elements)
+  consistently after generation.
+- `quiet::Bool=false`: If `true`, suppress console messages.
 
 # Behavior
 - Sets Gmsh meshing options according to algorithm and element order.
@@ -24,15 +28,18 @@ structured (via `geo.blocks`) meshing. When both are present, unstructured meshi
 - Handles embedded points (`p.embedded == true`) by embedding them in host surfaces.
 - Removes orphan vertices without adjacencies.
 - Builds `Node` and `Cell` objects from Gmsh mesh data, including element connectivity.
+- For structured meshes uses block definitions from `geo`.
+- If `geo.gpaths` are present, generates insets and re-synchronizes.
 
 # Returns
 - `mesh::Mesh`: A mesh object containing nodes, elements, faces, edges, and context information.
 
 # Example
 ```julia
-geo = GeoModel() 
-# ... build geometry with OCC or blocks ...
-mesh = Mesh(geo; ndim=3, quadratic=true, algorithm=:frontal)
+geo = GeoModel()
+# ... build OCC surfaces/volumes or add blocks ...
+mesh = Mesh(geo; ndim=3, quadratic=true, algorithm=:frontal, sort=true)
+
 ```
 """
 function Mesh(geo::GeoModel;
@@ -40,7 +47,7 @@ function Mesh(geo::GeoModel;
     recombine ::Bool = false,
     quadratic ::Bool = false,
     algorithm ::Symbol = :delaunay,
-    sort_nodes::Bool = true,
+    sort      ::Bool = true,
     quiet     ::Bool = false,
 )
     if length(gmsh.model.occ.getEntities(1))>0
@@ -78,7 +85,7 @@ function Mesh(geo::GeoModel;
         gmsh.model.occ.synchronize()
 
         # embedded points
-        embedded_point = [ p for p in values(geo.added_entities) if p isa Point && p.embedded ]
+        embedded_point = [ p for p in values(geo.entities) if p isa Point && p.embedded ]
         for p in embedded_point
             ent = _get_entity(2, p.coord)
             ent === nothing && error("No surface found at point $(p.coord)")
@@ -136,7 +143,7 @@ function Mesh(geo::GeoModel;
         mesh = Mesh(max(gmsh_ndim, ndim))
         mesh.nodes = nodes
         mesh.elems = cells
-        synchronize!(mesh, sortnodes=sort_nodes)
+        synchronize!(mesh, sort=sort)
 
     elseif length(geo.blocks)>0
         quiet || printstyled("Structured mesh generation:\n", bold=true, color=:cyan)
@@ -160,7 +167,7 @@ function Mesh(geo::GeoModel;
 
     if length(geo.gpaths)>0
         gen_insets!(mesh, geo.gpaths)
-        synchronize!(mesh, sortnodes=sort_nodes)
+        synchronize!(mesh, sort=sort)
     end
 
     if !quiet

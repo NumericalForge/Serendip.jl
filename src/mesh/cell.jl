@@ -13,7 +13,7 @@ mutable struct Cell<:AbstractCell
     embedded::Bool                # flag for embedded cells
     crossed::Bool                 # flag if cell crossed by linear inclusion
     owner  ::Union{AbstractCell,Nothing}  # owner cell if this cell is a face/edge
-    couplings::Array{AbstractCell,1}   # neighbor cells in case of joint cell
+    couplings::Array{AbstractCell,1}   # neighbor cells in case of interface cells
     ctx::MeshContext                 # mesh environment variables
 
 
