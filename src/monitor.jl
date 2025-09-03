@@ -49,8 +49,7 @@ Monitors are used to evaluate expressions at selected nodes or integration point
 - `filename::String` (optional):
     Name of the file where the monitor results will be saved. If a path is not
     provided, the file is saved in the current directory.
-    The file extension should be `.table` (for `DataTable`) for kind `:node`,
-    `:ip` and `:nodalreduce`, or `.book` (for `DataBook`) for kind `:nodegroup` or `:ipgroup`.
+    The file extension should be `.table`, `.table` or `.json`.
 
 
 # Keyword Arguments
@@ -77,7 +76,7 @@ Monitors are used to evaluate expressions at selected nodes or integration point
 add_monitor(ana, :node, (x==0,y==0), :ux, "monitor_node_ux.table")
 
 # Monitor stress components at a group of integration points
-add_monitor(ana, :ipgroup, z>1.0, [:sxx, :syy], "stress_ipgroup.book")
+add_monitor(ana, :ipgroup, z>1.0, [:sxx, :syy], "stress_ipgroup.table")
 
 # Monitor a node and stop analysis if ux > 0.01 at that node
 add_monitor(ana, :node, [0.0, 0.0, 0.0], :ux; stop=:(ux > 0.01))
@@ -93,6 +92,12 @@ function add_monitor(
     )
 
     @check kind in (:node, :ip, :nodegroup, :ipgroup, :nodalreduce) "add_monitor: kind must be one of :node, :ip, :nodegroup, :ipgroup, :nodalreduce"
+
+    if filename != ""
+        formats = (".tab", ".table", ".json")
+        _, format = splitext(filename)
+        @check format in formats "Monitors must have one of the following extensions: $(join(formats, ", ", " and ")). Got $(repr(format))."
+    end
 
     item_kind = kind in (:node, :nodegroup, :nodalreduce) ? :node : :ip
     target_type = item_kind == :node ? Node : Ip

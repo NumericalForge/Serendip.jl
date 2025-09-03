@@ -8,12 +8,43 @@ export getheader
 # DataTable object
 const KeyType = Union{Symbol,AbstractString}
 
+# """
+#     DataTable(header::AbstractArray, columns::Vector{<:AbstractVector}=Vector{Any}[]; name="")
+#     DataTable(; pairs...)
+#     DataTable(header::AbstractArray, matrix::Array{T,2} where T; name="")
+
+# Construct a tabular data container with named columns.
+
+# # Arguments
+# - `header`: Array of column names (strings or convertible).
+# - `columns`: Vector of column vectors. Defaults to empty vectors of matching length.
+# - `name`: Optional table name (string).
+# - `pairs...`: Keyword arguments mapping names to column vectors.
+# - `matrix`: 2D array whose columns are converted into vectors.
+
+# # Behavior
+# - Enforces unique column names.
+# - Builds an index mapping names → column positions.
+# - Columns can be accessed as fields (`table.colname`) or by key.
+
+# # Examples
+# ```julia
+# DataTable(["x","y"], [ [1,2], [3,4] ])
+# DataTable(x=[1,2,3], y=[4,5,6])
+# DataTable(["a","b"], [1 2; 3 4; 5 6])
+# ```
+# """
 mutable struct DataTable
     columns::Vector{AbstractVector}
     colidx ::OrderedDict{String,Int} # Data index
     header ::Vector{String}
     name   ::String
-    function DataTable(header::AbstractArray, columns::Vector{<:AbstractVector}=Vector{Any}[]; name="")
+
+    function DataTable(;name::String="")
+        return new(AbstractVector[], OrderedDict{String,Int}(), String[], name)
+    end
+
+    function DataTable(header::AbstractArray, columns::Vector{<:AbstractVector}=Vector{Any}[]; name::String="")
         @check length(header) == length(unique(header)) "header contains repeated keys"
         if length(columns)==0
             columns = AbstractVector[ [] for i in 1:length(header) ]
@@ -29,18 +60,6 @@ getcolumns(table::DataTable) = getfield(table, :columns)
 getheader(table::DataTable) = getfield(table, :header)
 getcolidx(table::DataTable) = getfield(table, :colidx)
 getname(table::DataTable) = getfield(table, :name)
-
-
-function DataTable(; pairs...)
-    columns = AbstractVector[]
-    header  = KeyType[]
-    for (key, val) in pairs
-        push!(header, string(key))
-        push!(columns, copy(val))
-    end
-
-    return DataTable(header, columns)
-end
 
 
 function DataTable(header::AbstractArray, matrix::Array{T,2} where T; name="")
@@ -152,44 +171,41 @@ function Base.push!(table::DataTable, row::Union{NTuple, AbstractDict, Vector{<:
     return row
 end
 
-# function Base.push!(table::DataTable, dict::AbstractDict)
-#     columns = getcolumns(table)
-#     colidx  = getcolidx(table)
-#     header  = getheader(table)
+function Base.append!(table::DataTable, table2::DataTable)
+    nr1, nc1 = size(table)
+    nr2, nc2 = size(table2)
 
-#     if length(columns)==0
-#         for (k,v) in dict
-#             key = string(k)
-#             push!(header, key)
-#             push!(columns, [v])
-#             colidx[key] = length(header)
-#         end
-#     else
-#         nrows = length(columns[1])
-#         for (k,v) in dict
-#             key = string(k)
-#             # Add data
-#             idx = get(colidx, key, 0)
-#             if idx==0
-#                 # add new column
-#                 newcol = zeros(nrows)
-#                 push!(newcol, v)
-#                 push!(columns, newcol)
-#                 colidx[string(k)] = length(columns)
-#                 push!(header, key)
-#             else
-#                 push!(columns[idx], v)
-#             end
-#         end
+    columns = getcolumns(table)
+    colidx  = getcolidx(table)
+    header  = getheader(table)
 
-#         # Add zero for missing values
-#         for col in columns
-#             if length(col)==nrows
-#                 push!(col, 0.0)
-#             end
-#         end
-#     end
-# end
+    for key in keys(table2)
+        col2 = table2[key]
+        idx1 = get(colidx, key, 0)
+        if idx1==0
+            # add new column
+            push!(header, key)
+            zr = eltype(col2)==String ? "" : zero(eltype(col2))
+            newcol = fill(zr, nr1)
+            append!(newcol, col2)
+            push!(columns, newcol)
+            colidx[key] = length(columns)
+        else
+            append!(table.columns[idx1], col2)
+        end
+    end
+
+    # add zero for missing values
+    nr = nrows(table)
+    for col in table.columns
+        if length(col)<nr
+            zr = eltype(col)==String ? "" : zero(eltype(col))
+            append!(col, fill(zr, nr-length(col)))
+        end
+    end
+
+    return table
+end
 
 
 function Base.setindex!(table::DataTable, column::AbstractVector, key::KeyType)
@@ -294,9 +310,6 @@ function Base.lastindex(table::DataTable, idx::Int)
         return nc
     end
 end
-
-
-sprintf(fmt, args...) = @eval @sprintf($fmt, $(args...))
 
 
 """
@@ -572,7 +585,7 @@ end
 function save(table::DataTable, filename::String; quiet=true, digits::AbstractArray=[])
     suitable_formats = (".dat", ".table", ".json", ".tex")
 
-    basename, format = splitext(filename)
+    _, format = splitext(filename)
     format in suitable_formats || error("DataTable: cannot save in \"$format\" format. Suitable formats $suitable_formats.")
 
     local f::IOStream
@@ -584,7 +597,6 @@ function save(table::DataTable, filename::String; quiet=true, digits::AbstractAr
     end
 
     columns = getcolumns(table)
-    colidx  = getcolidx(table)
     header  = getheader(table)
     nr, nc  = size(table)
 
@@ -613,8 +625,11 @@ function save(table::DataTable, filename::String; quiet=true, digits::AbstractAr
     end
 
     if format==".json"
-        dict = OrderedDict{String,Any}( k=>c for (k,c) in zip(header, columns) )
-        JSON.print(f, dict, 4)
+        data = OrderedDict{String,Any}()
+        cols = OrderedDict{String,Any}( k=>c for (k,c) in zip(header, columns) )
+        data["name"] = getname(table)
+        data["data"] = cols
+        JSON.print(f, data, 4)
         quiet || printstyled("  file $filename written\n", color=:cyan)
     end
 
@@ -670,11 +685,13 @@ function save(table::DataTable, filename::String; quiet=true, digits::AbstractAr
                 width = widths[j]
                 if etype<:AbstractFloat
                     #item = @sprintf("%12.3f", item)
+                    # Use Printf.format for dynamic format strings
                     dig = digits[j]
                     if isnan(item)
                         item = "-"
                     else
-                        item = sprintf("%$width.$(dig)f", item)
+                        fmt = Printf.Format("%$(width).$(dig)f")
+                        item = Printf.format(fmt, item)
                     end
                     print(f, lpad(string(item), width))
                 elseif etype<:Integer

@@ -16,7 +16,9 @@ include("tensors.jl")
 include("signal.jl")
 include("quaternion.jl")
 
-include("expr.jl")
+include("error.jl")
+
+include("expr.jl") 
 include("threads.jl")
 include("table.jl")
 include("book.jl")
@@ -25,7 +27,6 @@ include("stopwatch.jl")
 include("xml.jl")
 include("encode.jl")
 
-include("error.jl")
 
 Base.show(io::IO, obj::XmlElement) = _show(io, obj, 3, "")
 Base.show(io::IO, obj::XmlDocument)  = _show(io, obj, 3, "")

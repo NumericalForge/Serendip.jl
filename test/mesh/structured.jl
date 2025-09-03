@@ -28,7 +28,6 @@ for (n, shape) in zip(nodes_count, shapes)
 end
 
 
-
 printstyled("\nMesh generation on trusses\n", color=:blue, bold=true)
 
 println("\n2D")

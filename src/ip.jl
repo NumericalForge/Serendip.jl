@@ -98,7 +98,16 @@ function select(
     tag = ""
     )
 
-    selectors = flatten(selectors)
+    buffer = []
+    for selector in selectors
+        if selector isa NTuple
+            append!(buffer, selector)
+        else
+            push!(buffer, selector)
+        end
+    end
+    selectors = buffer
+
     selected = collect(1:length(ips))
 
     for selector in selectors
@@ -126,7 +135,7 @@ function select(
         elseif selector isa Vector{<:Real}
             X = Vec3(selector)
             if nearest
-                ip = nearest(ips[selected], X)
+                ip = Serendip.nearest(ips[selected], X)
                 i = findfirst(isequal(ip), ips)
                 selected = [ i ]
             else

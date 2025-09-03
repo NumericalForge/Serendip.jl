@@ -57,13 +57,16 @@ function save(book::DataBook, filename::String; quiet=false)
     end
 
     if format == ".json"
-        data = Dict{String,Any}()
+        data = OrderedDict{String,Any}[]
         for (k,table) in enumerate(book.tables)
             name = getname(table)
             header = getheader(table)
             columns = getcolumns(table)
-            name == "" && (name = "table_$k")
-            data[name] = OrderedDict{String,Any}( key=>col for (key,col) in zip(header, columns) )
+            name == "" && (name = "Table $k")
+            table_data = OrderedDict{String,Any}()
+            table_data["name"] = name
+            table_data["data"] = OrderedDict{String,Any}( key=>col for (key,col) in zip(header, columns) )
+            push!(data, table_data)
         end
         
         JSON.print(f, data, 4)

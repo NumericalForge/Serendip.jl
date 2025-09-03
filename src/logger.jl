@@ -6,9 +6,7 @@ mutable struct Logger{T}
     target  ::Vector{T}
     filename::String
     table   ::DataTable
-    book    ::DataBook
 end
-
 
 
 """
@@ -50,6 +48,7 @@ Adds a logger to an analysis, allowing you to record data during simulation.
 
 - `filename::String` (optional):
     Name of the file where the log will be saved. If not provided, the logger will use the default output directory in `ana.data.outdir`.
+    The file extension should be `.table`, `.table` or `.json`.
 
 # Returns
 
@@ -68,12 +67,38 @@ function add_logger(
     filename::String = ""
 )
     @check kind in (:node, :ip, :nodegroup, :ipgroup, :nodalreduce) "Unknown logger kind: $kind. Supported kinds are :node, :ip, :nodegroup, :ipgroup, :nodalreduce"
+    
+    # if filename != ""
+    #     if kind in (:node, :ip, :nodalreduce) 
+    #         formats = (".table", ".json")
+    #     else
+    #         formats = (".book", ".json")
+    #     end
+    #     _, format = splitext(filename)
+    #     @check format in formats "Logger of kind $kind must have one of the following extensions: $(join(formats, ", ", " and ")). Got $(repr(format))."
+    # end
 
+    if filename != ""
+        formats = (".tab", ".table", ".json")
+        _, format = splitext(filename)
+        @check format in formats "Loggers must have one of the following extensions: $(join(formats, ", ", " and ")). Got $(repr(format))."
+    end
+8
     item_name = kind in (:node, :nodegroup, :nodalreduce) ? :node : :ip
     target_type = item_name == :node ? Node : Ip
 
     filename = getfullpath(ana.data.outdir, filename)
     items = item_name == :node ? ana.model.nodes : select(ana.model, :ip, :all)
+
+    if kind == :node
+        name = "Node logger"
+    elseif kind == :ip
+        name = "Integration point logger"
+    elseif kind == :nodalreduce
+        name = "Nodal reduction logger"
+    else 
+        name = ""
+    end
 
     if kind in (:node, :ip) && selector isa AbstractArray
         X = Vec3(selector)
@@ -87,7 +112,7 @@ function add_logger(
             target = target[1:1] # take the first
         end
 
-        log = Logger{target_type}(kind, selector, target, filename, DataTable(), DataBook())
+        log = Logger{target_type}(kind, selector, target, filename, DataTable(name=name))
         push!(ana.data.loggers, log)
         return log
     end
@@ -104,7 +129,7 @@ function add_logger(
         sort!(target, by=item->sum(item.coord))
     end
 
-    log = Logger{target_type}(kind, selector, target, filename, DataTable(), DataBook())
+    log = Logger{target_type}(kind, selector, target, filename, DataTable(name=name))
     push!(ana.data.loggers, log)
 
     return log
@@ -113,37 +138,42 @@ end
 
 function update_logger!(logger::Logger, ana::Analysis)
     length(logger.target) == 0 && return
+    T = round(ana.data.stage - 1 + ana.data.T, digits=6)
 
     if logger.kind  in (:node, :ip)
         vals = get_values(logger.target[1])
         ana.data.transient && (vals[:t] = ana.data.t)
         push!(logger.table, vals)
     elseif logger.kind == :ipgroup
-        table = DataTable()
+        # table = DataTable(name = "Ip group logger: T = $T")
         for ip in logger.target
-            push!(table, get_values(ip))
+            vals = get_values(ip)
+            vals[:T] = T
+            push!(logger.table, vals)
         end
-        push!(logger.book, table)
+        # push!(logger.book, table)
     elseif logger.kind == :nodegroup
-        table = DataTable()
+        table = DataTable(name = "Node group logger: T = $T")
 
         # get data from recovered nodal values
         ids = [ node.id for node in logger.target ]
-        for (k,V) in ana.model.node_data
-            table[k] = V[ids]
+        for (key,V) in ana.model.node_data
+            table[key] = V[ids]
         end
 
         # add coordinates
-        for (i,k) in enumerate((:x, :y, :z))
-            table[k] = [ item.coord[i] for item in logger.target ]
+        for (i,key) in enumerate((:x, :y, :z))
+            table[key] = [ item.coord[i] for item in logger.target ]
         end
 
-        push!(logger.book, table)
+        table[:T] = fill(T, length(logger.target))
+        append!(logger.table, table)
+
+        # push!(logger.book, table)
     elseif logger.kind == :nodalreduce
         tableU = DataTable()
         tableF = DataTable()
         for node in logger.target
-            # TODO: valsF may be improved by calculating the internal forces components
             nvals = get_values(node)
             valsU = OrderedDict( dof.name => nvals[dof.name] for dof in node.dofs )
             valsF = OrderedDict( dof.natname => nvals[dof.natname] for dof in node.dofs )
@@ -164,9 +194,9 @@ end
 
 
 function save(logger::Logger, filename::String; quiet=false)
-    if kind in (:node, :ip, :nodalreduce)
-        save(logger.table, filename, quiet=quiet)
-    else
-        save(logger.book, filename, quiet=quiet)
-    end
+    save(logger.table, filename, quiet=quiet)
+    # if kind in (:node, :ip, :nodalreduce)
+    # else
+    #     save(logger.book, filename, quiet=quiet)
+    # end
 end

@@ -232,7 +232,7 @@ function update_records!(ana::Analysis; checkpoint=true, force=false)
         for logger in ana.data.loggers
             if logger.kind in (:ipgroup, :nodegroup)
                 update_logger!(logger, ana)
-                logger.filename!="" && save(logger.book, logger.filename, quiet=true)
+                logger.filename!="" && save(logger.table, logger.filename, quiet=true)
             end
         end
 
