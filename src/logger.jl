@@ -106,8 +106,9 @@ function add_logger(
         target = select(ana.model, item_name, :(x==$x && y==$y && z==$z), nearest=false)
         n = length(target)
         if n==0
-            notify("add_logger: No $kind found at $(selector). Picking the nearest at $X")
             target = [ nearest(items, X) ]
+            X = target[1].coord
+            notify("add_logger: No $kind found at $(selector). Picking the nearest at $X")
         else
             target = target[1:1] # take the first
         end

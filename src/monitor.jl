@@ -134,8 +134,9 @@ function add_monitor(
 
         n = length(target)
         if n==0
-            notify("add_monitor: No $kind found at $(selector). Picking the nearest at $X")
             target = [ nearest(items, X) ]
+            X = target[1].coord
+            notify("add_monitor: No $kind found at $(selector). Picking the nearest at $X")
         else
             target = target[1:1] # take the first
         end
