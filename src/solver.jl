@@ -136,16 +136,6 @@ function stage_iterator(ana::Analysis, solver_settings::SolverSettings; quiet::B
 
     solstatus = success()
 
-    if !quiet
-        print("  active threads: ")
-        nthreads = Threads.nthreads()
-        if nthreads==1
-            printstyled(Threads.nthreads(), "\n", color=:red)
-        else
-            printstyled(Threads.nthreads(), "\n", color=:green)
-        end
-    end
-
     outdir = ana.data.outdir
 
     if !isdir(outdir)
@@ -249,13 +239,13 @@ end
 
 
 function Base.run(ana::Analysis;
-    tol     ::Float64 = 0.01,
-    rtol    ::Float64 = 0.01,
+    tol     ::Real = 0.01,
+    rtol    ::Real = 0.01,
     autoinc ::Bool = false,
-    dT0     ::Float64 = 0.01,
-    dTmin   ::Float64 = 1e-7,
-    dTmax   ::Float64 = 0.1,
-    rspan   ::Float64 = 0.01,
+    dT0     ::Real = 0.01,
+    dTmin   ::Real = 1e-7,
+    dTmax   ::Real = 0.1,
+    rspan   ::Real = 0.01,
     scheme  ::Symbol = :FE,
     maxits  ::Int = 5,
     alpha   ::Float64 = 0.0,
@@ -266,9 +256,19 @@ function Base.run(ana::Analysis;
 )
 
     if !quiet
+        ctx = ana.model.ctx
         printstyled("FE analisys\n", bold=true, color=:cyan)
         println("  type: ", ana.name)
-        println("  stress model: ", ana.model.ctx.stress_state)
+        ctx.stress_state != :auto && println("  stress model: ", ctx.stress_state)
+        println("  scheme: ", scheme)
+
+        print("  active threads: ")
+        nthreads = Threads.nthreads()
+        if nthreads==1
+            printstyled(Threads.nthreads(), "\n", color=:red)
+        else
+            printstyled(Threads.nthreads(), "\n", color=:green)
+        end
     end
 
     solver_settings = SolverSettings(
