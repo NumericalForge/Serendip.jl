@@ -715,7 +715,7 @@ function intersect(geo::GeoModel, ents1, ents2, remove_object=true)
 end
 
 
-function fragment(geo::GeoModel, ents1, ents2, remove_object=false, remove_tool=true)
+function fragment(geo::GeoModel, ents1, ents2, remove_object=true, remove_tool=true)
     ents1 = ents1 isa Vector ? ents1 : [ents1]
     ents2 = ents2 isa Vector ? ents2 : [ents2]
     gmsh.model.occ.synchronize()
