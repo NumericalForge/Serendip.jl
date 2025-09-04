@@ -95,7 +95,9 @@ function get_coords(elem::Element)
     return [ elem.nodes[i].coord[j] for i in 1:nnodes, j=1:ndim]
 end
 
-
+# Set the quadrature points for an element
+# Default implementation of bulk line and interface elements
+# Other elements such as beams, shells and line_interfaces specialize this function
 function set_quadrature(elem::Element, n::Int=0)
 
     if !(n in keys(elem.shape.quadrature))
@@ -103,13 +105,7 @@ function set_quadrature(elem::Element, n::Int=0)
         return
     end
 
-    # fix shape for line_interface
-    if elem.role==:line_interface
-        bar   = elem.couplings[2]
-        shape = bar.shape
-    else
-        shape = elem.shape
-    end
+    shape = elem.shape
 
     ipc = get_ip_coords(shape, n)
     n = size(ipc,1)
@@ -126,12 +122,6 @@ function set_quadrature(elem::Element, n::Int=0)
 
     # finding ips global coordinates
     C = get_coords(elem)
-
-    # fix for link elements
-    if elem.role==:line_interface
-        bar = elem.couplings[2]
-        C   = get_coords(bar)
-    end
 
     # fix for joint elements
     if elem.role==:interface

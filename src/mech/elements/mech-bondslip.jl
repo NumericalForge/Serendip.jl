@@ -2,23 +2,6 @@
 
 export MechBondSlip
 
-# MechBondSlip_params = [
-#     FunInfo(:MechBondSlip, "Finite element for a rod-bulk interface."),
-#     KwArgInfo(:p, "Perimeter", cond=:(p>0)),
-# ]
-# @doc docstring(MechBondSlip_params) MechBondSlip(; kwargs...)
-
-# struct MechBondSlipProps<:ElemProperties
-#     p::Float64
-
-#     function MechBondSlipProps(; kwargs...)
-#         args = checkargs(kwargs, MechBondSlip_params)
-#         this = new(args.p)
-#         return this
-#     end
-# end
-
-
 mutable struct MechBondSlip<:MechFormulation
     p::Float64
 
@@ -28,31 +11,42 @@ mutable struct MechBondSlip<:MechFormulation
     end
 end
 
-# mutable struct MechBondSlip<:MechFormulation
-#     id    ::Int
-#     shape ::CellShape
-
-#     nodes ::Array{Node,1}
-#     ips   ::Array{Ip,1}
-#     tag   ::String
-#     mat::Constitutive
-#     props ::MechBondSlipProps
-#     active::Bool
-#     couplings::Array{Element,1}
-#     ctx::Context
-
-#     # specific fields
-#     cacheM   ::Array{Array{Float64,2}}
-#     cacheV[1]::Array{Float64}
-
-#     function MechBondSlip()
-#         return new()
-#     end
-# end
-
-
 compat_role(::Type{MechBondSlip}) = :line_interface
-# compat_elem_props(::Type{MechBondSlip}) = MechBondSlipProps
+
+
+function set_quadrature(elem::Element{MechBondSlip}, n::Int=0)
+
+    bar   = elem.couplings[2]
+    if n==0
+        if bar.shape == LIN2
+            n = 2
+        else
+            n = 3
+        end
+    end
+
+    @check n in (2,3) "Only 2 or 3 integration points are allowed in MechBondSlip elements"
+
+    ipc = get_ip_coords(bar.shape, n)
+    n   = size(ipc,1)
+
+    resize!(elem.ips, n)
+    for i in 1:n
+        R = ipc[i].coord
+        w = ipc[i].w
+        elem.ips[i] = Ip(R, w)
+        elem.ips[i].id = i
+        elem.ips[i].state = compat_state_type(typeof(elem.cmodel), typeof(elem.eform), elem.ctx)(elem.ctx)
+        elem.ips[i].owner = elem
+    end
+
+    # finding ips global coordinates
+    C = get_coords(bar)
+    for ip in elem.ips
+        N = bar.shape.func(ip.R)
+        ip.coord = extend!(C'*N, 3)
+    end
+end
 
 
 function elem_init(elem::Element{MechBondSlip})
@@ -62,15 +56,11 @@ function elem_init(elem::Element{MechBondSlip})
     Ct = get_coords(bar)
     nips = length(elem.ips)
     elem.cacheM = Vector{FixedSizeMatrix{Float64}}(undef,nips) # B matrices
-    # elem.cacheV = [ Float64[] ]  # detJ values at slot 1
-    # elem.cacheV = [ FixedSizeVector{Float64}() ]  # detJ values at slot 1
     elem.cacheV = [ FixedSizeVector{Float64}(undef,nips) ] # detJ values at slot 1
     for (i,ip) in enumerate(elem.ips)
         B, detJ = mountB(elem, ip.R, Ch, Ct)
-        # push!(elem.cacheM, B)
         elem.cacheM[i] = FixedSizeMatrix(B)
         elem.cacheV[1][i] = detJ
-        # push!(elem.cacheV[1], detJ)
     end
 
     return nothing
@@ -103,8 +93,6 @@ function mount_T(J::Matx)
     L3 = normalize(cross(L1, L2))
 
     return [ L1'; L2'; L3' ]
-
-    #return hcat(L1, L2, L3)'
 end
 
 
@@ -184,12 +172,6 @@ function elem_stiffness(elem::Element{MechBondSlip})
     map  = [ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]
     return K, map, map
 end
-
-
-# function elem_internal_forces(elem::Element{MechBondSlip})
-#     # TODO
-#     return Float64[], Int[], success()
-# end
 
 
 function elem_internal_forces(elem::Element{MechBondSlip}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
