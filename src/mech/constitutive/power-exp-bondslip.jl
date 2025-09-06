@@ -186,8 +186,8 @@ end
 
 function state_values(mat::PowerExpBondSlip, state::ExpoDecayBondSlipState)
     return OrderedDict(
-      :s   => state.u[1] ,
-      :tau  => state.σ[1] ,
+      :s => state.u[1] ,
+      :τ => state.σ[1] ,
       )
 end
 

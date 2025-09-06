@@ -1,15 +1,15 @@
  #This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export PowerYieldCrack, TCJoint
+export PowerYieldCohesive, TCJoint
 
-mutable struct PowerYieldCrackState<:IpState
+mutable struct PowerYieldCohesiveState<:IpState
     ctx::Context
     σ  ::Array{Float64,1} # stress
     w  ::Array{Float64,1} # relative displacements
     up ::Float64          # effective plastic relative displacement
     Δλ ::Float64          # plastic multiplier
     h  ::Float64          # characteristic length from bulk elements
-    function PowerYieldCrackState(ctx::Context)
+    function PowerYieldCohesiveState(ctx::Context)
         this = new(ctx)
         this.σ   = zeros(ctx.ndim)
         this.w   = zeros(ctx.ndim)
@@ -21,7 +21,7 @@ mutable struct PowerYieldCrackState<:IpState
 end
 
 
-mutable struct PowerYieldCrack<:Constitutive
+mutable struct PowerYieldCohesive<:Constitutive
     E ::Float64
     ν ::Float64
     ft::Float64
@@ -34,7 +34,7 @@ mutable struct PowerYieldCrack<:Constitutive
     θ::Float64
     βini::Float64
 
-    function PowerYieldCrack(; 
+    function PowerYieldCohesive(; 
         E::Float64=NaN,
         nu::Float64=0.0,
         ft::Float64=NaN,
@@ -47,7 +47,7 @@ mutable struct PowerYieldCrack<:Constitutive
         gamma::Float64=0.1,
         theta::Float64=1.5
     )
-        # args = checkargs([], args, PowerYieldCrack_params)
+        # args = checkargs([], args, PowerYieldCohesive_params)
         @check E > 0.0
         @check nu >= 0.0 && nu < 0.5
         @check ft > 0.0
@@ -68,7 +68,7 @@ mutable struct PowerYieldCrack<:Constitutive
             end
         else
             if wc==0
-                GF>0 || error("PowerYieldCrack: wc or GF must be defined when using a predefined softening model")
+                GF>0 || error("PowerYieldCohesive: wc or GF must be defined when using a predefined softening model")
                 if ft_law == :linear
                     wc = round(2*GF/ft, sigdigits=5)
                 elseif ft_law == :bilinear
@@ -94,10 +94,9 @@ mutable struct PowerYieldCrack<:Constitutive
     end
 end
 
-const TCJoint = PowerYieldCrack
+@deprecate PowerYieldCrack PowerYieldCohesive
 
-
-function paramsdict(mat::PowerYieldCrack)
+function paramsdict(mat::PowerYieldCohesive)
     mat = OrderedDict( string(field)=> getfield(mat, field) for field in fieldnames(typeof(mat)) )
 
     mat.ft_law in (:hordijk, :soft) && ( mat["GF"] = 0.1943*mat.ft*mat.wc )
@@ -106,17 +105,17 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{PowerYieldCrack}, ::Type{MechInterface}, ctx::Context) = PowerYieldCrackState
+compat_state_type(::Type{PowerYieldCohesive}, ::Type{MechInterface}, ctx::Context) = PowerYieldCohesiveState
 
 
-function beta(mat::PowerYieldCrack, σmax::Float64)
+function beta(mat::PowerYieldCohesive, σmax::Float64)
     βini = mat.βini
     βres = mat.γ*βini
     return βres + (βini-βres)*(σmax/mat.ft)^mat.θ
 end
 
 
-function yield_func(mat::PowerYieldCrack, state::PowerYieldCrackState, σ::Array{Float64,1}, σmax::Float64)
+function yield_func(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σ::Array{Float64,1}, σmax::Float64)
     α  = mat.α
     β = beta(mat, σmax)
     ft = mat.ft
@@ -128,7 +127,7 @@ function yield_func(mat::PowerYieldCrack, state::PowerYieldCrackState, σ::Array
 end
 
 
-function yield_derivs(mat::PowerYieldCrack, state::PowerYieldCrackState, σ::Array{Float64,1}, σmax::Float64)
+function yield_derivs(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σ::Array{Float64,1}, σmax::Float64)
     α = mat.α
     β = beta(mat, σmax)
     ft = mat.ft
@@ -145,7 +144,7 @@ function yield_derivs(mat::PowerYieldCrack, state::PowerYieldCrackState, σ::Arr
 end
 
 
-function potential_derivs(mat::PowerYieldCrack, state::PowerYieldCrackState, σ::Array{Float64,1})
+function potential_derivs(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σ::Array{Float64,1})
     ndim = state.ctx.ndim
     if ndim == 3
         if σ[1] > 0.0 
@@ -174,7 +173,7 @@ function potential_derivs(mat::PowerYieldCrack, state::PowerYieldCrackState, σ:
 end
 
 
-function calc_σmax(mat::PowerYieldCrack, state::PowerYieldCrackState, up::Float64)
+function calc_σmax(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, up::Float64)
     if mat.ft_law == :linear
         if up < mat.wc
             a = mat.ft 
@@ -225,7 +224,7 @@ function calc_σmax(mat::PowerYieldCrack, state::PowerYieldCrackState, up::Float
 end
 
 
-function deriv_σmax_upa(mat::PowerYieldCrack, state::PowerYieldCrackState, up::Float64)
+function deriv_σmax_upa(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, up::Float64)
     if mat.ft_law == :linear
         if up < mat.wc
             b = mat.ft /mat.wc
@@ -272,7 +271,7 @@ function deriv_σmax_upa(mat::PowerYieldCrack, state::PowerYieldCrackState, up::
 end
 
 
-function calc_kn_ks(mat::PowerYieldCrack, state::PowerYieldCrackState)
+function calc_kn_ks(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
     kn = mat.E*mat.ζ/state.h
     G  = mat.E/(2*(1+mat.ν))
     ks = G*mat.ζ/state.h
@@ -281,7 +280,7 @@ function calc_kn_ks(mat::PowerYieldCrack, state::PowerYieldCrackState)
 end
 
 
-function consistentD(mat::PowerYieldCrack, state::PowerYieldCrackState)
+function consistentD(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
     # numerical approximation
     # seems not to work under compressive loads
 
@@ -319,7 +318,7 @@ function consistentD(mat::PowerYieldCrack, state::PowerYieldCrackState)
 end
 
 
-function calcD(mat::PowerYieldCrack, state::PowerYieldCrackState)
+function calcD(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
     # return consistentD(mat, state)
 
     ndim = state.ctx.ndim
@@ -368,7 +367,7 @@ function calcD(mat::PowerYieldCrack, state::PowerYieldCrackState)
 end
 
 
-function calc_σ_up_Δλ(mat::PowerYieldCrack, state::PowerYieldCrackState, σtr::Array{Float64,1})
+function calc_σ_up_Δλ(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σtr::Array{Float64,1})
     ndim = state.ctx.ndim
     Δλ   = 0.0
     up   = 0.0
@@ -421,7 +420,7 @@ function calc_σ_up_Δλ(mat::PowerYieldCrack, state::PowerYieldCrackState, σtr
         Δλ = Δλ - f/dfdΔλ
         
         if Δλ<=0 || isnan(Δλ) || i==maxits
-            # return 0.0, state.σ, 0.0, failure("PowerYieldCrack: failed to find Δλ")
+            # return 0.0, state.σ, 0.0, failure("PowerYieldCohesive: failed to find Δλ")
             # switch to bissection method
             return calc_σ_up_Δλ_bis(mat, state, σtr)
         end
@@ -436,7 +435,7 @@ function calc_σ_up_Δλ(mat::PowerYieldCrack, state::PowerYieldCrackState, σtr
 end
 
 
-function calc_σ_up(mat::PowerYieldCrack, state::PowerYieldCrackState, σtr::Array{Float64,1}, Δλ::Float64)
+function calc_σ_up(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σtr::Array{Float64,1}, Δλ::Float64)
     ndim = state.ctx.ndim
     kn, ks  = calc_kn_ks(mat, state)
 
@@ -459,7 +458,7 @@ function calc_σ_up(mat::PowerYieldCrack, state::PowerYieldCrackState, σtr::Arr
     return σ, up
 end
 
-function calc_σ_up_Δλ_bis(mat::PowerYieldCrack, state::PowerYieldCrackState, σtr::Array{Float64,1})
+function calc_σ_up_Δλ_bis(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σtr::Array{Float64,1})
     ndim    = state.ctx.ndim
     kn, ks  = calc_kn_ks(mat, state)
     De      = diagm([kn, ks, ks][1:ndim])
@@ -492,7 +491,7 @@ function calc_σ_up_Δλ_bis(mat::PowerYieldCrack, state::PowerYieldCrackState, 
 end
 
 
-function yield_func_from_Δλ(mat::PowerYieldCrack, state::PowerYieldCrackState, σtr::Array{Float64,1}, Δλ::Float64)
+function yield_func_from_Δλ(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σtr::Array{Float64,1}, Δλ::Float64)
     ndim = state.ctx.ndim
     kn, ks = calc_kn_ks(mat, state)
 
@@ -523,7 +522,7 @@ end
 
 
 
-function update_state(mat::PowerYieldCrack, state::PowerYieldCrackState, Δw::Array{Float64,1})
+function update_state(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, Δw::Array{Float64,1})
 
     ndim = state.ctx.ndim
     σini = copy(state.σ)
@@ -533,7 +532,7 @@ function update_state(mat::PowerYieldCrack, state::PowerYieldCrackState, Δw::Ar
     σmax = calc_σmax(mat, state, state.up)  
 
     if isnan(Δw[1]) || isnan(Δw[2])
-        alert("PowerYieldCrack: Invalid value for joint displacement: Δw = $Δw")
+        alert("PowerYieldCohesive: Invalid value for joint displacement: Δw = $Δw")
     end
 
     # σ trial and F trial
@@ -566,7 +565,7 @@ function update_state(mat::PowerYieldCrack, state::PowerYieldCrackState, Δw::Ar
 end
 
 
-function state_values(mat::PowerYieldCrack, state::PowerYieldCrackState)
+function state_values(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
     ndim = state.ctx.ndim
     if ndim == 3
        return Dict(
@@ -590,6 +589,6 @@ function state_values(mat::PowerYieldCrack, state::PowerYieldCrackState)
 end
 
 
-function output_keys(mat::PowerYieldCrack)
+function output_keys(mat::PowerYieldCohesive)
     return Symbol[:jw, :jσn, :jup]
 end

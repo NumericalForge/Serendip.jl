@@ -1,42 +1,44 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export LinearInterface
+export LinearCohesive
 
-mutable struct LinearInterfaceState<:IpState
+mutable struct LinearCohesiveState<:IpState
     ctx::Context
-    σ   ::Array{Float64,1}
-    w   ::Array{Float64,1}
-    h   ::Float64
-    function LinearInterfaceState(ctx::Context)
+    σ  ::Array{Float64,1}
+    w  ::Array{Float64,1}
+    h  ::Float64
+    function LinearCohesiveState(ctx::Context)
         this = new(ctx)
         this.σ = zeros(ctx.ndim)
         this.w = zeros(ctx.ndim)
-        this.h = 0.0
         return this
     end
 end
 
 
-mutable struct LinearInterface<:Constitutive
+mutable struct LinearCohesive<:Constitutive
     kn::Float64 # Normal stiffness
     ks::Float64 # Shear stiffness
+    zeta::Float64 # Thickness ratio
 
-    function LinearInterface(; ks::Float64=NaN, kn::Float64=NaN)
-        @check kn > 0.0
-        @check ks >= 0.0
-        return new(ks, kn)
+    function LinearCohesive(; E::Real=NaN, nu::Real=0.0, zeta::Real=5.0)
+        @check E > 0.0 "LinearCohesive: Young's modulus E must be positive"
+        @check nu >= 0.0 "LinearCohesive: Poisson's ratio nu must be non-negative"
+        @check zeta > 0.0 "LinearCohesive: Thickness ratio zeta must be positive"
+        return new(E, nu, zeta)
     end
 end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{LinearInterface}, ::Type{MechInterface}, ::Context) = LinearInterfaceState
+compat_state_type(::Type{<:LinearCohesive}, ::Type{MechInterface}, ::Context) = LinearCohesiveState
 
-
-function calcD(mat::LinearInterface, state::LinearInterfaceState)
+# LinearCohesive
+function calcD(mat::LinearCohesive, state::LinearCohesiveState)
     ndim = state.ctx.ndim
-    kn   = mat.kn
-    ks   = mat.ks
+    kn = mat.E*mat.ζ/state.h
+    G  = mat.E/(2*(1 + mat.ν))
+    ks = G*mat.ζ/state.h
 
     if ndim==2
         return [  kn  0.0
@@ -49,8 +51,7 @@ function calcD(mat::LinearInterface, state::LinearInterfaceState)
 end
 
 
-function update_state(mat::LinearInterface, state::LinearInterfaceState, Δu)
-    ndim = state.ctx.ndim
+function update_state(mat::LinearCohesive, state::LinearCohesiveState, Δu)
     D  = calcD(mat, state)
     Δσ = D*Δu
 
@@ -60,7 +61,7 @@ function update_state(mat::LinearInterface, state::LinearInterfaceState, Δu)
 end
 
 
-function state_values(::LinearInterface, state::LinearInterfaceState)
+function state_values(::LinearCohesive, state::LinearCohesiveState)
     ndim = state.ctx.ndim
     if ndim == 3
        return Dict(
@@ -82,6 +83,6 @@ function state_values(::LinearInterface, state::LinearInterfaceState)
 end
 
 
-function output_keys(::LinearInterface)
+function output_keys(::LinearCohesive)
     return Symbol[:jw, :jw]
 end

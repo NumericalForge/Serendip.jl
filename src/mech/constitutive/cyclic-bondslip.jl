@@ -33,21 +33,45 @@ mutable struct CyclicBondSlipState<:IpState
     end
 end
 
-# CyclicBondSlip_params = [
-#     FunInfo(:CyclicBondSlip, "Consitutive model for a rod-solid interface."),
-#     KwArgInfo(:taumax, "Shear strength", cond=:(taumax>0)),
-#     KwArgInfo(:taures, "Residual shear stress", cond=:(taures>=0)),
-#     KwArgInfo((:speak, :jσn), "Peak slip", cond=:(speak>0)),
-#     KwArgInfo((:sres, :s3), "Residual slip", cond=:(sres>=0)),
-#     KwArgInfo(:alpha, "Ascending curvature parameter", 0.4, cond=:(0.0<=alpha<=1.0)),
-#     KwArgInfo(:beta, "Descending curvature parameter", 1.0, cond=:(0.0<=beta<=1.0)),
-#     KwArgInfo(:kn, "Normal stiffness", cond=:(kn>0)),
-#     KwArgInfo(:ks, "Shear stiffness", 0.0, cond=:(ks>=0)),
-#     KwArgInfo(:p, "Perimeter", cond=:(p>0)),
-#     ArgCond(:(taumax>taures)),
-#     ArgCond(:(ks>=taumax/speak)),
-# ]
 
+"""
+    CyclicBondSlip(; taumax, taures, speak, sres, alpha=0.4, beta=1.0, ks, kn, p)
+
+Constitutive model for a cyclic rod–solid bond interface with degradation.
+The shear bond law uses a piecewise envelope: power-law hardening up to `speak`,
+a short plateau, then softening toward `taures`. Under cyclic loading, the
+envelope evolves with the reversal amplitude.
+
+# Arguments
+- `taumax::Real`
+  Initial peak bond stress τ_max (> 0).
+- `taures::Real`
+  Residual bond stress τ_res (≥ 0, < τ_max).
+- `speak::Real`
+  Slip at initial peak stress (> 0).
+- `sres::Real`
+  Slip where the envelope reaches τ_res (> 0).
+- `alpha::Real=0.4`
+  Exponent for the ascending branch (0 ≤ α ≤ 1).
+- `beta::Real=1.0`
+  Exponent for the descending branch (0 ≤ β ≤ 1).
+- `ks::Real`
+  Shear stiffness (> 0) with constraint `ks ≥ taumax/speak`.
+- `kn::Real`
+  Normal stiffness (> 0).
+- `p::Real`
+  Interface perimeter (> 0).
+
+# Behavior
+- Cyclic effects: peak τ_max decays, `speak` shifts, and `taures` evolves with a
+  measure of reversal amplitude and accumulated slip (handled via internal state).
+- Tangent shear stiffness equals the envelope derivative in inelastic updates,
+  or `ks` when elastic.
+
+# Returns
+- A `CyclicBondSlip` object.
+
+"""
 mutable struct CyclicBondSlip<:Constitutive
     τmax:: Float64
     τres:: Float64
@@ -60,15 +84,32 @@ mutable struct CyclicBondSlip<:Constitutive
     kn  :: Float64
     p   :: Float64
 
-    function CyclicBondSlip(; kwargs...)
-        args = checkargs(kwargs, CyclicBondSlip_params)
-        this = new(args.taumax, args.taures, args.speak, 1.1*args.speak, args.sres, args.alpha, args.beta, args.ks, args.kn, args.p)
-        return this
+    function CyclicBondSlip(; 
+            taumax::Real = NaN,
+            taures::Real = NaN,
+            speak::Real  = NaN,
+            sres::Real   = NaN,
+            alpha::Real  = 0.4,
+            beta::Real   = 1.0,
+            ks::Real     = NaN,
+            kn::Real     = NaN,
+            p::Real      = NaN,
+    )
+        @check taumax > 0.0 "CyclicBondSlip: Shear strength taumax must be positive."
+        @check taures >= 0.0 "CyclicBondSlip: Residual shear stress taures must be non-negative."
+        @check speak > 0.0 "CyclicBondSlip: Peak slip speak must be positive."
+        @check sres > 0.0 "CyclicBondSlip: Residual slip sres must be non-negative."
+        @check 0.0 <= alpha <= 1.0 "CyclicBondSlip: Ascending curvature parameter alpha must be in [0, 1]."
+        @check 0.0 <= beta <= 1.0 "CyclicBondSlip: Descending curvature parameter beta must be in [0, 1]."
+        @check ks > 0.0 "CyclicBondSlip: Shear stiffness ks must be non-negative."
+        @check kn > 0.0 "CyclicBondSlip: Normal stiffness kn must be positive."
+        @check p > 0.0 "CyclicBondSlip: Perimeter p must be positive."
+        @check taumax > taures "CyclicBondSlip: Shear strength taumax must be greater than residual shear stress taures."
+        @check ks >= taumax/speak "CyclicBondSlip: Shear stiffness ks must be greater than or equal to taumax/speak."
+        
+        return new(taumax, taures, speak, 1.1*speak, sres, alpha, beta, ks, kn, p)
     end
-
 end
-
-const CyclicRSJoint = CyclicBondSlip
 
 
 # Type of corresponding state structure
@@ -278,8 +319,8 @@ end
 
 function state_values(mat::CyclicBondSlip, ips::CyclicBondSlipState)
     return OrderedDict(
-      :s   => ips.u[1] ,
-      :tau  => ips.σ[1] ,
+      :s => ips.u[1] ,
+      :τ => ips.σ[1] ,
       )
 end
 

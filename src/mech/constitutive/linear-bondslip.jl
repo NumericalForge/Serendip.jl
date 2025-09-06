@@ -66,6 +66,7 @@ end
 
 function state_values(mat::LinearBondSlip, state::LinearBondSlipState)
     return OrderedDict(
-      :ur   => state.u[1] ,
-      :tau  => state.σ[1] )
+        :s => state.u[1],
+        :τ => state.σ[1]
+    )
 end

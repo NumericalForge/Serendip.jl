@@ -54,19 +54,17 @@ macro check(expr, args...)
     return quote
         if !$(esc(expr)) # Eval boolean expression
             # Get function name
-            st = stacktrace(backtrace())
-            fname = :_
-            for frame in st
-                if !startswith(string(frame.func), "_") && frame.func!=Symbol("macro expansion")
-                    fname = frame.func
-                    break
-                end
-            end
+            # st = stacktrace(backtrace())
+            # fname = :_
+            # for frame in st
+            #     if !startswith(string(frame.func), "_") && frame.func!=Symbol("macro expansion")
+            #         fname = frame.func
+            #         break
+            #     end
+            # end
 
-            # msg = $(esc(msg))
-            # msg = repr(begin local value = $(esc(msg)) end)
             msg = $(esc(msg))
-            fname != "" && (msg="$fname: $msg")
+            # fname != "" && (msg="$fname: $msg")
             throw($(exception)(msg))
         end
     end

@@ -11,6 +11,11 @@ compat_role(::Type{MechInterface}) = :interface
 
 function elem_init(elem::Element{MechInterface})
 
+    # Computation of characteristic length 'h' for cohesive elements
+    # and set it in the integration point state
+
+    hasfield(typeof(elem.ips[1].state), :h) || return
+
     # Avg volume of linked elements
     V = 0.0
     for elem in elem.couplings

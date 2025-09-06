@@ -21,7 +21,7 @@ alpha=1.5
 
 mapper = RegionMapper()
 add_mapping(mapper, "bulk", MechBulk, LinearElastic, E=E, nu=0.2)
-add_mapping(mapper, "joint", MechInterface, PowerYieldCrack, E=E, nu=0.2, fc=fc, ft=ft, zeta=5.0, wc=1.7e-4, alpha=alpha, gamma=0.05, theta=1.5)
+add_mapping(mapper, "joint", MechInterface, PowerYieldCohesive, E=E, nu=0.2, fc=fc, ft=ft, zeta=5.0, wc=1.7e-4, alpha=alpha, gamma=0.05, theta=1.5)
 
 model = FEModel(mesh, mapper, stress_state=:plane_stress, thickness=1.0)
 ana = MechAnalysis(model)

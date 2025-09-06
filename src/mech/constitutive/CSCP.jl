@@ -1,64 +1,126 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export CSCP
+export UCP
 
-CSCP_params = [
-    FunInfo(:CSCP, "Closed surface concrete plasticity"),
-    KwArgInfo(:E, "Young's modulus", cond=:(E>0)),
-    KwArgInfo(:nu, "Poisson's ratio", cond=:(0<=nu<0.5)),
-    KwArgInfo(:alpha, "Curvature coefficient", 0.666, cond=:(0.2<alpha<=1.0)),
-    KwArgInfo(:beta, "Factor to get fb from fc_max", 1.15, cond=:(1<=beta<=1.5)),
-    KwArgInfo(:fc, "Compressive strength", 0.0, cond=:(fc<0)),
-    KwArgInfo(:epsc, "Strain corresponding to the peak value in the uniaxial compression curve", 0.0, cond=:(epsc<0)),
-    KwArgInfo(:n, "Shape curve parameter for the compression curve", 4.0, cond=:(n>1)),
-    KwArgInfo(:ft, "Tensile strength", 0.0, cond=:(ft>0)),
-    KwArgInfo(:wc, "Critical crack opening in uniaxial extension", 0.0, cond=:(wc>=0)),
-    KwArgInfo(:GF, "Tensile fracture energy", 0.0, cond=:(GF>0)),
-    KwArgInfo(:p0, "Elastic limit for p under isotropic compression", nothing),
-    KwArgInfo(:Hp, "Plastic modulus for the isotropic compression", 0.0, cond=:(Hp>=0)),
-]
+"""
+    UCP(; E, nu, fc, epsc, n=4, ft, GF, wc, p0, alpha=0.666, beta=1.15, H=0.0)
 
-mutable struct CSCP<:Constitutive
+Unified Concrete Plasticity model.
+
+This constitutive model defines a three-invariant plasticity surface for concrete,
+with a closed cap in compression and fracture-energy regularization in tension.
+It combines elastic isotropy, nonlinear hardening/softening in compression, and
+tension softening controlled by the fracture energy.
+
+# Keyword arguments
+- `E::Real`  
+  Young’s modulus (must be > 0).
+- `nu::Real`  
+  Poisson’s ratio (0 ≤ ν < 0.5).
+- `fc::Real`  
+  Uniaxial compressive strength (< 0).
+- `epsc::Real`  
+  Strain at the compressive peak (< 0).
+- `n::Real = 4`  
+  Shape parameter for the compression hardening/softening curve (n > 1).
+- `ft::Real`  
+  Uniaxial tensile strength (> 0).
+  - `GF::Real`  
+  Tensile fracture energy (> 0). Can be given alternatively to `wc`.
+- `wc::Real`  
+  Critical crack opening displacement (≥ 0). Can be given alternatively to `GF`.
+- `p0::Real = NaN`  
+  Elastic limit in isotropic compression. If not given, computed internally
+  from `fc` and `beta`.
+- `alpha::Real = 0.666`  
+  Curvature coefficient of the meridional section (0.2 < α ≤ 1.0).
+- `beta::Real = 1.15`  
+  Factor relating biaxial to uniaxial compressive strength (1 ≤ β ≤ 1.5).
+- `H::Real = 0.0`  
+  Plastic modulus for isotropic compression (≥ 0).
+
+# Returns
+A `UCP` material object that can be attached to mechanical bulk elements
+for 2D (plane strain) or 3D analyses. Not compatible with plane stress.
+
+# Notes
+- The tensile law is regularized through `GF` and `wc` to ensure energy
+  dissipation is independent of element size.
+- The compressive response follows a nonlinear curve defined by `fc`, `epsc`, and `n`.
+- The cap position is adjusted by `beta` and `p0`.
+- The surface excentricity is computed internally to match the biaxial strength.
+- The surface section follows the Willam-Warnke ellipsoidal shape.
+"""
+mutable struct UCP<:Constitutive
     E::Float64
     ν::Float64
-    e::Float64
-    α::Float64
-    ft::Float64
     fc::Float64
     εc::Float64
     n::Float64
-    GF::Float64
+    ft::Float64
     wc::Float64
     fb::Float64
     p0::Float64
-    Hp::Float64
+    α::Float64
+    e::Float64
+    H::Float64
 
-    function CSCP(; kwargs...)
-        args = checkargs(kwargs, CSCP_params)
+    function UCP(;
+        E::Real    =NaN,
+        nu::Real   =NaN,
+        alpha::Real=0.666,
+        beta::Real =1.15,
+        fc::Real   =NaN,
+        epsc::Real =NaN,
+        n::Real    =4.0,
+        ft::Real   =NaN,
+        GF::Real   =NaN,
+        wc::Real   =NaN,
+        p0::Real   =NaN,
+        H::Real    =0.0,
+    )
+        @check E>0 "UCP: Young's modulus E must be > 0. Got $(repr(E))."
+        @check 0<=nu<0.5 "UCP: Poisson's ratio nu must be in the range [0, 0.5). Got $(repr(nu))."
+        @check 0.2<alpha<=1.0 "UCP: Curvature coefficient alpha must be in the range (0.2, 1.0]. Got $(repr(alpha))."
+        @check 1<=beta<=1.5 "UCP: Factor beta must be in the range [1.0, 1.5]. Got $(repr(beta))."
+        @check fc<0 "UCP: Compressive strength fc must be < 0. Got $(repr(fc))."
+        @check epsc<0 "UCP: Strain at compressive peak epsc must be < 0. Got $(repr(epsc))."
+        @check n>1 "UCP: Shape parameter n must be > 1. Got $(repr(n))."
+        @check ft>0 "UCP: Tensile strength ft must be > 0. Got $(repr(ft))."
+        @check H>=0 "UCP: Plastic modulus H must be >= 0. Got $(repr(H))."
+        @check !isnan(wc) || !isnan(GF) "UCP: Either fracture energy GF or critical crack opening wc must be provided."
 
-        α = args.alpha
-        β = args.beta
-
+        α = alpha
+        β = beta
+        
         # value of exentricity to match fb in a biaxial trajectory, assuming the state when ξb=0
         e = β/(2*β)^α
-        fb = β*args.fc
+        fb = β*fc
+        
+        if isnan(wc)
+            @check GF>0 "UCP: Fracture energy GF must be > 0. Got $(repr(GF))."
+            wc = round(GF/(0.1947*ft), sigdigits=5)  # inverse of Hordijk approximation
+            notify("UCP: Using Hordijk's approximation wc=$(repr(wc)).")
+        else
+            @check wc>=0 "UCP: Critical crack opening wc must be >= 0. Got $(repr(wc))."
+        end
 
-        if args.p0 === nothing
+        if isnan(p0)
             ξc = 2*fb/√3
             ξa = 1.5*ξc
             p0 = ξa/√3
         else
-            p0 = args.p0
-            @assert p0<0
+            @check p0<0 "UCP: Elastic limit in isotropic compression p0 must be < 0. Got $(repr(p0))."
         end
+        @assert p0<0
 
-        this = new(args.E, args.nu, e, α, args.ft, args.fc, args.epsc, args.n, args.GF, args.wc, fb, p0, args.Hp)
+        this = new(E, nu, fc, epsc, n, ft, wc, fb, p0, α, e, H)
         return this
     end
 end
 
 
-mutable struct CSCPState<:IpState
+mutable struct UCPState<:IpState
     ctx::Context
     σ  ::Vec6
     ε  ::Vec6
@@ -67,7 +129,7 @@ mutable struct CSCPState<:IpState
     εvp::Float64
     Δλ ::Float64
     h  ::Float64
-    function CSCPState(ctx::Context)
+    function UCPState(ctx::Context)
         this     = new(ctx)
         this.σ   = zeros(Vec6)
         this.ε   = zeros(Vec6)
@@ -82,10 +144,10 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{CSCP}, ::Type{MechBulk}, ctx::Context) = ctx.stress_state!=:plane_stress ? CSCPState : error("CSCP: This model is not compatible with planestress")
+compat_state_type(::Type{UCP}, ::Type{MechBulk}, ctx::Context) = ctx.stress_state!=:plane_stress ? UCPState : error("UCP: This model is not compatible with planestress")
 
 
-function calc_θ(::CSCP, σ::Vec6)
+function calc_θ(::UCP, σ::Vec6)
     j2 = J2(σ)
     if j2==0.0
         θ = 0.0
@@ -98,7 +160,7 @@ function calc_θ(::CSCP, σ::Vec6)
 end
 
 
-function calc_rθ(mat::CSCP, σ::Vec6)
+function calc_rθ(mat::UCP, σ::Vec6)
     e = mat.e
     θ = calc_θ(mat, σ)
 
@@ -110,21 +172,21 @@ function calc_rθ(mat::CSCP, σ::Vec6)
 end
 
 
-function calc_rξ(mat::CSCP, ξb::Float64, ξ::Float64)
+function calc_rξ(mat::UCP, ξb::Float64, ξ::Float64)
     α  = mat.α
     fc_abs = abs(mat.fc)
 
     return spow((ξb-ξ)/fc_abs, α)
 end
 
-function calc_rc(mat::CSCP, ξa::Float64, ξ::Float64)
+function calc_rc(mat::UCP, ξa::Float64, ξ::Float64)
     ξc = 2*mat.fb/√3
     ξ>=ξc && return 1.0
     ξ<ξa  && return 0.0
     return √(1 - ((ξc-ξ)/(ξc-ξa))^2)
 end
 
-function calc_fc(mat::CSCP, εcp::Float64)
+function calc_fc(mat::UCP, εcp::Float64)
     fc     = mat.fc
     εcp_pk = abs(mat.εc) - abs(fc)/mat.E  # εcp_pk is the compression plastic strain at the peak of the uniaxial compression curve
     χ      = εcp/εcp_pk
@@ -146,7 +208,7 @@ function calc_fc(mat::CSCP, εcp::Float64)
 end
 
 
-function calc_ft(mat::CSCP, w::Float64)
+function calc_ft(mat::UCP, w::Float64)
     wc = mat.wc
     if w < 0
         z = 1.0
@@ -158,12 +220,12 @@ function calc_ft(mat::CSCP, w::Float64)
     return z*mat.ft
 end
 
-function calc_p(mat::CSCP, εvp::Float64)
-    return mat.p0 + mat.Hp*εvp
+function calc_p(mat::UCP, εvp::Float64)
+    return mat.p0 + mat.H*εvp
 end
 
 
-function calc_ξa_ξb_κ(mat::CSCP, state::CSCPState, εtp::Float64, εcp::Float64, εvp::Float64)
+function calc_ξa_ξb_κ(mat::UCP, state::UCPState, εtp::Float64, εcp::Float64, εvp::Float64)
 
     α  = mat.α
     e  = mat.e
@@ -202,7 +264,7 @@ function calc_ξa_ξb_κ(mat::CSCP, state::CSCPState, εtp::Float64, εcp::Float
 end
 
 
-function yield_func(mat::CSCP, state::CSCPState, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
+function yield_func(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
     # f(σ) = ρ - rθ⋅rc⋅rξ⋅κ
 
     i1, j2 = tr(σ), J2(σ)
@@ -219,7 +281,7 @@ function yield_func(mat::CSCP, state::CSCPState, σ::AbstractArray, εtp::Float6
 end
 
 
-function yield_derivs(mat::CSCP, state::CSCPState, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
+function yield_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
     e = mat.e
     α = mat.α
     fc_abs = abs(mat.fc)
@@ -287,7 +349,7 @@ function yield_derivs(mat::CSCP, state::CSCPState, σ::AbstractArray, εtp::Floa
 end
 
 
-function potential_derivs(mat::CSCP, state::CSCPState, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
+function potential_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
     # f(σ) = ρ - e⋅rc⋅rξ⋅κ
 
     e  = mat.e
@@ -326,7 +388,7 @@ function potential_derivs(mat::CSCP, state::CSCPState, σ::AbstractArray, εtp::
 end
 
 
-function calcD(mat::CSCP, state::CSCPState)
+function calcD(mat::UCP, state::UCPState)
     De  = calcDe(mat.E, mat.ν, state.ctx.stress_state)
 
     state.Δλ==0.0 && return De
@@ -341,7 +403,7 @@ function calcD(mat::CSCP, state::CSCPState)
 end
 
 
-function calc_σ_εp_Δλ(mat::CSCP, state::CSCPState, σtr::Vec6)
+function calc_σ_εp_Δλ(mat::UCP, state::UCPState, σtr::Vec6)
     maxits = 60
     tol    = 0.1
     tol    = 1.0
@@ -372,7 +434,7 @@ function calc_σ_εp_Δλ(mat::CSCP, state::CSCPState, σtr::Vec6)
         end
 
         if isnan(Δλ)
-            return state.σ, 0.0, 0.0, 0.0, 0.0, failure("CSCP: Δλ is NaN")
+            return state.σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: Δλ is NaN")
         end
 
         σ  = σtr - Δλ*(De*dgdσ)
@@ -385,7 +447,7 @@ function calc_σ_εp_Δλ(mat::CSCP, state::CSCPState, σtr::Vec6)
         f   = yield_func(mat, state, σ, εtp, εcp, εvp)
 
         if abs(f) < tol
-            Δλ < 0.0 && return σ, 0.0, 0.0, 0.0, 0.0, failure("CSCP: negative Δλ")
+            Δλ < 0.0 && return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: negative Δλ")
 
             # @show Δλ
             # @show f
@@ -398,11 +460,11 @@ function calc_σ_εp_Δλ(mat::CSCP, state::CSCPState, σtr::Vec6)
         # i>20 && (η = 0.15)
     end
 
-    return state.σ, 0.0, 0.0, 0.0, 0.0, failure("CSCP: maximum iterations reached")
+    return state.σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: maximum iterations reached")
 end
 
 
-function update_state(mat::CSCP, state::CSCPState, Δε::AbstractArray)
+function update_state(mat::UCP, state::UCPState, Δε::AbstractArray)
     σini = state.σ
     De   = calcDe(mat.E, mat.ν, state.ctx.stress_state)
     Δσtr = De*Δε
@@ -441,7 +503,7 @@ function update_state(mat::CSCP, state::CSCPState, Δε::AbstractArray)
 end
 
 
-function state_values(mat::CSCP, state::CSCPState)
+function state_values(mat::UCP, state::UCPState)
     σ, ε  = state.σ, state.ε
     ρ  = √(2*J2(σ))
     ξ  = tr(σ)/√3

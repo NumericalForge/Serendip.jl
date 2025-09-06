@@ -20,14 +20,14 @@ function set_quadrature(elem::Element{MechBondTip}, n::Int=1)
 end
 
 
-function mountB(elem::Element{MechBondTip}, Ch, Ct)
+function mountB(elem::Element{MechBondTip}, Ch, Cm)
     # Calculates the matrix that relates nodal displacements with relative displacements
 
 
     # B = T* [-MM'  I]      ndim x ndim*(m+n)
 
     # where
-    # T is a untari vector pointing outwards the rod
+    # T is a unit vector pointing outwards the member
     # MM is a matrix containing tresspased element shape functions
     # evaluated at the tip node coords
 
@@ -35,21 +35,21 @@ function mountB(elem::Element{MechBondTip}, Ch, Ct)
     # I is a ndim x ndim identity matrix
 
 
-    ndim = elem.ctx.ndim
-    tip = elem.nodes[end]
-    host = elem.couplings[1]
-    rod  = elem.couplings[2]
+    ndim    = elem.ctx.ndim
+    tip     = elem.nodes[end]
+    host    = elem.couplings[1]
+    member  = elem.couplings[2]
     nsnodes = length(host.nodes)
 
-    if hash(tip)==hash(rod.nodes[1])
+    if hash(tip)==hash(member.nodes[1])
         R = [-1.0, 0, 0]
-        D = rod.shape.deriv(R)
-        J = Ct'*D
+        D = member.shape.deriv(R)
+        J = Cm'*D
         T = -normalize(J)
     else
         R = [+1.0, 0, 0]
-        D = rod.shape.deriv(R)
-        J = Ct'*D
+        D = member.shape.deriv(R)
+        J = Cm'*D
         T = normalize(J)
     end
 
@@ -69,35 +69,32 @@ end
 
 
 function elem_stiffness(elem::Element{MechBondTip})
-    ndim = elem.ctx.ndim
-    host = elem.couplings[1]
-    rod  = elem.couplings[2]
-    Ch = get_coords(host)
-    Ct = get_coords(rod)
+    ndim  = elem.ctx.ndim
+    host  = elem.couplings[1]
+    member = elem.couplings[2]
+    Ch    = get_coords(host)
+    Cm    = get_coords(member)
 
-    B = mountB(elem, Ch, Ct)
+    B = mountB(elem, Ch, Cm)
     k = calcD(elem.cmodel, elem.ips[1].state)
     coef = k
     K = coef*B'*B
 
     keys = (:ux, :uy, :uz)[1:ndim]
-    # map  = [ node.dofdict[key].eq_id for node in elem.nodes for key in keys ]
     map = [ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]
     return K, map, map
 end
 
 function elem_internal_forces(elem::Element{MechBondTip}, ΔUg::Vector{Float64}=Float64[], Δt::Float64=0.0)
-# function update_elem!(elem::Element{MechBondTip}, U::Array{Float64,1}, Δt::Float64)
     ndim   = elem.ctx.ndim
-    host = elem.couplings[1]
-    rod  = elem.couplings[2]
-    Ch = get_coords(host)
-    Ct = get_coords(rod)
+    host   = elem.couplings[1]
+    member = elem.couplings[2]
+    Ch     = get_coords(host)
+    Cm     = get_coords(member)
 
-    B    = mountB(elem, Ch, Ct)
+    B    = mountB(elem, Ch, Cm)
     keys = (:ux, :uy, :uz)[1:ndim]
     map = [ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]
-    # map  = [ node.dofdict[key].eq_id for node in elem.nodes for key in keys ]
 
     update = !isempty(ΔUg)
 
@@ -111,5 +108,5 @@ function elem_internal_forces(elem::Element{MechBondTip}, ΔUg::Vector{Float64}=
 
     ΔF = Δf*B'
 
-     return ΔF, map, success()
+    return ΔF, map, success()
 end

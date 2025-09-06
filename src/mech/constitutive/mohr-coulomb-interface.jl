@@ -1,87 +1,107 @@
  #This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export MCJoint
+export MohrCoulombInterface
 
-mutable struct MCJointState<:IpState
+mutable struct MohrCoulombInterfaceState<:IpState
     ctx::Context
     σ  ::Array{Float64,1} # stress
     w  ::Array{Float64,1} # relative displacements
-    up::Float64          # effective plastic relative displacement
+    up::Float64           # effective plastic relative displacement
     Δλ ::Float64          # plastic multiplier
-    h  ::Float64          # characteristic length from bulk elements
-    function MCJointState(ctx::Context)
-        this = new(ctx)
-        ndim = ctx.ndim
-        this.σ = zeros(ndim)
-        this.w = zeros(ndim)
+    function MohrCoulombInterfaceState(ctx::Context)
+        this    = new(ctx)
+        ndim    = ctx.ndim
+        this.σ  = zeros(ndim)
+        this.w  = zeros(ndim)
         this.up = 0.0
-        this.Δλ  = 0.0
-        this.h  = 0.0
+        this.Δλ = 0.0
         return this
     end
 end
 
 
-# MCJoint_params = [
-#     FunInfo(:MCJoint, "Consitutive model for cohesive elements using the MC criterion"),
-#     KwArgInfo(:ft, "Tensile strength", cond=:(ft>0)),
-#     KwArgInfo(:mu, "Friction coefficient", cond=:(mu>=0)),
-#     KwArgInfo(:kn, "Normal stiffness per area", 0.0, cond=:(kn>0)),
-#     KwArgInfo(:ks, "Shear stiffness per area", 0.0, cond=:(ks>=0)),
-#     KwArgInfo(:E, "Young's modulus (when used as cohesive element)", 0.0, cond=:(E>=0)),
-#     KwArgInfo(:nu, "Poisson ratio (when used as cohesive element)", 0.0, cond=:(0<=nu<0.5)),
-#     KwArgInfo(:zeta, "Factor to control elastic relative displacements (when used as cohesive element)", 0.0, cond=:(zeta>=0)),
-#     KwArgInfo(:wc, "Critical crack opening", 0.0, cond=:(wc>=0)),
-#     KwArgInfo(:GF, "Fracture energy", 0.0, cond=:(GF>=0)),
-#     KwArgInfo(:softmodel, "Softening model", :hordijk, values=(:linear, :bilinear, :hordijk, :soft, :custom), type=Symbol),
-# ]
-# @doc docstring(MCJoint_params) MCJoint
+"""
+    MohrCoulombInterface(;ft, GF, wc, mu, kn, ks, softening=:hordijk, zeta=5.0)
 
-mutable struct MCJoint<:Constitutive
-    E  ::Float64      # Young's modulus
-    ν  ::Float64      # Poisson ratio
-    ft ::Float64      # tensile strength (internal variable)
-    μ  ::Float64      # tangent of friction angle
-    ζ  ::Float64      # factor ζ controls the elastic relative displacements (formerly α)
-    kn ::Float64      # normal stiffness per area (optional, for fixed kn)
-    ks ::Float64      # shear stiffness per area (optional, for fixed ks)
-    wc ::Float64      # critical crack opening
-    softmodel::Symbol    # softening curve model (:linear" or bilinear" or "hordijk"
+Constitutive model for interface/contact elements with a Mohr–Coulomb (MC) strength criterion.  
+It combines normal and shear stiffness, tensile strength, frictional strength, and a
+softening law that can be defined either by the critical crack opening `wc` or by the
+fracture energy `GF`.
 
-    function MCJoint(; kwargs...)
-        args = checkargs(kwargs, MCJoint_params)
+# Keyword arguments
+- `ft::Real`  
+  Tensile strength (>= 0).
+- `mu::Real`  
+  Friction coefficient (> 0).
+- `kn::Real`  
+  Normal stiffness per unit area (> 0).
+- `ks::Real`  
+  Shear stiffness per unit area (> 0).
+- `wc::Real`  
+  Critical crack opening (must be > 0 if given). Can be computed alternatively from `GF`.
+- `GF::Real`  
+  Fracture energy (must be > 0 if given). Can be computed alternatively from `wc`.
+- `softening::Symbol = :hordijk`  
+  Softening law for post-peak tensile response. Options are:
+  `:linear`, `:bilinear`, `:hordijk`, `:soft`.  
 
-        wc = args.wc
-        softmodel = args.softmodel
+# Returns
+An `MohrCoulombInterface` object.
 
-        if wc==0.0
-            GF = args.GF
-            ft = args.ft
-            if softmodel == :linear
+# Notes
+- Either `wc` or `GF` must be provided. If only `GF` is given, `wc` is computed
+  internally based on the chosen softening law.
+- Normal and shear stiffnesses (`kn`, `ks`) control the elastic regime before
+  reaching the strength envelope.
+- The frictional contribution is governed by `mu`.
+"""
+mutable struct MohrCoulombInterface<:Constitutive
+    μ  ::Float64
+    kn ::Float64
+    ks ::Float64
+
+    function MohrCoulombInterface(; 
+            ft::Real=NaN,
+            GF::Real=NaN,
+            wc::Real=NaN,
+            mu::Real=NaN,
+            kn::Real=NaN,
+            ks::Real=NaN,
+            softening::Symbol=:hordijk,
+        )
+
+        @check ft>=0 "MohrCoulombInterface: Tensile strength ft must be >= 0. Got $(repr(ft))."
+        @check mu>0 "MohrCoulombInterface: Friction coefficient mu must be non-negative. Got $(repr(mu))."
+        @check kn>0 "MohrCoulombInterface: Normal stiffness per area kn must be non-negative. Got $(repr(kn))."
+        @check ks>0 "MohrCoulombInterface: Shear stiffness per area ks must be non-negative. Got $(repr(ks))."
+        @check softening in (:linear, :bilinear, :hordijk) "MohrCoulombInterface: Unknown softening model: $softening. Supported models are :linear, :bilinear and :hordijk."
+
+        @check !isnan(wc) || !isnan(GF) "MohrCoulombInterface: Either wc or GF must be provided."
+
+        if isnan(wc) 
+            @check GF>0 "MohrCoulombInterface: Fracture energy GF must be positive. Got $(repr(GF))."
+            if softening == :linear
                 wc = round(2*GF/ft, sigdigits=5)
-            elseif softmodel == :bilinear
+            elseif softening == :bilinear
                 wc = round(5*GF/ft, sigdigits=5)
-            elseif softmodel==:hordijk
+            elseif softening == :hordijk
                 wc = round(GF/(0.1947019536*ft), sigdigits=5)  
-            elseif softmodel==:soft
-                wc = round(GF/(0.1947019536*ft), sigdigits=5)
             end
+        else
+            @check wc>0 "MohrCoulombInterface: Critical crack opening wc must be positive. Got $(repr(wc))."
         end
 
-        ζ = args.zeta
-        kn, ks = args.kn, args.ks
-
-        this = new(args.E, args.nu, args.ft, args.mu, ζ, kn, ks, wc, softmodel)
+        this = new(ft, wc, mu, kn, ks, softening, zeta)
         return this
     end
 end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{MCJoint}, ::Type{MechInterface}, ctx::Context) = MCJointState
+compat_state_type(::Type{MohrCoulombInterface}, ::Type{MechInterface}, ctx::Context) = MohrCoulombInterfaceState
 
 
-function yield_func(mat::MCJoint, state::MCJointState, σ::Array{Float64,1})
+function yield_func(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, σ::Array{Float64,1})
     ndim = state.ctx.ndim
     σmax = calc_σmax(mat, state, state.up)
     if ndim == 3
@@ -92,7 +112,7 @@ function yield_func(mat::MCJoint, state::MCJointState, σ::Array{Float64,1})
 end
 
 
-function yield_deriv(mat::MCJoint, state::MCJointState)
+function yield_deriv(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState)
     ndim = state.ctx.ndim
     if ndim == 3
         return [ mat.μ, state.σ[2]/sqrt(state.σ[2]^2 + state.σ[3]^2), state.σ[3]/sqrt(state.σ[2]^2 + state.σ[3]^2)]
@@ -102,7 +122,7 @@ function yield_deriv(mat::MCJoint, state::MCJointState)
 end
 
 
-function potential_derivs(mat::MCJoint, state::MCJointState, σ::Array{Float64,1})
+function potential_derivs(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, σ::Array{Float64,1})
     ndim = state.ctx.ndim
     if ndim == 3
         if σ[1] >= 0.0 
@@ -125,8 +145,8 @@ function potential_derivs(mat::MCJoint, state::MCJointState, σ::Array{Float64,1
 end
 
 
-function calc_σmax(mat::MCJoint, state::MCJointState, up::Float64)
-    if mat.softmodel == :linear
+function calc_σmax(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, up::Float64)
+    if mat.softening == :linear
         if up < mat.wc
             a = mat.ft 
             b = mat.ft /mat.wc
@@ -135,7 +155,7 @@ function calc_σmax(mat::MCJoint, state::MCJointState, up::Float64)
             b = 0.0
         end
         σmax = a - b*up
-    elseif mat.softmodel == :bilinear
+    elseif mat.softening == :bilinear
         σs = 0.25*mat.ft 
         if up < mat.ws
             a  = mat.ft  
@@ -148,7 +168,7 @@ function calc_σmax(mat::MCJoint, state::MCJointState, up::Float64)
             b = 0.0
         end
         σmax = a - b*up
-    elseif mat.softmodel == :hordijk
+    elseif mat.softening == :hordijk
         if up < mat.wc
             e = exp(1.0)
             z = (1 + 27*(up/mat.wc)^3)*e^(-6.93*up/mat.wc) - 28*(up/mat.wc)*e^(-6.93)           
@@ -156,34 +176,22 @@ function calc_σmax(mat::MCJoint, state::MCJointState, up::Float64)
             z = 0.0
         end
         σmax = z*mat.ft 
-    elseif mat.softmodel == :soft
-        m = 0.55
-        a = 1.30837
-        if up == 0.0
-            z = 1.0
-        elseif 0.0 < up < mat.wc
-            x = up/mat.wc
-            z = 1.0 - a^(1.0 - 1.0/x^m)
-        else
-            z = 0.0
-        end
-        σmax = z*mat.ft
     end
 
     return σmax
 end
 
 
-function σmax_deriv(mat::MCJoint, state::MCJointState, up::Float64)
+function σmax_deriv(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, up::Float64)
     # ∂σmax/∂up = dσmax
-    if mat.softmodel == :linear
+    if mat.softening == :linear
         if up < mat.wc
             b = mat.ft /mat.wc
         else
             b = 0.0
         end
         dσmax = -b
-    elseif mat.softmodel == :bilinear
+    elseif mat.softening == :bilinear
         σs = 0.25*mat.ft 
         if up < mat.ws
             b  = (mat.ft  - σs)/mat.ws
@@ -193,23 +201,10 @@ function σmax_deriv(mat::MCJoint, state::MCJointState, up::Float64)
             b = 0.0
         end
         dσmax = -b
-    elseif mat.softmodel == :hordijk
+    elseif mat.softening == :hordijk
         if up < mat.wc
             e = exp(1.0)
             dz = ((81*up^2*e^(-6.93*up/mat.wc)/mat.wc^3) - (6.93*(1 + 27*up^3/mat.wc^3)*e^(-6.93*up/mat.wc)/mat.wc) - 0.02738402432/mat.wc)
-        else
-            dz = 0.0
-        end
-        dσmax = dz*mat.ft 
-    elseif mat.softmodel == :soft
-        m = 0.55
-        a = 1.30837
-
-        if up == 0.0
-            dz = 0.0
-        elseif up < mat.wc
-            x = up/mat.wc
-            dz =  -m*log(a)*a^(1-x^-m)*x^(-m-1)/mat.wc
         else
             dz = 0.0
         end
@@ -220,17 +215,10 @@ function σmax_deriv(mat::MCJoint, state::MCJointState, up::Float64)
 end
 
 
-function calc_kn_ks_De(mat::MCJoint, state::MCJointState)
-    if mat.kn>0 && mat.ks>0
-        kn = mat.kn
-        ks = mat.ks
-    else
-        kn = mat.E*mat.ζ/state.h
-        G  = mat.E/(2*(1 + mat.ν))
-        ks = G*mat.ζ/state.h
-    end
-    
+function calc_De(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState)
     ndim = state.ctx.ndim
+    ks, kn = mat.ks, mat.kn
+
     if ndim == 3
         De = [  kn  0.0  0.0
                0.0   ks  0.0
@@ -244,7 +232,7 @@ function calc_kn_ks_De(mat::MCJoint, state::MCJointState)
 end
 
 
-function calc_Δλ(mat::MCJoint, state::MCJointState, σtr::Array{Float64,1})
+function calc_Δλ(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, σtr::Array{Float64,1})
     ndim   = state.ctx.ndim
     maxits = 100
     Δλ     = 0.0
@@ -254,7 +242,8 @@ function calc_Δλ(mat::MCJoint, state::MCJointState, σtr::Array{Float64,1})
 
     for i in 1:maxits
         μ      = mat.μ
-        kn, ks, De = calc_kn_ks_De(mat, state)
+        ks, kn = mat.ks, mat.kn
+        De = calc_De(mat, state)
 
         # quantities at n+1
         if ndim == 3
@@ -303,22 +292,22 @@ function calc_Δλ(mat::MCJoint, state::MCJointState, σtr::Array{Float64,1})
         abs(f) < tol && break
 
         if i == maxits || isnan(Δλ)
-            # warn("""MCJoint: Could not find Δλ. This may happen when the system
+            # warn("""MohrCoulombInterface: Could not find Δλ. This may happen when the system
             # becomes hypostatic and thus the global stiffness matrix is nearly singular.
             # Increasing the mesh refinement may result in a nonsingular matrix.
             # """)
             # warn("iterations=$i Δλ=$Δλ")
-            return 0.0, failure("MCJoint: Could nof find Δλ.")
+            return 0.0, failure("MohrCoulombInterface: Could nof find Δλ.")
         end
     end
     return Δλ, success()
 end
 
 
-function calc_σ_upa(mat::MCJoint, state::MCJointState, σtr::Array{Float64,1})
+function calc_σ_upa(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, σtr::Array{Float64,1})
     ndim = state.ctx.ndim
     μ = mat.μ
-    kn, ks, De = calc_kn_ks_De(mat, state)
+    ks, kn = mat.ks, mat.kn
 
     if ndim == 3
         if σtr[1] > 0
@@ -340,9 +329,9 @@ function calc_σ_upa(mat::MCJoint, state::MCJointState, σtr::Array{Float64,1})
 end
 
 
-function calcD(mat::MCJoint, state::MCJointState)
+function calcD(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState)
     ndim = state.ctx.ndim
-    kn, ks, De = calc_kn_ks_De(mat, state)
+    De = calc_De(mat, state)
     σmax = calc_σmax(mat, state, state.up)
 
     if state.Δλ == 0.0  # Elastic 
@@ -379,15 +368,15 @@ function calcD(mat::MCJoint, state::MCJointState)
 end
 
 
-function update_state(mat::MCJoint, state::MCJointState, Δw::Array{Float64,1})
+function update_state(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, Δw::Array{Float64,1})
     ndim = state.ctx.ndim
     σini = copy(state.σ)
 
-    kn, ks, De = calc_kn_ks_De(mat, state)
+    De = calc_De(mat, state)
     σmax = calc_σmax(mat, state, state.up)  
 
     if isnan(Δw[1]) || isnan(Δw[2])
-        alert("MCJoint: Invalid value for joint displacement: Δw = $Δw")
+        alert("MohrCoulombInterface: Invalid value for joint displacement: Δw = $Δw")
     end
 
     # σ trial and F trial
@@ -425,7 +414,7 @@ function update_state(mat::MCJoint, state::MCJointState, Δw::Array{Float64,1})
                       
         # Return to surface:
         F  = yield_func(mat, state, state.σ)   
-        F > 1e-3 && alert("MCJoint: Yield function value ($F) outside tolerance")
+        F > 1e-3 && alert("MohrCoulombInterface: Yield function value ($F) outside tolerance")
 
     end
     state.w += Δw
@@ -434,7 +423,7 @@ function update_state(mat::MCJoint, state::MCJointState, Δw::Array{Float64,1})
 end
 
 
-function state_values(mat::MCJoint, state::MCJointState)
+function state_values(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState)
     ndim = state.ctx.ndim
     if ndim == 3
        return Dict(
@@ -458,6 +447,6 @@ function state_values(mat::MCJoint, state::MCJointState)
 end
 
 
-function output_keys(mat::MCJoint)
+function output_keys(::MohrCoulombInterface)
     return Symbol[:jw, :jσn, :jup]
 end

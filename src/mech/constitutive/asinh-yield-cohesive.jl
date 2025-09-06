@@ -1,8 +1,8 @@
  #This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export AsinhYieldCrack
+export AsinhYieldCohesive
 
-mutable struct AsinhYieldCrackState<:IpState
+mutable struct AsinhYieldCohesiveState<:IpState
     ctx::Context
     σ  ::Array{Float64,1} # stress
     w  ::Array{Float64,1} # relative displacements
@@ -10,7 +10,7 @@ mutable struct AsinhYieldCrackState<:IpState
     Δλ ::Float64          # plastic multiplier
     h  ::Float64          # characteristic length from bulk elements
     w_rate::Float64       # w rate wrt T
-    function AsinhYieldCrackState(ctx::Context)
+    function AsinhYieldCohesiveState(ctx::Context)
         this = new(ctx)
         ndim = ctx.ndim
         this.σ   = zeros(ndim)
@@ -23,8 +23,8 @@ mutable struct AsinhYieldCrackState<:IpState
 end
 
 
-# AsinhYieldCrack_params = [
-#     FunInfo( :AsinhYieldCrack, "Creates a `AsinhYieldCrack` material model."),
+# AsinhYieldCohesive_params = [
+#     FunInfo( :AsinhYieldCohesive, "Creates a `AsinhYieldCohesive` material model."),
 #     KwArgInfo( :E, "Young modulus", cond=:(E>0)),
 #     KwArgInfo( :nu, "Poisson ratio", cond=:(0<=nu<0.5)),
 #     KwArgInfo( :fc, "Compressive strength", cond=:(fc<0)),
@@ -39,10 +39,10 @@ end
 #     KwArgInfo((:ft_fun,:soft_fun), "Softening curve", nothing),
 
 # ]
-# @doc docstring(AsinhYieldCrack_params) AsinhYieldCrack
+# @doc docstring(AsinhYieldCohesive_params) AsinhYieldCohesive
 
 
-mutable struct AsinhYieldCrack<:Constitutive
+mutable struct AsinhYieldCohesive<:Constitutive
     E ::Float64
     ν ::Float64
     ft::Float64
@@ -56,8 +56,8 @@ mutable struct AsinhYieldCrack<:Constitutive
     θ::Float64        # fator for the surface reduction speed
     β0::Float64       # initial shear stress for σn=0
 
-    function AsinhYieldCrack(; args...)
-        args = checkargs(args, AsinhYieldCrack_params)
+    function AsinhYieldCohesive(; args...)
+        args = checkargs(args, AsinhYieldCohesive_params)
 
         wc = args.wc
         softmodel = args.softmodel
@@ -75,7 +75,7 @@ mutable struct AsinhYieldCrack<:Constitutive
             if wc==0.0
                 GF = args.GF
                 ft = args.ft
-                GF==0.0 && error("AsinhYieldCrack: wc or GF must be defined when using a predefined softening model")
+                GF==0.0 && error("AsinhYieldCohesive: wc or GF must be defined when using a predefined softening model")
                 if softmodel == :linear
                     wc = round(2*GF/ft, sigdigits=5)
                 elseif softmodel == :bilinear
@@ -87,7 +87,7 @@ mutable struct AsinhYieldCrack<:Constitutive
                 end
             end
         end
-        @assert wc>0.0 "AsinhYieldCrack: wc must be greater than zero"
+        @assert wc>0.0 "AsinhYieldCohesive: wc must be greater than zero"
 
         α = args.alpha
         ft = args.ft
@@ -118,7 +118,7 @@ mutable struct AsinhYieldCrack<:Constitutive
 end
 
 
-function paramsdict(mat::AsinhYieldCrack)
+function paramsdict(mat::AsinhYieldCohesive)
     mat = OrderedDict( string(field) => getfield(mat, field) for field in fieldnames(typeof(mat)) )
 
     if mat.softmodel in (:hordijk, :soft)
@@ -135,10 +135,10 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{AsinhYieldCrack}, ::Type{MechInterface}, ctx::Context) = AsinhYieldCrackState
+compat_state_type(::Type{AsinhYieldCohesive}, ::Type{MechInterface}, ctx::Context) = AsinhYieldCohesiveState
 
 
-function yield_func(mat::AsinhYieldCrack, state::AsinhYieldCrackState, σ::Array{Float64,1}, σmax::Float64)
+function yield_func(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ::Array{Float64,1}, σmax::Float64)
     β = calc_β(mat, σmax)
     χ = (σmax-σ[1])/mat.ft
 
@@ -152,7 +152,7 @@ function yield_func(mat::AsinhYieldCrack, state::AsinhYieldCrackState, σ::Array
 end
 
 
-function yield_derivs(mat::AsinhYieldCrack, state::AsinhYieldCrackState, σ::Array{Float64,1}, σmax::Float64)
+function yield_derivs(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ::Array{Float64,1}, σmax::Float64)
     ft   = mat.ft
     α    = mat.α
     β    = calc_β(mat, σmax)
@@ -180,7 +180,7 @@ function yield_derivs(mat::AsinhYieldCrack, state::AsinhYieldCrackState, σ::Arr
 end
 
 
-function potential_derivs(mat::AsinhYieldCrack, state::AsinhYieldCrackState, σ::Array{Float64,1})
+function potential_derivs(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ::Array{Float64,1})
     ndim = state.ctx.ndim
     if ndim == 3
         if σ[1] > 0.0 
@@ -209,7 +209,7 @@ function potential_derivs(mat::AsinhYieldCrack, state::AsinhYieldCrackState, σ:
 end
 
 
-function calc_σmax(mat::AsinhYieldCrack, state::AsinhYieldCrackState, up::Float64)
+function calc_σmax(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, up::Float64)
     if mat.softmodel == :linear
         if up < mat.wc
             a = mat.ft 
@@ -260,13 +260,13 @@ function calc_σmax(mat::AsinhYieldCrack, state::AsinhYieldCrackState, up::Float
 end
 
 
-function calc_β(mat::AsinhYieldCrack, σmax::Float64)
+function calc_β(mat::AsinhYieldCohesive, σmax::Float64)
     βres  = mat.γ*mat.β0
     return βres + (mat.β0-βres)*(σmax/mat.ft)^mat.θ
 end
 
 
-function deriv_σmax_up(mat::AsinhYieldCrack, state::AsinhYieldCrackState, up::Float64)
+function deriv_σmax_up(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, up::Float64)
     if mat.softmodel == :linear
         if up < mat.wc
             b = mat.ft /mat.wc
@@ -314,7 +314,7 @@ function deriv_σmax_up(mat::AsinhYieldCrack, state::AsinhYieldCrackState, up::F
 end
 
 
-function calc_kn_ks(mat::AsinhYieldCrack, state::AsinhYieldCrackState)
+function calc_kn_ks(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
     kn = mat.E*mat.ζ/state.h
     G  = mat.E/(2.0*(1.0+mat.ν))
     ks = G*mat.ζ/state.h
@@ -322,7 +322,7 @@ function calc_kn_ks(mat::AsinhYieldCrack, state::AsinhYieldCrackState)
 end
 
 
-function calcD(mat::AsinhYieldCrack, state::AsinhYieldCrackState)
+function calcD(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
 
     ndim = state.ctx.ndim
     kn, ks = calc_kn_ks(mat, state)
@@ -358,7 +358,7 @@ function calcD(mat::AsinhYieldCrack, state::AsinhYieldCrackState)
 end
 
 
-function calc_σ_up_Δλ(mat::AsinhYieldCrack, state::AsinhYieldCrackState, σtr::Array{Float64,1})
+function calc_σ_up_Δλ(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Array{Float64,1})
     ndim = state.ctx.ndim
     Δλ   = 0.0
     up   = 0.0
@@ -409,11 +409,11 @@ function calc_σ_up_Δλ(mat::AsinhYieldCrack, state::AsinhYieldCrackState, σtr
         
         if Δλ<=0 || isnan(Δλ) || i==maxits
             # @show i
-            # return 0.0, state.σ, 0.0, failure("AsinhYieldCrack: failed to find Δλ")
+            # return 0.0, state.σ, 0.0, failure("AsinhYieldCohesive: failed to find Δλ")
             # switch to bissection method
             # return calc_σ_up_Δλ_bis(mat, state, σtr)
             σ, up, Δλ, status = calc_σ_up_Δλ_bis(mat, state, σtr)
-            failed(status) && return state.σ, 0.0, 0.0, failure("AsinhYieldCrack: failed to find Δλ")
+            failed(status) && return state.σ, 0.0, 0.0, failure("AsinhYieldCohesive: failed to find Δλ")
         end
 
         if maximum(abs, σ-σ0) <= tol
@@ -426,7 +426,7 @@ function calc_σ_up_Δλ(mat::AsinhYieldCrack, state::AsinhYieldCrackState, σtr
 end
 
 
-function calc_σ_up(mat::AsinhYieldCrack, state::AsinhYieldCrackState, σtr::Array{Float64,1}, Δλ::Float64)
+function calc_σ_up(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Array{Float64,1}, Δλ::Float64)
     ndim = state.ctx.ndim
     kn, ks  = calc_kn_ks(mat, state)
 
@@ -449,7 +449,7 @@ function calc_σ_up(mat::AsinhYieldCrack, state::AsinhYieldCrackState, σtr::Arr
     return σ, up
 end
 
-function calc_σ_up_Δλ_bis(mat::AsinhYieldCrack, state::AsinhYieldCrackState, σtr::Array{Float64,1})
+function calc_σ_up_Δλ_bis(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Array{Float64,1})
     ndim    = state.ctx.ndim
     kn, ks  = calc_kn_ks(mat, state)
     De      = diagm([kn, ks, ks][1:ndim])
@@ -476,7 +476,7 @@ function calc_σ_up_Δλ_bis(mat::AsinhYieldCrack, state::AsinhYieldCrackState, 
 end
 
 
-function update_state(mat::AsinhYieldCrack, state::AsinhYieldCrackState, Δw::Array{Float64,1})
+function update_state(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, Δw::Array{Float64,1})
 
     ndim = state.ctx.ndim
     σini = copy(state.σ)
@@ -486,7 +486,7 @@ function update_state(mat::AsinhYieldCrack, state::AsinhYieldCrackState, Δw::Ar
     σmax = calc_σmax(mat, state, state.up)  
 
     if isnan(Δw[1]) || isnan(Δw[2])
-        alert("AsinhYieldCrack: Invalid value for joint displacement: Δw = $Δw")
+        alert("AsinhYieldCohesive: Invalid value for joint displacement: Δw = $Δw")
     end
     
 
@@ -521,7 +521,7 @@ function update_state(mat::AsinhYieldCrack, state::AsinhYieldCrackState, Δw::Ar
 end
 
 
-function state_values(mat::AsinhYieldCrack, state::AsinhYieldCrackState)
+function state_values(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
     ndim = state.ctx.ndim
     σmax = calc_σmax(mat, state, state.up)
     if ndim == 3
@@ -548,6 +548,6 @@ function state_values(mat::AsinhYieldCrack, state::AsinhYieldCrackState)
 end
 
 
-function output_keys(mat::AsinhYieldCrack)
+function output_keys(mat::AsinhYieldCohesive)
     return Symbol[:jw, :jσn, :jup]
 end

@@ -26,7 +26,7 @@ include("constitutive/von-mises.jl")
 # include("constitutive/smeared-crack.jl")
 # include("constitutive/damageconcrete-solid.jl")
 # include("constitutive/willam-warnke.jl")
-# include("constitutive/CSCP.jl")
+include("constitutive/CSCP.jl")
 
 # Spring, dumper, lumped mass
 include("elements/mech-lumpedmass.jl")
@@ -34,20 +34,20 @@ include("constitutive/lumpedmass.jl")
 include("elements/mech-spring.jl")
 include("constitutive/linear-spring.jl")
 
-# Models for interface, joint and coohesive elements
-include("constitutive/linear-interface.jl")
-include("constitutive/linear-contact.jl")
-include("constitutive/mc-joint.jl")
-include("constitutive/tc-cohesive.jl")
-include("constitutive/asinh-yield-crack.jl")
+# Models for interface, interface and coohesive elements
+include("constitutive/elastic-interface.jl") # includes: LinearIntertace, LinearContact
+include("constitutive/mohr-coulomb-interface.jl")
+include("constitutive/linear-cohesive.jl")
+include("constitutive/mohr-coulomb-cohesive.jl")
+include("constitutive/power-yield-cohesive.jl")
+include("constitutive/asinh-yield-cohesive.jl")
 
-# Models for 1D joint elements
+# Models for 1D interface elements
 include("constitutive/linear-bondslip.jl")
 include("constitutive/ceb-bondslip.jl")
 include("constitutive/power-exp-bondslip.jl")
 include("constitutive/cyclic-bondslip.jl")
-include("constitutive/linear-bondtip.jl")
-include("constitutive/linear-bearingtip.jl")
+include("constitutive/elastic-tip.jl") # includes: LinearTip, LinearTipContact
 
 # Stress-update integrator
 include("constitutive/integrator.jl")

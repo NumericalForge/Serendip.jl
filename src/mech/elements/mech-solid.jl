@@ -171,7 +171,7 @@ function elem_internal_forces(elem::Element{MechBulk}, ΔUg::Vector{Float64}=Flo
     keys   = (:ux, :uy, :uz)[1:ndim]
     map    = [ get_dof(node, key).eq_id for node in elem.nodes for key in keys ]
 
-    dF = zeros(nnodes*ndim)
+    ΔF = zeros(nnodes*ndim)
     B  = zeros(6, nnodes*ndim)
 
     J  = Array{Float64}(undef, ndim, ndim)
@@ -205,10 +205,10 @@ function elem_internal_forces(elem::Element{MechBulk}, ΔUg::Vector{Float64}=Flo
         end
 
         coef = detJ*ip.w*th
-        @mul dF += coef*B'*Δσ
+        @mul ΔF += coef*B'*Δσ
     end
 
-    return dF, map, success()
+    return ΔF, map, success()
 end
 
 

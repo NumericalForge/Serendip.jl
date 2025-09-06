@@ -1,43 +1,45 @@
 using Serendip
 
 @run_files [
-    # Static analysis: bulk elements
-    "elem/elastic-solid.jl",
-    "elem/elastic-elems.jl",
-    "elem/elastic-quad4.jl",
-    "elem/elastic-hex8.jl",
-    "elem/axisymmetric.jl",
+    # Elements
 
-    # Static frame element
-    "elem/rod/frame.jl",
+    # bulk
+    "elements/elastic-solid.jl",
+    "elements/elastic-elems.jl",
+    "elements/elastic-quad4.jl",
+    "elements/elastic-hex8.jl",
+    "elements/axisymmetric.jl",
 
-    # Static analysis: rod elems
-    "elem/rod/truss.jl",
-    "elem/rod/pprod.jl",
+    # frame
+    "elements/rod/frame.jl",
 
-    # Static analysis: beam elems
-    "elem/beam/beam.jl",
+    # rod
+    "elements/rod/truss.jl",
+    "elements/rod/pprod.jl",
 
-    # Static analysis: shell elems
-    "elem/shell/shell.jl",
+    # beam
+    "elements/beam/beam.jl",
 
-    # Static analysis: joint models
-    "elem/joint/joint1d.jl",
+    # shell
+    "elements/shell/shell.jl",
 
-    # Static analysis: embeddeed and semi-embedded elements
-    "elem/inset/embedded.jl",
-    "elem/inset/ceb.jl",
-    "elem/inset/tip.jl",
+    # joint
+    "elements/joint/joint1d.jl",
+
+    # embeddeed and semi-embedded
+    "elements/inset/embedded.jl",
+    "elements/inset/ceb.jl",
+    "elements/inset/tip.jl",
 
     # Constitutive models
-    "mat/dp.jl",
-    "mat/vm-2d.jl",
-    "mat/vm-3d.jl",
-    "mat/vm-beam-shell.jl",
-    "mat/vm-beam-2d.jl",
-    "mat/vm-beam-3d.jl",
+    "constitutive/dp.jl",
+    "constitutive/vm-2d.jl",
+    "constitutive/vm-3d.jl",
+    "constitutive/vm-beam-shell.jl",
+    "constitutive/vm-beam-2d.jl",
+    "constitutive/vm-beam-3d.jl",
 
-    "elem/joint/joint2d.jl",
-    "mat/power-yield-crack.jl",
+    "elements/joint/joint2d.jl",
+    "constitutive/power-yield-crack.jl",
 ]
 

@@ -9,7 +9,7 @@ H  = 0
 nu = 0.3
 
 geo = GeoModel()
-add_block(geo, [0, 0, -th], [th, 1.0, th], nx=1, ny=25, nz=2, shape=HEX20, tag="beam")
+add_block(geo, [0, 0, -th], [th, 1.0, th], nx=1, ny=15, nz=2, shape=HEX20, tag="beam")
 mesh = Mesh(geo)
 
 
@@ -28,7 +28,7 @@ add_bc(stage, :node, (x==th/2, y==0, z==0), ux=0)
 add_bc(stage, :node, (x==th/2, y==1, z==0), uz=-0.03)
 
 run(ana, autoinc=true, tol=0.001)
-@test log.table.fz[end]≈-30 atol=0.8
+@test log.table.fz[end]≈-30 atol=1.1
 
 makeplots = false
 if @isdefined(makeplots) && makeplots

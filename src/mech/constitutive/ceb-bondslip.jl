@@ -23,7 +23,7 @@ end
 
 
 """
-    CebBondSlip(; taumax, taures=0.0, s1, s2, s3, alpha=0.4, beta=1.0, ks=taumax/s1, kn)
+    CebBondSlip(; taumax, taures=0.0, s1, s2, s3, alpha=0.4, ks=taumax/s1, kn)
 
 Constitutive model for bond–slip behavior of a reinforcing bar embedded in a solid,
 according to the CEB (Comité Euro-International du Béton) formulation.
@@ -35,7 +35,6 @@ according to the CEB (Comité Euro-International du Béton) formulation.
 - `s2::Float64` : Characteristic slip at the start of the softening branch (> 0).
 - `s3::Float64` : Characteristic slip where residual shear stress is reached (> 0).
 - `alpha::Float64` : Curvature parameter for the ascending branch (0 ≤ α ≤ 1, default 0.4).
-- `beta::Float64` : Curvature parameter for the descending branch (0 ≤ β ≤ 1, default 1.0).
 - `ks::Float64` : Initial shear stiffness (default = τmax/s1, must satisfy ks ≥ τmax/s₁).
 - `kn::Float64` : Normal stiffness of the interface (> 0).
 
@@ -55,7 +54,6 @@ mutable struct CebBondSlip<:Constitutive
     s2  :: Float64
     s3  :: Float64
     α   :: Float64
-    β   :: Float64
     ks  :: Float64
     kn  :: Float64
 
@@ -66,7 +64,6 @@ mutable struct CebBondSlip<:Constitutive
         s2::Real=NaN,
         s3::Real=NaN,
         alpha::Real=0.4,
-        beta::Real=1.0,
         ks::Real=NaN,
         kn::Real=NaN
     )
@@ -76,7 +73,6 @@ mutable struct CebBondSlip<:Constitutive
         @check s2 > 0.0
         @check s3 > 0.0
         @check 0.0 <= alpha <= 1.0
-        @check 0.0 <= beta <= 1.0
         @check kn > 0.0
 
         if ks==NaN
@@ -85,7 +81,7 @@ mutable struct CebBondSlip<:Constitutive
         @check ks >= taumax/s1
         @check taumax > taures
 
-        return new(taumax, taures, s1, s2, s3, alpha, beta, ks, kn)
+        return new(taumax, taures, s1, s2, s3, alpha, ks, kn)
     end
 end
 
@@ -105,7 +101,7 @@ function Tau(mat::CebBondSlip, sy::Float64)
     elseif sy<mat.s2
         return mat.τmax
     elseif sy<mat.s3
-        return mat.τmax - (mat.τmax-mat.τres)*((sy-mat.s2)/(mat.s3-mat.s2))^mat.β
+        return mat.τmax - (mat.τmax-mat.τres)*(sy-mat.s2)/(mat.s3-mat.s2)
     else
         return mat.τres
     end
@@ -123,7 +119,7 @@ function deriv(mat::CebBondSlip, state::CebBondSlipState, sy::Float64)
     elseif sy<mat.s2
         return mat.ks*1e-3
     elseif sy<mat.s3
-        return -mat.β*(mat.τmax-mat.τres)/(mat.s3-mat.s2)*((sy-mat.s2)/(mat.s3-mat.s2))^(mat.β-1)
+        return -(mat.τmax-mat.τres)/(mat.s3-mat.s2)
     else
         return mat.ks*1e-3
     end
@@ -150,7 +146,7 @@ function calcD(mat::CebBondSlip, state::CebBondSlipState)
 end
 
 
-function yield_func(mat::CebBondSlip, state::CebBondSlipState, τ::Float64)
+function yield_func(::CebBondSlip, state::CebBondSlipState, τ::Float64)
     return abs(τ) - state.τy
 end
 
@@ -195,8 +191,8 @@ end
 
 function state_values(mat::CebBondSlip, state::CebBondSlipState)
     return OrderedDict(
-      :s => state.u[1] ,
-      :τ => state.σ[1] ,
-      )
+        :s => state.u[1] ,
+        :τ => state.σ[1] ,
+    )
 end
 
