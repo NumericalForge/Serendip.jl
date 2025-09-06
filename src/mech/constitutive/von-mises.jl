@@ -40,11 +40,11 @@ mutable struct VonMises<:Constitutive
         H::Real=0.0,
         alpha_s::Real=5/6
     )
-        @check E > 0.0
-        @check nu >= 0.0 && nu < 0.5
-        @check fy > 0.0
-        @check H >= 0.0
-        @check alpha_s > 0.0
+        @check E > 0.0 "VonMises: Young's modulus E must be > 0.0. Got $E."
+        @check nu >= 0.0 && nu < 0.5 "VonMises: Poisson's ratio nu must be in the range [0.0, 0.5). Got $nu."
+        @check fy > 0.0 "VonMises: Initial yield stress fy must be > 0.0. Got $fy."
+        @check H >= 0.0 "VonMises: Hardening modulus H must be >= 0.0. Got $H."
+        @check alpha_s > 0.0 "VonMises: Shear correction factor alpha_s must be > 0.0. Got $alpha_s."
         return new(E, nu, fy, H, alpha_s)
     end
 

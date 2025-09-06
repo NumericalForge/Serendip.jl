@@ -67,19 +67,22 @@ mutable struct CebBondSlip<:Constitutive
         ks::Real=NaN,
         kn::Real=NaN
     )
-        @check taumax > 0.0
-        @check taures >= 0.0
-        @check s1 > 0.0
-        @check s2 > 0.0
-        @check s3 > 0.0
-        @check 0.0 <= alpha <= 1.0
-        @check kn > 0.0
-
-        if ks==NaN
+        @check taumax > 0.0 "CebBondSlip: taumax must be > 0.0. Got $(taumax)"
+        @check taures >= 0.0 "CebBondSlip: taures must be >= 0.0. Got $(taures)"
+        @check taumax > taures "CebBondSlip: taures must be < taumax. Got taumax=$(taumax), taures=$(taures)"
+        @check s1 > 0.0 "CebBondSlip: s1 must be > 0.0. Got $(s1)"
+        @check s2 > 0.0 "s2 must be > 0.0. Got $(s2)"
+        @check s3 > 0.0 "s3 must be > 0.0. Got $(s3)"
+        @check 0.0 <= alpha <= 1.0 "CebBondSlip: alpha must be in [0.0, 1.0]. Got $(alpha)"
+        
+        if isnan(ks)
             ks = taumax/s1
         end
-        @check ks >= taumax/s1
-        @check taumax > taures
+        if isnan(kn)
+            kn = min(1e3*ks, 1e9)
+        end
+        @check kn > 0.0  "CebBondSlip: kn must be > 0.0. Current value $(kn)"
+        @check ks >= taumax/s1 "ks must satisfy ks >= taumax/s1. Current value $(ks), taumax/s1=$(taumax/s1)"
 
         return new(taumax, taures, s1, s2, s3, alpha, ks, kn)
     end
