@@ -90,6 +90,8 @@ function add_logger(
         name = ""
     end
 
+    selector_str = selector isa String || selector isa Symbol ? repr(selector) : replace(string(selector), r"(?<!\,)\s+" => "")
+
     if kind in (:node, :ip) && selector isa AbstractArray
         X = Vec3(selector)
         x, y, z = X
@@ -97,8 +99,8 @@ function add_logger(
         n = length(target)
         if n==0
             target = [ nearest(items, X) ]
-            X = target[1].coord
-            notify("add_logger: No $kind found at $(selector). Picking the nearest at $X")
+            X = round.(target[1].coord, sigdigits=4)
+            notify("add_logger: No $kind found at $selector_str. Picking the nearest at $X")
         else
             target = target[1:1] # take the first
         end
@@ -110,9 +112,9 @@ function add_logger(
 
     target = select(ana.model, item_name, selector)
     n = length(target)
-    n == 0 && notify("add_logger: No $(item_name)s found for selector: ", selector)
+    n == 0 && notify("add_logger: No $(item_name)s found for selector: ", selector_str)
     if kind in (:node, :ip)
-        n >  1 && notify("add_logger: More than one $item_name match selector: ", repr(selector), ". Picking the first one.")
+        n >  1 && notify("add_logger: Multiple $item_name match selector: ", selector_str, ". Picking the first one.")
         n >= 1 && (target = target[1:1])
     end
 

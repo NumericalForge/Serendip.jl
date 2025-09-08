@@ -126,6 +126,8 @@ function add_monitor(
 
     items = target_type == :node ? ana.model.nodes : select(ana.model, :ip, :all)
 
+    selector_str = selector isa String || selector isa Symbol ? repr(selector) : replace(string(selector), r"(?<!\,)\s+" => "")
+
     # setup if selector is an array
     if kind in (:node, :ip) && selector isa AbstractArray
         X = Vec3(selector)
@@ -135,8 +137,8 @@ function add_monitor(
         n = length(target)
         if n==0
             target = [ nearest(items, X) ]
-            X = target[1].coord
-            notify("add_monitor: No $kind found at $(selector). Picking the nearest at $X")
+            X = round.(target[1].coord, sigdigits=4)
+            notify("add_monitor: No $kind found at $selector_str. Picking the nearest at $X")
         else
             target = target[1:1] # take the first
         end
@@ -149,9 +151,9 @@ function add_monitor(
 
     target = select(ana.model, item_kind, selector)
     n = length(target)
-    n == 0 && notify("setup_monitor: No $(item_kind)s found for selector: ", selector)
+    n == 0 && notify("setup_monitor: No $(item_kind)s found for selector: $selector_str")
     if kind in (:node, :ip)
-        n >  1 && notify("setup_monitor: More than one $item_kind match selector: ", selector, ". Picking the first one.")
+        n >  1 && notify("setup_monitor: Multiple $item_kind match selector: $selector_str. Picking the first one")
         n >= 1 && (target = target[1:1])
     end
 
