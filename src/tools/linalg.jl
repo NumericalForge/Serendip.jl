@@ -156,8 +156,6 @@ end
 
 
 function Base.split(A::AbstractArray, knots::AbstractArray)
-    # @s A
-    # @s knots
 
     # R = Array{eltype(A),1}[]
     R = Array{Int,1}[]
@@ -181,11 +179,11 @@ function Base.split(A::AbstractArray, knots::AbstractArray)
                 idx += 1
             end
         end
-        # push!(R[idx], A[i])
         push!(R[idx], i)
     end
     return R
 end
+
 
 # dumps the content of a sparse matrix to a file in coordinate format
 function dump_matrix(A::SparseMatrixCSC, filename::String)
@@ -199,4 +197,50 @@ function dump_matrix(A::SparseMatrixCSC, filename::String)
             @printf(file, "%4d %4d %f\n", rows[i], cols[i], vals[i])
         end
     end
+end
+
+
+function latex(M::AbstractArray; digits=3)
+    l = IOBuffer()
+
+    m = size(M, 1)
+    n = size(M, 2)
+
+
+    # widths calculation
+    etype = eltype(M)
+    width = etype<:Integer ? 6 : 12-digits
+
+    # printing header
+    level = 1
+    indent = "    "
+    println(l, indent^level, raw"\begin{pmatrix}" )
+    level = 2
+    # printing body
+    for i in 1:m
+        print(l, indent^level)
+        for j in 1:n
+            item = M[i,j]
+            if etype<:AbstractFloat
+                if isnan(item)
+                    item = "NaN"
+                else
+                    item = sprintf("%$width.$(digits)f", item)
+                end
+                print(l, lpad(string(item), width))
+            elseif etype<:Integer
+                item = @sprintf("%6d", item)
+                print(l, lpad(item, width))
+            else
+                print(l, rpad(item, width))
+            end
+            j<n && print(l, " & ")
+        end
+        println(l, raw" \\\\")
+    end
+    # printing ending
+    level = 1
+    println(l, indent^level, raw"\end{pmatrix}")
+
+    return String(take!(l))
 end
