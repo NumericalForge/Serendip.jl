@@ -59,18 +59,6 @@ for (fun, op) in zip((:and, :or), (:&&, :||))
 end
 
 
-# macro symbols(syms...)
-#     if syms[1] isa Expr && syms[1].head==:tuple
-#         syms = syms[1].args
-#     end
-#     expr = Expr(:block)
-#     for symbolic in syms
-#         push!(expr.args, :($(esc(symbolic)) = Symbolic($(QuoteNode(symbolic)))))
-#     end
-
-#     return expr
-# end
-
 macro define(syms...)
 
     expr = Expr(:block)
