@@ -7,15 +7,15 @@ Creates a customizable `Chart` instance for plotting data with labeled axes,
 legends, ticks, and optional colorbar support.
 
 # Parameters
-- `size::Tuple{Float64,Float64}` : Chart drawing size in dpi (default = (220,150)).
-- `font::AbstractString` : Font family for axis and legend text (default = `"NewComputerModern"`).
-- `font_size::Float64` : Font size for axis labels and ticks (> 0, default = 7.0).
-- `xlimits, xlims::Vector{Float64}` : Limits of the x-axis `[xmin, xmax]` (default = [0.0,0.0]).
-- `ylimits, ylims::Vector{Float64}` : Limits of the y-axis `[ymin, ymax]` (default = [0.0,0.0]).
+- `size::Tuple{Int,Int}=(220,150)` : Chart drawing size in pt. 1 cm = 28.35 pt.
+- `font::AbstractString="NewComputerModern"` : Font family for axis and legend text.
+- `font_size::Float64=7.0` : Font size for axis labels and ticks.
+- `xlimits, xlims::Vector{Float64}` : Limits of the x-axis `[xmin, xmax]`.
+- `ylimits, ylims::Vector{Float64}` : Limits of the y-axis `[ymin, ymax]`.
 - `aspect_ratio::Symbol` : Ratio of y-unit to x-unit (`:auto` or `:equal`, default = `:auto`).
 - `xmult::Float64` : Scaling factor for x-axis values (default = 1.0).
 - `ymult::Float64` : Scaling factor for y-axis values (default = 1.0).
-- `xybins::Int` : Number of tick bins along the x-axis (default = 7).
+- `xbins::Int` : Number of tick bins along the x-axis (default = 7).
 - `ybins::Int` : Number of tick bins along the y-axis (default = 6).
 - `xlabel::AbstractString` : Label for the x-axis (default = L"\$x\$").
 - `ylabel::AbstractString` : Label for the y-axis (default = L"\$y\$").
@@ -33,6 +33,55 @@ legends, ticks, and optional colorbar support.
 - The `legend` is initialized with the chosen font and location.
 - `aspect_ratio=:equal` enforces equal unit length on both axes.
 - If `quiet=false`, chart information is printed to the console at creation.
+
+# Example
+```julia
+ch = Chart(size=(300,200),
+           xlabel="Time [s]",
+           ylabel="Displacement [mm]",
+           xlimits=[0.0,10.0],
+           ylimits=[-5.0,5.0],
+           legend=:bottom_right)
+```
+"""
+
+
+
+
+"""
+    Chart(; 
+        size=(220,150), font="NewComputerModern", font_size=7.0,
+        xlimits, ylimits, aspect_ratio=:auto,
+        xmult=1.0, ymult=1.0, xbins=7, ybins=6,
+        xlabel=L"\$x\$", ylabel=L"\$y\$",
+        xticks=Float64[], yticks=Float64[],
+        xtick_labels=String[], ytick_labels=String[],
+        legend=:top_right, legend_font_size=0,
+        quiet=false)
+
+Construct a 2D chart figure with axes, legend, and optional tick customization.
+
+# Arguments
+- `size::Tuple{Int,Int}`: width × height in points. 1 cm = 28.35 points.
+- `font::AbstractString`: font family for axes and legend.
+- `font_size::Real`: base font size.
+- `xlimits::Vector{<:Real}`, `ylimits::Vector{<:Real}`: axis limits `[min,max]`; `[0,0]` enables auto scaling.
+- `aspect_ratio::Symbol`: `:auto` or `:equal`.
+- `xmult::Real`, `ymult::Real`: multiplicative factors applied to tick values.
+- `xbins::Int`, `ybins::Int`: target number of major ticks.
+- `xlabel::AbstractString`, `ylabel::AbstractString`: axis labels.
+- `xticks::Vector{<:Real}`, `yticks::Vector{<:Real}`: explicit tick positions; empty vectors enable auto ticks.
+- `xtick_labels::Vector{<:AbstractString}`, `ytick_labels::Vector{<:AbstractString}`: custom tick labels; if provided, lengths must match the corresponding tick arrays.
+- `legend::Symbol`: legend location (e.g., `:top_right`, `:top_left`, `:bottom_left`, `:none`).
+- `legend_font_size::Real`: legend font size; `0` uses `font_size`.
+- `quiet::Bool`: suppress constructor log.
+
+# Notes
+- Use `add_series` to append data series to the chart.
+- Use `save` to export the chart to a file.
+
+# Returns
+- A `Chart` object.
 
 # Example
 ```julia
@@ -69,22 +118,22 @@ mutable struct Chart<:Figure
     function Chart(;
         size=(220,150),
         font="NewComputerModern",
-        font_size=7.0,
+        font_size::Real=7.0,
         xlimits=[0.0,0.0],
         ylimits=[0.0,0.0],
         aspect_ratio=:auto,
-        xmult=1.0,
-        ymult=1.0,
-        xybins=7,
-        ybins=6,
-        xlabel=L"$x$",
-        ylabel=L"$y$",
-        xticks=Float64[],
-        yticks=Float64[],
-        xtick_labels=String[],
-        ytick_labels=String[],
-        legend=:top_right,
-        legend_font_size=0,
+        xmult::Real=1.0,
+        ymult::Real=1.0,
+        xbins::Int=7,
+        ybins::Int=6,
+        xlabel::AbstractString=L"$x$",
+        ylabel::AbstractString=L"$y$",
+        xticks::Vector{<:Real}=Float64[],
+        yticks::Vector{<:Real}=Float64[],
+        xtick_labels::Vector{<:AbstractString}=String[],
+        ytick_labels::Vector{<:AbstractString}=String[],
+        legend::Symbol=:top_right,
+        legend_font_size::Real=0,
         # colorbar=:right,
         # colorbar_scale=0.9,
         # colorbar_label="",
@@ -98,11 +147,12 @@ mutable struct Chart<:Figure
 
         @check font_size > 0
         @check legend_font_size > 0
+        @check aspect_ratio in (:auto, :equal) "Chart: Invalid aspect_ratio: $aspect_ratio. Use :auto or :equal. Got $(repr(aspect_ratio))."
 
         width, height = size
         outerpad = 0.01*min(width, height)
         the_legend = Legend(; location=legend, font=font, font_size=legend_font_size, ncols=1)
-        xaxis = Axis(direction=:horizontal, limits=xlimits, label=xlabel, font=font, font_size=font_size, ticks=xticks, tick_labels=xtick_labels, mult=xmult, bins=xybins)
+        xaxis = Axis(direction=:horizontal, limits=xlimits, label=xlabel, font=font, font_size=font_size, ticks=xticks, tick_labels=xtick_labels, mult=xmult, bins=xbins)
         yaxis = Axis(direction= :vertical, limits=ylimits, label=ylabel, font=font, font_size=font_size, ticks=yticks, tick_labels=ytick_labels, mult=ymult, bins=ybins)
 
         this = new(width, height, Canvas(), xaxis, yaxis, [], the_legend, [],
@@ -110,7 +160,7 @@ mutable struct Chart<:Figure
 
         if !quiet
             printstyled("Chart figure\n", bold=true, color=:cyan)
-            println("  size: $(this.width) x $(this.height) dpi")
+            println("  size: $(this.width) x $(this.height) pt")
             println("  axes: $(xlabel) vs $(ylabel)")
         end
 

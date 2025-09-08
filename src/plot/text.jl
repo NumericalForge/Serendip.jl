@@ -1,22 +1,24 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 # cache is required to avoid multiple calls to findfont
-_font_cache = Dict{String, String}() # cache font -> family
+const _font_cache = Dict{String, String}() # cache font -> family
+
+const _available_fonts = [
+    "NewComputerModern",
+    "NewComputerModern Regular",
+    "Times New Roman",
+    "Cambria",
+    "Palatino Linotype",
+    "Georgia",
+]
 
 function get_font(str)
     haskey(_font_cache, str) && return _font_cache[str]
 
     font = FreeTypeAbstraction.findfont(str)
-    default_fonts = [
-        "NewComputerModern Regular",
-        "Times New Roman",
-        "Cambria",
-        "Palatino Linotype",
-        "Georgia",
-    ]
 
     if font===nothing
-        for fnt in default_fonts
+        for fnt in _available_fonts
             font = FreeTypeAbstraction.findfont(fnt)
             font!==nothing && break
         end

@@ -2,49 +2,61 @@
 
 
 """
-    DomainPlot(mesh; kwargs...) -> DomainPlot
+    DomainPlot(mesh; 
+        size=(220,150), face_color=:aliceblue, warp=0.0,
+        edge_width=0.3, edge_color=:auto, outline_width=0.4,
+        line_element_width=0.6,
+        field="", limits=[0.0,0.0], field_kind=:auto, field_factor=1.0,
+        label="", colormap=:coolwarm, diverging=false,
+        colorbar=:right, colorbar_length_factor=0.9, bins=6,
+        font="NewComputerModern", font_size=7.0,
+        interpolation=:linear,
+        azimut=30, elevation=30, distance=0.0,
+        feature_edges=true, view_mode=:surface_with_edges,
+        light_vector=[0,0,0],
+        node_labels=false,
+        axes=:none, axis_labels=String[],
+        quiet=false)
 
-Creates a customizable `DomainPlot` to visualize Mesh and FEModel objects.
+Create a customizable domain plot for meshes and FE models.
 
 # Arguments
-- `mesh` : FE mesh or model to plot.
+- `mesh::Union{AbstractDomain,FEModel}`: object to plot.
 
 # Keywords
-- `size::Tuple{Int,Int}=(220,150)` : Figure size in dpi.
-- `face_color::Symbol=:aliceblue` : Surface color for elements.
-- `warp::Float64=0.0` : Displacement scale factor for warped views.
-- `line_width::Float64=0.3` : Internal edge width (≥ 0).
-- `outline_width::Float64=0.4` : Boundary outline width (≥ 0).
-- `frame_width::Float64=0.6` : Frame box width (≥ 0).
-- `field::AbstractString=""` : Name of scalar field to color by.
-- `limits::Vector{Float64}=[0.0,0.0]` : Field range `[min,max]` (auto if both zero).
-- `field_kind::Symbol=:auto` : `:auto | :none | :node | :element`.
-- `field_factor::Float64=1.0` : Multiplier applied to field values.
-- `label::AbstractString=""` : Colorbar label (alias: `colorbar_label`).
-- `colormap::Union{Symbol,Colormap}=:coolwarm` : Colormap for field display: `:coolwarm`, `:coolwarm2`,  `:bone`, `:inferno`, `:spectral`, `:seismic`, `:bwr`, `:rainbow`, `:jet` and `:turbo`.
-- `diverging::Bool=false` : Center colormap at zero for diverging fields.
-- `colorbar::Symbol=:right` : `:none | :right | :bottom`.
-- `colorbar_length_factor::Float64=0.9` : Colorbar length scale (> 0).
-- `bins::Int=6` : Number of colorbar bins.
-- `font::AbstractString="NewComputerModern"` : Font family.
-- `font_size::Float64=7.0` : Font size (> 0).
-- `interpolation::Symbol=:linear` : `:constant | :linear | :nonlinear` surface shading.
-- `azimut::Real=30` : 3D azimuth angle in degrees.
-- `elevation::Real=30` : 3D elevation angle in degrees.
-- `distance::Real=0.0` : Camera distance (≥ 0).
-- `feature_edges::Bool=true` : Enhance feature lines (forced on for `:outline` view).
-- `view_mode::Symbol=:surface_with_edges` : `:surface_with_edges | :surface | :wireframe | :outline`.
-- `light_vector::Vector{Float64}=[0,0,0]` : Light direction.
-- `node_labels::Bool=false` : Show node ids.
-- `axes::Symbol=:none` : Axes widget location (see `_axes_widget_locations`).
-- `axis_labels::Vector{<:AbstractString}=String[]` : Custom axis labels (default `"x","y","z"`).
-- `quiet::Bool=false` : Suppress constructor log.
+- `size::Tuple{Int,Int}`: figure size in pt. (1 cm = 28.35 pt).
+- `face_color::Symbol`: surface color for area/surface elements.
+- `warp::Real`: displacement scale factor for warped views.
+- `edge_width::Real`: internal edge width for area/surface cells.
+- `edge_color::Union{Tuple,Symbol}`: edge color; `:auto` darkens face color.
+- `outline_width::Real`: boundary outline width.
+- `line_element_width::Real`: stroke width for line elements (bars/beams).
+- `field::AbstractString`: scalar field name for coloring; empty disables.
+- `limits::Vector{<:Real}`: field range `[min,max]`; `[0,0]` → auto.
+- `field_kind::Symbol`: `:auto | :none | :node | :element`.
+- `field_factor::Real`: multiplier applied to field values.
+- `label::AbstractString`: colorbar label (alias: `colorbar_label`).
+- `colormap::Union{Symbol,Colormap}`: e.g. `:viridis`, `:coolwarm`, or a `Colormap`.
+- `diverging::Bool`: center colormap at zero.
+- `colorbar::Symbol`: `:none | :right | :bottom`.
+- `colorbar_length_factor::Real`: colorbar length scale (> 0).
+- `bins::Int`: number of colorbar bins.
+- `font::AbstractString`: font family.
+- `font_size::Real`: font size (> 0).
+- `interpolation::Symbol`: `:constant | :linear | :nonlinear` surface shading.
+- `azimut::Real`: 3D azimuth angle in degrees.
+- `elevation::Real`: 3D elevation angle in degrees.
+- `distance::Real`: camera distance (≥ 0).
+- `feature_edges::Bool`: enhance feature lines (`:outline` forces on).
+- `view_mode::Symbol`: `:surface_with_edges | :surface | :wireframe | :outline`.
+- `light_vector::Vector{<:Real}`: light direction.
+- `node_labels::Bool`: show node ids.
+- `axes::Symbol`: axes widget location (see `_axes_widget_locations`).
+- `axis_labels::Vector{<:AbstractString}`: custom axis labels; defaults to `["x","y","z"]`.
+- `quiet::Bool`: suppress constructor log.
 
 # Notes
-- If `field==""`, coloring is disabled (`field_kind=:none`).
-- Colormap may be given by name (`:viridis`, `:coolwarm`, …) or a `Colormap` object.
-- `warp` affects geometry only
-- `field_factor` scales coloring values.
+- Use `save` to export the chart to a file.
 
 # Example
 ```julia
@@ -54,7 +66,6 @@ plt = DomainPlot(model;
                  view_mode=:surface_with_edges, feature_edges=true)
 save(plt, "model_plot.pdf")
 ```
-
 """
 mutable struct DomainPlot<:Figure
     mesh::AbstractDomain
@@ -77,9 +88,10 @@ mutable struct DomainPlot<:Figure
     width::Float64
     height::Float64
 
-    line_width::Float64
+    edge_width::Float64
+    edge_color::Union{Symbol,Tuple}
     outline_width::Float64
-    frame_width::Float64
+    line_elem_width::Float64
     face_color::Tuple
     field::String
     field_kind::Symbol
@@ -105,9 +117,10 @@ mutable struct DomainPlot<:Figure
         size::Tuple{Int,Int}=(220,150),
         face_color::Symbol=:aliceblue,
         warp::Real=0.0,
-        line_width::Real=0.3,
+        edge_width::Real=0.3,
+        edge_color::Symbol=:auto,
         outline_width::Real=0.4,
-        frame_width::Real=0.6,
+        line_elem_width::Real=0.6,
         field::AbstractString="",
         field_kind::Symbol=:auto,
         limits::Vector{Float64}=[0.0,0.0],
@@ -132,6 +145,11 @@ mutable struct DomainPlot<:Figure
         axis_labels::Vector{<:AbstractString}=String[],
         quiet::Bool=false,
     )
+
+        @check face_color in keys(_colors_dict) "face_color must be one of: $(collect(keys(_colors_dict))). Got $face_color"
+        @check edge_color == :auto || edge_color in keys(_colors_dict) "edge_color must be :auto or one of: $(collect(keys(_colors_dict))). Got $edge_color"
+        @check font in _available_fonts "font must be one of: $(_available_fonts). Got $(repr(font))"
+
         canvas = Canvas()
         the_colorbar = Colorbar()
         width, height = size
@@ -147,15 +165,15 @@ mutable struct DomainPlot<:Figure
         shades = []
         outerpad = 0.0
 
-        face_color    = _colors_dict[face_color]
-        field         = string(field)
-        field_kind    = string(field) == "" ? :none : field_kind
-        limits        = collect(limits)
-        field_factor  = field_factor
-        warp          = warp
-        label         = label
+        face_color   = _colors_dict[face_color]
+        field        = string(field)
+        field_kind   = string(field) == "" ? :none : field_kind
+        limits       = collect(limits)
+        field_factor = field_factor
+        warp         = warp
+        label        = label
 
-        colormap        =  colormap isa Symbol ? Colormap(colormap) : colormap
+        colormap = colormap isa Symbol ? Colormap(colormap) : colormap
 
         colorbar_location   = colorbar
         colorbar_length_factor = colorbar_length_factor
@@ -165,31 +183,30 @@ mutable struct DomainPlot<:Figure
         azimut             = azimut
         elevation          = elevation
         distance           = distance
-        show_feature_edges = (feature_edges || view_mode==:outline)
+        show_feature_edges = (feature_edges || view_mode==:outline) && view_mode != :wireframe
 
-
-        this = new(mesh, canvas, the_colorbar, axes_widget, nodes, elems, feature_edges_d, values, outerpad, shades,
-                    azimut, elevation, distance,
-                    interpolation, light_vector,
-                    width, height,
-                    line_width, outline_width, frame_width, face_color,
-                    field, field_kind, limits, field_factor,
-                    warp, label, colormap, diverging,
-                    colorbar_location, colorbar_length_factor,
-                    bins, font, font_size,
-                    show_feature_edges, view_mode,
-                    node_labels, axes_loc, axis_labels,
-                    quiet)
-
-
-        if !this.quiet
+        if !quiet
             printstyled("Domain plot\n", bold=true, color=:cyan)
-            println("  size: $(this.width) x $(this.height) dpi")
-            println("  view mode: $(this.view_mode)")
-            this.field != "" && println("  field: $(this.field)")
+            println("  size: $(width) x $(height) pt")
+            println("  view mode: $(view_mode)")
+            field != "" && println("  field: $(field)")
         end
 
-        return this
+        return new(mesh, canvas, the_colorbar, axes_widget, nodes, elems, 
+            feature_edges_d, values, outerpad, shades,
+            azimut, elevation, distance,
+            interpolation, light_vector,
+            width, height,
+            edge_width, edge_color, outline_width, 
+            line_elem_width, face_color,
+            field, field_kind, limits, field_factor,
+            warp, label, colormap, diverging,
+            colorbar_location, colorbar_length_factor,
+            bins, font, font_size,
+            show_feature_edges, view_mode,
+            node_labels, axes_loc, axis_labels,
+            quiet
+        )
     end
 end
 
@@ -532,8 +549,8 @@ function draw!(mplot::DomainPlot, ctx::CairoContext)
 
             pts = bezier_points(elem)
             curve_to(ctx, pts[2]..., pts[3]..., pts[4]...)
-            set_line_width(ctx, mplot.frame_width)
-            set_source_rgb(ctx, color...) # gray
+            set_line_width(ctx, mplot.line_elem_width)
+            set_source_rgb(ctx, color...)
             stroke(ctx)
         else
             shade = mplot.mesh.ctx.ndim==3 ? mplot.shades[i] : 1.0
@@ -574,29 +591,32 @@ function draw!(mplot::DomainPlot, ctx::CairoContext)
 end
 
 
-
-
 function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::AbstractCell, shade::Float64)
     set_line_cap(ctx, Cairo.CAIRO_LINE_CAP_ROUND)
 
-    # is_nodal_field = has_field && haskey(mplot.mesh.node_data, mplot.field)
+    function get_edge_color(face_color, edge_color)
+        if mplot.view_mode == :surface # disguise edges in surface view
+            face_color
+        elseif edge_color == :auto
+            face_color.*0.55
+        else
+            _colors_dict[mplot.edge_color]
+        end
+    end
+
+    function get_outline_color(face_color, edge_color)
+        if edge_color == :auto
+            face_color.*0.55
+        else
+            _colors_dict[mplot.edge_color].*0.55
+        end
+    end
 
     # constant_color = !is_nodal_field || mplot.interpolation==:constant
     constant_color = mplot.field_kind in (:element,:none) || mplot.interpolation==:constant
 
     # compute linear gradients
     if constant_color
-        # if mplot.field_kind != :none
-        #     if mplot.field_kind == :node
-        #         val = sum( mplot.values[node.id] for node in elem.nodes)/length(elem.nodes)
-        #         color = mplot.colormap(val)
-        #     else
-        #         color = mplot.colormap(mplot.values[elem.id])
-        #     end
-        # else
-        #     color = mplot.face_color
-        # end
-
         if mplot.field_kind == :node
             val = sum( mplot.values[node.id] for node in elem.nodes)/length(elem.nodes)
             color = mplot.colormap(val).*shade
@@ -606,13 +626,8 @@ function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::Abstract
             color = mplot.face_color.*shade
         end
 
-        # edges
-        factor = 0.55
-        if mplot.view_mode == :surface # disguise edges in surface view
-            factor = 1.0
-        end
-        edge_color    = color.*factor.*shade
-        outline_color = color.*0.55.*shade
+        edge_color    = get_edge_color(color, mplot.edge_color)
+        outline_color = get_outline_color(color, mplot.edge_color)
     else
         cm = mplot.colormap
         npoints = elem.shape.base_shape.npoints # use only corner nodes
@@ -660,14 +675,15 @@ function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::Abstract
         factor = 0.65
         if mplot.view_mode == :surface # disguise edges in surface view
             factor = 1.0
-            # mplot.line_width = 0.1
+            # mplot.edge_width = 0.1
         end
 
         edge_pat = pattern_create_linear(0, 0, V[1], V[2])
         mat = CairoMatrix(1/ℓ, 0, 0, 1/ℓ,  -Xa[1]/ℓ, -Xa[2]/ℓ)
         Cairo.set_matrix(edge_pat, mat)
         for (val, stop) in zip(values, stops)
-            color = cm(val).*(shade*factor)
+            # color = cm(val).*(shade*factor)
+            color = get_edge_color(cm(val).*shade, mplot.edge_color)
             pattern_add_color_stop_rgb(edge_pat, stop, color...)
         end
 
@@ -676,7 +692,8 @@ function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::Abstract
         mat = CairoMatrix(1/ℓ, 0, 0, 1/ℓ,  -Xa[1]/ℓ, -Xa[2]/ℓ)
         Cairo.set_matrix(outline_pat, mat)
         for (val, stop) in zip(values, stops)
-            color = cm(val).*(shade*0.55)
+            # color = cm(val).*(shade*0.55)
+            color = get_outline_color(cm(val).*shade, mplot.edge_color)
             pattern_add_color_stop_rgb(outline_pat, stop, color...)
         end
     end
@@ -708,7 +725,7 @@ function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::Abstract
 
             if show_edges
                 set_source_rgb(ctx, edge_color...)
-                set_line_width(ctx, mplot.line_width)
+                set_line_width(ctx, mplot.edge_width)
                 stroke(ctx)
             end
         elseif mplot.interpolation==:linear
@@ -732,7 +749,7 @@ function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::Abstract
 
             if show_edges
                 set_source(ctx, edge_pat)
-                set_line_width(ctx, mplot.line_width)
+                set_line_width(ctx, mplot.edge_width)
                 stroke(ctx)
             end
         else # nonlinear
@@ -794,7 +811,7 @@ function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::Abstract
                 else
                     set_source(ctx, edge_pat)
                 end
-                set_line_width(ctx, mplot.line_width)
+                set_line_width(ctx, mplot.edge_width)
                 stroke(ctx)
             end
         end
