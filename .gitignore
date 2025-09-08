@@ -12,8 +12,11 @@
 *.pdf
 *.svg
 *.step
-.ipynb_checkpoints
+*.geo_unrolled
+*.ipynb_checkpoints
 sandbox
 **/vault
+**/archive
+**/output
 **/.vscode
 docs/build/
