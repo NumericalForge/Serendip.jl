@@ -25,7 +25,7 @@ add_mapping(mapper, "solids", MechBulk, UCP,
 model = FEModel(mesh, mapper)
 ana = MechAnalysis(model)
 
-add_logger(ana, :ip, [0.05, 0.05, 0.05], "cscp.table")
+add_logger(ana, :ip, [0.05, 0.05, 0.05], "cscp.dat")
 # add_monitor(ana, :ip, [0.05, 0.05, 0.05], :(sxx, syy), stop=:( rho<0.3*rho_max))
 
 stage = add_stage(ana)

@@ -1,6 +1,6 @@
 using Serendip
 
-table = DataTable("cscp.table")
+table = DataTable("cscp.dat")
 
 
 chart = Chart(

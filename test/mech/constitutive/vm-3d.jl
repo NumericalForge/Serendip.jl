@@ -17,7 +17,7 @@ mapper = RegionMapper()
 add_mapping(mapper, "beam", MechBulk, VonMises, E=E, nu=nu, fy=fy, H=H)
 model = FEModel(mesh, mapper)
 
-ana   = MechAnalysis(model)
+ana = MechAnalysis(model)
 log = add_logger(ana, :node, (x==th/2, y==1, z==0))
 add_monitor(ana, :node, (x==th/2, y==1, z==0), :fz)
 

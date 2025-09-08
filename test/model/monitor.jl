@@ -11,13 +11,13 @@ add_mapping(mapper, "solids", MechBulk, LinearElastic, E=100.0, nu=0.2)
 model = FEModel(mesh, mapper)
 ana = MechAnalysis(model)
 
-add_monitor(ana, :node, (x==1, y==1, z==1), :uy, "node.table")
+add_monitor(ana, :node, (x==1, y==1, z==1), :uy, "node.dat")
 add_monitor(ana, :node, (x==1, y==0), :uy)
-add_monitor(ana, :nodalreduce, (x==1, y==1), :uy, "nodes.table")
+add_monitor(ana, :nodalreduce, (x==1, y==1), :uy, "nodes.dat")
 
-add_monitor(ana, :ip, (x>0.5, y>0.5, z>0.5), :σyy, "ip.table")
+add_monitor(ana, :ip, (x>0.5, y>0.5, z>0.5), :σyy, "ip.dat")
 add_monitor(ana, :ip, [0.5,0.5,0.0], :σyy)
-add_monitor(ana, :ipgroup, (x>0.5, y>0.5), :σyy, "ips.table")
+add_monitor(ana, :ipgroup, (x>0.5, y>0.5), :σyy, "ips.dat")
 
 
 # bl = Block( [0 0 0; 1 1 1], nx=2, ny=2, nz=2, shape=HEX8, tag="solids")
@@ -30,11 +30,11 @@ add_monitor(ana, :ipgroup, (x>0.5, y>0.5), :σyy, "ips.table")
 
 # # Monitors
 # monitors = [
-#     (x==1, y==1, z==1) => NodeMonitor(:uy, "node.table")
+#     (x==1, y==1, z==1) => NodeMonitor(:uy, "node.dat")
 #     (x==1, y==0) => NodeMonitor(:uy)
 #     y==1 => NodeSumMonitor(:uy, "nodessum.book")
 
-#     (x>0.5, y>0.5, z>0.5) => IpMonitor(:σyy, "ip.table")
+#     (x>0.5, y>0.5, z>0.5) => IpMonitor(:σyy, "ip.dat")
 #     (x>0.5, y>0.5) => IpGroupMonitor(:σyy, "ips.book")
 #     [0.5,0.5,0.0] => IpMonitor(:σyy)
 # ]

@@ -68,18 +68,8 @@ function add_logger(
 )
     @check kind in (:node, :ip, :nodegroup, :ipgroup, :nodalreduce) "Unknown logger kind: $kind. Supported kinds are :node, :ip, :nodegroup, :ipgroup, :nodalreduce"
     
-    # if filename != ""
-    #     if kind in (:node, :ip, :nodalreduce) 
-    #         formats = (".table", ".json")
-    #     else
-    #         formats = (".book", ".json")
-    #     end
-    #     _, format = splitext(filename)
-    #     @check format in formats "Logger of kind $kind must have one of the following extensions: $(join(formats, ", ", " and ")). Got $(repr(format))."
-    # end
-
     if filename != ""
-        formats = (".tab", ".table", ".json")
+        formats = (".dat", ".tab", ".table", ".json")
         _, format = splitext(filename)
         @check format in formats "Loggers must have one of the following extensions: $(join(formats, ", ", " and ")). Got $(repr(format))."
     end
@@ -146,15 +136,15 @@ function update_logger!(logger::Logger, ana::Analysis)
         ana.data.transient && (vals[:t] = ana.data.t)
         push!(logger.table, vals)
     elseif logger.kind == :ipgroup
-        # table = DataTable(name = "Ip group logger: T = $T")
+        table = DataTable(name="Ip group logger: T = $T")
+
         for ip in logger.target
             vals = get_values(ip)
             vals[:T] = T
             push!(logger.table, vals)
         end
-        # push!(logger.book, table)
     elseif logger.kind == :nodegroup
-        table = DataTable(name = "Node group logger: T = $T")
+        table = DataTable(name="Node group logger: T = $T")
 
         # get data from recovered nodal values
         ids = [ node.id for node in logger.target ]

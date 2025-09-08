@@ -1,6 +1,6 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export DataTable, datatable, push!, save, randtable
+export DataTable, save, split_by, randtable
 export compress, resize, filter, cut!, clamp!, denoise!
 export getheader
 
@@ -34,35 +34,76 @@ const KeyType = Union{Symbol,AbstractString}
 # DataTable(["a","b"], [1 2; 3 4; 5 6])
 # ```
 # """
+"""
+    DataTable(header, columns=Vector[]; name="")
+    DataTable(; pairs...)
+    DataTable(header, matrix; name="")
+    DataTable(filename, delim='\\t')
+
+Construct a tabular container with named columns.
+
+# Arguments
+- `header::AbstractArray`: column names (strings or symbols).
+- `columns::Vector{<:AbstractVector}`: one vector per column. All columns must have the same length.
+- `name::AbstractString`: optional table name.
+- `pairs...`: keyword form `colName = vector`. A special key `name` sets the table name.
+- `matrix::AbstractMatrix`: a 2D array whose columns become table columns.
+- `filename::AbstractString`: path to a delimited text file (`.dat`, `.table`, `.json`).
+- `delim::Char`: column delimiter when reading from file (default `'\\t'`).
+
+# Examples
+```julia
+DataTable(["x","y"], [[1,2,3], [10.0, 20.0, 30.0]]; name="XY")
+DataTable(x=[1,2,3], y=[10.0,20.0,30.0], name="XY")
+DataTable(["a","b"], [1 2; 3 4; 5 6]; name="M")
+DataTable("data.table")                # reads header + data from file
+```
+"""
 mutable struct DataTable
     columns::Vector{AbstractVector}
-    colidx ::OrderedDict{String,Int} # Data index
+    colmap ::OrderedDict{String,Int} # Data index
     header ::Vector{String}
     name   ::String
 
-    function DataTable(;name::String="")
-        return new(AbstractVector[], OrderedDict{String,Int}(), String[], name)
-    end
-
     function DataTable(header::AbstractArray, columns::Vector{<:AbstractVector}=Vector{Any}[]; name::String="")
-        @check length(header) == length(unique(header)) "header contains repeated keys"
+        @check length(header) == length(unique(header)) "DataTable: Header contains repeated keys"
         if length(columns)==0
             columns = AbstractVector[ [] for i in 1:length(header) ]
         end
 
-        colidx = OrderedDict{String,Int}( string(key)=>i for (i,key) in enumerate(header) )
+        colmap = OrderedDict{String,Int}( string(key)=>i for (i,key) in enumerate(header) )
 
-        return new(columns, colidx, string.(header), name)
+        return new(columns, colmap, string.(header), name)
     end
+
+    function DataTable(; pairs...)
+        columns = AbstractVector[]
+        header  = KeyType[]
+        name    = ""
+        for (key, val) in pairs
+            if key==:name && typeof(val) <: AbstractString
+                name = string(val)
+                continue
+            end
+            @check typeof(val) <: AbstractVector "DataTable: value for key $(repr(key)) is not a vector"
+            push!(header, string(key))
+            push!(columns, copy(val))
+        end
+
+        colmap = OrderedDict{String,Int}( string(key)=>i for (i,key) in enumerate(header) )
+
+        return new(columns, colmap, string.(header), name)
+    end
+
 end
 
 getcolumns(table::DataTable) = getfield(table, :columns)
-getheader(table::DataTable) = getfield(table, :header)
-getcolidx(table::DataTable) = getfield(table, :colidx)
-getname(table::DataTable) = getfield(table, :name)
+getheader(table::DataTable)  = getfield(table, :header)
+getcolidx(table::DataTable)  = getfield(table, :colmap)
+getname(table::DataTable)    = getfield(table, :name)
 
 
-function DataTable(header::AbstractArray, matrix::Array{T,2} where T; name="")
+function DataTable(header::AbstractArray, matrix::Array{T,2} where T; name::String="")
     nkeys = length(header)
     ncols = size(matrix,2)
     nkeys != ncols && error("DataTable: header and number of data columns do not match")
@@ -72,32 +113,31 @@ function DataTable(header::AbstractArray, matrix::Array{T,2} where T; name="")
 end
 
 
-function ncols(table::DataTable)
-    return length(getcolumns(table))
-end
-
-
-function nrows(table::DataTable)
-    columns = getcolumns(table)
-    ncols   = length(columns)
-    ncols == 0 && return 0
-    return length(columns[1])
-end
-
-
 function Base.size(table::DataTable)
     columns = getcolumns(table)
     ncols   = length(columns)
-    ncols == 0 && return (0,0)
-    return (length(columns[1]), ncols)
+    nrows   = ncols==0 ? 0 : length(columns[1])
+    return (nrows, ncols)
+end
+
+
+function Base.size(table::DataTable, dim::Int)
+    columns = getcolumns(table)
+
+    ncols   = length(columns)
+    dim==2 && return ncols
+
+    nrows = ncols==0 ? 0 : length(columns[1])
+    dim==1 && return nrows
+
+    error("size: Table dimension value should be 1 or 2. Got $dim")
 end
 
 
 function Base.getproperty(table::DataTable, name::Symbol)
     key   = string(name)
-    colidx = getcolidx(table)
-    if haskey(colidx, key)
-        idx  = colidx[key]
+    colmap = getcolidx(table)
+    if haskey(colmap, key)
         return getindex(table, key)
     end
 
@@ -129,7 +169,7 @@ end
 
 function Base.push!(table::DataTable, row::Union{NTuple, AbstractDict, Vector{<:Pair}, NTuple{N, <:Pair} where N})
     columns = getcolumns(table)
-    colidx  = getcolidx(table)
+    colmap  = getcolidx(table)
     header  = getheader(table)
     nr, nc = size(table)
 
@@ -138,19 +178,19 @@ function Base.push!(table::DataTable, row::Union{NTuple, AbstractDict, Vector{<:
             key = string(pair.first)
             push!(header, key)
             push!(columns, [pair.second])
-            colidx[key] = length(header)
+            colmap[key] = length(header)
         end
     else
         for pair in row
             key = string(pair.first)
-            idx = get(colidx, key, 0)
+            idx = get(colmap, key, 0)
             if idx==0
                 # add new column
                 push!(header, key)
                 newcol = zeros(nr)
                 push!(newcol, pair.second)
                 push!(columns, newcol)
-                colidx[key] = length(columns)
+                colmap[key] = length(columns)
             else
                 push!(columns[idx], pair.second)
             end
@@ -176,12 +216,12 @@ function Base.append!(table::DataTable, table2::DataTable)
     nr2, nc2 = size(table2)
 
     columns = getcolumns(table)
-    colidx  = getcolidx(table)
+    colmap  = getcolidx(table)
     header  = getheader(table)
 
     for key in keys(table2)
         col2 = table2[key]
-        idx1 = get(colidx, key, 0)
+        idx1 = get(colmap, key, 0)
         if idx1==0
             # add new column
             push!(header, key)
@@ -189,14 +229,14 @@ function Base.append!(table::DataTable, table2::DataTable)
             newcol = fill(zr, nr1)
             append!(newcol, col2)
             push!(columns, newcol)
-            colidx[key] = length(columns)
+            colmap[key] = length(columns)
         else
             append!(table.columns[idx1], col2)
         end
     end
 
     # add zero for missing values
-    nr = nrows(table)
+    nr = size(table,1)
     for col in table.columns
         if length(col)<nr
             zr = eltype(col)==String ? "" : zero(eltype(col))
@@ -210,7 +250,7 @@ end
 
 function Base.setindex!(table::DataTable, column::AbstractVector, key::KeyType)
     columns = getcolumns(table)
-    colidx  = getcolidx(table)
+    colmap  = getcolidx(table)
     header  = getheader(table)
 
     if length(columns)>0
@@ -220,13 +260,13 @@ function Base.setindex!(table::DataTable, column::AbstractVector, key::KeyType)
     end
 
     key = string(key)
-    if haskey(colidx, key)
-        idx = colidx[key]
+    if haskey(colmap, key)
+        idx = colmap[key]
         columns[idx] = column
     else
         push!(columns, column)
         push!(header, key)
-        colidx[key] = length(columns)
+        colmap[key] = length(columns)
     end
     return column
 end
@@ -234,16 +274,17 @@ end
 
 function Base.getindex(table::DataTable, key::KeyType)
     key    = string(key)
-    colidx = getcolidx(table)
-    haskey(colidx, key) || error("getindex: key $(repr(key)) not found in DataTable. Available keys are $(keys(table))")
+    colmap = getcolidx(table)
+    haskey(colmap, key) || error("getindex: key $(repr(key)) not found in DataTable. Available keys are $(keys(table))")
 
-    idx  = colidx[key]
+    idx  = colmap[key]
     return getcolumns(table)[idx]
 end
 
+
 function Base.haskey(table::DataTable, key::KeyType)
-    colidx = getcolidx(table)
-    return haskey(colidx, string(key))
+    colmap = getcolidx(table)
+    return haskey(colmap, string(key))
 end
 
 
@@ -282,9 +323,9 @@ function Base.Array(table::DataTable)
 end
 
 
-function Base.getindex(table::DataTable, rowidx::Union{Int,Colon,UnitRange{Int},Array{Int,1}}, colidx::Union{Int,Colon,UnitRange{Int},Array{Int,1}})
+function Base.getindex(table::DataTable, rowidx::Union{Int,Colon,UnitRange{Int},Array{Int,1}}, colmap::Union{Int,Colon,UnitRange{Int},Array{Int,1}})
     table_temp = table[rowidx]
-    columns = getcolumns(table_temp)[colidx]
+    columns = getcolumns(table_temp)[colmap]
     return reduce(hcat, columns)
 end
 
@@ -320,7 +361,7 @@ Filter rows of a DataTable object using a logical expression.
 function Base.filter(table::DataTable, expr::Expr)
     fields = getvars(expr)
     vars   = Dict{Symbol, Float64}()
-    nr     = nrows(table)
+    nr     = size(table,1)
     idxs   = falses(nr)
     for i in 1:nr
         for field in fields
@@ -329,6 +370,88 @@ function Base.filter(table::DataTable, expr::Expr)
         idxs[i] = evaluate(expr; vars...)
     end
     return table[idxs]
+end
+
+
+
+"""
+    split_by(table::DataTable, col_name::String)
+
+Splits a DataTable into a vector of new DataTables based on the unique values
+in a specified column.
+
+This is an efficient implementation that makes a single pass over the data to
+group row indices before creating the new tables. The resulting tables are not
+guaranteed to be in any specific order.
+
+# Arguments
+- `table::DataTable`: The input table to split.
+- `col_name::String`: The name of the column whose values will be used to group the rows.
+
+# Returns
+- `Vector{DataTable}`: A vector of new `DataTable` objects, where each table
+  corresponds to a unique value in the `col_name` column.
+
+# Example
+```julia
+header = ["ID", "Category", "Value"]
+columns = [
+    [1, 2, 3, 4, 5, 6],
+    ["A", "B", "A", "C", "B", "A"],
+    [10.1, 20.2, 10.3, 30.1, 20.4, 10.5]
+]
+dt = DataTable(header, columns, name="SalesData")
+grouped_tables = split_by(dt, "Category")
+```
+"""
+function split_by(table::DataTable, col_name::String)
+    col_map = getcolidx(table)
+
+    # 1. Input Validation: Check if the column exists
+    if !haskey(col_map, col_name)
+        throw(ArgumentError("Column '$col_name' not found in DataTable header."))
+    end
+
+    # 2. Identify the split column and its data
+    col_idx   = col_map[col_name]
+    columns   = getcolumns(table)
+    split_col = columns[col_idx]
+
+    # Handle empty table case
+    if isempty(split_col)
+        return DataTable[]
+    end
+
+    # 3. Efficiently group row indices by the unique values in the split column
+    # This dictionary will map each unique value to a list of row numbers.
+    # e.g., "A" => [1, 3, 6], "B" => [2, 5], ...
+    groups = OrderedDict{eltype(split_col), Vector{Int}}()
+    for (row_idx, value) in enumerate(split_col)
+        # `get!` is a handy function: it gets the key's value, or if it doesn't
+        # exist, it initializes it with the default value (the 2nd argument)
+        # and then returns the value.
+        indices = get!(groups, value, Int[])
+        push!(indices, row_idx)
+    end
+
+    # 4. Construct the new DataTables using the grouped indices
+    result_tables   = DataTable[]
+    original_header = getheader(table)
+    original_name   = getname(table)
+
+    for (group_key, row_indices) in groups
+        # For each column in the original table, create a new column containing
+        # only the rows specified by `row_indices`. This is a fast slicing operation.
+        new_cols = [col[row_indices] for col in columns]
+
+        # Create a descriptive name for the new sub-table
+        new_name = isempty(original_name) ? string(group_key) : "$(original_name)_$(group_key)"
+
+        # Construct the new DataTable for this group and add it to the result vector
+        push!(result_tables, DataTable(original_header, new_cols, new_name))
+    end
+
+    return result_tables
 end
 
 
@@ -383,7 +506,7 @@ end
 """
 function resize(table::DataTable, n::Int=0; ratio=1.0)
     header = getheader(table)
-    nr     = nrows(table)
+    nr     = size(table,1)
 
     if n==0
         ratio > 0.0 || error("resize: ratio should be greater than zero")
@@ -480,7 +603,7 @@ end
 
 export smooth!
 function smooth!(table::DataTable, fieldx, fieldy=nothing; knots=[0.0, 1.0])
-    nr     = nrows(table)
+    nr = size(table,1)
 
     if fieldy === nothing
         fieldy = fieldx
@@ -507,7 +630,7 @@ end
 
 function denoise!(table::DataTable, fieldx, fieldy=nothing; noise=0.05, npatch=4)
     header = getheader(table)
-    nr     = nrows(table)
+    nr     = size(table,1)
 
     if fieldy === nothing
         X = range(0,1,length=nr)
@@ -721,6 +844,7 @@ end
 
 function DataTable(filename::String, delim::Char='\t')
     _, format = splitext(filename)
+    @show filename
     formats = (".dat", ".table", ".csv")
     format in formats || error("DataTable: cannot read \"$format\". Suitable formats are $formats")
 
@@ -736,24 +860,24 @@ end
 # TODO: Improve display. Include columns datatypes
 function Base.show(io::IO, table::DataTable)
     columns = getcolumns(table)
-    colidx = getcolidx(table)
 
     println(io)
-    if length(columns)==0
-        print(io, "DataTable()")
-        return
-    end
-
     nr, nc = size(table)
-
     if nr==0
         print(io, "DataTable()")
         return
     end
 
+    print(io, "DataTable ")
+    name = getname(table)
+    if name != ""
+        println(io, repr(name))
+    else
+        println(io)
+    end
+
     header = getheader(table)
     types = eltype.(columns)
-    # types  = typeof.(getindex.(columns,1))
 
     hwidths = length.(header)
     widths  = zeros(Int, length(header))
