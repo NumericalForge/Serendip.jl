@@ -106,7 +106,7 @@ function add_monitor(
     filename = getfullpath(ana.data.outdir, filename)
 
     exprs = typeof(expr) in (Symbol, Expr) ? [expr] : vec(collect(expr))
-    all(typeof(expr) in (Symbol, Expr) for ex in exprs) || error("add_monitor: expr must be a Symbol or Expr or a collection of them")
+    all(typeof(ex) in (Symbol, Expr) for ex in exprs) || error("add_monitor: expr must be a Symbol or Expr or a collection of them")
 
     for (i,ex) in enumerate(exprs)
         ex = round_floats!(ex)
@@ -153,7 +153,7 @@ function add_monitor(
     n = length(target)
     n == 0 && notify("setup_monitor: No $(item_kind)s found for selector: $selector_str")
     if kind in (:node, :ip)
-        n >  1 && notify("setup_monitor: Multiple $item_kind match selector: $selector_str. Picking the first one")
+        n >  1 && notify("setup_monitor: Multiple $(item_kind)s match selector: $selector_str. Picking the first one")
         n >= 1 && (target = target[1:1])
     end
 

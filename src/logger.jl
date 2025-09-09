@@ -114,7 +114,7 @@ function add_logger(
     n = length(target)
     n == 0 && notify("add_logger: No $(item_name)s found for selector: ", selector_str)
     if kind in (:node, :ip)
-        n >  1 && notify("add_logger: Multiple $item_name match selector: ", selector_str, ". Picking the first one.")
+        n >  1 && notify("add_logger: Multiple $(item_name)s match selector: ", selector_str, ". Picking the first one.")
         n >= 1 && (target = target[1:1])
     end
 
