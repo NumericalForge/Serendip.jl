@@ -123,8 +123,8 @@ function Mesh(geo::GeoModel;
         nnodes = length(node_ids)
         nodes = [ Node(coord_list[ 3*(i-1)+1 : 3*i ], id=i) for i in 1:nnodes ]
 
-        shape_dict = Dict( 1=>LIN2, 2=>TRI3, 3=>QUAD4, 4=>TET4, 7=>PYR5, 8=>LIN3, 9=>TRI6, 11=>TET10 )
-        nnodes_dict = Dict( 1=>2, 2=>3, 3=>4, 4=>4, 7=>5, 8=>3, 9=>6, 11=>10 )
+        shape_dict = Dict( 1=>LIN2, 2=>TRI3, 3=>QUAD4, 4=>TET4, 5=>HEX8, 6=>WED6, 7=>PYR5, 8=>LIN3, 9=>TRI6, 10=>QUAD9, 11=>TET10, 12=>HEX27, 16=>QUAD8, 17=>HEX20 )
+        nnodes_dict = Dict( 1=>2, 2=>3, 3=>4, 4=>4, 5=>8, 6=>6, 7=>5, 8=>3, 9=>6, 10=>9, 11=>10, 12=>27, 16=>8, 17=>20 )
 
         elem_types, elem_ids, elem_conns = gmsh.model.mesh.getElements(gmsh_ndim)
         cells = Cell[]
@@ -134,6 +134,9 @@ function Mesh(geo::GeoModel;
             role = ty in (1,8) ? :line : :bulk
             for (j,id) in enumerate(elem_ids[i])
                 conn = elem_conns[i][ (j-1)*nenodes + 1 : j*nenodes ]
+                if shape == TET10 # Fix bug in Gmsh
+                    conn[9], conn[10] = conn[10], conn[9] # swap last two nodes
+                end
                 enodes = nodes[conn]
                 cell = Cell(shape, role, enodes, id=Int(id))
                 push!(cells, cell)
