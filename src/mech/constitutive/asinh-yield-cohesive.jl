@@ -2,6 +2,145 @@
 
 export AsinhYieldCohesive
 
+
+"""
+    AsinhYieldCohesive(; E, nu=0.0, ft, fc, zeta=5.0, wc, GF, ft_law=:hordijk, alpha=1.5, gamma=0.1, theta=1.5)
+
+Constitutive model for cohesive elements with a power-lay yield surface ans softening in tension.  
+The tensile softening branch is regularized through a measure of the
+bulk element size `h` to ensure mesh-objective fracture energy dissipation.
+
+# Keyword arguments
+- `E::Real`:  
+  Young’s modulus from the bulk material (must be > 0).
+- `nu::Real`:  
+  Poisson’s ratio (0 ≤ ν < 0.5).
+- `fc::Real`:  
+  Compressive strength (< 0).
+  - `ft::Real`:  
+  Tensile strength (> 0).
+- `wc::Real`:  
+  Critical crack opening (must be > 0 if given). Can be specified alternatively to `GF`.
+- `mu::Real`:  
+  Friction coefficient (> 0).
+- `GF::Real`:  
+  Fracture energy (must be > 0 if given). Can be specified alternatively to `wc`.
+- `softening::Union{Symbol,PathFunction} = :hordijk`:  
+  Softening law for post-peak tensile response. Options are:
+  `:linear`, `:bilinear`, `:hordijk`, `:soft` or a custom function.
+- `alpha::Real = 0.6`:  
+  Parameter to control the shape of the yield surface (α > 0.5).
+- `gamma::Real = 0.1`:  
+  Parameter to control the residual shear strength (γ ≥ 0).
+- `theta::Real = 1.5`:  
+  Parameter to control the rate of reduction of shear strength (θ ≥ 0).
+- `zeta::Real = 5.0`:  
+  Factor to control elastic relative displacements in cohesive formulations (≥ 0).
+
+# Returns
+A `AsinhYieldCohesive` object.
+
+# Notes
+- Either `wc` or `GF` must be provided. If only `GF` is given, `wc` is computed
+  internally based on the chosen softening law.
+- The frictional contribution is governed by `mu`.
+- Normal and shear stiffnesses (`kn`, `ks`) are computed from the mechanical properties of
+  the bulk material and the characteristic length `h` of the adjacent bulk elements.
+"""
+mutable struct AsinhYieldCohesive<:Constitutive
+    E ::Float64
+    ν ::Float64
+    fc::Float64
+    ft::Float64
+    wc::Float64
+    softening::Symbol
+    ft_fun::Union{PathFunction,Nothing}
+    α::Float64
+    γ::Float64
+    θ::Float64
+    β0::Float64
+    ζ ::Float64
+
+    function AsinhYieldCohesive(; 
+        E::Real = NaN,
+        nu::Real = 0.0,
+        fc::Real = NaN,
+        ft::Real = NaN,
+        wc::Real = NaN,
+        GF::Real = NaN,
+        softening::Union{Symbol,PathFunction} = :hordijk,
+        alpha::Real = 0.6,
+        gamma::Real = 0.1,
+        theta::Real = 1.5,
+        zeta::Real = 5.0,
+    )
+@check E>0 "AsinhYieldCohesive: Young's modulus E must be > 0. Got $(repr(E))."
+        @check 0<=nu<0.5 "AsinhYieldCohesive: Poisson ratio nu must be in the range [0, 0.5). Got $(repr(nu))."
+        @check fc<0 "AsinhYieldCohesive: Compressive strength fc must be < 0. Got $(repr(fc))."
+        @check ft>0 "AsinhYieldCohesive: Tensile strength ft must be > 0. Got $(repr(ft))."
+        @check zeta>=0 "AsinhYieldCohesive: Factor zeta must be non-negative. Got $(repr(zeta))."
+        @check alpha > 0.5 "AsinhYieldCohesive: alpha must be greater than 0.5. Got $(repr(alpha))."
+        @check gamma >= 0.0 "AsinhYieldCohesive: gamma must be non-negative. Got $(repr(gamma))."
+        @check theta >= 0.0 "AsinhYieldCohesive: theta must be non-negative. Got $(repr(theta))."
+        @check softening in (:linear, :bilinear, :hordijk, :soft) || softening isa PathFunction "PowerYieldCohesive: Unknown softening model: $softening. Supported models are :linear, :bilinear, :hordijk, :soft or a custom PathFunction."
+
+        ft_fun = nothing
+        if softening isa PathFunction
+            ft_fun = softening
+            softening = :custom
+            ft = softening(0.0)
+            if softening.points[end][2] == 0.0
+                wc = softening.points[end][1]
+            else
+                wc = Inf
+            end
+        else
+            if isnan(wc)
+                isnan(GF) && error("AsinhYieldCohesive: wc or GF must be defined when using a predefined softening model")
+                @check GF>0 "AsinhYieldCohesive: GF must be positive. Got GF=$GF"
+
+                if softening == :linear
+                    wc = round(2*GF/ft, sigdigits=5)
+                elseif softening == :bilinear
+                    wc = round(5*GF/ft, sigdigits=5)
+                elseif softening==:hordijk
+                    wc = round(GF/(0.1947019536*ft), sigdigits=5)
+                elseif softening==:soft
+                    wc = round(GF/(0.1947019536*ft), sigdigits=5)
+                end
+            end
+        end
+        @assert wc > 0.0 "AsinhYieldCohesive: wc must be greater than zero"
+
+        α = alpha
+
+        ta = 0.05*pi
+        tb = 0.5*pi
+
+        f(t) = begin
+            a = fc/2*(1-cos(t)) # negative value
+            b = -fc/2*(sin(t))  # positive value
+            χ = (ft-a)/ft
+            β0 = b/asinh(α*χ)
+            fc/2 - a + α*β0*b/(ft*√(α^2*χ^2 + 1))
+        end
+        
+        t, _ = findroot(f, ta, tb, tol=1e-4, method=:default)
+        t>pi/2 && throw(SerendipException("Invalid value for β0 was found. Check fc and ft values"))
+        
+        a  = fc/2*(1-cos(t)) # negative value
+        b  = -fc/2*(sin(t))  # positive value
+        χ  = (ft-a)/ft
+        β0 = b/asinh(α*χ)
+
+        return new(
+            E, nu, fc, ft, wc, softening, ft_fun,
+            alpha, gamma, theta, β0, zeta
+        )
+    end
+end
+
+
 mutable struct AsinhYieldCohesiveState<:IpState
     ctx::Context
     σ  ::Array{Float64,1} # stress
@@ -23,119 +162,24 @@ mutable struct AsinhYieldCohesiveState<:IpState
 end
 
 
-# AsinhYieldCohesive_params = [
-#     FunInfo( :AsinhYieldCohesive, "Creates a `AsinhYieldCohesive` material model."),
-#     KwArgInfo( :E, "Young modulus", cond=:(E>0)),
-#     KwArgInfo( :nu, "Poisson ratio", cond=:(0<=nu<0.5)),
-#     KwArgInfo( :fc, "Compressive strength", cond=:(fc<0)),
-#     KwArgInfo( :ft, "Tensile strength", cond=:(ft>0)),
-#     KwArgInfo( :zeta, "Joint elastic stiffness factor", cond=:(zeta>0)),
-#     KwArgInfo( :alpha, "Failure surface shape", 1.5, cond=:(alpha>0)),
-#     KwArgInfo( :gamma, "Failure surface minimum size", 0.1, cond=:(gamma>=0)),
-#     KwArgInfo( :theta, "Failure surface reduction speed", 1.5, cond=:(theta>=0)),
-#     KwArgInfo( :wc, "Critical crack opening", 0.0, cond=:(wc>=0)),
-#     KwArgInfo( :GF, "Fracture energy", 0.0, cond=:(GF>=0)),
-#     KwArgInfo( :softmodel, "Softening model", :hordijk, values=(:linear, :bilinear, :hordijk, :soft, :custom), type=Symbol),
-#     KwArgInfo((:ft_fun,:soft_fun), "Softening curve", nothing),
-
-# ]
-# @doc docstring(AsinhYieldCohesive_params) AsinhYieldCohesive
-
-
-mutable struct AsinhYieldCohesive<:Constitutive
-    E ::Float64
-    ν ::Float64
-    ft::Float64
-    fc::Float64
-    ζ ::Float64   # factor ζ controls the elastic relative displacements (formerly α)
-    wc::Float64   # critical crack opening
-    softmodel::Symbol # softening curve model (:linear or bilinear" or :hordijk or :soft)
-    ft_fun::Union{Nothing,PathFunction}
-    α::Float64        # curvature coefficient
-    γ::Float64        # factor for βres
-    θ::Float64        # fator for the surface reduction speed
-    β0::Float64       # initial shear stress for σn=0
-
-    function AsinhYieldCohesive(; args...)
-        args = checkargs(args, AsinhYieldCohesive_params)
-
-        wc = args.wc
-        softmodel = args.softmodel
-        ft_fun = args.ft_fun
-
-        if ft_fun!==nothing
-            softmodel = :custom
-            ft = ft_fun(0.0)
-            if lastpoint(ft_fun)[2] == 0.0
-                wc = lastpoint(ft_fun)[1]
-            else
-                wc = Inf
-            end
-        else
-            if wc==0.0
-                GF = args.GF
-                ft = args.ft
-                GF==0.0 && error("AsinhYieldCohesive: wc or GF must be defined when using a predefined softening model")
-                if softmodel == :linear
-                    wc = round(2*GF/ft, sigdigits=5)
-                elseif softmodel == :bilinear
-                    wc = round(5*GF/ft, sigdigits=5)
-                elseif softmodel==:hordijk
-                    wc = round(GF/(0.1947019536*ft), sigdigits=5)  
-                elseif softmodel==:soft
-                    wc = round(GF/(0.1947019536*ft), sigdigits=5)
-                end
-            end
-        end
-        @assert wc>0.0 "AsinhYieldCohesive: wc must be greater than zero"
-
-        α = args.alpha
-        ft = args.ft
-        fc = args.fc
-
-        ta = 0.05*pi
-        tb = 0.5*pi
-
-        f(t) = begin
-            a = fc/2*(1-cos(t)) # negative value
-            b = -fc/2*(sin(t))  # positive value
-            χ = (ft-a)/ft
-            β0 = b/asinh(α*χ)
-            fc/2 - a + α*β0*b/(ft*√(α^2*χ^2 + 1))
-        end
-        
-        t, _ = findroot(f, ta, tb, tol=1e-4, method=:default)
-        t>pi/2 && throw(SerendipException("Invalid value for β0 was found. Check fc and ft values"))
-        
-        a = fc/2*(1-cos(t)) # negative value
-        b = -fc/2*(sin(t))  # positive value
-        χ = (ft-a)/ft
-        β0 = b/asinh(α*χ)
-
-        this = new(args.E, args.nu, args.ft, args.fc, args.zeta, wc, softmodel, ft_fun, args.alpha, args.gamma, args.theta, β0)
-        return this
-    end
-end
+# Type of corresponding state structure
+compat_state_type(::Type{AsinhYieldCohesive}, ::Type{MechInterface}, ctx::Context) = AsinhYieldCohesiveState
 
 
 function paramsdict(mat::AsinhYieldCohesive)
     mat = OrderedDict( string(field) => getfield(mat, field) for field in fieldnames(typeof(mat)) )
 
-    if mat.softmodel in (:hordijk, :soft)
+    if mat.softening in (:hordijk, :soft)
         mat["GF"] = 0.1943*mat.ft*mat.wc
-    elseif mat.softmodel == :bilinear
+    elseif mat.softening == :bilinear
         mat["GF"] = mat.ft*mat.wc/5
-    elseif mat.softmodel == :linear
+    elseif mat.softening == :linear
         mat["GF"] = mat.ft*mat.wc/2
     else
         mat["GF"] = NaN
     end
     return mat
 end
-
-
-# Type of corresponding state structure
-compat_state_type(::Type{AsinhYieldCohesive}, ::Type{MechInterface}, ctx::Context) = AsinhYieldCohesiveState
 
 
 function yield_func(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ::Array{Float64,1}, σmax::Float64)
@@ -210,7 +254,7 @@ end
 
 
 function calc_σmax(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, up::Float64)
-    if mat.softmodel == :linear
+    if mat.softening == :linear
         if up < mat.wc
             a = mat.ft 
             b = mat.ft /mat.wc
@@ -219,7 +263,7 @@ function calc_σmax(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, up:
             b = 0.0
         end
         σmax = a - b*up
-    elseif mat.softmodel == :bilinear
+    elseif mat.softening == :bilinear
         σs = 0.25*mat.ft
         ws = mat.wc*0.15
         if up < ws
@@ -233,14 +277,14 @@ function calc_σmax(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, up:
             b = 0.0
         end
         σmax = a - b*up
-    elseif mat.softmodel == :hordijk
+    elseif mat.softening == :hordijk
         if up < mat.wc
             z = (1 + 27*(up/mat.wc)^3)*exp(-6.93*up/mat.wc) - 28*(up/mat.wc)*exp(-6.93)
         else
             z = 0.0
         end
         σmax = z*mat.ft
-    elseif mat.softmodel == :soft
+    elseif mat.softening == :soft
         dσmaxdup = 0.55
         a = 1.30837
         if up == 0.0
@@ -252,7 +296,7 @@ function calc_σmax(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, up:
             z = 0.0
         end
         σmax = z*mat.ft
-    elseif mat.softmodel == :custom
+    else
         σmax = mat.ft_fun(up)
     end
 
@@ -267,14 +311,14 @@ end
 
 
 function deriv_σmax_up(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, up::Float64)
-    if mat.softmodel == :linear
+    if mat.softening == :linear
         if up < mat.wc
             b = mat.ft /mat.wc
         else
             b = 0.0
         end
         dσmax = -b
-    elseif mat.softmodel == :bilinear
+    elseif mat.softening == :bilinear
         ws = mat.wc*0.15
         σs = 0.25*mat.ft 
         if up < ws
@@ -285,14 +329,14 @@ function deriv_σmax_up(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState,
             b = 0.0
         end
         dσmax = -b
-    elseif mat.softmodel == :hordijk
+    elseif mat.softening == :hordijk
         if up < mat.wc
             dz = ((81*up^2*exp(-6.93*up/mat.wc)/mat.wc^3) - (6.93*(1 + 27*up^3/mat.wc^3)*exp(-6.93*up/mat.wc)/mat.wc) - 0.02738402432/mat.wc)
         else
             dz = 0.0
         end
         dσmax = dz*mat.ft 
-    elseif mat.softmodel == :soft
+    elseif mat.softening == :soft
         dσmaxdup = 0.55
         a = 1.30837
 
@@ -306,7 +350,7 @@ function deriv_σmax_up(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState,
             dz = 0.0
         end
         dσmax = dz*mat.ft 
-    elseif mat.softmodel == :custom
+    else
         dσmax = derive(mat.ft_fun, up)
     end
 
@@ -524,30 +568,30 @@ end
 function state_values(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
     ndim = state.ctx.ndim
     σmax = calc_σmax(mat, state, state.up)
+    τ = norm(state.σ[2:ndim])
     if ndim == 3
-       return Dict(
-          :jw => state.w[1],
-        #   :jw2 => state.w[2],
-        #   :jw3 => state.w[3],
-          :jσn => state.σ[1],
-          :js2 => state.σ[2],
-          :js3 => state.σ[3],
-          :jup => state.up,
-          :jsmax => σmax
+        return Dict(
+            :w => state.w[1],
+            :σn => state.σ[1],
+            :τ  => τ,
+            :s2 => state.σ[2],
+            :s3 => state.σ[3],
+            :up => state.up,
+            :σmax => σmax
           )
     else
         return Dict(
-          :jw => state.w[1],
-        #   :jw2 => state.w[2],
-          :jσn => state.σ[1],
-          :js2 => state.σ[2],
-          :jup => state.up,
-          :jsmax => σmax
-          )
+            :w => state.w[1],
+            :σn => state.σ[1],
+            :τ  => τ,
+            :s2 => state.σ[2],
+            :up => state.up,
+            :σmax => σmax
+        )
     end
 end
 
 
 function output_keys(mat::AsinhYieldCohesive)
-    return Symbol[:jw, :jσn, :jup]
+    return Symbol[:w, :σn, :τ, :up]
 end

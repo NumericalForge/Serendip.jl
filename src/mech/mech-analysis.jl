@@ -123,7 +123,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     ΔTmin   = solver_settings.dTmin
     ΔTmax   = solver_settings.dTmax
     rspan   = solver_settings.rspan
-    scheme  = solver_settings.scheme
+    tangent_scheme  = solver_settings.tangent_scheme
     maxits  = solver_settings.maxits
     autoinc = solver_settings.autoinc
 
@@ -193,7 +193,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     ΔUa  = zeros(ndofs)  # vector of essential values (e.g. displacements) for this increment
     ΔUi  = zeros(ndofs)  # vector of essential values for current iteration
     Rc   = zeros(ndofs)  # vector of cumulated residues
-    still_linear = true
+    linear_domain = true
     sysstatus = ReturnStatus()
 
     # Get boundary conditions
@@ -217,13 +217,11 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         Fex .-= Fin # add negative forces to external forces vector
     end
 
-    if scheme==:FE
+    if tangent_scheme==:forward_euler
         p1=1.0; q11=1.0
-    elseif scheme==:ME
+    elseif tangent_scheme==:heun
         p1=1.0; q11=1.0; a1=0.5; a2=0.5
-    elseif scheme==:BE
-        p1=1.0; q11=1.0; a1=0.0; a2=1.0
-    elseif scheme==:Ralston
+    elseif tangent_scheme==:ralston
         p1=2/3; q11=2/3; a1=1/4; a2=3/4
     end
 
@@ -276,7 +274,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             failed(sysstatus) && (syserror=true; break)
 
             # Corrector step
-            if scheme==:FE
+            if tangent_scheme==:forward_euler
                 ΔUi = ΔUitr
             else
                 K2 = mount_K(active_elems, ndofs)
@@ -302,7 +300,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             @printf(data.log, "    it %d  residue: %-10.4e\n", it, res)
 
             it==1 && (res1=res)
-            it>1  && (still_linear=false)
+            it>1  && (linear_domain=false)
             res<ftol && (converged=true; break)
             err<rtol && (converged=true; break)
 
@@ -377,7 +375,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                     q = 1+tanh(log10(ftol/(res1+eps())))
                     q = max(q, 1.1)
 
-                    if still_linear
+                    if linear_domain
                         ΔTtr = min(q*ΔT, ΔTmax, 1-T)
                     else
                         ΔTtr = min(q*ΔT, ΔTmax, 1-T)

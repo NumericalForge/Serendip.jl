@@ -26,7 +26,7 @@ include("constitutive/von-mises.jl")
 # include("constitutive/smeared-crack.jl")
 # include("constitutive/damageconcrete-solid.jl")
 # include("constitutive/willam-warnke.jl")
-include("constitutive/CSCP.jl")
+include("constitutive/UCP.jl")
 
 # Spring, dumper, lumped mass
 include("elements/mech-lumpedmass.jl")

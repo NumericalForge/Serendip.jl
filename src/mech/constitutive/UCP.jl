@@ -21,7 +21,7 @@ tension softening controlled by the fracture energy.
   Uniaxial compressive strength (< 0).
 - `epsc::Real`  
   Strain at the compressive peak (< 0).
-- `n::Real = 4`  
+- `n::Real = 2.2`  
   Shape parameter for the compression hardening/softening curve (n > 1).
 - `ft::Real`  
   Uniaxial tensile strength (> 0).
@@ -72,22 +72,22 @@ mutable struct UCP<:Constitutive
         beta::Real =1.15,
         fc::Real   =NaN,
         epsc::Real =NaN,
-        n::Real    =4.0,
+        n::Real    =2.2,
         ft::Real   =NaN,
         GF::Real   =NaN,
         wc::Real   =NaN,
         p0::Real   =NaN,
         H::Real    =0.0,
     )
-        @check E>0 "UCP: Young's modulus E must be > 0. Got $(repr(E))."
-        @check 0<=nu<0.5 "UCP: Poisson's ratio nu must be in the range [0, 0.5). Got $(repr(nu))."
-        @check 0.2<alpha<=1.0 "UCP: Curvature coefficient alpha must be in the range (0.2, 1.0]. Got $(repr(alpha))."
-        @check 1<=beta<=1.5 "UCP: Factor beta must be in the range [1.0, 1.5]. Got $(repr(beta))."
-        @check fc<0 "UCP: Compressive strength fc must be < 0. Got $(repr(fc))."
-        @check epsc<0 "UCP: Strain at compressive peak epsc must be < 0. Got $(repr(epsc))."
-        @check n>1 "UCP: Shape parameter n must be > 1. Got $(repr(n))."
-        @check ft>0 "UCP: Tensile strength ft must be > 0. Got $(repr(ft))."
-        @check H>=0 "UCP: Plastic modulus H must be >= 0. Got $(repr(H))."
+        @check E>0 "UCP: Young's modulus E must be > 0. Got $E."
+        @check 0<=nu<0.5 "UCP: Poisson's ratio nu must be in the range [0, 0.5). Got $nu."
+        @check 0.2<alpha<=1.0 "UCP: Curvature coefficient alpha must be in the range (0.2, 1.0]. Got $alpha."
+        @check 1<=beta<=1.5 "UCP: Factor beta must be in the range [1.0, 1.5]. Got $beta."
+        @check fc<0 "UCP: Compressive strength fc must be < 0. Got $fc."
+        @check epsc<0 "UCP: Strain at compressive peak epsc must be < 0. Got $epsc."
+        @check n>1 "UCP: Shape parameter n must be > 1. Got $n."
+        @check ft>0 "UCP: Tensile strength ft must be > 0. Got $ft."
+        @check H>=0 "UCP: Plastic modulus H must be >= 0. Got $H."
         @check !isnan(wc) || !isnan(GF) "UCP: Either fracture energy GF or critical crack opening wc must be provided."
 
         α = alpha
@@ -191,8 +191,8 @@ function calc_fc(mat::UCP, εcp::Float64)
     εcp_pk = abs(mat.εc) - abs(fc)/mat.E  # εcp_pk is the compression plastic strain at the peak of the uniaxial compression curve
     χ      = εcp/εcp_pk
     n      = mat.n
-    fc0    = 0.4*fc
-    fcr    = 0.5*fc
+    fc0    = 0.35*fc
+    fcr    = 0.1*fc
 
     if εcp < 0.0
         fc_cur = fc0

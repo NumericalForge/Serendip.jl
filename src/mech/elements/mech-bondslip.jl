@@ -2,6 +2,20 @@
 
 export MechBondSlip
 
+"""
+    MechBondSlip(; p)
+
+Create a mechanical line-interface formulation for bond–slip between a rebar and surrounding material.
+
+# Arguments
+- `p::Real`: rebar perimeter (length).
+
+# Behavior
+- Pair with a bond–slip constitutive model.
+
+# Returns
+- A `MechBondSlip` object.
+"""
 mutable struct MechBondSlip<:MechFormulation
     p::Float64
 

@@ -108,6 +108,10 @@ function elem_stiffness(elem::Element{MechBulk})
         @mul J = C'*dNdR
         @mul dNdX = dNdR*inv(J)
         detJ = det(J)
+        if detJ<=0
+            @show elem.id
+            @show detJ
+        end
         detJ > 0.0 || error("Negative Jacobian determinant in cell $(elem.id)")
         setB(elem, ip, dNdX, B)
 

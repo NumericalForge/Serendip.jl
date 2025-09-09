@@ -2,6 +2,105 @@
 
 export MohrCoulombCohesive
 
+
+"""
+    MohrCoulombCohesive(; E, nu=0.0, ft, GF, wc, mu, softening=:hordijk, zeta=5.0)
+
+Constitutive model for cohesive elements with a Mohr–Coulomb (MC) strength criterion.  
+The tensile softening branch is regularized through a measure of the
+bulk element size `h` to ensure mesh-objective fracture energy dissipation.
+
+# Keyword arguments
+- `E::Real`:  
+  Young’s modulus from the bulk material (must be > 0).
+- `nu::Real`:  
+  Poisson’s ratio (0 ≤ ν < 0.5).
+- `ft::Real`:  
+  Tensile strength (>= 0).
+- `wc::Real`:  
+  Critical crack opening (must be > 0 if given). Can be specified alternatively to `GF`.
+- `mu::Real`:  
+  Friction coefficient (> 0).
+- `GF::Real`:  
+  Fracture energy (must be > 0 if given). Can be specified alternatively to `wc`.
+- `softening::Symbol = :hordijk`:  
+  Softening law for post-peak tensile response. Options are:
+  `:linear`, `:bilinear`, `:hordijk`, `:soft`.  
+- `zeta::Real = 5.0`:  
+  Factor to control elastic relative displacements in cohesive formulations (≥ 0).
+
+# Returns
+A `MohrCoulombCohesive` object.
+
+# Notes
+- Either `wc` or `GF` must be provided. If only `GF` is given, `wc` is computed
+  internally based on the chosen softening law.
+- The frictional contribution is governed by `mu`.
+- Normal and shear stiffnesses (`kn`, `ks`) are computed from the mechanical properties of
+  the bulk material and the characteristic length `h` of the adjacent bulk elements.
+"""
+mutable struct MohrCoulombCohesive<:Constitutive
+    E  ::Float64
+    ν  ::Float64
+    ft ::Float64
+    wc ::Float64
+    μ  ::Float64
+    softening::Symbol
+    ft_fun::Union{PathFunction,Nothing}
+    ζ  ::Float64
+
+    function MohrCoulombCohesive(; 
+            E::Real=NaN,
+            nu::Real=0.0,
+            ft::Real=NaN,
+            GF::Real=NaN,
+            wc::Real=NaN,
+            mu::Real=NaN,
+            softening::Union{Symbol,PathFunction} = :hordijk,
+
+            zeta::Real=5.0
+        )
+
+        @check E>0 "MohrCoulombCohesive: Young's modulus E must be > 0. Got $(repr(E))."
+        @check 0<=nu<0.5 "MohrCoulombCohesive: Poisson ratio nu must be in the range [0, 0.5). Got $(repr(nu))."
+        @check ft>0 "MohrCoulombCohesive: Tensile strength ft must be > 0. Got $(repr(ft))."
+        @check mu>0 "MohrCoulombCohesive: Friction coefficient mu must be non-negative. Got $(repr(mu))."
+        @check zeta>=0 "MohrCoulombCohesive: Factor zeta must be non-negative. Got $(repr(zeta))."
+       @check softening in (:linear, :bilinear, :hordijk, :soft) || softening isa PathFunction
+
+        ft_fun = nothing
+        if softening isa PathFunction
+            ft_fun = softening
+            softening = :custom
+            ft = softening(0.0)
+            if softening.points[end][2] == 0.0
+                wc = softening.points[end][1]
+            else
+                wc = Inf
+            end
+        else
+            if isnan(wc)
+                isnan(GF) && error("PowerYieldCohesive: wc or GF must be defined when using a predefined softening model")
+                @check GF>0 "PowerYieldCohesive: GF must be positive. Got GF=$GF"
+
+                if softening == :linear
+                    wc = round(2*GF/ft, sigdigits=5)
+                elseif softening == :bilinear
+                    wc = round(5*GF/ft, sigdigits=5)
+                elseif softening==:hordijk
+                    wc = round(GF/(0.1947019536*ft), sigdigits=5)
+                elseif softening==:soft
+                    wc = round(GF/(0.1947019536*ft), sigdigits=5)
+                end
+            end
+        end
+        @check wc > 0.0 "PowerYieldCohesive: wc must be greater than zero"
+
+        return new(E, nu, ft, wc, mu, softening, ft_fun, zeta)
+    end
+end
+
+
 mutable struct MohrCoulombCohesiveState<:IpState
     ctx::Context
     σ  ::Array{Float64,1} # stress
@@ -17,103 +116,6 @@ mutable struct MohrCoulombCohesiveState<:IpState
         this.up = 0.0
         this.Δλ = 0.0
         this.h  = 0.0
-        return this
-    end
-end
-
-
-"""
-    MohrCoulombCohesive(; E, nu, ft, GF, wc, mu, kn, ks, softening=:hordijk, zeta=5.0)
-
-Constitutive model for cohesive elements with a Mohr–Coulomb (MC) strength criterion.  
-It combines normal and shear stiffness, tensile strength, frictional strength, and a
-softening law that can be defined either by the critical crack opening `wc` or by the
-fracture energy `GF`. The tensile softening branch is regularized through a measure of the
-bulk element size `h` to ensure mesh-objective fracture energy dissipation.
-
-# Keyword arguments
-- `E::Real`  
-  Young’s modulus from the bulk material (must be > 0).
-- `nu::Real`  
-  Poisson’s ratio (0 ≤ ν < 0.5).
-- `ft::Real`  
-  Tensile strength (>= 0).
-- `wc::Real`  
-  Critical crack opening (must be > 0 if given). Can be specified alternatively to `GF`.
-- `mu::Real`  
-  Friction coefficient (> 0).
-- `kn::Real`  
-  Normal stiffness per unit area (> 0). Internally computed in cohesive elements.
-- `ks::Real`  
-  Shear stiffness per unit area (> 0). Internally computed in cohesive elements.
-- `GF::Real`  
-  Fracture energy (must be > 0 if given). Can be specified alternatively to `wc`.
-- `softening::Symbol = :hordijk`  
-  Softening law for post-peak tensile response. Options are:
-  `:linear`, `:bilinear`, `:hordijk`, `:soft`.  
-  The choice determines how `wc` is derived from `GF` when only one is provided.
-- `zeta::Real = 5.0`  
-  Factor to control elastic relative displacements in cohesive formulations (≥ 0).
-
-# Returns
-An `MohrCoulombCohesive` object.
-
-# Notes
-- Either `wc` or `GF` must be provided. If only `GF` is given, `wc` is computed
-  internally based on the chosen softening law.
-- The frictional contribution is governed by `mu`.
-- Normal and shear stiffnesses (`kn`, `ks`) are computed from the mechanical properties of
-  the bulk material and the characteristic length `h` of the adjacent bulk elements.
-"""
-mutable struct MohrCoulombCohesive<:Constitutive
-    E  ::Float64
-    ν  ::Float64
-    ft ::Float64
-    wc ::Float64
-    μ  ::Float64
-    kn ::Float64
-    ks ::Float64
-    softening::Symbol
-    ζ  ::Float64
-
-    function MohrCoulombCohesive(; 
-            E::Real=NaN,
-            nu::Real=NaN,
-            ft::Real=NaN,
-            GF::Real=NaN,
-            wc::Real=NaN,
-            mu::Real=NaN,
-            kn::Real=NaN,
-            ks::Real=NaN,
-            softening::Symbol=:hordijk,
-            zeta::Real=5.0
-        )
-
-        @check E>0 "MohrCoulombCohesive: Young's modulus E must be > 0. Got $(repr(E))."
-        @check 0<=nu<0.5 "MohrCoulombCohesive: Poisson ratio nu must be in the range [0, 0.5). Got $(repr(nu))."
-        @check ft>0 "MohrCoulombCohesive: Tensile strength ft must be > 0. Got $(repr(ft))."
-        @check mu>0 "MohrCoulombCohesive: Friction coefficient mu must be non-negative. Got $(repr(mu))."
-        @check zeta>=0 "MohrCoulombCohesive: Factor zeta must be non-negative. Got $(repr(zeta))."
-        @check !isnan(kn) && kn>0 "MohrCoulombCohesive: Normal stiffness per area kn must be non-negative. Got $(repr(kn))."
-        @check !isnan(kn) && ks>0 "MohrCoulombCohesive: Shear stiffness per area ks must be non-negative. Got $(repr(ks))."
-        @check softening in (:linear, :bilinear, :hordijk, :soft) "MohrCoulombCohesive: Unknown softening model: $softening. Supported models are :linear, :bilinear, :hordijk and :soft."
-
-        @check !isnan(wc) || !isnan(GF) "MohrCoulombCohesive: Either wc or GF must be provided."
-
-        if isnan(wc) 
-            @check GF>0 "MohrCoulombCohesive: Fracture energy GF must be positive. Got $(repr(GF))."
-            if softening == :linear
-                wc = round(2*GF/ft, sigdigits=5)
-            elseif softening == :bilinear
-                wc = round(5*GF/ft, sigdigits=5)
-            elseif softening in (:hordijk, :soft)
-                wc = round(GF/(0.1947019536*ft), sigdigits=5)  
-            end
-        else
-            @check wc>0 "MohrCoulombCohesive: Critical crack opening wc must be positive. Got $(repr(wc))."
-        end
-
-        this = new(E, nu, ft, wc, mu, kn, ks, softening, zeta)
         return this
     end
 end
@@ -210,6 +212,8 @@ function calc_σmax(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, u
             z = 0.0
         end
         σmax = z*mat.ft
+    else
+        σmax = mat.ft_fun(up)
     end
 
     return σmax
@@ -256,6 +260,8 @@ function σmax_deriv(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, 
             dz = 0.0
         end
         dσmax = dz*mat.ft 
+    else
+        dσmax = derive(mat.ft_fun, up)
     end
 
     return dσmax
@@ -263,14 +269,10 @@ end
 
 
 function calc_kn_ks_De(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
-    if mat.kn>0 && mat.ks>0
-        kn = mat.kn
-        ks = mat.ks
-    else
-        kn = mat.E*mat.ζ/state.h
-        G  = mat.E/(2*(1 + mat.ν))
-        ks = G*mat.ζ/state.h
-    end
+
+    kn = mat.E*mat.ζ/state.h
+    G  = mat.E/(2*(1 + mat.ν))
+    ks = G*mat.ζ/state.h
     
     ndim = state.ctx.ndim
     if ndim == 3
@@ -478,28 +480,31 @@ end
 
 function state_values(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
     ndim = state.ctx.ndim
+    σmax = calc_σmax(mat, state, state.up)
+    τ = norm(state.σ[2:ndim])
     if ndim == 3
         return Dict(
-            :jw  => state.w[1] ,
-            :jw2  => state.w[2] ,
-            :jw3  => state.w[3] ,
-            :jσn  => state.σ[1] ,
-            :js2  => state.σ[2] ,
-            :js3  => state.σ[3] ,
-            :jup => state.up
-        )
+            :w => state.w[1],
+            :σn => state.σ[1],
+            :τ  => τ,
+            :s2 => state.σ[2],
+            :s3 => state.σ[3],
+            :up => state.up,
+            :σmax => σmax
+          )
     else
         return Dict(
-            :jw  => state.w[1] ,
-            :jw2  => state.w[2] ,
-            :jσn  => state.σ[1] ,
-            :js2  => state.σ[2] ,
-            :jup => state.up
+            :w => state.w[1],
+            :σn => state.σ[1],
+            :τ  => τ,
+            :s2 => state.σ[2],
+            :up => state.up,
+            :σmax => σmax
         )
     end
 end
 
 
 function output_keys(mat::MohrCoulombCohesive)
-    return Symbol[:jw, :jσn, :jup]
+    return Symbol[:w, :σn, :τ, :up]
 end
