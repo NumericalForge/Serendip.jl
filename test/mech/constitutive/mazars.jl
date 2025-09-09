@@ -39,7 +39,7 @@ addstage!(ana, bcs, nincs=100, nouts=10)
 if @isdefined(makeplots) && makeplots
     using PyPlot
     tab = log2.table
-    #plot(tab[:ezz], tab[:szz], marker="o")
-    plot(tab[:uz], tab[:fz], marker="o")
+    #plot(tab[:ezz], tab[:szz], mark="o")
+    plot(tab[:uz], tab[:fz], mark="o")
     show()
 end

@@ -1,25 +1,25 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 const _line_style_list = [:none, :solid, :dot, :dash, :dashdot]
-const _marker_list = [:none, :circle, :square, :triangle, :utriangle, :cross, :xcross, :diamond, :pentagon, :hexagon, :star]
+const _mark_list = [:none, :circle, :square, :triangle, :utriangle, :cross, :xcross, :diamond, :pentagon, :hexagon, :star]
 
 
-# Marker_params = [
-#     FunInfo(:Marker, "Creates a customizable `Marker` instance to be used in a `DataSeries`"),
-#     ArgInfo(:shape, "Shape of the marker"),
-#     KwArgInfo(:size, "Size of the marker", 2.5, cond=:(size>0)),
-#     KwArgInfo(:color, "Color of the marker", :white),
-#     KwArgInfo(:stroke_color, "Stroke color of the marker", :default),
+# Mark_params = [
+#     FunInfo(:Mark, "Creates a customizable `Mark` instance to be used in a `DataSeries`"),
+#     ArgInfo(:shape, "Shape of the mark"),
+#     KwArgInfo(:size, "Size of the mark", 2.5, cond=:(size>0)),
+#     KwArgInfo(:color, "Color of the mark", :white),
+#     KwArgInfo(:stroke_color, "Stroke color of the mark", :default),
 # ]
 
-mutable struct Marker
+mutable struct Mark
     shape::Symbol
     size::Float64
     color::Union{Symbol,Tuple}
     stroke_color::Union{Symbol,Tuple}
 
-    function Marker(shape::Symbol; args...)
-        args = checkargs([shape], args, Marker_params, aliens=false)
+    function Mark(shape::Symbol; args...)
+        args = checkargs([shape], args, Mark_params, aliens=false)
         return new(shape, args.size, args.color, args.stroke_color)
     end
 end
@@ -33,10 +33,10 @@ end
 #     KwArgInfo(:dash, "Dash pattern", Float64[]),
 #     KwArgInfo(:color, "Line color", :default),
 #     KwArgInfo((:line_width, :lineweight), "Edge weight", 0.5, cond=:(line_width>0)),
-#     KwArgInfo(:marker, "Marker shape", :none,  values=_marker_list),
-#     KwArgInfo((:marker_size, :ms), "Marker size", 2.5, cond=:(marker_size>0)),
-#     KwArgInfo((:marker_color, :mc), "Marker color", :white),
-#     KwArgInfo((:marker_stroke_color, :marker_stroke_color, :msc), "Marker stroke color", :default),
+#     KwArgInfo(:mark, "Mark shape", :none,  values=_mark_list),
+#     KwArgInfo((:mark_size, :ms), "Mark size", 2.5, cond=:(mark_size>0)),
+#     KwArgInfo((:mark_color, :mc), "Mark color", :white),
+#     KwArgInfo((:mark_stroke_color, :mark_stroke_color, :msc), "Mark stroke color", :default),
 #     KwArgInfo(:label, "Data series label in legend", ""),
 #     KwArgInfo(:tag, "Data series tag over line", ""),
 #     KwArgInfo(:tag_position, "Tag position", 0.5),
@@ -59,10 +59,10 @@ mutable struct DataSeries
     line_width    ::Float64
     color::Union{Symbol,Color}
     dash  ::Vector{Float64}
-    marker::Symbol
-    marker_size::Float64
-    marker_color::Union{Symbol,Color}
-    marker_stroke_color::Union{Symbol,Color}
+    mark::Symbol
+    mark_size::Float64
+    mark_color::Union{Symbol,Color}
+    mark_stroke_color::Union{Symbol,Color}
     label ::AbstractString
     tag::AbstractString
     tag_location::Symbol
@@ -75,8 +75,8 @@ mutable struct DataSeries
                             line_width=0.5,
                             color=:default,
                             dash=Float64[],
-                            marker=:none, marker_size=2.5,
-                            marker_color=:white, marker_stroke_color=:default,
+                            mark=:none, mark_size=2.5,
+                            mark_color=:white, mark_stroke_color=:default,
                             label="", tag="", tag_location=:top, tag_position=0.5,
                             tag_alignment=:horizontal,
                             order=0
@@ -84,11 +84,11 @@ mutable struct DataSeries
         @check kind in [:line, :scatter, :bar, :area] "Invalid data series kind: $(repr(kind))"
         @check length(X)==length(Y) "Length of X and Y arrays must be equal"
         @check line_style in _line_style_list "Invalid line style: $(repr(line_style))"
-        @check marker in _marker_list "Invalid marker shape: $(repr(marker))"
+        @check mark in _mark_list "Invalid mark shape: $(repr(mark))"
         @check tag_location in [:bottom, :top, :left, :right] "Invalid tag location: $(repr(tag_location))"
         @check tag_alignment in [:horizontal, :vertical, :parallel] "Invalid tag alignment: $(repr(tag_alignment))"
         @check line_width > 0 "Line width must be greater than zero"
-        @check marker_size > 0 "Marker size must be greater than zero"
+        @check mark_size > 0 "Mark size must be greater than zero"
 
 
         if color != :default && color isa Symbol
@@ -97,16 +97,16 @@ mutable struct DataSeries
             color = Color(color)
         end
 
-        if marker_color != :default && marker_color isa Symbol
-            marker_color = Color(marker_color)
-        elseif marker_color isa Tuple
-            marker_color = Color(marker_color)
+        if mark_color != :default && mark_color isa Symbol
+            mark_color = Color(mark_color)
+        elseif mark_color isa Tuple
+            mark_color = Color(mark_color)
         end
 
-        if marker_stroke_color != :default && marker_stroke_color isa Symbol
-            marker_stroke_color = Color(marker_stroke_color)
-        elseif marker_stroke_color isa Tuple
-            marker_stroke_color = Color(marker_stroke_color)
+        if mark_stroke_color != :default && mark_stroke_color isa Symbol
+            mark_stroke_color = Color(mark_stroke_color)
+        elseif mark_stroke_color isa Tuple
+            mark_stroke_color = Color(mark_stroke_color)
         end
 
         n = min(length(X), length(Y))
@@ -126,7 +126,7 @@ mutable struct DataSeries
         return new(kind, X[1:n], Y[1:n],
                     line_style, line_width, color,
                     dash,
-                    marker, marker_size, marker_color, marker_stroke_color,
+                    mark, mark_size, mark_color, mark_stroke_color,
                     label, tag, tag_location, tag_position, tag_alignment,
                     order)
     end
@@ -136,11 +136,6 @@ end
 function DataSereies(X::AbstractArray, Y::AbstractArray; args...)
     return DataSeries(:line, X, Y; args...)
 end
-
-
-# function DataSeries(; args...)
-#     return DataSeries(Float64[], Float64[]; args...)
-# end
 
 
 function draw_polygon(cc::CairoContext, x, y, n, length, color, strokecolor; angle=0)
@@ -195,31 +190,31 @@ function draw_star(cc::CairoContext, x, y, n, length, color, strokecolor; angle=
 end
 
 
-function draw_marker(cc::CairoContext, x, y, marker, size, color, strokecolor)
+function draw_mark(cc::CairoContext, x, y, mark, size, color, strokecolor)
     radius = size/2
     new_path(cc)
 
-    if marker==:circle
+    if mark==:circle
         arc(cc, x, y, radius, 0, 2*pi)
         set_source_rgb(cc, rgb(color)...)
         fill_preserve(cc)
         set_source_rgb(cc, rgb(strokecolor)...)
         stroke(cc)
-    elseif marker==:square
+    elseif mark==:square
         draw_polygon(cc, x, y, 4, 1.2*radius, color, strokecolor, angle=45)
-    elseif marker==:diamond
+    elseif mark==:diamond
         draw_polygon(cc, x, y, 4, 1.2*radius, color, strokecolor, angle=0)
-    elseif marker==:triangle
+    elseif mark==:triangle
         draw_polygon(cc, x, y, 3, 1.3*radius, color, strokecolor, angle=0)
-    elseif marker==:utriangle
+    elseif mark==:utriangle
         draw_polygon(cc, x, y, 3, 1.3*radius, color, strokecolor, angle=180)
-    elseif marker==:pentagon
+    elseif mark==:pentagon
         draw_polygon(cc, x, y, 5, 1.1*radius, color, strokecolor, angle=0)
-    elseif marker==:hexagon
+    elseif mark==:hexagon
         draw_polygon(cc, x, y, 6, 1.1*radius, color, strokecolor, angle=0)
-    elseif marker==:star
+    elseif mark==:star
         draw_star(cc, x, y, 5, 1.25*radius, color, strokecolor, angle=0)
-    elseif marker==:cross
+    elseif mark==:cross
         radius = 1.35*radius
         set_line_width(cc, radius/3)
         move_to(cc, x, y-radius)
@@ -228,7 +223,7 @@ function draw_marker(cc::CairoContext, x, y, marker, size, color, strokecolor)
         move_to(cc, x-radius, y)
         line_to(cc, x+radius, y)
         stroke(cc)
-    elseif marker==:xcross
+    elseif mark==:xcross
         radius = 1.35*radius
         set_line_width(cc, radius/3)
         move_to(cc, x-radius, y-radius)

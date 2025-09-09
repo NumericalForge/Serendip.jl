@@ -41,9 +41,9 @@ end
 if @isdefined(makeplots) && makeplots
     using PyPlot
     tab = log_edge.table
-    plot(-tab[:uz], -tab[:fz], marker="o", color="blue")
+    plot(-tab[:uz], -tab[:fz], mark="o", color="blue")
     show()
-    #plot(tab[:w], tab[:jσn], marker="o", color="blue")
+    #plot(tab[:w], tab[:jσn], mark="o", color="blue")
     #show()
 end
 

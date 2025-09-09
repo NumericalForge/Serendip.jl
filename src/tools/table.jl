@@ -844,7 +844,6 @@ end
 
 function DataTable(filename::String, delim::Char='\t')
     _, format = splitext(filename)
-    @show filename
     formats = (".dat", ".table", ".csv")
     format in formats || error("DataTable: cannot read \"$format\". Suitable formats are $formats")
 

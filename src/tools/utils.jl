@@ -63,7 +63,7 @@ end
 function alert(xs...; level=2)
     msg = join(string.(xs))
     msg = wrap(msg, level=level)
-    printstyled("\n", "$msg\e[K\n", color=:light_red)
+    printstyled("\r", "$msg\e[K\n", color=:light_red)
 end
 
 

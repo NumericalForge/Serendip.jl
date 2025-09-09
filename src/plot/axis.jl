@@ -44,15 +44,15 @@ mutable struct Axis<:FigureComponent
     function Axis(;
         direction::Symbol=:horizontal,
         location::Symbol=:none,
-        limits::Vector{Float64}=[0.0, 0.0],
+        limits::Vector{<:Real}=[0.0, 0.0],
         label::AbstractString="",
         font::String="NewComputerModern",
-        font_size::Float64=7.0,
-        ticks::AbstractArray=Float64[],
+        font_size::Real=7.0,
+        ticks::AbstractArray=Real[],
         tick_labels::AbstractArray=String[],
-        tick_length::Float64=3.0,
+        tick_length::Real=3.0,
         bins::Int=6,
-        mult::Float64=1.0,
+        mult::Real=1.0,
         )
 
         if location==:none

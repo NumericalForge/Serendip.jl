@@ -44,11 +44,11 @@ add_mapping(mapper, "joint", MechInterface, LinearInterface, ks=1e8, kn=1e8)
     #     table = log1.table
 
     #     chart = Chart(; xlabel=L"$u_p$", ylabel=L"\sigma")
-    #     addplot!(chart, LinePlot(table[:jup], table[:jσn], marker=:circle))
+    #     addplot!(chart, LinePlot(table[:jup], table[:jσn], mark=:circle))
     #     save(chart, "up-sn.pdf")
 
     #     chart = Chart(; xlabel=L"\sigma_n", ylabel=L"\tau")
-    #     addplot!(chart, LinePlot(table[:jσn], table[:js2], marker=:circle))
+    #     addplot!(chart, LinePlot(table[:jσn], table[:js2], mark=:circle))
     #     save(chart, "sn-tau.pdf")
 
     # end

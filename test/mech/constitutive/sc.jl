@@ -57,14 +57,14 @@ bcs = [
 if @isdefined(makeplots) && makeplots
     using PyPlot
     tab = log_face.table
-    plot(log_n5.table[:ux] - log_n3.table[:ux], log_face.table[:fy],  marker="o", color="blue")
+    plot(log_n5.table[:ux] - log_n3.table[:ux], log_face.table[:fy],  mark="o", color="blue")
     show()
 
     #tab = log_ip.table
-    #plot(tab[:w], tab[:jσn], marker="o", color="blue")
+    #plot(tab[:w], tab[:jσn], mark="o", color="blue")
     #show()
-    #plot(tab[:up], tab[:s3], marker="o", color="blue")
+    #plot(tab[:up], tab[:s3], mark="o", color="blue")
     #show()
-    #plot(tab[:jσn], tab[:s3], marker="o", color="blue")
+    #plot(tab[:jσn], tab[:s3], mark="o", color="blue")
     #show()
 end

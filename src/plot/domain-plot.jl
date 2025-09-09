@@ -534,7 +534,8 @@ function draw!(mplot::DomainPlot, ctx::CairoContext)
         # culling back faces
         if elem.owner !== nothing && mplot.view_mode in (:surface, :surface_with_edges)
             if elem.owner.shape.ndim==3
-                !iscounterclockwise( elem.nodes ) && continue
+                nnodes_basic = elem.shape.base_shape.npoints
+                !iscounterclockwise( elem.nodes[1:nnodes_basic] ) && continue
             end
         end
 

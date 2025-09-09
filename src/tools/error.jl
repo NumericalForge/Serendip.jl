@@ -24,6 +24,8 @@ Base.showerror(io::IO, e::SerendipException) = printstyled(io, "SerendipExceptio
 
 macro check(expr, args...)
     exception = ArgumentError
+
+    # Default message
     if length(args)==0
         msg = "Condition `$expr` is not satisfied"
     elseif length(args)==1
@@ -39,10 +41,31 @@ macro check(expr, args...)
         error("Invalid number of arguments for @check macro. Expected 0, 1, or 2 arguments, got $(length(args))")
     end
 
-    return quote
-        if !$(esc(expr)) # Eval boolean expression
-            msg = $(esc(msg))
-            throw($(exception)(msg))
+    ex = Expr(:block)
+
+    # For the case of NaN on parameters
+    if expr.head == :call && expr.args[2] isa Symbol && expr.args[1] in (:<, :<=, :>, :>=, :(==), :!=) && expr.args[3] isa Number
+        param = expr.args[2]
+        msg_nan = "Parameter $param was not provided."
+        m = match(r"^(\"?[A-Za-z]\w+)(?=:)", string(msg)) # get the function name if any
+        if m !== nothing
+            msg = m.match * ": " * msg_nan
         end
+
+        push!(ex.args, :( 
+            if isnan($(esc(param))) 
+                msg = $(esc(msg_nan))
+                throw($(exception)(msg)) 
+            end )
+        )
     end
+
+    push!(ex.args, :( 
+        if !$(esc(expr)) # Eval boolean expression 
+            msg = $(esc(msg)) 
+            throw($(exception)(msg)) 
+        end )
+    )
+
+    return ex
 end

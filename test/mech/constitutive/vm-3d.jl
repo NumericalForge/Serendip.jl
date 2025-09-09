@@ -37,6 +37,6 @@ if @isdefined(makeplots) && makeplots
         xlabel = "Displacement uz [m]",
         ylabel = "Force fz [kN]",
     )
-    add_series(chart, -tab["uz"], -tab["fz"], marker=:circle)
+    add_series(chart, -tab["uz"], -tab["fz"], mark=:circle)
     save(chart, "vm-3d.pdf")
 end

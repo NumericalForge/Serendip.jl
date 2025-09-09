@@ -1,54 +1,6 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 """
-    Chart(; kwargs...)
-
-Creates a customizable `Chart` instance for plotting data with labeled axes,
-legends, ticks, and optional colorbar support.
-
-# Parameters
-- `size::Tuple{Int,Int}=(220,150)` : Chart drawing size in pt. 1 cm = 28.35 pt.
-- `font::AbstractString="NewComputerModern"` : Font family for axis and legend text.
-- `font_size::Float64=7.0` : Font size for axis labels and ticks.
-- `xlimits, xlims::Vector{Float64}` : Limits of the x-axis `[xmin, xmax]`.
-- `ylimits, ylims::Vector{Float64}` : Limits of the y-axis `[ymin, ymax]`.
-- `aspect_ratio::Symbol` : Ratio of y-unit to x-unit (`:auto` or `:equal`, default = `:auto`).
-- `xmult::Float64` : Scaling factor for x-axis values (default = 1.0).
-- `ymult::Float64` : Scaling factor for y-axis values (default = 1.0).
-- `xbins::Int` : Number of tick bins along the x-axis (default = 7).
-- `ybins::Int` : Number of tick bins along the y-axis (default = 6).
-- `xlabel::AbstractString` : Label for the x-axis (default = L"\$x\$").
-- `ylabel::AbstractString` : Label for the y-axis (default = L"\$y\$").
-- `xticks::AbstractArray{Float64}` : Explicit tick positions along the x-axis (default = []).
-- `yticks::AbstractArray{Float64}` : Explicit tick positions along the y-axis (default = []).
-- `xtick_labels::AbstractArray{String}` : Labels for x-axis ticks (default = []).
-- `ytick_labels::AbstractArray{String}` : Labels for y-axis ticks (default = []).
-- `legend::Symbol` : Legend location (`:top_right`, `:top_left`, `:bottom_right`, `:bottom_left`, etc.).
-- `legend_font_size::Union{Float64,Symbol}` : Font size for legend text (> 0, default = `:font_size`).
-- `quiet::Bool` : Suppress console output if `true` (default = `false`).
-
-# Notes
-- A `Chart` manages the figure canvas, axes, legend, data series, and annotations.
-- Axis properties (limits, bins, ticks, labels) are set at initialization but can be modified later.
-- The `legend` is initialized with the chosen font and location.
-- `aspect_ratio=:equal` enforces equal unit length on both axes.
-- If `quiet=false`, chart information is printed to the console at creation.
-
-# Example
-```julia
-ch = Chart(size=(300,200),
-           xlabel="Time [s]",
-           ylabel="Displacement [mm]",
-           xlimits=[0.0,10.0],
-           ylimits=[-5.0,5.0],
-           legend=:bottom_right)
-```
-"""
-
-
-
-
-"""
     Chart(; 
         size=(220,150), font="NewComputerModern", font_size=7.0,
         xlimits, ylimits, aspect_ratio=:auto,
@@ -185,10 +137,10 @@ The second version uses `kind = :line`.
 - `dash::Vector{Float64} = Float64[]` : Custom dash pattern. If nonempty, overrides `line_style`.
 - `color = :default` : Series color. `:default` selects from the chart palette cyclically.
 - `line_width::Float64 = 0.5` : Line width (> 0).
-- `marker::Symbol = :none` : Marker shape.
-- `marker_size::Float64 = 2.5` : Marker size (> 0).
-- `marker_color = :white` : Marker fill color.
-- `marker_stroke_color = :default` : Marker edge color (`:default` follows `color`).
+- `mark::Symbol = :none` : Mark shape.
+- `mark_size::Float64 = 2.5` : Mark size (> 0).
+- `mark_color = :white` : Mark fill color.
+- `mark_stroke_color = :default` : Mark edge color (`:default` follows `color`).
 - `label::AbstractString = ""` : Legend label.
 - `tag::AbstractString = ""` : On-curve annotation text.
 - `tag_location::Symbol = :top` : Relative location of tag (`:top`, `:bottom`, `:left`, `:right`).
@@ -207,7 +159,7 @@ ch = Chart(size=(300,200), xlabel="Time [s]", ylabel="Displacement [mm]",
 add_series(ch, 0:0.1:10, sin.(0:0.1:10); label="sin")
 
 add_series(ch, :scatter, x, y;
-           marker=:circle, marker_size=3,
+           mark=:circle, mark_size=3,
            color=:black, label="samples")
 
 add_series(ch, :bar, 1:5, [2,3,1,4,2]; color=:gray, label="counts")
@@ -217,20 +169,20 @@ function add_series(chart::Chart, kind::Symbol, X::AbstractArray, Y::AbstractArr
     line_style=:solid, dash=Float64[],
     color=:default,
     line_width=0.5,
-    marker=:none, marker_size=2.5,
-    marker_color=:white, marker_stroke_color=:default,
+    mark=:none, mark_size=2.5,
+    mark_color=:white, mark_stroke_color=:default,
     label="", tag="", tag_location=:top, tag_position=0.5,
     tag_alignment=:horizontal,
     order=0
 )
 
     @check line_width > 0 "Line width must be positive"
-    @check marker_size > 0 "Marker size must be positive"
+    @check mark_size > 0 "Mark size must be positive"
     @check tag_position >= 0 && tag_position <= 1 "Tag position must be in [0,1]"
     @check order >= 0 "Order must be non-negative"
     @check kind in (:line, :scatter, :bar) "Invalid series kind: $kind. Use :line, :scatter, or :bar"
     @check length(X) == length(Y) "X and Y must have the same length"
-    @check marker in _marker_list "Invalid marker: $marker. Use one of $_default_markers"
+    @check mark in _mark_list "Invalid mark: $mark. Use one of $_default_marks"
     @check tag_location in (:top, :bottom, :left, :right) "Invalid tag location: $tag_location. Use :top, :bottom, :left, or :right"
     @check tag_alignment in (:horizontal, :vertical, :parallel) "Invalid tag alignment: $tag_alignment. Use :horizontal, :vertical, or :parallel"
 
@@ -238,8 +190,8 @@ function add_series(chart::Chart, kind::Symbol, X::AbstractArray, Y::AbstractArr
         line_style=line_style, dash=dash,
         color=color,
         line_width=line_width,
-        marker=marker, marker_size=marker_size,
-        marker_color=marker_color, marker_stroke_color=marker_stroke_color,
+        mark=mark, mark_size=mark_size,
+        mark_color=mark_color, mark_stroke_color=mark_stroke_color,
         label=label, tag=tag, tag_location=tag_location, tag_position=tag_position,
         tag_alignment=tag_alignment,
         order=order
@@ -494,11 +446,11 @@ end
 
 function draw!(chart::Chart, ctx::CairoContext, p::DataSeries)
 
-    p.marker_color = p.marker_color==:default ? p.color : p.marker_color
-    p.marker_stroke_color = p.marker_stroke_color==:default ? p.color : p.marker_stroke_color
+    p.mark_color = p.mark_color==:default ? p.color : p.mark_color
+    p.mark_stroke_color = p.mark_stroke_color==:default ? p.color : p.mark_stroke_color
 
-    # p.marker_color = get_color(p.marker_color, p.color)
-    # p.marker_stroke_color = get_color(p.marker_stroke_color, p.color)
+    # p.mark_color = get_color(p.mark_color, p.color)
+    # p.mark_stroke_color = get_color(p.mark_stroke_color, p.color)
 
     set_matrix(ctx, CairoMatrix([1, 0, 0, 1, 0, 0]...))
     set_source_rgb(ctx, rgb(p.color)...)
@@ -538,10 +490,10 @@ function draw!(chart::Chart, ctx::CairoContext, p::DataSeries)
         end
     end
 
-    # Draw markers
+    # Draw marks
     for (x,y) in zip(X, Y)
         x, y = data2user(chart.canvas, x, y)
-        draw_marker(ctx, x, y, p.marker, p.marker_size, p.marker_color, p.marker_stroke_color)
+        draw_mark(ctx, x, y, p.mark, p.mark_size, p.mark_color, p.mark_stroke_color)
     end
 
     # Draw tag
@@ -708,9 +660,9 @@ function draw!(c::Chart, ctx::CairoContext, legend::Legend)
             set_dash(ctx, Float64[])
         end
 
-        # draw marker
+        # draw mark
         x = x2 + handle_length/2
-        draw_marker(ctx, x, y2, plot.marker, plot.marker_size, plot.marker_color, plot.marker_stroke_color)
+        draw_mark(ctx, x, y2, plot.mark, plot.mark_size, plot.mark_color, plot.mark_stroke_color)
 
         # draw label
         x = x2 + handle_length + 2*inner_pad

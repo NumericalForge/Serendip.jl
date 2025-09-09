@@ -41,7 +41,7 @@ k = table.kappa[end]
 series = [
     DataSeries(ξ0, ρ0, color=:red),
     DataSeries(ξ1, ρ1, color=:blue),
-    DataSeries(table.xi, table.rho, marker=:circle),
+    DataSeries(table.xi, table.rho, mark=:circle),
 ]
 
 add_series(chart, series)
@@ -57,7 +57,7 @@ chart = Chart(
 
 
 series = [
-    DataSeries(table.eyy, table.syy, marker=:circle),
+    DataSeries(table.eyy, table.syy, mark=:circle),
 ]
 
 add_series(chart, series)
@@ -73,7 +73,7 @@ chart = Chart(
 
 
 series = [
-    DataSeries(table.eyy, table.sxx, marker=:circle),
+    DataSeries(table.eyy, table.sxx, mark=:circle),
 ]
 
 add_series(chart, series)
