@@ -60,14 +60,13 @@ mutable struct MohrCoulombCohesive<:Constitutive
 
         zeta::Real=5.0
     )
-
         @check E>0 "MohrCoulombCohesive: Young's modulus E must be > 0. Got $(repr(E))."
         @check 0<=nu<0.5 "MohrCoulombCohesive: Poisson ratio nu must be in the range [0, 0.5). Got $(repr(nu))."
         @check ft>0 "MohrCoulombCohesive: Tensile strength ft must be > 0. Got $(repr(ft))."
         @check mu>0 "MohrCoulombCohesive: Friction coefficient mu must be non-negative. Got $(repr(mu))."
         @check zeta>=0 "MohrCoulombCohesive: Factor zeta must be non-negative. Got $(repr(zeta))."
 
-        wc, ft_law, ft_fun, status = setup_tensile_strength(ft, ft_law, GF, wc)
+        wc, ft_law, ft_fun, status = setup_tensile_strength(ft,  GF, wc, ft_law)
         failed(status) && throw(ArgumentError("MohrCoulombCohesive: " * status.message))
 
         return new(E, nu, ft, wc, mu, ft_law, ft_fun, zeta)
@@ -101,7 +100,7 @@ compat_state_type(::Type{MohrCoulombCohesive}, ::Type{MechInterface}, ctx::Conte
 
 function yield_func(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σ::Array{Float64,1})
     ndim = state.ctx.ndim
-    σmax = calc_σmax(mat, state, state.up)
+    σmax = calc_σmax(mat, state.up)
     if ndim == 3
         return sqrt(σ[2]^2 + σ[3]^2) + (σ[1]-σmax)*mat.μ
     else
@@ -143,14 +142,14 @@ function potential_derivs(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveSt
 end
 
 
-function calc_σmax(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, up::Float64)
-    return calc_tensile_strength(mat.ft, mat.ft_law, mat.ft_fun, mat.wc, up)
+function calc_σmax(mat::MohrCoulombCohesive, up::Float64)
+    return calc_tensile_strength(mat, up)
 end
 
 
-function deriv_σmax_upa(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, up::Float64)
+function deriv_σmax_upa(mat::MohrCoulombCohesive, up::Float64)
     # ∂σmax/∂up
-    return calc_tensile_strength_derivative(mat.ft, mat.ft_law, mat.ft_fun, mat.wc, up)
+    return calc_tensile_strength_derivative(mat, up)
 end
 
 
@@ -212,8 +211,8 @@ function calc_Δλ(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σ
         r        = potential_derivs(mat, state, σ)
         norm_r   = norm(r)
         up       = state.up + Δλ*norm_r
-        σmax     = calc_σmax(mat, state, up)
-        m        = deriv_σmax_upa(mat, state, up)
+        σmax     = calc_σmax(mat, up)
+        m        = deriv_σmax_upa(mat, up)
         dσmaxdΔλ = m*(norm_r + Δλ*dot(r/norm_r, drdΔλ))
 
         if ndim == 3
@@ -273,7 +272,7 @@ end
 function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
     ndim = state.ctx.ndim
     kn, ks, De = calc_kn_ks_De(mat, state)
-    σmax = calc_σmax(mat, state, state.up)
+    σmax = calc_σmax(mat, state.up)
 
     if state.Δλ == 0.0  # Elastic 
         return De
@@ -287,7 +286,7 @@ function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
         v    = yield_deriv(mat, state)
         r    = potential_derivs(mat, state, state.σ)
         y    = -mat.μ # ∂F/∂σmax
-        m    = deriv_σmax_upa(mat, state, state.up)  # ∂σmax/∂up
+        m    = deriv_σmax_upa(mat, state.up)  # ∂σmax/∂up
 
         #Dep  = De - De*r*v'*De/(v'*De*r - y*m*norm(r))
 
@@ -314,7 +313,7 @@ function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState,
     σini = copy(state.σ)
 
     kn, ks, De = calc_kn_ks_De(mat, state)
-    σmax = calc_σmax(mat, state, state.up)  
+    σmax = calc_σmax(mat, state.up)  
 
     if isnan(Δw[1]) || isnan(Δw[2])
         alert("MohrCoulombCohesive: Invalid value for joint displacement: Δw = $Δw")
@@ -366,7 +365,7 @@ end
 
 function state_values(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
     ndim = state.ctx.ndim
-    σmax = calc_σmax(mat, state, state.up)
+    σmax = calc_σmax(mat, state.up)
     τ = norm(state.σ[2:ndim])
     if ndim == 3
         return Dict(

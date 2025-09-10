@@ -55,7 +55,6 @@ mutable struct WillamWarnke<:Constitutive
     fc_fun::Union{Nothing,AbstractSpline}
     fb::Float64
     e::Float64
-    ᾱ::Float64
 
     function WillamWarnke(;
         E::Real    = NaN,
@@ -66,41 +65,20 @@ mutable struct WillamWarnke<:Constitutive
         ft::Real   = NaN,
         GF::Real   = NaN,
         wc::Real   = NaN,
-        ft_law     = :hordijk,
-        fc_law     = :popovics,
+        ft_law     = :constant,
+        fc_law     = :constant,
         beta::Real = 1.15,
     )
         @check E>0 "WillamWarnke: Young's modulus E must be > 0. Got $E."
         @check 0<=nu<0.5 "WillamWarnke: Poisson's ratio nu must be in the range [0, 0.5). Got $nu."
         @check 1<=beta<=1.5 "WillamWarnke: Factor beta must be in the range [1.0, 1.5]. Got $beta."
-        @check fc<0 "WillamWarnke: Compressive strength fc must be < 0. Got $fc."
-        @check epsc<0 "WillamWarnke: Strain at compressive peak epsc must be < 0. Got $epsc."
         @check eta>1 "WillamWarnke: Shape parameter eta must be > 1. Got $eta."
-        @check ft>0 "WillamWarnke: Tensile strength ft must be > 0. Got $ft."
-        @check ft_law in (:hordijk,) "WillamWarnke: ft_law must be :hordijk or a custom function. Got $ft_law."
-        @check fc_law in (:popovics,) "WillamWarnke: fc_law must be :popovics or a custom function. Got $fc_law."
-        @check !isnan(wc) || !isnan(GF) "WillamWarnke: Either fracture energy GF or critical crack opening wc must be provided."
 
-        ft_fun = nothing
-        if ft_law isa AbstractSpline
-            ft_fun = ft_law
-            ft_law = :custom
-            ft     = ft_law(0.0)
-            if ft_law.points[end][2] == 0.0
-                wc = ft_law.points[end][1]
-            else
-                wc = Inf
-            end
-        else
-            if isnan(wc)
-                isnan(GF) && error("WillamWarnke: wc or GF must be defined when using a predefined ft_law model")
-                @check GF>0 "WillamWarnke: GF must be positive. Got GF=$GF"
+        wc, ft_law, ft_fun, status = setup_tensile_strength(ft, GF, wc, ft_law)
+        failed(status) && throw(ArgumentError("WillamWarnke: " * status.message))
 
-                # hordijk law
-                wc = round(GF/(0.1947*ft), sigdigits=5)
-            end
-        end
-        @check wc > 0.0 "WillamWarnke: wc must be greater than zero"
+        fc_law, fc_fun, status = setup_compressive_strength(fc, epsc, fc_law)
+        failed(status) && throw(ArgumentError("WillamWarnke: " * status.message))
 
         fc_fun = nothing
         if fc_law isa AbstractSpline
@@ -116,7 +94,7 @@ mutable struct WillamWarnke<:Constitutive
         @assert 0<e<=1
 
 
-        this = new(E, nu, fc, epsc, eta, ft, wc, ft_law, ft_fun, fc_law, fc_fun, fb, e, ᾱ)
+        this = new(E, nu, fc, epsc, eta, ft, wc, ft_law, ft_fun, fc_law, fc_fun, fb, e)
         return this
     end
 end
@@ -172,42 +150,18 @@ function calc_rθ(mat::WillamWarnke, σ::Vec6)
     return r
 end
 
+
 function calc_fc(mat::WillamWarnke, εcp::Float64)
-    fc     = mat.fc
-    εcp_pk = abs(mat.εc) - abs(fc)/mat.E  # εcp_pk is the compression plastic strain at the peak of the uniaxial compression curve
-    χ      = εcp/εcp_pk
-    η      = mat.η
-    fc0    = 0.35*fc
-    fcr    = 0.1*fc
-
-    if mat.fc_law==:popovics
-        if εcp < εcp_pk
-            # before peak
-            return fc0 + (fc - fc0) * η * χ/(η - 1 + χ^η)
-        else
-            # after peak
-            return fcr + (fc - fcr) * η * χ/(η - 1 + χ^η)
-        end
-    else
-        return mat.fc_fun(εcp)
-    end
-
+    fc0 = 0.35*mat.fc
+    fcr = 0.1*mat.fc
+    return calc_compressive_strength(mat, fc0, fcr, εcp)
 end
 
 
 function calc_ft(mat::WillamWarnke, w::Float64)
-    if mat.ft_law==:hordijk
-        wc = mat.wc
-        if w < wc
-            z = (1 + 27*(w/wc)^3)*exp(-6.93*w/wc) - 28*(w/wc)*exp(-6.93)
-        else
-            z = 0.0
-        end
-        return z*mat.ft
-    else
-        return mat.ft_fun(w)
-    end
+    return calc_tensile_strength(mat, w)
 end
+
 
 function calc_ξ0_κ(mat::WillamWarnke, state::WillamWarnkeState, εtp::Float64, εcp::Float64)
 
@@ -239,7 +193,7 @@ function yield_func(mat::WillamWarnke, state::WillamWarnkeState, σ::AbstractArr
 end
 
 
-function yield_derivs(mat::WillamWarnke, state::WillamWarnkeState, σ::AbstractArray, εpa::Float64)
+function yield_derivs(mat::WillamWarnke, state::WillamWarnkeState, σ::AbstractArray, εtp::Float64, εcp::Float64)
 
     e = mat.e
     i1, j2 = tr(σ), J2(σ)
@@ -273,9 +227,9 @@ function yield_derivs(mat::WillamWarnke, state::WillamWarnkeState, σ::AbstractA
 
     # f derivatives
     dfdρ  = 1.0
-    dfdξ  = κ*r
-    dfdrθ = κ*(ξmax - ξ)
-    dfdθ  = dfdrθ*drdθ
+    dfdξ  = κ*rθ
+    dfdrθ = κ*(ξ0 - ξ)
+    dfdθ  = dfdrθ*drθdθ
 
     dρdσ = s/norm(s)
     dξdσ = √3/3*I2
@@ -288,22 +242,20 @@ function yield_derivs(mat::WillamWarnke, state::WillamWarnkeState, σ::AbstractA
         dfdσ = dfdρ*dρdσ + dfdξ*dξdσ + dfdθ*dθdσ
     end
 
-    f_εcp  = εcp -> yield_func(mat, state, σ, εtp, εcp, εvp)
+    f_εcp  = εcp -> yield_func(mat, state, σ, εtp, εcp)
     dfdεcp = derive(f_εcp, εcp)
 
-    f_εtp  = εtp -> yield_func(mat, state, σ, εtp, εcp, εvp)
+    f_εtp  = εtp -> yield_func(mat, state, σ, εtp, εcp)
     dfdεtp = derive(f_εtp, εtp)
 
     return dfdσ, dfdεtp, dfdεcp
 end
 
 
-function potential_derivs(mat::WillamWarnke, state::WillamWarnkeState, σ::AbstractArray)
+function potential_derivs(mat::WillamWarnke, state::WillamWarnkeState, σ::AbstractArray, εtp::Float64, εcp::Float64)
     # g(σ) = ρ - (ξ0-ξ)⋅κ Drucker-Prager like surface
 
     ξ0, κ = calc_ξ0_κ(mat, state, εtp, εcp)
-
-
 
     # ᾱ = mat.ᾱ
     s = dev(σ)
@@ -354,8 +306,8 @@ function calc_σ_εp_Δλ(mat::WillamWarnke, state::WillamWarnkeState, σtr::Vec
 
     # iterative process
     for i in 1:maxits
-        dfdσ, _ = yield_derivs(mat, state, σ, εtp, εcp, εvp)
-        dgdσ    = potential_derivs(mat, state, σ, εtp, εcp, εvp)
+        dfdσ, _ = yield_derivs(mat, state, σ, εtp, εcp)
+        dgdσ    = potential_derivs(mat, state, σ, εtp, εcp)
         dfdΔλ   = -dfdσ'*De*dgdσ
 
         Δλ = Δλ - η*f/dfdΔλ
@@ -365,7 +317,7 @@ function calc_σ_εp_Δλ(mat::WillamWarnke, state::WillamWarnkeState, σtr::Vec
         end
 
         if isnan(Δλ)
-            return state.σ, 0.0, 0.0, 0.0, 0.0, failure("WillamWarnke: Δλ is NaN")
+            return state.σ, 0.0, 0.0, 0.0, failure("WillamWarnke: Δλ is NaN")
         end
 
         σ  = σtr - Δλ*(De*dgdσ)
@@ -388,8 +340,10 @@ function calc_σ_εp_Δλ(mat::WillamWarnke, state::WillamWarnkeState, σtr::Vec
         i>15 && (η = 0.3)
     end
 
-    return state.σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: maximum iterations reached")
+    return state.σ, 0.0, 0.0, 0.0, failure("WillamWarnke: maximum iterations reached")
 end
+
+
 # function calc_σ_εpa_Δλ(mat::WillamWarnke, state::WillamWarnkeState, σtr::Vec6)
 
 #     α  = mat.α
@@ -409,12 +363,12 @@ end
 #     ξtr   = tr(σtr)/√3
 #     ρtr   = n_str
 #     r     = calc_rθ(mat, σtr)
-#     ξmax  = calc_ξmax(mat, state.εpa)
+#     ξ0  = calc_ξmax(mat, state.εpa)
 
 #     # iterative process since θ is unknown at step η+1
 #     for i in 1:maxits
 
-#         numΔλ = ρtr - α*r*(ξmax - ξtr)
+#         numΔλ = ρtr - α*r*(ξ0 - ξtr)
 #         denΔλ = 2*G + 3*α*ᾱ*K*r
 
 #         Δλ = numΔλ/denΔλ
@@ -429,10 +383,10 @@ end
 #         εpa = state.εpa + Δλ*√(1 + ᾱ^2)
 #         ρ   = ρtr - 2*G*Δλ
 #         r   = calc_rθ(mat, σ)
-#         ξmax = calc_ξmax(mat, εpa)
+#         ξ0 = calc_ξmax(mat, εpa)
 
 #         # yield function at η+1
-#         f = ρ - r*α*(ξmax - ξ)
+#         f = ρ - r*α*(ξ0 - ξ)
 
 #         if abs(f) < tol
 #             @assert Δλ >= 0.0
@@ -461,7 +415,7 @@ end
 #     str = dev(σtr)
 #     n_str = norm(str)
 #     r     = calc_rθ(mat, σtr)
-#     ξmax  = calc_ξmax(mat, state.εpa)
+#     ξ0  = calc_ξmax(mat, state.εpa)
 
 #     # estimative of Δλ
 #     # dgdσ = potential_derivs(mat, state, σtr)
@@ -469,7 +423,7 @@ end
 
 #     # str   = dev(σtr)
 #     ρtr   = n_str
-#     numΔλ = ρtr - α*r*(ξmax - ξtr)
+#     numΔλ = ρtr - α*r*(ξ0 - ξtr)
 #     denΔλ = 2*G + 3*α*ᾱ*K*r
 #     Δλ0 = numΔλ/denΔλ
 

@@ -85,7 +85,7 @@ mutable struct PowerYieldCohesive<:Constitutive
         @check theta >= 0.0 "PowerYieldCohesive: theta must be non-negative. Got $(repr(theta))."
         @check ft_law in (:linear, :bilinear, :hordijk, :soft) || ft_law isa AbstractSpline "PowerYieldCohesive: Unknown ft_law model: $ft_law. Supported models are :linear, :bilinear, :hordijk, :soft or a custom AbstractSpline."
 
-        wc, ft_law, ft_fun, status = setup_tensile_strength(ft, ft_law, GF, wc)
+        wc, ft_law, ft_fun, status = setup_tensile_strength(ft,  GF, wc, ft_law)
         failed(status) && throw(ArgumentError("PowerYieldCohesive: " * status.message))
 
         a     = (2*alpha*ft + alpha*fc - fc - √(alpha^2*fc^2 - 4*alpha^2*fc*ft + 4*alpha^2*ft^2 - 2*alpha*fc^2 + fc^2)) / (4*alpha-2)
@@ -198,14 +198,14 @@ function potential_derivs(mat::PowerYieldCohesive, state::PowerYieldCohesiveStat
 end
 
 
-function calc_σmax(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, up::Float64)
-    return calc_tensile_strength(mat.ft, mat.ft_law, mat.ft_fun, mat.wc, up)
+function calc_σmax(mat::PowerYieldCohesive, up::Float64)
+    return calc_tensile_strength(mat, up)
 end
 
 
-function deriv_σmax_upa(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, up::Float64)
+function deriv_σmax_upa(mat::PowerYieldCohesive, up::Float64)
     # ∂σmax/∂up
-    return calc_tensile_strength_derivative(mat.ft, mat.ft_law, mat.ft_fun, mat.wc, up)
+    return calc_tensile_strength_derivative(mat, up)
 end
 
 
@@ -223,7 +223,7 @@ function calcD(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
     ndim = state.ctx.ndim
     kn, ks = calc_kn_ks(mat, state)
     θ = mat.θ
-    σmax = calc_σmax(mat, state, state.up)
+    σmax = calc_σmax(mat, state.up)
 
     De = diagm([kn, ks, ks][1:ndim])
 
@@ -246,7 +246,7 @@ function calcD(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
 
         r = potential_derivs(mat, state, state.σ)
         v = yield_derivs(mat, state, state.σ, σmax)
-        m = deriv_σmax_upa(mat, state, state.up)  # ∂σmax/∂up
+        m = deriv_σmax_upa(mat, state.up)  # ∂σmax/∂up
 
         if ndim == 3
             den = kn*r[1]*v[1] + ks*r[2]*v[2] + ks*r[3]*v[3] - dfdσmax*m*norm(r)
@@ -306,14 +306,14 @@ function calc_σ_up_Δλ(mat::PowerYieldCohesive, state::PowerYieldCohesiveState
         r      = potential_derivs(mat, state, σ)
         norm_r = norm(r)
         up    = state.up + Δλ*norm_r
-        σmax   = calc_σmax(mat, state, up)
+        σmax   = calc_σmax(mat, up)
         β      = beta(mat, σmax)
 
         f    = yield_func(mat, state, σ, σmax)
         dfdσ = yield_derivs(mat, state, σ, σmax)
 
         dfdσmax = (βini-βres)/ft*(σ[1]-σmax)*θ*(σmax/ft)^(θ-1) - β
-        m = deriv_σmax_upa(mat, state, up)
+        m = deriv_σmax_upa(mat, up)
         dσmaxdΔλ = m*(norm_r + Δλ*dot(r/norm_r, drdΔλ))
         dfdΔλ = dot(dfdσ, dσdΔλ) + dfdσmax*dσmaxdΔλ
         Δλ = Δλ - f/dfdΔλ
@@ -374,7 +374,7 @@ function calc_σ_up_Δλ_bis(mat::PowerYieldCohesive, state::PowerYieldCohesiveS
     ff(Δλ) = begin
         # quantities at n+1
         σ, up = calc_σ_up(mat, state, σtr, Δλ)
-        σmax = calc_σmax(mat, state, up)
+        σmax = calc_σmax(mat, up)
         yield_func(mat, state, σ, σmax)
     end
 
@@ -414,7 +414,7 @@ function yield_func_from_Δλ(mat::PowerYieldCohesive, state::PowerYieldCohesive
     nr = norm(r)
     up = state.up + Δλ*nr
     
-    σmax = calc_σmax(mat, state, up)
+    σmax = calc_σmax(mat, up)
     f    = yield_func(mat, state, σ, σmax)
 
     return f
@@ -429,7 +429,7 @@ function update_state(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, �
 
     kn, ks = calc_kn_ks(mat, state)
     De = diagm([kn, ks, ks][1:ndim])
-    σmax = calc_σmax(mat, state, state.up)  
+    σmax = calc_σmax(mat, state.up)  
 
     if isnan(Δw[1]) || isnan(Δw[2])
         alert("PowerYieldCohesive: Invalid value for joint displacement: Δw = $Δw")
@@ -467,7 +467,7 @@ end
 
 function state_values(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
     ndim = state.ctx.ndim
-    σmax = calc_σmax(mat, state, state.up)
+    σmax = calc_σmax(mat, state.up)
     τ = norm(state.σ[2:ndim])
     if ndim == 3
         return Dict(

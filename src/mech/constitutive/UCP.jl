@@ -82,24 +82,22 @@ mutable struct UCP<:Constitutive
         beta::Real = 1.15,
         p0::Real   = NaN,
         ft_law     = :hordijk,
-        fc_law     = :popovics,
+        fc_law     = :default,
         H::Real    = 0.0,
     )
         @check E>0 "UCP: Young's modulus E must be > 0. Got $E."
         @check 0<=nu<0.5 "UCP: Poisson's ratio nu must be in the range [0, 0.5). Got $nu."
         @check 0.2<alpha<=1.0 "UCP: Curvature coefficient alpha must be in the range (0.2, 1.0]. Got $alpha."
         @check 1<=beta<=1.5 "UCP: Factor beta must be in the range [1.0, 1.5]. Got $beta."
-        @check fc<0 "UCP: Compressive strength fc must be < 0. Got $fc."
-        @check epsc<0 "UCP: Strain at compressive peak epsc must be < 0. Got $epsc."
         @check eta>1 "UCP: Shape parameter eta must be > 1. Got $eta."
         @check ft>0 "UCP: Tensile strength ft must be > 0. Got $ft."
         @check H>=0 "UCP: Plastic modulus H must be >= 0. Got $H."
-        @check ft_law in (:hordijk,) "UCP: ft_law must be :hordijk or a custom function. Got $ft_law."
-        @check fc_law in (:popovics,) "UCP: fc_law must be :popovics or a custom function. Got $fc_law."
-        @check !isnan(wc) || !isnan(GF) "UCP: Either fracture energy GF or critical crack opening wc must be provided."
 
-        wc, ft_law, ft_fun, status = setup_tensile_strength(ft, ft_law, GF, wc)
-        failed(status) && throw(ArgumentError("MohrCoulombCohesive: " * status.message))
+        wc, ft_law, ft_fun, status = setup_tensile_strength(ft, GF, wc, ft_law)
+        failed(status) && throw(ArgumentError("UCP: " * status.message))
+
+        fc_law, fc_fun, status = setup_compressive_strength(fc, epsc, fc_law)
+        failed(status) && throw(ArgumentError("UCP: " * status.message))
 
         fc_fun = nothing
         if fc_law isa AbstractSpline
@@ -205,49 +203,15 @@ end
 
 
 function calc_fc(mat::UCP, εcp::Float64)
-    fc     = mat.fc
-    εcp_pk = abs(mat.εc) - abs(fc)/mat.E  # εcp_pk is the compression plastic strain at the peak of the uniaxial compression curve
-    χ      = εcp/εcp_pk
-    η      = mat.η
-    fc0    = 0.35*fc
-    fcr    = 0.1*fc
-
-    if mat.fc_law==:popovics
-        if εcp < 0.0 # sometimes εcp is slightly negative due to numerical errors
-            return fc0
-        elseif εcp < εcp_pk
-            # before peak
-            return fc0 + (fc - fc0) * η * χ/(η - 1 + χ^η)
-        else
-            # after peak
-            return fcr + (fc - fcr) * η * χ/(η - 1 + χ^η)
-        end
-    else
-        return mat.fc_fun(εcp)
-    end
-
+    fc0 = 0.35*mat.fc
+    fcr = 0.1*mat.fc
+    return calc_compressive_strength(mat, fc0, fcr, εcp)
 end
 
 
 function calc_ft(mat::UCP, w::Float64)
-    if mat.ft_law==:hordijk
-        wc = mat.wc
-        if w < wc
-            z = (1 + 27*(w/wc)^3)*exp(-6.93*w/wc) - 28*(w/wc)*exp(-6.93)
-        else
-            z = 0.0
-        end
-        return z*mat.ft
-    else
-        return mat.ft_fun(w)
-    end
+    return calc_tensile_strength(mat, w)
 end
-
-
-
-# function calc_ft(mat::MohrCoulombCohesive, w::Float64)
-#     return calc_tensile_strength(mat.ft, mat.ft_law, mat.ft_fun, mat.wc, w)
-# end
 
 
 function calc_p(mat::UCP, εvp::Float64)
@@ -256,7 +220,6 @@ end
 
 
 function calc_ξa_ξb_κ(mat::UCP, state::UCPState, εtp::Float64, εcp::Float64, εvp::Float64)
-
     e  = mat.e
     α  = mat.α
     w  = εtp*state.h

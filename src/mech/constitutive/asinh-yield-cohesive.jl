@@ -85,7 +85,7 @@ mutable struct AsinhYieldCohesive<:Constitutive
         @check theta >= 0.0 "AsinhYieldCohesive: theta must be non-negative. Got $(repr(theta))."
         @check ft_law in (:linear, :bilinear, :hordijk, :soft) || ft_law isa AbstractSpline "AsinhYieldCohesive: Unknown ft_law model: $ft_law. Supported models are :linear, :bilinear, :hordijk, :soft or a custom AbstractSpline."
 
-        wc, ft_law, ft_fun, status = setup_tensile_strength(ft, ft_law, GF, wc)
+        wc, ft_law, ft_fun, status = setup_tensile_strength(ft,  GF, wc, ft_law)
         failed(status) && throw(ArgumentError("AsinhYieldCohesive: " * status.message))
 
 
@@ -227,20 +227,20 @@ function potential_derivs(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveStat
 end
 
 
-function deriv_σmax_upa(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, up::Float64)
-    return calc_tensile_strength(mat.ft, mat.ft_law, mat.ft_fun, mat.wc, up)
-end
-
-
 function calc_β(mat::AsinhYieldCohesive, σmax::Float64)
     βres  = mat.γ*mat.β0
     return βres + (mat.β0-βres)*(σmax/mat.ft)^mat.θ
 end
 
 
-function deriv_σmax_up(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, up::Float64)
+function calc_σmax(mat::AsinhYieldCohesive, up::Float64)
+    return calc_tensile_strength(mat, up)
+end    
+
+
+function deriv_σmax_up(mat::AsinhYieldCohesive, up::Float64)
     # ∂σmax/∂up
-    return calc_tensile_strength_derivative(mat.ft, mat.ft_law, mat.ft_fun, mat.wc, up)
+    return calc_tensile_strength_derivative(mat, up)
 end
 
 
@@ -256,7 +256,7 @@ function calcD(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
 
     ndim = state.ctx.ndim
     kn, ks = calc_kn_ks(mat, state)
-    σmax = deriv_σmax_upa(mat, state, state.up)
+    σmax = calc_σmax(mat, state.up)
 
     De = diagm([kn, ks, ks][1:ndim])
 
@@ -269,7 +269,7 @@ function calcD(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
     else
         r = potential_derivs(mat, state, state.σ) # ∂g/∂σ
         dfdσ, dfdσmax = yield_derivs(mat, state, state.σ, σmax)
-        dσmaxdup = deriv_σmax_up(mat, state, state.up)  # ∂σmax/∂up
+        dσmaxdup = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
 
         if ndim == 3
             den = kn*r[1]*dfdσ[1] + ks*r[2]*dfdσ[2] + ks*r[3]*dfdσ[3] - dfdσmax*dσmaxdup*norm(r)
@@ -324,7 +324,7 @@ function calc_σ_up_Δλ(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState
         r      = potential_derivs(mat, state, σ)
         norm_r = norm(r)
         up     = state.up + Δλ*norm_r
-        σmax   = deriv_σmax_upa(mat, state, up)
+        σmax   = calc_σmax(mat, up)
         f      = yield_func(mat, state, σ, σmax)
         # @show σmax
         dfdσ, dfdσmax = yield_derivs(mat, state, σ, σmax)
@@ -332,7 +332,7 @@ function calc_σ_up_Δλ(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState
         # @show dfdσ
         # @show dfdσmax
 
-        dσmaxdup = deriv_σmax_up(mat, state, up)
+        dσmaxdup = deriv_σmax_up(mat, up)
         dσmaxdΔλ = dσmaxdup*(norm_r + Δλ*dot(r/norm_r, drdΔλ))
         dfdΔλ = dot(dfdσ, dσdΔλ) + dfdσmax*dσmaxdΔλ
         Δλ = Δλ - f/dfdΔλ
@@ -388,7 +388,7 @@ function calc_σ_up_Δλ_bis(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveS
     ff(Δλ)  = begin
         # quantities at n+1
         σ, up = calc_σ_up(mat, state, σtr, Δλ)
-        σmax = deriv_σmax_upa(mat, state, up)
+        σmax = deriv_σmax_upa(mat, up)
         yield_func(mat, state, σ, σmax)
     end
 
@@ -413,7 +413,8 @@ function update_state(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, �
 
     kn, ks = calc_kn_ks(mat, state)
     De = diagm([kn, ks, ks][1:ndim])
-    σmax = deriv_σmax_upa(mat, state, state.up)  
+    σmax = calc_σmax(mat, state.up)
+
 
     if isnan(Δw[1]) || isnan(Δw[2])
         alert("AsinhYieldCohesive: Invalid value for joint displacement: Δw = $Δw")
@@ -453,7 +454,7 @@ end
 
 function state_values(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
     ndim = state.ctx.ndim
-    σmax = deriv_σmax_upa(mat, state, state.up)
+    σmax = calc_σmax(mat, state.up)
     τ = norm(state.σ[2:ndim])
     if ndim == 3
         return Dict(
