@@ -3,7 +3,7 @@
 export UCP
 
 """
-    UCP(; E, nu, fc, epsc, n=4, ft, GF, wc, p0, alpha=0.666, beta=1.15, H=0.0)
+    UCP(; E, nu, fc, epsc, eta=4, ft, GF, wc, p0, alpha=0.666, beta=1.15, H=0.0)
 
 Unified Concrete Plasticity model.
 
@@ -13,30 +13,30 @@ It combines elastic isotropy, nonlinear hardening/softening in compression, and
 tension softening controlled by the fracture energy.
 
 # Keyword arguments
-- `E::Real`  
+- `E::Real`:  
   Young’s modulus (must be > 0).
-- `nu::Real`  
+- `nu::Real`:  
   Poisson’s ratio (0 ≤ ν < 0.5).
-- `fc::Real`  
+- `fc::Real`:  
   Uniaxial compressive strength (< 0).
-- `epsc::Real`  
+- `epsc::Real`:  
   Strain at the compressive peak (< 0).
-- `n::Real = 2.2`  
-  Shape parameter for the compression hardening/softening curve (n > 1).
-- `ft::Real`  
+- `eta::Real = 2.2`:  
+  Shape parameter for the compression hardening/softening curve (eta > 1).
+- `ft::Real`:  
   Uniaxial tensile strength (> 0).
-  - `GF::Real`  
+  - `GF::Real`:  
   Tensile fracture energy (> 0). Can be given alternatively to `wc`.
-- `wc::Real`  
+- `wc::Real`:  
   Critical crack opening displacement (≥ 0). Can be given alternatively to `GF`.
-- `p0::Real = NaN`  
+- `p0::Real = NaN`:  
   Elastic limit in isotropic compression. If not given, computed internally
   from `fc` and `beta`.
-- `alpha::Real = 0.666`  
+- `alpha::Real = 0.666`:  
   Curvature coefficient of the meridional section (0.2 < α ≤ 1.0).
-- `beta::Real = 1.15`  
+- `beta::Real = 1.15`:  
   Factor relating biaxial to uniaxial compressive strength (1 ≤ β ≤ 1.5).
-- `H::Real = 0.0`  
+- `H::Real = 0.0`:  
   Plastic modulus for isotropic compression (≥ 0).
 
 # Returns
@@ -46,7 +46,7 @@ for 2D (plane strain) or 3D analyses. Not compatible with plane stress.
 # Notes
 - The tensile law is regularized through `GF` and `wc` to ensure energy
   dissipation is independent of element size.
-- The compressive response follows a nonlinear curve defined by `fc`, `epsc`, and `n`.
+- The compressive response follows a nonlinear curve defined by `fc`, `epsc`, and `eta`.
 - The cap position is adjusted by `beta` and `p0`.
 - The surface excentricity is computed internally to match the biaxial strength.
 - The surface section follows the Willam-Warnke ellipsoidal shape.
@@ -56,28 +56,34 @@ mutable struct UCP<:Constitutive
     ν::Float64
     fc::Float64
     εc::Float64
-    n::Float64
+    η::Float64
     ft::Float64
     wc::Float64
     fb::Float64
     p0::Float64
+    ft_law::Symbol
+    ft_fun::Union{Nothing,AbstractSpline}
+    fc_law::Symbol
+    fc_fun::Union{Nothing,AbstractSpline}
     α::Float64
     e::Float64
     H::Float64
 
     function UCP(;
-        E::Real    =NaN,
-        nu::Real   =NaN,
-        alpha::Real=0.666,
-        beta::Real =1.15,
-        fc::Real   =NaN,
-        epsc::Real =NaN,
-        n::Real    =2.2,
-        ft::Real   =NaN,
-        GF::Real   =NaN,
-        wc::Real   =NaN,
-        p0::Real   =NaN,
-        H::Real    =0.0,
+        E::Real    = NaN,
+        nu::Real   = NaN,
+        alpha::Real= 0.666,
+        fc::Real   = NaN,
+        epsc::Real = NaN,
+        eta::Real  = 2.2,
+        ft::Real   = NaN,
+        GF::Real   = NaN,
+        wc::Real   = NaN,
+        beta::Real = 1.15,
+        p0::Real   = NaN,
+        ft_law     = :hordijk,
+        fc_law     = :popovics,
+        H::Real    = 0.0,
     )
         @check E>0 "UCP: Young's modulus E must be > 0. Got $E."
         @check 0<=nu<0.5 "UCP: Poisson's ratio nu must be in the range [0, 0.5). Got $nu."
@@ -85,16 +91,28 @@ mutable struct UCP<:Constitutive
         @check 1<=beta<=1.5 "UCP: Factor beta must be in the range [1.0, 1.5]. Got $beta."
         @check fc<0 "UCP: Compressive strength fc must be < 0. Got $fc."
         @check epsc<0 "UCP: Strain at compressive peak epsc must be < 0. Got $epsc."
-        @check n>1 "UCP: Shape parameter n must be > 1. Got $n."
+        @check eta>1 "UCP: Shape parameter eta must be > 1. Got $eta."
         @check ft>0 "UCP: Tensile strength ft must be > 0. Got $ft."
         @check H>=0 "UCP: Plastic modulus H must be >= 0. Got $H."
+        @check ft_law in (:hordijk,) "UCP: ft_law must be :hordijk or a custom function. Got $ft_law."
+        @check fc_law in (:popovics,) "UCP: fc_law must be :popovics or a custom function. Got $fc_law."
         @check !isnan(wc) || !isnan(GF) "UCP: Either fracture energy GF or critical crack opening wc must be provided."
+
+        wc, ft_law, ft_fun, status = setup_tensile_strength(ft, ft_law, GF, wc)
+        failed(status) && throw(ArgumentError("MohrCoulombCohesive: " * status.message))
+
+        fc_fun = nothing
+        if fc_law isa AbstractSpline
+            fc_fun = fc_law
+            fc_law = :custom
+            fc     = fc_law(0.0)
+        end
 
         α = alpha
         β = beta
         
         # value of exentricity to match fb in a biaxial trajectory, assuming the state when ξb=0
-        e = β/(2*β)^α
+        e  = β/(2*β)^α
         fb = β*fc
         
         if isnan(wc)
@@ -114,8 +132,7 @@ mutable struct UCP<:Constitutive
         end
         @assert p0<0
 
-        this = new(E, nu, fc, epsc, n, ft, wc, fb, p0, α, e, H)
-        return this
+        return new(E, nu, fc, epsc, eta, ft, wc, fb, p0, ft_law, ft_fun, fc_law, fc_fun, α, e, H)
     end
 end
 
@@ -174,9 +191,9 @@ end
 
 function calc_rξ(mat::UCP, ξb::Float64, ξ::Float64)
     α  = mat.α
-    fc_abs = abs(mat.fc)
+    fc_peak = abs(mat.fc)
 
-    return spow((ξb-ξ)/fc_abs, α)
+    return spow((ξb-ξ)/fc_peak, α)
 end
 
 function calc_rc(mat::UCP, ξa::Float64, ξ::Float64)
@@ -186,39 +203,52 @@ function calc_rc(mat::UCP, ξa::Float64, ξ::Float64)
     return √(1 - ((ξc-ξ)/(ξc-ξa))^2)
 end
 
+
 function calc_fc(mat::UCP, εcp::Float64)
     fc     = mat.fc
     εcp_pk = abs(mat.εc) - abs(fc)/mat.E  # εcp_pk is the compression plastic strain at the peak of the uniaxial compression curve
     χ      = εcp/εcp_pk
-    n      = mat.n
+    η      = mat.η
     fc0    = 0.35*fc
     fcr    = 0.1*fc
 
-    if εcp < 0.0
-        fc_cur = fc0
-    elseif εcp < εcp_pk
-        # before peak
-        fc_cur = fc0 + (fc - fc0) * n * χ/(n - 1 + χ^n)
+    if mat.fc_law==:popovics
+        if εcp < 0.0 # sometimes εcp is slightly negative due to numerical errors
+            return fc0
+        elseif εcp < εcp_pk
+            # before peak
+            return fc0 + (fc - fc0) * η * χ/(η - 1 + χ^η)
+        else
+            # after peak
+            return fcr + (fc - fcr) * η * χ/(η - 1 + χ^η)
+        end
     else
-        # after peak
-        fc_cur = fcr + (fc - fcr) * n * χ/(n - 1 + χ^n)
+        return mat.fc_fun(εcp)
     end
 
-    return fc_cur
 end
 
 
 function calc_ft(mat::UCP, w::Float64)
-    wc = mat.wc
-    if w < 0
-        z = 1.0
-    elseif w < wc
-        z = (1 + 27*(w/wc)^3)*exp(-6.93*w/wc) - 28*(w/wc)*exp(-6.93)
+    if mat.ft_law==:hordijk
+        wc = mat.wc
+        if w < wc
+            z = (1 + 27*(w/wc)^3)*exp(-6.93*w/wc) - 28*(w/wc)*exp(-6.93)
+        else
+            z = 0.0
+        end
+        return z*mat.ft
     else
-        z = 0.0
+        return mat.ft_fun(w)
     end
-    return z*mat.ft
 end
+
+
+
+# function calc_ft(mat::MohrCoulombCohesive, w::Float64)
+#     return calc_tensile_strength(mat.ft, mat.ft_law, mat.ft_fun, mat.wc, w)
+# end
+
 
 function calc_p(mat::UCP, εvp::Float64)
     return mat.p0 + mat.H*εvp
@@ -227,23 +257,23 @@ end
 
 function calc_ξa_ξb_κ(mat::UCP, state::UCPState, εtp::Float64, εcp::Float64, εvp::Float64)
 
-    α  = mat.α
     e  = mat.e
+    α  = mat.α
     w  = εtp*state.h
 
-    ft_cur = calc_ft(mat, w)
-    fc_cur = calc_fc(mat, εcp)
-    fc_abs = abs(mat.fc)
+    ft      = calc_ft(mat, w)
+    fc      = calc_fc(mat, εcp)
+    fc_peak = abs(mat.fc)
 
     # ξa = √3*mat.p_fun(√3*εcp)    # ξ = √3p ; plastic volumetric strain εvp = √3*εcp in isotropic compression
     p = calc_p(mat, εvp)
     ξa = √3*p    # ξ = √3p
     # ξa = √3*mat.p_fun(εvp)    # ξ = √3p
     @assert ξa<0
-    @assert ξa<fc_cur/√3
+    @assert ξa<fc/√3
 
-    Ω  = (-ft_cur/(fc_cur*e))^(1/α)
-    ξb = 1/√3*(fc_cur*Ω - ft_cur)/(Ω-1)
+    Ω  = (-ft/(fc*e))^(1/α)
+    ξb = 1/√3*(fc*Ω - ft)/(Ω-1)
     ξb<0 && @show ξb
 
     if ξb<0
@@ -251,16 +281,16 @@ function calc_ξa_ξb_κ(mat::UCP, state::UCPState, εtp::Float64, εcp::Float64
         @show Ω
         @show εcp
         @show εtp
-        @show fc_cur
-        @show ft_cur
+        @show fc
+        @show ft
         @show ξa
         @show ξb
     end
 
-    κ  = -√(2/3)*fc_cur*((ξb-fc_cur/√3)/fc_abs)^-α
+    κ  = -√(2/3)*fc*((ξb-fc/√3)/fc_peak)^-α
     @assert κ>0
 
-    return return ξa, ξb, κ
+    return ξa, ξb, κ
 end
 
 
@@ -284,7 +314,7 @@ end
 function yield_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
     e = mat.e
     α = mat.α
-    fc_abs = abs(mat.fc)
+    fc_peak = abs(mat.fc)
 
     i1, j2 = tr(σ), J2(σ)
 
@@ -319,11 +349,11 @@ function yield_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float6
     rξ = calc_rξ(mat, ξb, ξ)
 
     # f derivative w.r.t. σ:
-    dfdρ  = 1
+    dfdρ  = 1.0
     dfdrc = -rθ*rξ*κ
     dfdrξ = -rθ*rc*κ
     drcdξ = ξa<ξ<ξc ? (ξc-ξ)/(ξc-ξa)^2/√(1-((ξc-ξ)/(ξc-ξa))^2) : 0.0
-    drξdξ = ξb-ξ!=0.0 ? -α/fc_abs * abs((ξb-ξ)/fc_abs)^(α-1) : 0.0
+    drξdξ = ξb-ξ!=0.0 ? -α/fc_peak * abs((ξb-ξ)/fc_peak)^(α-1) : 0.0
     dfdξ  = dfdrc*drcdξ + dfdrξ*drξdξ
     dfdrθ = -rc*rξ*κ
     dfdθ  = dfdrθ*drθdθ
@@ -354,7 +384,7 @@ function potential_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Fl
 
     e  = mat.e
     α  = mat.α
-    fc_abs = abs(mat.fc)
+    fc_peak = abs(mat.fc)
 
     i1 = tr(σ)
     ξ  = i1/√3
@@ -371,7 +401,7 @@ function potential_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Fl
     dgdrc = -e*rξ*κ
     dgdrξ = -e*rc*κ
     drcdξ = ξa<ξ<ξc ? (ξc-ξ)/(ξc-ξa)^2/√(1-((ξc-ξ)/(ξc-ξa))^2) : 0.0
-    drξdξ = ξb-ξ!=0.0 ? -α/fc_abs * abs((ξb-ξ)/fc_abs)^(α-1) : 0.0
+    drξdξ = ξb-ξ!=0.0 ? -α/fc_peak * abs((ξb-ξ)/fc_peak)^(α-1) : 0.0
     dgdξ  = dgdrc*drcdξ + dgdrξ*drξdξ
 
     dξdσ = √3/3*I2
@@ -399,6 +429,7 @@ function calcD(mat::UCP, state::UCPState)
     Λ = eigvals(dgdσ, sort=false)
     # Dep = De - De*dgdσ*dfdσ'*De / (dfdσ'*De*dgdσ - dfdεcp*norm(min.(0.0, Λ)) - dfdεtp*norm(max.(0.0, Λ)))
     Dep = De - De*dgdσ*dfdσ'*De / (dfdσ'*De*dgdσ - dfdεcp*norm(min.(0.0, Λ)) - dfdεtp*maximum(max.(0.0, Λ)))
+    
     return Dep
 end
 
@@ -409,7 +440,6 @@ function calc_σ_εp_Δλ(mat::UCP, state::UCPState, σtr::Vec6)
     tol    = 1.0
     dgdσ   = potential_derivs(mat, state, state.σ, state.εtp, state.εcp, state.εvp)
     De     = calcDe(mat.E, mat.ν, state.ctx.stress_state)
-    # Δλ     = norm(σtr-state.σ)/norm(De*dgdσ)/10
     Δλ     = eps()
 
     σ  = σtr - Δλ*(De*dgdσ)
@@ -419,7 +449,7 @@ function calc_σ_εp_Δλ(mat::UCP, state::UCPState, σtr::Vec6)
     εvp = state.εvp
 
     f   = yield_func(mat, state, state.σ, εtp, εcp, εvp)
-    η   = 1.0 # initial damping
+    eta   = 1.0 # initial damping
 
     # iterative process
     for i in 1:maxits
@@ -427,7 +457,7 @@ function calc_σ_εp_Δλ(mat::UCP, state::UCPState, σtr::Vec6)
         dgdσ    = potential_derivs(mat, state, σ, εtp, εcp, εvp)
         dfdΔλ   = -dfdσ'*De*dgdσ
 
-        Δλ = Δλ - η*f/dfdΔλ
+        Δλ = Δλ - eta*f/dfdΔλ
         if Δλ<0
             # Δλ = abs(Δλ)
             # @show Δλ
@@ -443,21 +473,17 @@ function calc_σ_εp_Δλ(mat::UCP, state::UCPState, σtr::Vec6)
         εtp = state.εtp + Δλ*maximum(max.(0.0, Λ))
         εcp = state.εcp + Δλ*norm(min.(0.0, Λ))
         εvp = state.εvp + Δλ*sum(abs, min.(0.0, Λ))
-        # εtp = state.εtp + Δλ*norm(max.(0.0, Λ))
         f   = yield_func(mat, state, σ, εtp, εcp, εvp)
 
         if abs(f) < tol
             Δλ < 0.0 && return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: negative Δλ")
 
-            # @show Δλ
-            # @show f
             return σ, εtp, εcp, εvp, Δλ, success()
         end
 
         # dumping
-        i>10 && (η = 0.6)
-        i>15 && (η = 0.3)
-        # i>20 && (η = 0.15)
+        i>10 && (eta = 0.6)
+        i>15 && (eta = 0.3)
     end
 
     return state.σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: maximum iterations reached")
@@ -467,32 +493,25 @@ end
 function update_state(mat::UCP, state::UCPState, Δε::AbstractArray)
     σini = state.σ
     De   = calcDe(mat.E, mat.ν, state.ctx.stress_state)
-    Δσtr = De*Δε
-    σtr  = state.σ + Δσtr
+    σtr  = state.σ + De*Δε
     ftr  = yield_func(mat, state, σtr, state.εtp, state.εcp, state.εvp)
 
     Δλ  = 0.0
     tol = 1.0
     tol = 0.1
 
-
     if ftr < tol
         # elastic
         state.Δλ = 0.0
         state.σ  = σtr
     else
+        # plastic
         state.σ, state.εtp, state.εcp, state.εvp, state.Δλ, status = calc_σ_εp_Δλ(mat, state, σtr)
         @assert state.εcp >= 0.0
         @assert state.εtp >= 0.0
         @assert state.εvp >= 0.0
 
-        # @show objectid(state)
         Δσ = state.σ - σini
-        # @show Δε
-        # @show state.σ
-        # @show Δσ
-        # @show state.εtp, state.εcp, state.εvp
-        # @show failed(status)
 
         failed(status) && return state.σ, status
     end
@@ -505,8 +524,8 @@ end
 
 function state_values(mat::UCP, state::UCPState)
     σ, ε  = state.σ, state.ε
-    ρ  = √(2*J2(σ))
-    ξ  = tr(σ)/√3
+    ρ = √(2*J2(σ))
+    ξ = tr(σ)/√3
     # θ  = calc_θ(mat, σ)
     # r  = calc_rθ(mat, σ)
 

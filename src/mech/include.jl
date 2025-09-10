@@ -17,6 +17,8 @@ include("elements/mech-bondtip.jl")
 include("elements/mech-shell.jl")
 
 
+include("constitutive/evolution_laws.jl")
+
 # Models for bulk elements
 include("constitutive/linear-elastic.jl")
 # include("constitutive/linear-elastic-fluid.jl")
@@ -25,7 +27,7 @@ include("constitutive/von-mises.jl")
 # include("constitutive/mazars.jl")
 # include("constitutive/smeared-crack.jl")
 # include("constitutive/damageconcrete-solid.jl")
-# include("constitutive/willam-warnke.jl")
+include("constitutive/willam-warnke.jl")
 include("constitutive/UCP.jl")
 
 # Spring, dumper, lumped mass

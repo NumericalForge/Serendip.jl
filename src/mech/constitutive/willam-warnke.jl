@@ -2,56 +2,121 @@
 
 export WillamWarnke
 
-WillamWarnke_params = [
-    FunInfo(:WillamWarnke, "Linear-elastic model with Willam-Warnke yield criterion and linear/non-linear hardening"),
-    KwArgInfo(:E, "Young's modulus", cond=:(E>0)),
-    KwArgInfo(:nu, "Poisson's ratio", cond=:(nu>=0)),
-    KwArgInfo(:ft, "Tensile strength", cond=:(ft>0)),
-    KwArgInfo(:fc, "Compressive strength", cond=:(fc<0)),
-    KwArgInfo(:fb, "Biaxial compressive strength", cond=:(fb<0)),
-    KwArgInfo(:psi, "Dilatancy angle in degrees", nothing, cond=:(0<psi<90)),
-    KwArgInfo(:H, "Hardening modulus", nothing, cond=:(H>=0)),
-    KwArgInfo((:xi_fun, :ξfun), "Hardening curve in terms of ξ0", nothing),
-]
-@doc docstring(WillamWarnke_params) WillamWarnke
 
+"""
+    WillamWarnke(; E, nu, fc, epsc, η=2.2, ft, GF=NaN, wc=NaN,
+                  ft_law=:hordijk, fc_law=:popovics, beta=1.15)
+
+Linear‐elastic concrete with a Willam–Warnke yield surface and
+nonlinear hardening/softening in compression and tension softening
+regularized by fracture energy.
+
+# Keyword arguments
+- `E::Real`: Young’s modulus (> 0).
+- `nu::Real`: Poisson’s ratio (0 ≤ ν < 0.5).
+- `fc::Real`: Uniaxial compressive strength (< 0).
+- `epsc::Real`: Strain at the compressive peak (< 0).
+- `η::Real=2.2`: Shape parameter for the compressive curve (> 1).
+- `ft::Real`: Uniaxial tensile strength (> 0).
+- `GF::Real=NaN`: Tensile fracture energy (> 0). Use `GF` or `wc`.
+- `wc::Real=NaN`: Critical crack opening (≥ 0). Use `wc` or `GF`.
+- `ft_law::Symbol=:hordijk`: Tension softening law. `:hordijk` uses the Hordijk curve.
+- `fc_law::Symbol=:popovics`: Compression law. `:popovics` uses a Popovics-type curve.
+- `beta::Real=1.15`: Biaxial/uniaxial compressive strength factor (1 ≤ β ≤ 1.5).
+
+Exactly one of `GF` or `wc` must be provided.
+
+# Returns
+A `WillamWarnke` material usable with 3D or plane-strain bulk elements.
+Not compatible with plane stress.
+
+# Notes
+- Tension softening is regularized by `GF` or `wc` to keep energy dissipation mesh-objective.
+- Compression response follows the selected `fc_law` shaped by `(fc, epsc, η)`.
+- `beta` sets `fb = β·fc` internally.
+
+# Example
+```julia
+mat = WillamWarnke(E=30e9, nu=0.2, fc=-30e6, epsc=-0.002, ft=3e6,
+                   GF=120.0, ft_law=:hordijk, fc_law=:popovics, beta=1.15)
+```
+"""
 mutable struct WillamWarnke<:Constitutive
     E::Float64
     ν::Float64
-    e::Float64  # eccentricity of the yield surface
-    ξ0::Float64 # distance from the origin to the apex
-    α::Float64  # slope of the yield surface
-    ᾱ::Float64  # slope of the plastic potential surface
-    H::Float64  # hardening modulus
-    ξfun::Union{Nothing,PathFunction}
+    fc::Float64
+    εc::Float64
+    η::Float64
+    ft::Float64
+    wc::Float64
+    ft_law::Symbol
+    ft_fun::Union{Nothing,AbstractSpline}
+    fc_law::Symbol
+    fc_fun::Union{Nothing,AbstractSpline}
+    fb::Float64
+    e::Float64
+    ᾱ::Float64
 
-    function WillamWarnke(; kwargs...)
-        args = checkargs(kwargs, WillamWarnke_params)
+    function WillamWarnke(;
+        E::Real    = NaN,
+        nu::Real   = NaN,
+        fc::Real   = NaN,
+        epsc::Real = NaN,
+        eta::Real  = 2.2,
+        ft::Real   = NaN,
+        GF::Real   = NaN,
+        wc::Real   = NaN,
+        ft_law     = :hordijk,
+        fc_law     = :popovics,
+        beta::Real = 1.15,
+    )
+        @check E>0 "WillamWarnke: Young's modulus E must be > 0. Got $E."
+        @check 0<=nu<0.5 "WillamWarnke: Poisson's ratio nu must be in the range [0, 0.5). Got $nu."
+        @check 1<=beta<=1.5 "WillamWarnke: Factor beta must be in the range [1.0, 1.5]. Got $beta."
+        @check fc<0 "WillamWarnke: Compressive strength fc must be < 0. Got $fc."
+        @check epsc<0 "WillamWarnke: Strain at compressive peak epsc must be < 0. Got $epsc."
+        @check eta>1 "WillamWarnke: Shape parameter eta must be > 1. Got $eta."
+        @check ft>0 "WillamWarnke: Tensile strength ft must be > 0. Got $ft."
+        @check ft_law in (:hordijk,) "WillamWarnke: ft_law must be :hordijk or a custom function. Got $ft_law."
+        @check fc_law in (:popovics,) "WillamWarnke: fc_law must be :popovics or a custom function. Got $fc_law."
+        @check !isnan(wc) || !isnan(GF) "WillamWarnke: Either fracture energy GF or critical crack opening wc must be provided."
 
-        fc, fb, ft = abs(args.fc), abs(args.fb), args.ft
-        xi_fun, H = args.xi_fun, args.H
-
-        if isnothing(xi_fun)
-            isnothing(args.H) && error("WillamWarnke: H or xi_fun must be provided")
+        ft_fun = nothing
+        if ft_law isa AbstractSpline
+            ft_fun = ft_law
+            ft_law = :custom
+            ft     = ft_law(0.0)
+            if ft_law.points[end][2] == 0.0
+                wc = ft_law.points[end][1]
+            else
+                wc = Inf
+            end
         else
-            H = 0.0
+            if isnan(wc)
+                isnan(GF) && error("WillamWarnke: wc or GF must be defined when using a predefined ft_law model")
+                @check GF>0 "WillamWarnke: GF must be positive. Got GF=$GF"
+
+                # hordijk law
+                wc = round(GF/(0.1947*ft), sigdigits=5)
+            end
         end
+        @check wc > 0.0 "WillamWarnke: wc must be greater than zero"
+
+        fc_fun = nothing
+        if fc_law isa AbstractSpline
+            fc_fun = fc_law
+            fc_law = :custom
+            fc     = fc_law(0.0)
+        end
+
+        # biaxial strength
+        fb = beta*fc
 
         e  = (fc*fb - fc*ft + 3*fb*ft)/(2*fc*fb + ft*fc)
         @assert 0<e<=1
 
-        ξ0 = √3*fb*ft/(fb-ft) # ok
-        ρ0 = √2*fc*ξ0/(fc + √3*ξ0) # ok
-        α = ρ0/ξ0
 
-        ψ = args.psi
-        if isnothing(ψ)
-            ᾱ = e*α
-        else
-            ᾱ = tand(ψ)
-        end
-
-        this = new(args.E, args.nu, e, ξ0, α, ᾱ, H, args.xi_fun)
+        this = new(E, nu, fc, epsc, eta, ft, wc, ft_law, ft_fun, fc_law, fc_fun, fb, e, ᾱ)
         return this
     end
 end
@@ -59,16 +124,21 @@ end
 
 mutable struct WillamWarnkeState<:IpState
     ctx::Context
-    σ::Vec6
-    ε::Vec6
-    εpa::Float64
-    Δλ::Float64
+    σ  ::Vec6
+    ε  ::Vec6
+    εtp::Float64
+    εcp::Float64
+    εvp::Float64
+    Δλ ::Float64
+    h  ::Float64
     function WillamWarnkeState(ctx::Context)
-        this = new(ctx)
+        this     = new(ctx)
         this.σ   = zeros(Vec6)
         this.ε   = zeros(Vec6)
-        this.εpa = 0.0
+        this.εtp = 0.0
+        this.εcp = 0.0
         this.Δλ  = 0.0
+        this.h   = 0.0
         this
     end
 end
@@ -78,55 +148,100 @@ end
 compat_state_type(::Type{WillamWarnke}, ::Type{MechBulk}, ctx::Context) = ctx.stress_state!=:plane_stress ? WillamWarnkeState : error("WillamWarnke: This model is not compatible with planestress")
 
 
-function calc_r(mat::WillamWarnke, σ::Vec6)
-    e = mat.e
-    j2, j3 = J2(σ), J3(σ)
+function calc_θ(::WillamWarnke, σ::Vec6)
+    j2 = J2(σ)
+    if j2==0.0
+        θ = 0.0
+    else
+        norm_s = √(2*j2)
+        det_s  = J3(σ)
+        θ      = 1/3*acos( clamp(3*√6*det_s/norm_s^3, -1.0, 1.0) )
+    end
+    return θ
+end
 
-    norm_s = √(2*j2)
-    det_s  = j3
-    θ      = 1/3*acos( clamp(3*√6*det_s/norm_s^3, -1.0, 1.0) )
+
+function calc_rθ(mat::WillamWarnke, σ::Vec6)
+    e = mat.e
+    θ = calc_θ(mat, σ)
+
     rnum   = 2*(1-e^2)*cos(θ) + (2*e-1)*√(4*(1-e^2)*cos(θ)^2 + 5*e^2 - 4*e)
     rden   = 4*(1-e^2)*cos(θ)^2 + (2*e-1)^2
     r      = rnum/rden
+
     return r
 end
 
+function calc_fc(mat::WillamWarnke, εcp::Float64)
+    fc     = mat.fc
+    εcp_pk = abs(mat.εc) - abs(fc)/mat.E  # εcp_pk is the compression plastic strain at the peak of the uniaxial compression curve
+    χ      = εcp/εcp_pk
+    η      = mat.η
+    fc0    = 0.35*fc
+    fcr    = 0.1*fc
 
-@inline function calc_ξmax(mat::WillamWarnke, εpa::Float64)
-    if mat.ξfun !== nothing
-        ξmax = mat.ξfun(εpa)
+    if mat.fc_law==:popovics
+        if εcp < εcp_pk
+            # before peak
+            return fc0 + (fc - fc0) * η * χ/(η - 1 + χ^η)
+        else
+            # after peak
+            return fcr + (fc - fcr) * η * χ/(η - 1 + χ^η)
+        end
     else
-        ξmax = mat.ξ0 + mat.H*εpa
+        return mat.fc_fun(εcp)
     end
+
 end
 
 
-@inline function calc_deriv_ξmax_εpa(mat::WillamWarnke, εpa::Float64)
-    if mat.ξfun !== nothing
-        dξdεpa = derive(mat.ξfun, εpa)
+function calc_ft(mat::WillamWarnke, w::Float64)
+    if mat.ft_law==:hordijk
+        wc = mat.wc
+        if w < wc
+            z = (1 + 27*(w/wc)^3)*exp(-6.93*w/wc) - 28*(w/wc)*exp(-6.93)
+        else
+            z = 0.0
+        end
+        return z*mat.ft
     else
-        dξdεpa = mat.H
+        return mat.ft_fun(w)
     end
-    return dξdεpa
+end
+
+function calc_ξ0_κ(mat::WillamWarnke, state::WillamWarnkeState, εtp::Float64, εcp::Float64)
+
+    e  = mat.e
+    w  = εtp*state.h
+
+    # current values
+    ft = calc_ft(mat, w)
+    fc = calc_fc(mat, εcp)
+
+    ξ0 = (e+1)*ft*ft/ ( (4*e+1)*fc - 3*e*ft )
+    κ  = √2*fc/(fc + √3*ξ0)
+
+    return ξ0, κ
 end
 
 
-function yield_func(mat::WillamWarnke, state::WillamWarnkeState, σ::AbstractArray, εpa::Float64)
-    α = mat.α
+function yield_func(mat::WillamWarnke, state::WillamWarnkeState, σ::AbstractArray, εtp::Float64, εcp::Float64)
+    # f(σ) = ρ - rθ⋅(ξ0-ξ)⋅κ
+
     i1, j2 = tr(σ), J2(σ)
 
     ξ = i1/√3
     ρ = √(2*j2)
-    r = calc_r(mat, σ)
-    ξmax = calc_ξmax(mat, εpa)
+    rθ = calc_rθ(mat, σ)
+    ξ0, κ = calc_ξ0_κ(mat, state, εtp, εcp)
 
-    return ρ - r*α*(ξmax - ξ)
+    return ρ - rθ*(ξ0 - ξ)*κ
 end
 
 
 function yield_derivs(mat::WillamWarnke, state::WillamWarnkeState, σ::AbstractArray, εpa::Float64)
 
-    e, α = mat.e, mat.α
+    e = mat.e
     i1, j2 = tr(σ), J2(σ)
 
     ρ = √(2*j2)
@@ -139,13 +254,13 @@ function yield_derivs(mat::WillamWarnke, state::WillamWarnkeState, σ::AbstractA
     norm_s = ρ
 
     # θ and derivatives
-    θ       = 1/3*acos( clamp(3*√6*det_s/norm_s^3, -1.0, 1.0) )
-    rnum    = 2*(1-e^2)*cos(θ) + (2*e-1)*√(4*(1-e^2)*cos(θ)^2 + 5*e^2 - 4*e)
-    rden    = 4*(1-e^2)*cos(θ)^2 + (2*e-1)^2
-    r       = rnum/rden
-    drnumdθ = (2*sin(2*θ)*(2*e-1)*(e^2-1))/√(4*(1-e^2)*cos(θ)^2 + 5*e^2 - 4*e) - 2*(1 - e^2)*sin(θ)
-    drdendθ = 4*sin(2*θ)*(e^2-1)
-    drdθ    = (drnumdθ*rden - rnum*drdendθ)/rden^2
+    θ        = 1/3*acos( clamp(3*√6*det_s/norm_s^3, -1.0, 1.0) )
+    rnum     = 2*(1-e^2)*cos(θ) + (2*e-1)*√(4*(1-e^2)*cos(θ)^2 + 5*e^2 - 4*e)
+    rden     = 4*(1-e^2)*cos(θ)^2 + (2*e-1)^2
+    rθ       = rnum/rden
+    drθnumdθ = (2*sin(2*θ)*(2*e-1)*(e^2-1))/√(4*(1-e^2)*cos(θ)^2 + 5*e^2 - 4*e) - 2*(1 - e^2)*sin(θ)
+    drθdendθ = 4*sin(2*θ)*(e^2-1)
+    drθdθ    = (drθnumdθ*rden - rnum*drθdendθ)/rden^2
 
     if 1-abs(cos(3*θ)) > 1e-6 # condition to avoid division by zero
         dθds = -√6*(adj_s/ρ^3 - 3*s*det_s/ρ^5)/√abs(1 - 54*det_s^2/ρ^6)
@@ -153,40 +268,53 @@ function yield_derivs(mat::WillamWarnke, state::WillamWarnkeState, σ::AbstractA
         dθds = 0.0*I2
     end
 
+    ξ0, κ = calc_ξ0_κ(mat, state, εtp, εcp)
+
+
     # f derivatives
-    dfdρ = 1.0
-    dfdξ = α*r
-    ξmax = calc_ξmax(mat, εpa)
-    dfdr = α*(ξmax - ξ)
-    dfdθ = dfdr*drdθ
+    dfdρ  = 1.0
+    dfdξ  = κ*r
+    dfdrθ = κ*(ξmax - ξ)
+    dfdθ  = dfdrθ*drdθ
 
     dρdσ = s/norm(s)
     dξdσ = √3/3*I2
     dsdσ = Psd
     dθdσ = dsdσ*dθds
 
-    dfdσ      = dfdρ*dρdσ + dfdξ*dξdσ + dfdθ*dθdσ
-    dfdξmax   = -α*r
-    dξmaxdεpa = calc_deriv_ξmax_εpa(mat, εpa)
-    dfdεpa    = dfdξmax*dξmaxdεpa
+    if ρ==0 # apex
+        dfdσ = √3/3*I2
+    else
+        dfdσ = dfdρ*dρdσ + dfdξ*dξdσ + dfdθ*dθdσ
+    end
 
-    return dfdσ, dfdεpa
+    f_εcp  = εcp -> yield_func(mat, state, σ, εtp, εcp, εvp)
+    dfdεcp = derive(f_εcp, εcp)
+
+    f_εtp  = εtp -> yield_func(mat, state, σ, εtp, εcp, εvp)
+    dfdεtp = derive(f_εtp, εtp)
+
+    return dfdσ, dfdεtp, dfdεcp
 end
 
 
 function potential_derivs(mat::WillamWarnke, state::WillamWarnkeState, σ::AbstractArray)
-    # g(σ) = ρ - ᾱ*(ξ0-ξ)  Drucker-Prager like surface
+    # g(σ) = ρ - (ξ0-ξ)⋅κ Drucker-Prager like surface
 
-    ᾱ = mat.ᾱ
+    ξ0, κ = calc_ξ0_κ(mat, state, εtp, εcp)
+
+
+
+    # ᾱ = mat.ᾱ
     s = dev(σ)
 
     # g derivatives
     # dgdρ = 1.0
-    # dgdξ = ᾱ
+    # dgdξ = κ
     # dρdσ = s/norm(s)
     # dξdσ = √3/3*I2
 
-    dgdσ = s/norm(s) + ᾱ*√3/3*I2
+    dgdσ = s/norm(s) + κ*√3/3*I2
     return dgdσ
 
 end
@@ -195,146 +323,197 @@ end
 function calcD(mat::WillamWarnke, state::WillamWarnkeState)
     De  = calcDe(mat.E, mat.ν, state.ctx.stress_state)
 
-    if state.Δλ==0.0
-        return De
-    end
+    state.Δλ==0.0 && return De
 
-    j2 = J2(state.σ)
+    dfdσ, dfdεtp, dfdεcp = yield_derivs(mat, state, state.σ, state.εtp, state.εcp)
+    dgdσ = potential_derivs(mat, state, state.σ, state.εtp, state.εcp)
 
-    if j2 != 0.0
-        dfdσ, dfdεpa = yield_derivs(mat, state, state.σ, state.εpa)
-        dgdσ = potential_derivs(mat, state, state.σ)
-    else # apex
-        dfdσ = √3/3*I2
-        dgdσ = dfdσ
-    end
-
-    Dep = De - De*dgdσ*dfdσ'*De / (dfdσ'*De*dgdσ - dfdεpa*norm(dgdσ))
+    Λ = eigvals(dgdσ, sort=false)
+    # Dep = De - De*dgdσ*dfdσ'*De / (dfdσ'*De*dgdσ - dfdεcp*norm(min.(0.0, Λ)) - dfdεtp*norm(max.(0.0, Λ)))
+    Dep = De - De*dgdσ*dfdσ'*De / (dfdσ'*De*dgdσ - dfdεcp*norm(min.(0.0, Λ)) - dfdεtp*maximum(max.(0.0, Λ)))
+    
     return Dep
-
 end
 
 
-function calc_σ_εpa_Δλ(mat::WillamWarnke, state::WillamWarnkeState, σtr::Vec6)
+function calc_σ_εp_Δλ(mat::WillamWarnke, state::WillamWarnkeState, σtr::Vec6)
+    maxits = 60
+    tol    = 0.1
+    tol    = 1.0
+    dgdσ   = potential_derivs(mat, state, state.σ, state.εtp, state.εcp)
+    De     = calcDe(mat.E, mat.ν, state.ctx.stress_state)
+    Δλ     = eps()
 
-    α  = mat.α
-    ᾱ  = mat.ᾱ
+    σ  = σtr - Δλ*(De*dgdσ)
 
-    E, ν = mat.E, mat.ν
-    K, G  = E/(3.0*(1.0-2.0*ν)), E/(2.0*(1.0+ν))
+    εcp = state.εcp
+    εtp = state.εtp
 
-    maxits = 20
-    tol = 1e-3
+    f   = yield_func(mat, state, state.σ, εtp, εcp)
+    η   = 1.0 # initial damping
 
-    # ftr = yield_func(mat, state, σtr, state.εpa)
-
-    # @show f
-    str   = dev(σtr)
-    n_str = norm(str)
-    ξtr   = tr(σtr)/√3
-    ρtr   = n_str
-    r     = calc_r(mat, σtr)
-    ξmax  = calc_ξmax(mat, state.εpa)
-
-    # iterative process since θ is unknown at step n+1
+    # iterative process
     for i in 1:maxits
+        dfdσ, _ = yield_derivs(mat, state, σ, εtp, εcp, εvp)
+        dgdσ    = potential_derivs(mat, state, σ, εtp, εcp, εvp)
+        dfdΔλ   = -dfdσ'*De*dgdσ
 
-        numΔλ = ρtr - α*r*(ξmax - ξtr)
-        denΔλ = 2*G + 3*α*ᾱ*K*r
+        Δλ = Δλ - η*f/dfdΔλ
+        if Δλ<0
+            # Δλ = abs(Δλ)
+            # @show Δλ
+        end
 
-        Δλ = numΔλ/denΔλ
+        if isnan(Δλ)
+            return state.σ, 0.0, 0.0, 0.0, 0.0, failure("WillamWarnke: Δλ is NaN")
+        end
 
-        # @assert Δλ >= 0.0
-        # todo: check if Δλ is negative and return to the apex
+        σ  = σtr - Δλ*(De*dgdσ)
 
-        # estimative at n+1
-        s   = (1 - 2*G*Δλ/n_str)*str
-        ξ   = ξtr - 3*ᾱ*K*Δλ
-        σ   = ξ/√3*I2 + s
-        εpa = state.εpa + Δλ*√(1 + ᾱ^2)
-        ρ   = ρtr - 2*G*Δλ
-        r   = calc_r(mat, σ)
-        ξmax = calc_ξmax(mat, εpa)
-
-        # yield function at n+1
-        f = ρ - r*α*(ξmax - ξ)
+        Λ   = eigvals(dgdσ, sort=false)
+        εtp = state.εtp + Δλ*maximum(max.(0.0, Λ))
+        εcp = state.εcp + Δλ*norm(min.(0.0, Λ))
+        f   = yield_func(mat, state, σ, εtp, εcp)
 
         if abs(f) < tol
-            @assert Δλ >= 0.0
+            Δλ < 0.0 && return σ, 0.0, 0.0, 0.0, 0.0, failure("WillamWarnke: negative Δλ")
 
-            return σ, εpa, Δλ, success()
+            # @show Δλ
+            # @show f
+            return σ, εtp, εcp, Δλ, success()
         end
 
+        # dumping
+        i>10 && (η = 0.6)
+        i>15 && (η = 0.3)
     end
 
-
-    return state.σ, 0.0, 0.0, failure("WillamWarnke: maximum iterations reached")
-
+    return state.σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: maximum iterations reached")
 end
+# function calc_σ_εpa_Δλ(mat::WillamWarnke, state::WillamWarnkeState, σtr::Vec6)
+
+#     α  = mat.α
+#     ᾱ  = mat.ᾱ
+
+#     E, ν = mat.E, mat.ν
+#     K, G  = E/(3.0*(1.0-2.0*ν)), E/(2.0*(1.0+ν))
+
+#     maxits = 20
+#     tol = 1e-3
+
+#     # ftr = yield_func(mat, state, σtr, state.εpa)
+
+#     # @show f
+#     str   = dev(σtr)
+#     n_str = norm(str)
+#     ξtr   = tr(σtr)/√3
+#     ρtr   = n_str
+#     r     = calc_rθ(mat, σtr)
+#     ξmax  = calc_ξmax(mat, state.εpa)
+
+#     # iterative process since θ is unknown at step η+1
+#     for i in 1:maxits
+
+#         numΔλ = ρtr - α*r*(ξmax - ξtr)
+#         denΔλ = 2*G + 3*α*ᾱ*K*r
+
+#         Δλ = numΔλ/denΔλ
+
+#         # @assert Δλ >= 0.0
+#         # todo: check if Δλ is negative and return to the apex
+
+#         # estimative at η+1
+#         s   = (1 - 2*G*Δλ/n_str)*str
+#         ξ   = ξtr - 3*ᾱ*K*Δλ
+#         σ   = ξ/√3*I2 + s
+#         εpa = state.εpa + Δλ*√(1 + ᾱ^2)
+#         ρ   = ρtr - 2*G*Δλ
+#         r   = calc_rθ(mat, σ)
+#         ξmax = calc_ξmax(mat, εpa)
+
+#         # yield function at η+1
+#         f = ρ - r*α*(ξmax - ξ)
+
+#         if abs(f) < tol
+#             @assert Δλ >= 0.0
+
+#             return σ, εpa, Δλ, success()
+#         end
+
+#     end
 
 
-function calc_σ_εpa_Δλ_bis(mat::WillamWarnke, state::WillamWarnkeState, σtr::Vec6)
-    α  = mat.α
-    ᾱ  = mat.ᾱ
+#     return state.σ, 0.0, 0.0, failure("WillamWarnke: maximum iterations reached")
 
-    E, ν = mat.E, mat.ν
-    K, G  = E/(3.0*(1.0-2.0*ν)), E/(2.0*(1.0+ν))
+# end
 
-    # De = calcDe(mat.E, mat.ν, state.ctx.stress_state)
 
-    ξtr = tr(σtr)/√3
-    str = dev(σtr)
-    n_str = norm(str)
-    r     = calc_r(mat, σtr)
-    ξmax  = calc_ξmax(mat, state.εpa)
+# function calc_σ_εpa_Δλ_bis(mat::WillamWarnke, state::WillamWarnkeState, σtr::Vec6)
+#     α  = mat.α
+#     ᾱ  = mat.ᾱ
 
-    # estimative of Δλ
-    # dgdσ = potential_derivs(mat, state, σtr)
-    # Δλ0  = norm(σtr-state.σ)/norm(De*dgdσ)
+#     E, ν = mat.E, mat.ν
+#     K, G  = E/(3.0*(1.0-2.0*ν)), E/(2.0*(1.0+ν))
 
-    # str   = dev(σtr)
-    ρtr   = n_str
-    numΔλ = ρtr - α*r*(ξmax - ξtr)
-    denΔλ = 2*G + 3*α*ᾱ*K*r
-    Δλ0 = numΔλ/denΔλ
+#     # De = calcDe(mat.E, mat.ν, state.ctx.stress_state)
 
-    # function of Δλ
-    ff(Δλ)  = begin
-        # quantities at n+1
-        ρ = ρtr - 2*G*Δλ
-        if ρ>0
-            ξ = ξtr - 3*ᾱ*K*Δλ
-            s = (1 - 2*G*Δλ/n_str)*str  # todo: avoid to compute s
-            σ = ξ/√3*I2 + s
-        else
-            ξ = calc_ξmax(mat, state.εpa)
-            σ = ξ/√3*I2
-        end
+#     ξtr = tr(σtr)/√3
+#     str = dev(σtr)
+#     n_str = norm(str)
+#     r     = calc_rθ(mat, σtr)
+#     ξmax  = calc_ξmax(mat, state.εpa)
 
-        εpa = state.εpa + Δλ*√(1 + ᾱ^2)
-        return yield_func(mat, state, σ, εpa)
-    end
+#     # estimative of Δλ
+#     # dgdσ = potential_derivs(mat, state, σtr)
+#     # Δλ0  = norm(σtr-state.σ)/norm(De*dgdσ)
 
-    a, b, status = findrootinterval(ff, 0.0, Δλ0)
-    failed(status) && return state.σ, 0.0, 0.0, status
+#     # str   = dev(σtr)
+#     ρtr   = n_str
+#     numΔλ = ρtr - α*r*(ξmax - ξtr)
+#     denΔλ = 2*G + 3*α*ᾱ*K*r
+#     Δλ0 = numΔλ/denΔλ
 
-    Δλ, status = findroot(ff, a, b, ftol=1e-3, method=:bisection)
-    failed(status) && return state.σ, 0.0, 0.0, status
-    @assert Δλ >= 0.0
+#     # function of Δλ
+#     ff(Δλ)  = begin
+#         # quantities at η+1
+#         ρ = ρtr - 2*G*Δλ
+#         if ρ>0
+#             ξ = ξtr - 3*ᾱ*K*Δλ
+#             s = (1 - 2*G*Δλ/n_str)*str  # todo: avoid to compute s
+#             σ = ξ/√3*I2 + s
+#         else
+#             ξ = calc_ξmax(mat, state.εpa)
+#             σ = ξ/√3*I2
+#         end
 
-    σ   = σtr - 2*G*Δλ*str/n_str - √3*K*Δλ*ᾱ*I2
-    εpa = state.εpa + Δλ*√(1 + ᾱ^2)
+#         εpa = state.εpa + Δλ*√(1 + ᾱ^2)
+#         return yield_func(mat, state, σ, εpa)
+#     end
 
-    return σ, εpa, Δλ, success()
+#     a, b, status = findrootinterval(ff, 0.0, Δλ0)
+#     failed(status) && return state.σ, 0.0, 0.0, status
 
-end
+#     Δλ, status = findroot(ff, a, b, ftol=1e-3, method=:bisection)
+#     failed(status) && return state.σ, 0.0, 0.0, status
+#     @assert Δλ >= 0.0
+
+#     σ   = σtr - 2*G*Δλ*str/n_str - √3*K*Δλ*ᾱ*I2
+#     εpa = state.εpa + Δλ*√(1 + ᾱ^2)
+
+#     return σ, εpa, Δλ, success()
+
+# end
 
 
 function update_state(mat::WillamWarnke, state::WillamWarnkeState, Δε::AbstractArray)
     σini = state.σ
     De   = calcDe(mat.E, mat.ν, state.ctx.stress_state)
     σtr  = state.σ + De*Δε
-    ftr  = yield_func(mat, state, σtr, state.εpa)
+    ftr  = yield_func(mat, state, σtr, state.εtp, state.εcp)
+
+    Δλ  = 0.0
+    tol = 1.0
+    tol = 0.1
 
     if ftr < 1e-8
         # elastic
@@ -342,11 +521,16 @@ function update_state(mat::WillamWarnke, state::WillamWarnkeState, Δε::Abstrac
         state.σ  = σtr
     else
         # plastic
-        σ, εpa, Δλ, status = calc_σ_εpa_Δλ(mat, state, σtr)
+        # σ, εpa, Δλ, status = calc_σ_εpa_Δλ(mat, state, σtr)
         # σ, εpa, Δλ, status = calc_σ_εpa_Δλ_bis(mat, state, σtr)
-        failed(status) && return state.σ, status
+        state.σ, state.εtp, state.εcp, state.Δλ, status = calc_σ_εp_Δλ(mat, state, σtr)
+        @assert state.εcp >= 0.0
+        @assert state.εtp >= 0.0
+        @assert state.εvp >= 0.0
 
-        state.σ, state.εpa, state.Δλ = σ, εpa, Δλ
+        Δσ = state.σ - σini
+
+        failed(status) && return state.σ, status
     end
 
     state.ε += Δε
@@ -360,10 +544,17 @@ function state_values(mat::WillamWarnke, state::WillamWarnkeState)
     ρ = √(2*J2(σ))
     ξ = tr(σ)/√3
 
-    D       = stress_strain_dict(σ, ε, state.ctx.stress_state)
-    D[:ep]  = state.εpa
-    D[:xi]  = ξ
-    D[:rho] = ρ
+    w  = state.εtp*state.h
+    ft = calc_ft(mat, w)
+    fc = calc_fc(mat, state.εcp)
 
-    return D
+    vals_d = stress_strain_dict(σ, ε, state.ctx.stress_state)
+    vals_d[:εcp] = state.εcp
+    vals_d[:εtp] = state.εtp
+    vals_d[:ξ]   = ξ
+    vals_d[:ρ]   = ρ
+    vals_d[:fc]  = fc
+    vals_d[:ft]  = ft
+
+    return vals_d
 end

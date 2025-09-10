@@ -6,8 +6,8 @@ export AsinhYieldCohesive
 """
     AsinhYieldCohesive(; E, nu=0.0, ft, fc, zeta=5.0, wc, GF, ft_law=:hordijk, alpha=1.5, gamma=0.1, theta=1.5)
 
-Constitutive model for cohesive elements with a power-lay yield surface ans softening in tension.  
-The tensile softening branch is regularized through a measure of the
+Constitutive model for cohesive elements with a power-lay yield surface ans ft_law in tension.  
+The tensile ft_law branch is regularized through a measure of the
 bulk element size `h` to ensure mesh-objective fracture energy dissipation.
 
 # Keyword arguments
@@ -25,7 +25,7 @@ bulk element size `h` to ensure mesh-objective fracture energy dissipation.
   Friction coefficient (> 0).
 - `GF::Real`:  
   Fracture energy (must be > 0 if given). Can be specified alternatively to `wc`.
-- `softening::Union{Symbol,PathFunction} = :hordijk`:  
+- `ft_law::Union{Symbol,AbstractSpline} = :hordijk`:  
   Softening law for post-peak tensile response. Options are:
   `:linear`, `:bilinear`, `:hordijk`, `:soft` or a custom function.
 - `alpha::Real = 0.6`:  
@@ -42,7 +42,7 @@ A `AsinhYieldCohesive` object.
 
 # Notes
 - Either `wc` or `GF` must be provided. If only `GF` is given, `wc` is computed
-  internally based on the chosen softening law.
+  internally based on the chosen ft_law.
 - The frictional contribution is governed by `mu`.
 - Normal and shear stiffnesses (`kn`, `ks`) are computed from the mechanical properties of
   the bulk material and the characteristic length `h` of the adjacent bulk elements.
@@ -53,8 +53,8 @@ mutable struct AsinhYieldCohesive<:Constitutive
     fc::Float64
     ft::Float64
     wc::Float64
-    softening::Symbol
-    ft_fun::Union{PathFunction,Nothing}
+    ft_law::Symbol
+    ft_fun::Union{AbstractSpline,Nothing}
     α::Float64
     γ::Float64
     θ::Float64
@@ -68,13 +68,14 @@ mutable struct AsinhYieldCohesive<:Constitutive
         ft::Real = NaN,
         wc::Real = NaN,
         GF::Real = NaN,
-        softening::Union{Symbol,PathFunction} = :hordijk,
+        ft_law::Union{Symbol,AbstractSpline} = :hordijk,
         alpha::Real = 0.6,
         gamma::Real = 0.1,
         theta::Real = 1.5,
         zeta::Real = 5.0,
     )
-@check E>0 "AsinhYieldCohesive: Young's modulus E must be > 0. Got $(repr(E))."
+
+        @check E>0 "AsinhYieldCohesive: Young's modulus E must be > 0. Got $(repr(E))."
         @check 0<=nu<0.5 "AsinhYieldCohesive: Poisson ratio nu must be in the range [0, 0.5). Got $(repr(nu))."
         @check fc<0 "AsinhYieldCohesive: Compressive strength fc must be < 0. Got $(repr(fc))."
         @check ft>0 "AsinhYieldCohesive: Tensile strength ft must be > 0. Got $(repr(ft))."
@@ -82,35 +83,11 @@ mutable struct AsinhYieldCohesive<:Constitutive
         @check alpha > 0.5 "AsinhYieldCohesive: alpha must be greater than 0.5. Got $(repr(alpha))."
         @check gamma >= 0.0 "AsinhYieldCohesive: gamma must be non-negative. Got $(repr(gamma))."
         @check theta >= 0.0 "AsinhYieldCohesive: theta must be non-negative. Got $(repr(theta))."
-        @check softening in (:linear, :bilinear, :hordijk, :soft) || softening isa PathFunction "PowerYieldCohesive: Unknown softening model: $softening. Supported models are :linear, :bilinear, :hordijk, :soft or a custom PathFunction."
+        @check ft_law in (:linear, :bilinear, :hordijk, :soft) || ft_law isa AbstractSpline "AsinhYieldCohesive: Unknown ft_law model: $ft_law. Supported models are :linear, :bilinear, :hordijk, :soft or a custom AbstractSpline."
 
-        ft_fun = nothing
-        if softening isa PathFunction
-            ft_fun = softening
-            softening = :custom
-            ft = softening(0.0)
-            if softening.points[end][2] == 0.0
-                wc = softening.points[end][1]
-            else
-                wc = Inf
-            end
-        else
-            if isnan(wc)
-                isnan(GF) && error("AsinhYieldCohesive: wc or GF must be defined when using a predefined softening model")
-                @check GF>0 "AsinhYieldCohesive: GF must be positive. Got GF=$GF"
+        wc, ft_law, ft_fun, status = setup_tensile_strength(ft, ft_law, GF, wc)
+        failed(status) && throw(ArgumentError("AsinhYieldCohesive: " * status.message))
 
-                if softening == :linear
-                    wc = round(2*GF/ft, sigdigits=5)
-                elseif softening == :bilinear
-                    wc = round(5*GF/ft, sigdigits=5)
-                elseif softening==:hordijk
-                    wc = round(GF/(0.1947019536*ft), sigdigits=5)
-                elseif softening==:soft
-                    wc = round(GF/(0.1947019536*ft), sigdigits=5)
-                end
-            end
-        end
-        @assert wc > 0.0 "AsinhYieldCohesive: wc must be greater than zero"
 
         α = alpha
 
@@ -133,10 +110,7 @@ mutable struct AsinhYieldCohesive<:Constitutive
         χ  = (ft-a)/ft
         β0 = b/asinh(α*χ)
 
-        return new(
-            E, nu, fc, ft, wc, softening, ft_fun,
-            alpha, gamma, theta, β0, zeta
-        )
+        return new(E, nu, fc, ft, wc, ft_law, ft_fun, alpha, gamma, theta, β0, zeta)
     end
 end
 
@@ -169,11 +143,11 @@ compat_state_type(::Type{AsinhYieldCohesive}, ::Type{MechInterface}, ctx::Contex
 function paramsdict(mat::AsinhYieldCohesive)
     mat = OrderedDict( string(field) => getfield(mat, field) for field in fieldnames(typeof(mat)) )
 
-    if mat.softening in (:hordijk, :soft)
+    if mat.ft_law in (:hordijk, :soft)
         mat["GF"] = 0.1943*mat.ft*mat.wc
-    elseif mat.softening == :bilinear
+    elseif mat.ft_law == :bilinear
         mat["GF"] = mat.ft*mat.wc/5
-    elseif mat.softening == :linear
+    elseif mat.ft_law == :linear
         mat["GF"] = mat.ft*mat.wc/2
     else
         mat["GF"] = NaN
@@ -253,54 +227,8 @@ function potential_derivs(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveStat
 end
 
 
-function calc_σmax(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, up::Float64)
-    if mat.softening == :linear
-        if up < mat.wc
-            a = mat.ft 
-            b = mat.ft /mat.wc
-        else
-            a = 0.0
-            b = 0.0
-        end
-        σmax = a - b*up
-    elseif mat.softening == :bilinear
-        σs = 0.25*mat.ft
-        ws = mat.wc*0.15
-        if up < ws
-            a  = mat.ft  
-            b  = (mat.ft  - σs)/ws
-        elseif up < mat.wc
-            a  = mat.wc*σs/(mat.wc-ws)
-            b  = σs/(mat.wc-ws)
-        else
-            a = 0.0
-            b = 0.0
-        end
-        σmax = a - b*up
-    elseif mat.softening == :hordijk
-        if up < mat.wc
-            z = (1 + 27*(up/mat.wc)^3)*exp(-6.93*up/mat.wc) - 28*(up/mat.wc)*exp(-6.93)
-        else
-            z = 0.0
-        end
-        σmax = z*mat.ft
-    elseif mat.softening == :soft
-        dσmaxdup = 0.55
-        a = 1.30837
-        if up == 0.0
-            z = 1.0
-        elseif 0.0 < up < mat.wc
-            x = up/mat.wc
-            z = 1.0 - a^(1.0 - 1.0/x^dσmaxdup)
-        else
-            z = 0.0
-        end
-        σmax = z*mat.ft
-    else
-        σmax = mat.ft_fun(up)
-    end
-
-    return σmax
+function deriv_σmax_upa(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, up::Float64)
+    return calc_tensile_strength(mat.ft, mat.ft_law, mat.ft_fun, mat.wc, up)
 end
 
 
@@ -311,50 +239,8 @@ end
 
 
 function deriv_σmax_up(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, up::Float64)
-    if mat.softening == :linear
-        if up < mat.wc
-            b = mat.ft /mat.wc
-        else
-            b = 0.0
-        end
-        dσmax = -b
-    elseif mat.softening == :bilinear
-        ws = mat.wc*0.15
-        σs = 0.25*mat.ft 
-        if up < ws
-            b  = (mat.ft  - σs)/ws
-        elseif up < mat.wc
-            b  = σs/(mat.wc-ws)
-        else
-            b = 0.0
-        end
-        dσmax = -b
-    elseif mat.softening == :hordijk
-        if up < mat.wc
-            dz = ((81*up^2*exp(-6.93*up/mat.wc)/mat.wc^3) - (6.93*(1 + 27*up^3/mat.wc^3)*exp(-6.93*up/mat.wc)/mat.wc) - 0.02738402432/mat.wc)
-        else
-            dz = 0.0
-        end
-        dσmax = dz*mat.ft 
-    elseif mat.softening == :soft
-        dσmaxdup = 0.55
-        a = 1.30837
-
-        if up == 0.0
-            dz = 0.0
-        elseif up < mat.wc
-            x = up/mat.wc
-            dz =  -dσmaxdup*log(a)*a^(1-x^-dσmaxdup)*x^(-dσmaxdup-1)/mat.wc
-
-        else
-            dz = 0.0
-        end
-        dσmax = dz*mat.ft 
-    else
-        dσmax = derive(mat.ft_fun, up)
-    end
-
-    return dσmax
+    # ∂σmax/∂up
+    return calc_tensile_strength_derivative(mat.ft, mat.ft_law, mat.ft_fun, mat.wc, up)
 end
 
 
@@ -370,7 +256,7 @@ function calcD(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
 
     ndim = state.ctx.ndim
     kn, ks = calc_kn_ks(mat, state)
-    σmax = calc_σmax(mat, state, state.up)
+    σmax = deriv_σmax_upa(mat, state, state.up)
 
     De = diagm([kn, ks, ks][1:ndim])
 
@@ -438,7 +324,7 @@ function calc_σ_up_Δλ(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState
         r      = potential_derivs(mat, state, σ)
         norm_r = norm(r)
         up     = state.up + Δλ*norm_r
-        σmax   = calc_σmax(mat, state, up)
+        σmax   = deriv_σmax_upa(mat, state, up)
         f      = yield_func(mat, state, σ, σmax)
         # @show σmax
         dfdσ, dfdσmax = yield_derivs(mat, state, σ, σmax)
@@ -502,7 +388,7 @@ function calc_σ_up_Δλ_bis(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveS
     ff(Δλ)  = begin
         # quantities at n+1
         σ, up = calc_σ_up(mat, state, σtr, Δλ)
-        σmax = calc_σmax(mat, state, up)
+        σmax = deriv_σmax_upa(mat, state, up)
         yield_func(mat, state, σ, σmax)
     end
 
@@ -527,7 +413,7 @@ function update_state(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, �
 
     kn, ks = calc_kn_ks(mat, state)
     De = diagm([kn, ks, ks][1:ndim])
-    σmax = calc_σmax(mat, state, state.up)  
+    σmax = deriv_σmax_upa(mat, state, state.up)  
 
     if isnan(Δw[1]) || isnan(Δw[2])
         alert("AsinhYieldCohesive: Invalid value for joint displacement: Δw = $Δw")
@@ -567,7 +453,7 @@ end
 
 function state_values(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
     ndim = state.ctx.ndim
-    σmax = calc_σmax(mat, state, state.up)
+    σmax = deriv_σmax_upa(mat, state, state.up)
     τ = norm(state.σ[2:ndim])
     if ndim == 3
         return Dict(

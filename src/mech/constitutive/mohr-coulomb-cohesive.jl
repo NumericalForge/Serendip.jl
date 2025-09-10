@@ -4,10 +4,10 @@ export MohrCoulombCohesive
 
 
 """
-    MohrCoulombCohesive(; E, nu=0.0, ft, GF, wc, mu, softening=:hordijk, zeta=5.0)
+    MohrCoulombCohesive(; E, nu=0.0, ft, GF, wc, mu, ft_law=:hordijk, zeta=5.0)
 
 Constitutive model for cohesive elements with a Mohr–Coulomb (MC) strength criterion.  
-The tensile softening branch is regularized through a measure of the
+The tensile ft_law branch is regularized through a measure of the
 bulk element size `h` to ensure mesh-objective fracture energy dissipation.
 
 # Keyword arguments
@@ -23,7 +23,7 @@ bulk element size `h` to ensure mesh-objective fracture energy dissipation.
   Friction coefficient (> 0).
 - `GF::Real`:  
   Fracture energy (must be > 0 if given). Can be specified alternatively to `wc`.
-- `softening::Symbol = :hordijk`:  
+- `ft_law::Symbol = :hordijk`:  
   Softening law for post-peak tensile response. Options are:
   `:linear`, `:bilinear`, `:hordijk`, `:soft`.  
 - `zeta::Real = 5.0`:  
@@ -34,7 +34,7 @@ A `MohrCoulombCohesive` object.
 
 # Notes
 - Either `wc` or `GF` must be provided. If only `GF` is given, `wc` is computed
-  internally based on the chosen softening law.
+  internally based on the chosen ft_law.
 - The frictional contribution is governed by `mu`.
 - Normal and shear stiffnesses (`kn`, `ks`) are computed from the mechanical properties of
   the bulk material and the characteristic length `h` of the adjacent bulk elements.
@@ -45,58 +45,32 @@ mutable struct MohrCoulombCohesive<:Constitutive
     ft ::Float64
     wc ::Float64
     μ  ::Float64
-    softening::Symbol
-    ft_fun::Union{PathFunction,Nothing}
+    ft_law::Symbol
+    ft_fun::Union{AbstractSpline,Nothing}
     ζ  ::Float64
 
     function MohrCoulombCohesive(; 
-            E::Real=NaN,
-            nu::Real=0.0,
-            ft::Real=NaN,
-            GF::Real=NaN,
-            wc::Real=NaN,
-            mu::Real=NaN,
-            softening::Union{Symbol,PathFunction} = :hordijk,
+        E::Real  = NaN,
+        nu::Real = 0.0,
+        ft::Real = NaN,
+        wc::Real = NaN,
+        GF::Real = NaN,
+        mu::Real = NaN,
+        ft_law::Union{Symbol,AbstractSpline} = :hordijk,
 
-            zeta::Real=5.0
-        )
+        zeta::Real=5.0
+    )
 
         @check E>0 "MohrCoulombCohesive: Young's modulus E must be > 0. Got $(repr(E))."
         @check 0<=nu<0.5 "MohrCoulombCohesive: Poisson ratio nu must be in the range [0, 0.5). Got $(repr(nu))."
         @check ft>0 "MohrCoulombCohesive: Tensile strength ft must be > 0. Got $(repr(ft))."
         @check mu>0 "MohrCoulombCohesive: Friction coefficient mu must be non-negative. Got $(repr(mu))."
         @check zeta>=0 "MohrCoulombCohesive: Factor zeta must be non-negative. Got $(repr(zeta))."
-       @check softening in (:linear, :bilinear, :hordijk, :soft) || softening isa PathFunction
 
-        ft_fun = nothing
-        if softening isa PathFunction
-            ft_fun = softening
-            softening = :custom
-            ft = softening(0.0)
-            if softening.points[end][2] == 0.0
-                wc = softening.points[end][1]
-            else
-                wc = Inf
-            end
-        else
-            if isnan(wc)
-                isnan(GF) && error("PowerYieldCohesive: wc or GF must be defined when using a predefined softening model")
-                @check GF>0 "PowerYieldCohesive: GF must be positive. Got GF=$GF"
+        wc, ft_law, ft_fun, status = setup_tensile_strength(ft, ft_law, GF, wc)
+        failed(status) && throw(ArgumentError("MohrCoulombCohesive: " * status.message))
 
-                if softening == :linear
-                    wc = round(2*GF/ft, sigdigits=5)
-                elseif softening == :bilinear
-                    wc = round(5*GF/ft, sigdigits=5)
-                elseif softening==:hordijk
-                    wc = round(GF/(0.1947019536*ft), sigdigits=5)
-                elseif softening==:soft
-                    wc = round(GF/(0.1947019536*ft), sigdigits=5)
-                end
-            end
-        end
-        @check wc > 0.0 "PowerYieldCohesive: wc must be greater than zero"
-
-        return new(E, nu, ft, wc, mu, softening, ft_fun, zeta)
+        return new(E, nu, ft, wc, mu, ft_law, ft_fun, zeta)
     end
 end
 
@@ -170,101 +144,13 @@ end
 
 
 function calc_σmax(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, up::Float64)
-    if mat.softening == :linear
-        if up < mat.wc
-            a = mat.ft 
-            b = mat.ft /mat.wc
-        else
-            a = 0.0
-            b = 0.0
-        end
-        σmax = a - b*up
-    elseif mat.softening == :bilinear
-        σs = 0.25*mat.ft 
-        if up < mat.ws
-            a  = mat.ft  
-            b  = (mat.ft  - σs)/mat.ws
-        elseif up < mat.wc
-            a  = mat.wc*σs/(mat.wc-mat.ws)
-            b  = σs/(mat.wc-mat.ws)
-        else
-            a = 0.0
-            b = 0.0
-        end
-        σmax = a - b*up
-    elseif mat.softening == :hordijk
-        if up < mat.wc
-            e = exp(1.0)
-            z = (1 + 27*(up/mat.wc)^3)*e^(-6.93*up/mat.wc) - 28*(up/mat.wc)*e^(-6.93)           
-        else
-            z = 0.0
-        end
-        σmax = z*mat.ft 
-    elseif mat.softening == :soft
-        m = 0.55
-        a = 1.30837
-        if up == 0.0
-            z = 1.0
-        elseif 0.0 < up < mat.wc
-            x = up/mat.wc
-            z = 1.0 - a^(1.0 - 1.0/x^m)
-        else
-            z = 0.0
-        end
-        σmax = z*mat.ft
-    else
-        σmax = mat.ft_fun(up)
-    end
-
-    return σmax
+    return calc_tensile_strength(mat.ft, mat.ft_law, mat.ft_fun, mat.wc, up)
 end
 
 
-function σmax_deriv(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, up::Float64)
-    # ∂σmax/∂up = dσmax
-    if mat.softening == :linear
-        if up < mat.wc
-            b = mat.ft /mat.wc
-        else
-            b = 0.0
-        end
-        dσmax = -b
-    elseif mat.softening == :bilinear
-        σs = 0.25*mat.ft 
-        if up < mat.ws
-            b  = (mat.ft  - σs)/mat.ws
-        elseif up < mat.wc
-            b  = σs/(mat.wc-mat.ws)
-        else
-            b = 0.0
-        end
-        dσmax = -b
-    elseif mat.softening == :hordijk
-        if up < mat.wc
-            e = exp(1.0)
-            dz = ((81*up^2*e^(-6.93*up/mat.wc)/mat.wc^3) - (6.93*(1 + 27*up^3/mat.wc^3)*e^(-6.93*up/mat.wc)/mat.wc) - 0.02738402432/mat.wc)
-        else
-            dz = 0.0
-        end
-        dσmax = dz*mat.ft 
-    elseif mat.softening == :soft
-        m = 0.55
-        a = 1.30837
-
-        if up == 0.0
-            dz = 0.0
-        elseif up < mat.wc
-            x = up/mat.wc
-            dz =  -m*log(a)*a^(1-x^-m)*x^(-m-1)/mat.wc
-        else
-            dz = 0.0
-        end
-        dσmax = dz*mat.ft 
-    else
-        dσmax = derive(mat.ft_fun, up)
-    end
-
-    return dσmax
+function deriv_σmax_upa(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, up::Float64)
+    # ∂σmax/∂up
+    return calc_tensile_strength_derivative(mat.ft, mat.ft_law, mat.ft_fun, mat.wc, up)
 end
 
 
@@ -327,7 +213,7 @@ function calc_Δλ(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σ
         norm_r   = norm(r)
         up       = state.up + Δλ*norm_r
         σmax     = calc_σmax(mat, state, up)
-        m        = σmax_deriv(mat, state, up)
+        m        = deriv_σmax_upa(mat, state, up)
         dσmaxdΔλ = m*(norm_r + Δλ*dot(r/norm_r, drdΔλ))
 
         if ndim == 3
@@ -401,7 +287,7 @@ function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
         v    = yield_deriv(mat, state)
         r    = potential_derivs(mat, state, state.σ)
         y    = -mat.μ # ∂F/∂σmax
-        m    = σmax_deriv(mat, state, state.up)  # ∂σmax/∂up
+        m    = deriv_σmax_upa(mat, state, state.up)  # ∂σmax/∂up
 
         #Dep  = De - De*r*v'*De/(v'*De*r - y*m*norm(r))
 

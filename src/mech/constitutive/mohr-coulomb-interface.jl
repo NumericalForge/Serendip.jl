@@ -85,7 +85,7 @@ mutable struct MohrCoulombInterface<:Constitutive
             elseif softening == :bilinear
                 wc = round(5*GF/ft, sigdigits=5)
             elseif softening == :hordijk
-                wc = round(GF/(0.1947019536*ft), sigdigits=5)  
+                wc = round(GF/(0.1947*ft), sigdigits=5)  
             end
         else
             @check wc>0 "MohrCoulombInterface: Critical crack opening wc must be positive. Got $(repr(wc))."

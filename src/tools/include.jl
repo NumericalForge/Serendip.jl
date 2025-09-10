@@ -2,21 +2,20 @@
 
 include("aliases.jl")
 
+include("error.jl")
 include("returnstatus.jl")
 include("iteration.jl")
 
 include("show.jl")
 
 include("constants.jl")
-include("math.jl")
+include("numerical.jl")
+include("splines.jl")
 include("linalg.jl")
-include("path-function.jl")
 include("tensors.jl")
 
 include("signal.jl")
 include("quaternion.jl")
-
-include("error.jl")
 
 include("expr.jl") 
 include("threads.jl")

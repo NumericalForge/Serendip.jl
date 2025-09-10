@@ -22,6 +22,29 @@ fc = -24e3
 zeta = 5.0
 wc = 1.7e-4
 
+# ❱❱❱ Finite element analysis using LinearCohesive
+
+printstyled("\nLinearCohesive:\n\n", color=:yellow, bold=true)
+
+mapper = RegionMapper()
+add_mapping(mapper, "bulk", MechBulk, LinearElastic, E=E, nu=nu)
+add_mapping(mapper, "joint", MechInterface, LinearCohesive, E=E, nu=nu, zeta=zeta)
+
+model = FEModel(mesh, mapper, stress_state=:plane_stress, thickness=1.0)
+ana = MechAnalysis(model)
+
+joint = select(model.elems, "joint")
+select( get_ips(joint), tag="jips" )
+log1 = add_logger(ana, :ip, "jips")
+add_monitor(ana, :ip, "jips", (:σn, :τ))
+
+stage = add_stage(ana, nincs=80, nouts=20)
+add_bc(stage, :node, "left", ux=0, uy=0)
+add_bc(stage, :node, "right", ux=1e-9, uy=8e-5)
+
+run(ana, autoinc=true, maxits=3, tol=0.001, rspan=0.01, dTmax=0.1, tangent_scheme=:ralston)
+
+
 # ❱❱❱ Finite element analysis using MohrCoulombCohesive
 
 printstyled("\nMohrCoulombCohesive:\n\n", color=:yellow, bold=true)

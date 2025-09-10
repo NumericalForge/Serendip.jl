@@ -18,8 +18,8 @@ mapper = RegionMapper()
 add_mapping(mapper, "solids", MechBulk, UCP, 
     E=30e6, nu=0.2, 
     alpha=0.666, beta=1.15, 
-    fc=fc, epsc=-0.002, n=1.05,
-    ft=ft, GF=100,
+    fc=fc, epsc=-0.002, η=2.2,
+    ft=ft, GF=0.1,
     )
 
 # ❱❱❱ Analysis 1: compression
