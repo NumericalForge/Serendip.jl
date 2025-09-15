@@ -11,7 +11,7 @@
         colorbar=:right, colorbar_length_factor=0.9, bins=6,
         font="NewComputerModern", font_size=7.0,
         interpolation=:linear,
-        azimut=30, elevation=30, distance=0.0,
+        azimuth=30, elevation=30, distance=0.0,
         feature_edges=true, view_mode=:surface_with_edges,
         light_vector=[0,0,0],
         node_labels=false,
@@ -44,7 +44,7 @@ Create a customizable domain plot for meshes and FE models.
 - `font::AbstractString`: font family.
 - `font_size::Real`: font size (> 0).
 - `interpolation::Symbol`: `:constant | :linear | :nonlinear` surface shading.
-- `azimut::Real`: 3D azimuth angle in degrees.
+- `azimuth::Real`: 3D azimuth angle in degrees.
 - `elevation::Real`: 3D elevation angle in degrees.
 - `distance::Real`: camera distance (≥ 0).
 - `feature_edges::Bool`: enhance feature lines (`:outline` forces on).
@@ -78,7 +78,7 @@ mutable struct DomainPlot<:Figure
     values::Vector{Float64}
     outerpad::Float64
     shades::Vector{Float64}
-    azimut::Float64
+    azimuth::Float64
     elevation::Float64
     distance::Float64
 
@@ -134,7 +134,7 @@ mutable struct DomainPlot<:Figure
         font::AbstractString="NewComputerModern",
         font_size::Real=7.0,
         interpolation::Symbol=:linear,
-        azimut::Real=30.0,
+        azimuth::Real=30.0,
         elevation::Real=30.0,
         distance::Real=0.0,
         feature_edges::Bool=true,
@@ -155,7 +155,7 @@ mutable struct DomainPlot<:Figure
         width, height = size
         axes_loc    = axes
         axis_labels = length(axis_labels)==0 ? [L"x", L"y", L"z"] : axis_labels
-        axes_widget = AxisWidget(location=axes_loc, labels=axis_labels, font=font, font_size=font_size, azimut=azimut, elevation=elevation, arrow_length=20)
+        axes_widget = AxisWidget(location=axes_loc, labels=axis_labels, font=font, font_size=font_size, azimuth=azimuth, elevation=elevation, arrow_length=20)
 
         mesh = mesh
         nodes = []
@@ -180,7 +180,7 @@ mutable struct DomainPlot<:Figure
 
         font               = font
         font_size          = font_size
-        azimut             = azimut
+        azimuth             = azimuth
         elevation          = elevation
         distance           = distance
         show_feature_edges = (feature_edges || view_mode==:outline) && view_mode != :wireframe
@@ -194,7 +194,7 @@ mutable struct DomainPlot<:Figure
 
         return new(mesh, canvas, the_colorbar, axes_widget, nodes, elems, 
             feature_edges_d, values, outerpad, shades,
-            azimut, elevation, distance,
+            azimuth, elevation, distance,
             interpolation, light_vector,
             width, height,
             edge_width, edge_color, outline_width, 
@@ -227,7 +227,7 @@ function bezier_points(edge::AbstractCell)
 end
 
 
-function project_to_2d!(nodes, azimut, elevation, distance)
+function project_to_2d!(nodes, azimuth, elevation, distance)
     # Find bounding box
     xmin, xmax = extrema( node.coord[1] for node in nodes)
     ymin, ymax = extrema( node.coord[2] for node in nodes)
@@ -241,7 +241,7 @@ function project_to_2d!(nodes, azimut, elevation, distance)
     end
 
     # Rotation around z axis
-    θ = -azimut*pi/180
+    θ = -azimuth*pi/180
     R = Quaternion(cos(θ/2), 0, 0, sin(θ/2))
     for node in nodes
         node.coord = (R*node.coord*conj(R))[2:4]
@@ -334,7 +334,7 @@ function configure!(mplot::DomainPlot)
     # 3D -> 2D projection
     if mesh.ctx.ndim==3
         # compute shades (before 2d projection)
-        V = Vec3( cosd(mplot.elevation)*cosd(mplot.azimut), cosd(mplot.elevation)*sind(mplot.azimut), sind(mplot.elevation) ) # observer vector
+        V = Vec3( cosd(mplot.elevation)*cosd(mplot.azimuth), cosd(mplot.elevation)*sind(mplot.azimuth), sind(mplot.elevation) ) # observer vector
         norm(mplot.light_vector)==0 && (mplot.light_vector = V)
         L = mplot.light_vector
         # shades = zeros(length(mesh.elems))
@@ -356,7 +356,7 @@ function configure!(mplot::DomainPlot)
         mplot.shades = shades
 
         # compute projection
-        project_to_2d!(nodes, mplot.azimut, mplot.elevation, mplot.distance)
+        project_to_2d!(nodes, mplot.azimuth, mplot.elevation, mplot.distance)
         # zmin, zmax = extrema(node.coord[3] for node in nodes)
 
         # distances = [ sum(node.coord[3] for node in elem.nodes)/length(elem.nodes)  for elem in mesh.elems ]
@@ -486,7 +486,7 @@ function configure!(mplot::DomainPlot)
             location  = mplot.axes_loc,
             font_size = mplot.font_size,
             font      = mplot.font,
-            azimut    = mplot.azimut,
+            azimuth    = mplot.azimuth,
             elevation = mplot.elevation,
             labels    = mplot.axis_labels[1:ndim],
         )

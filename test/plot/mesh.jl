@@ -20,7 +20,7 @@ cmap = Colormap(:coolwarm, rev=true)
 
 # plotting
 plot = DomainPlot(model,
-    azimut = 30,
+    azimuth = 30,
     elevation = 30,
     field = "uz",
     colormap = cmap,

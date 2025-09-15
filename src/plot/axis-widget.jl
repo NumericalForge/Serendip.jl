@@ -7,7 +7,7 @@ mutable struct AxisWidget<:FigureComponent
     labels::Vector{AbstractString}
     font::String
     font_size::Float64
-    azimut::Float64
+    azimuth::Float64
     elevation::Float64
     arrow_length::Float64
     width::Float64
@@ -18,7 +18,7 @@ mutable struct AxisWidget<:FigureComponent
         labels::Vector{<:AbstractString} = ["x", "y"],
         font::String = "NewComputerModern",
         font_size::Real = 9.0,
-        azimut::Real = 0.0,
+        azimuth::Real = 0.0,
         elevation::Real = 0.0,
         arrow_length::Real = 20.0,
     )
@@ -29,14 +29,14 @@ mutable struct AxisWidget<:FigureComponent
         #         KwArgInfo( :labels, "Axis labels", "" ),
         #         KwArgInfo( :font, "Font name", "NewComputerModern", type=AbstractString),
         #         KwArgInfo( :font_size, "Font size", 9.0, cond=:(font_size>0)),
-        #         KwArgInfo( :azimut, "Azimut angle for 3d in degrees", 0 ),
+        #         KwArgInfo( :azimuth, "Azimut angle for 3d in degrees", 0 ),
         #         KwArgInfo( :elevation, "Elevation angle for 3d in degrees", 0 ),
         #         KwArgInfo( :arrow_length, "Length of axis arrow", 20 ),
         #     ],
         #     aliens=false,
         # )
 
-        this = new(location, labels, font, font_size, azimut, elevation, arrow_length)
+        this = new(location, labels, font, font_size, azimuth, elevation, arrow_length)
         return this
     end
 end
