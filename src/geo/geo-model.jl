@@ -95,13 +95,14 @@ end
 
 
 """
-    GeoModel(; quiet = false)
+    GeoModel(; size=0.0, quiet = false)
 
 Creates a new geometry model (`GeoModel`) using Gmsh's OpenCASCADE (OCC) backend
 or blocks for structured meshing.
 This struct serves as a container for user-defined geometry entities and geometric paths (e.g., composed by line or arc definitions).
 
 # Arguments
+- `size::Real=0.0`: If greater than zero, sets the maximum element size for all entities in the model.
 - `quiet::Bool=false`: If `true`, suppresses Gmsh initialization messages in the console.
 
 # Fields Initialized
@@ -111,7 +112,7 @@ This struct serves as a container for user-defined geometry entities and geometr
 
 # Example
 ```julia
-geo = GeoModel()               # with messages
+geo = GeoModel(size=0.5)       # set the maximum element size
 geo = GeoModel(quiet=true)     # silent initialization
 ```
 """
@@ -120,13 +121,14 @@ mutable struct GeoModel
     blocks::Vector{Block}
     gpaths::Vector{GPath}
 
-    function GeoModel(; quiet::Bool=false)
+    function GeoModel(; size=0.0,quiet::Bool=false)
         quiet || printstyled("Geometry model:\n", bold=true, color=:cyan)
         quiet || println("  gmsh-occ, blocks")
 
         gmsh.isInitialized()==1 && gmsh.finalize()
         gmsh.initialize()
         gmsh.option.setNumber("General.Terminal", 0)
+        size>0.0 && gmsh.option.setNumber("Mesh.CharacteristicLengthMax", size)
         this = new()
         this.blocks = Block[]
         this.entities = OrderedDict{Tuple{Int,Int},GeoEntity}()

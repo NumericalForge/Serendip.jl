@@ -845,8 +845,7 @@ end
 """
     set_size(geo::GeoModel, size::Real)
 
-Sets the global target mesh size for all entities in the Gmsh-based geometry model.
-It enforces a uniform mesh size across the model.
+Sets the maximum mesh size for all entities in the Gmsh-based geometry model.
 
 # Arguments
 - `geo::GeoModel`: The geometry model whose mesh settings will be modified.
@@ -859,5 +858,5 @@ set_size(geo, 0.05)  # Set global mesh size to 0.05 units
 """
 function set_size(geo::GeoModel, size::Real)
     gmsh.option.setNumber("Mesh.CharacteristicLengthMax", size)
-    gmsh.option.setNumber("Mesh.CharacteristicLengthMin", size)
+    # gmsh.option.setNumber("Mesh.CharacteristicLengthMin", size)
 end
