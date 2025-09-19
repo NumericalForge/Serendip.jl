@@ -2,8 +2,6 @@
 
 # Tensor definitions using Mandel notation
 
-import DataStructures.OrderedDict
-
 const I2 = SVector(1., 1., 1., 0., 0., 0.)
 const I4 = SMatrix{6,6}(I)
 
@@ -160,7 +158,8 @@ Return a dictionary with conventional stress and stress values
 from stress and strain tensors defined in Mandel notation.
 """
 @inline function stress_strain_dict(σ::Vec6, ε::Vec6, stress_state::Symbol)
-    svm = √(3*J2(σ))
+    σvm = √(3*J2(σ))
+    εv = ε[1] + ε[2] + ε[3]
 
     if stress_state in (:plane_stress,:plane_strain)
         s1, _, s3 = eigvals(σ)
@@ -171,13 +170,14 @@ from stress and strain tensors defined in Mandel notation.
             :σyz => σ[4]/SR2,
             :σxz => σ[5]/SR2,
             :σxy => σ[6]/SR2,
-            :σvm => svm,
+            :σvm => σvm,
             :σ1  => s1,
             :σ3  => s3,
             :εxx => ε[1],
             :εyy => ε[2],
             :εzz => ε[3],
             :εxy => ε[6]/SR2,
+            :εv  => εv,
         )
     elseif stress_state==:axisymmetric
         return OrderedDict{Symbol,Float64}(
@@ -185,11 +185,12 @@ from stress and strain tensors defined in Mandel notation.
             :σyy => σ[2],
             :σtt => σ[3],
             :σry => σ[6]/SR2,
-            :σvm => svm,
+            :σvm => σvm,
             :εrr => ε[1],
             :εyy => ε[2],
             :εtt => ε[3],
             :εry => ε[6]/SR2,
+            :εv  => εv,
         )
     else
         s1, s2, s3 = eigvals(σ)
@@ -200,7 +201,7 @@ from stress and strain tensors defined in Mandel notation.
             :σyz => σ[4]/SR2,
             :σxz => σ[5]/SR2,
             :σxy => σ[6]/SR2,
-            :σvm => svm,
+            :σvm => σvm,
             :σ1  => s1,
             :σ2  => s2,
             :σ3  => s3,
@@ -210,6 +211,7 @@ from stress and strain tensors defined in Mandel notation.
             :εyz => ε[4]/SR2,
             :εxz => ε[5]/SR2,
             :εxy => ε[6]/SR2,
+            :εv  => εv,
         )
     end
 
