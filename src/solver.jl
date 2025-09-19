@@ -65,9 +65,10 @@ function solve_system!(
         end
     end
 
-    maxU = 1e8 # maximum essential value
+    # maxU = 1e8 # maximum essential value
+    maxU = 1/eps() # maximum essential value
     if maximum(abs, U1)>maxU
-        return failure("$msg\nsolve_system!: Possible syngular matrix")
+        return failure("$msg\nsolve_system!: Possible syngular matrix ", string(maximum(abs, U1)))
     end
 
     # Completing vectors
