@@ -168,7 +168,6 @@ function calcD(mat::CyclicBondSlip, ips::CyclicBondSlipState)
 
         if s*τ<0.0 || abs(τ)>ips.τmax
             dτydsy = 1.0
-            # @show "ks=1.0"
         else
             dτydsy = tau_deriv(mat, ips, s)
         end

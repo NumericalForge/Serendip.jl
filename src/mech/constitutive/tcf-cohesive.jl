@@ -49,7 +49,7 @@ mutable struct TCFJoint<:Constitutive
         @check softcurve in ("hordijk", "soft")
         
         if isnan(wc)
-            wc = round(GF/(0.1947019536*ft), sigdigits=5)  
+            wc = round(GF/(0.1947*ft), sigdigits=5)  
         end
         α = alpha
         a = (2*α*fc - 2*ft - fc + √(fc^2*(2*α-1)^2 - 4*fc*ft + 4*ft^2)) / (4*α-4)

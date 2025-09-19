@@ -187,7 +187,7 @@ function state_values(mat::VonMises, state::VonMisesState)
     srj2d = √J2(σ)
 
     D = stress_strain_dict(σ, ε, state.ctx.stress_state)
-    D[:ep]   = state.εpa
+    D[:εp]   = state.εpa
 
     return D
 end
@@ -360,7 +360,7 @@ function state_values(mat::VonMises, state::VonMisesPlaneStressState)
     srj2d = √J2(σ)
 
     D = stress_strain_dict(σ, ε, :plane_stress)
-    D[:ep]   = state.εpa
+    D[:εp]   = state.εpa
     D[:j1]    = j1
     D[:srj2d] = srj2d
 
@@ -485,7 +485,8 @@ function calc_σ_εpa_Δλ(mat::VonMises, state::VonMisesBeamState, σtr::Vec3)
     # findroot
     # Δλ, status = findroot(ff, a, b, ftol=ftol, method=:bisection)
     Δλ, status = findroot(ff, a, b, ftol=ftol, method=:default)
-    failed(status) && return state.σ, 0.0, 0.0, status
+    status.successful || return state.σ, 0.0, 0.0, failure("VonMises: could not find Δλ")
+    # failed(status) && return state.σ, 0.0, 0.0, status
 
     σ, εpa = calc_σ_εpa(mat, state, σtr, Δλ)
     # @show yield_func(mat, state, σ, εpa)

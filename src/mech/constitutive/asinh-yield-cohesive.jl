@@ -326,11 +326,7 @@ function calc_σ_up_Δλ(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState
         up     = state.up + Δλ*norm_r
         σmax   = calc_σmax(mat, up)
         f      = yield_func(mat, state, σ, σmax)
-        # @show σmax
         dfdσ, dfdσmax = yield_derivs(mat, state, σ, σmax)
-        # @show r
-        # @show dfdσ
-        # @show dfdσmax
 
         dσmaxdup = deriv_σmax_up(mat, up)
         dσmaxdΔλ = dσmaxdup*(norm_r + Δλ*dot(r/norm_r, drdΔλ))
@@ -338,7 +334,6 @@ function calc_σ_up_Δλ(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState
         Δλ = Δλ - f/dfdΔλ
         
         if Δλ<=0 || isnan(Δλ) || i==maxits
-            # @show i
             # return 0.0, state.σ, 0.0, failure("AsinhYieldCohesive: failed to find Δλ")
             # switch to bissection method
             # return calc_σ_up_Δλ_bis(mat, state, σtr)

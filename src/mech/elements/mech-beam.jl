@@ -57,12 +57,12 @@ function set_quadrature(elem::Element{MechBeam}, n::Int=0)
     if ndim==3
         if n in (0,8)
             nl, nj, nk = 2, 2, 2
-        elseif n==12
-            nl, nj, nk = 3, 2, 2
         elseif n==2
             nl, nj, nk = 2, 1, 1
         elseif n==3
             nl, nj, nk = 3, 1, 1
+        elseif n==12
+            nl, nj, nk = 3, 2, 2
         elseif n==32
             nl, nj, nk = 2, 4, 4
         elseif n==48
