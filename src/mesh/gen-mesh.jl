@@ -50,9 +50,15 @@ function Mesh(geo::GeoModel;
     sort      ::Bool = true,
     quiet     ::Bool = false,
 )
-    if length(gmsh.model.occ.getEntities(1))>0
-        quiet || printstyled("Unstructured mesh generation:\n", bold=true, color=:cyan)
 
+    if length(geo.blocks)>0
+
+        quiet || printstyled("Structured mesh generation:\n", bold=true, color=:cyan)
+        mesh = mesh_structured(geo, ndim)
+
+    elseif length(gmsh.model.occ.getEntities(1))>0
+
+        quiet || printstyled("Unstructured mesh generation:\n", bold=true, color=:cyan)
         quadratic && gmsh.option.setNumber("Mesh.ElementOrder", 2)
 
         if algorithm==:delaunay
@@ -94,6 +100,32 @@ function Mesh(geo::GeoModel;
 
         gmsh.model.occ.synchronize()
 
+        # refinement fields
+        if length(geo.fields)>0
+            # see https://gmsh.info/doc/texinfo/gmsh.html#Gmsh-mesh-size-fields
+            field_ids = Int[]
+            for field in geo.fields
+                size1, size2 = field.size1, field.size2
+                a, b, c = field.rx, field.ry, field.rz
+                x, y, z = field.coord
+
+                field_id = gmsh.model.mesh.field.add("MathEval")
+                n = 2/field.roundness # roundness 1 -> n=2 (ellipsoid), roundness 0 -> n=∞ (box)
+                m = field.gradient # 0 -> sharp, 1 -> linear
+
+                an, bn, cn = a^n, b^n, c^n
+                expr = "$size2 + ($size1 - $size2) * ( 1 - (abs(x-$x)^$n/$an + abs(y-$y)^$n/$bn + abs(z-$z)^$n/$cn)^(1/$n))^$m * step(1 - ( abs(x-$x)^$n/$an + abs(y-$y)^$n/$bn + abs(z-$z)^$n/$cn ))"
+
+                gmsh.model.mesh.field.setString(field_id, "F", expr)
+                push!(field_ids, field_id)
+
+            end
+
+            fmin = gmsh.model.mesh.field.add("Min")
+            gmsh.model.mesh.field.setNumbers(fmin,"FieldsList", field_ids)
+            gmsh.model.mesh.field.setAsBackgroundMesh(fmin)
+        end
+
         # remove orphan points
         for (_, id) in gmsh.model.getEntities(0)
             # id in embedded_point && continue
@@ -104,6 +136,7 @@ function Mesh(geo::GeoModel;
         end
         gmsh.model.occ.synchronize()
 
+        # ❱❱❱ Mesh generation
         logfile = "_gmsh.log"
         try
             open(logfile, "w") do out
@@ -148,9 +181,6 @@ function Mesh(geo::GeoModel;
         mesh.elems = cells
         synchronize!(mesh, sort=sort)
 
-    elseif length(geo.blocks)>0
-        quiet || printstyled("Structured mesh generation:\n", bold=true, color=:cyan)
-        mesh = mesh_structured(geo, ndim)
     else
         error("Mesh: No blocks or surfaces/volumes found")
     end
@@ -165,8 +195,6 @@ function Mesh(geo::GeoModel;
             end
         end
     end
-
-    # @show mesh.ctx.ndim
 
     if length(geo.gpaths)>0
         gen_insets!(mesh, geo.gpaths)

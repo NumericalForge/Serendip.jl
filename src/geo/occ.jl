@@ -6,7 +6,6 @@ export add_surface_loop, get_boundary, get_entities, get_points, get_curves
 export get_surfaces, get_volumes, get_point, get_curve, get_surface, get_volume
 export translate, rotate, extrude, revolve, mirror
 export cut, fuse, intersect, fragment, fillet
-export set_transfinite_curve, set_transfinite_surface, set_recombine, set_transfinite_volume, set_size
 export copy, get_entities, get_points, get_curves, get_surfaces, get_volumes
 
 """
@@ -413,8 +412,8 @@ end
 
 
 function select(geo::GeoModel, kind::Symbol, selector::Union{String,Vector{<:Real}}; tag::String="")
-    kind in (:point, :line, :curve, :face, :surface, :volume) || error("select: Unknown kind '$kind'")
-    dim = kind == :point ? 0 : kind in (:line, :curve) ? 1 : kind in (:face, :surface) ? 2 : 3
+    kind in (:point, :edge, :curve, :face, :surface, :volume) || error("select: Unknown kind '$kind'")
+    dim = kind == :point ? 0 : kind in (:edge, :curve) ? 1 : kind in (:face, :surface) ? 2 : 3
 
     if selector isa Vector
         dim_id = _get_entity(dim, selector)
@@ -422,7 +421,7 @@ function select(geo::GeoModel, kind::Symbol, selector::Union{String,Vector{<:Rea
 
         if kind== :point
             obj = get(geo.entities, dim_id, Point(dim_id[2], X))
-        elseif kind in (:line, :curve)
+        elseif kind in (:edge, :curve)
             type = gmsh.model.getType(1, dim_id[2])
             obj = get(geo.entities, dim_id, Edge(dim_id[2], type))
         elseif kind in (:face, :surface)
@@ -742,121 +741,4 @@ function fillet(geo::GeoModel, volumes, curves, radii, remove_volume=true)
     gmsh.model.occ.synchronize()
 
     return _get_entities_from_dimids(geo, dimids)
-end
-
-# transfinite
-
-function set_transfinite_curve(geo::GeoModel, ent, num_nodes)
-    gmsh.model.occ.synchronize()
-    gmsh.model.mesh.set_transfinite_curve(ent.id, num_nodes)
-end
-
-
-function set_transfinite_surface(geo::GeoModel, ent)
-    gmsh.model.occ.synchronize()
-    gmsh.model.mesh.set_transfinite_surface(ent.id)
-end
-
-
-function set_recombine(geo::GeoModel, ent)
-    gmsh.model.occ.synchronize()
-    gmsh.model.mesh.set_recombine(2, ent.id)
-end
-
-
-function set_transfinite_volume(ent)
-    gmsh.model.occ.synchronize()
-    gmsh.model.mesh.set_transfinite_volume(ent.id)
-end
-
-
-# Mesh size
-
-# function set_size(geo::GeoModel, point::Point, size::Real)
-#     set_size(geo, [point], size)
-# end
-
-# function set_size(geo::GeoModel, points::Vector{Point}, size::Real)
-#     gmsh.model.occ.synchronize()
-#     dim_ids = [ (0, ent.id) for ent in points]
-#     gmsh.model.mesh.set_size(dim_ids, size)
-# end
-
-"""
-    set_size(geo, kind, tag, size)
-
-Assigns a local mesh size to all points on the boundary of entities selected by type (`kind`) and tag within a `GeoModel`.
-
-This function selects entities of a specific geometric type (`:point`, `:edge`, `:surface`, `:volume`) and tag, and sets the mesh size at the corresponding points.
-
-# Arguments
-- `geo::GeoModel`: The geometry model where the mesh size is applied.
-- `kind::Symbol`: Type of geometric entity to target (`:point, ``:edge`, `:face`, `:volume`).
-- `tag::String`: Tag string used to select the target entities.
-- `size::Real`: Target mesh size to assign at the boundary points of the selected entities.
-
-# Example
-```julia
-set_size(geo, :surface, "foundation_zone", 0.05)
-```
-"""
-function set_size(geo::GeoModel, kind::Symbol, tag::String, size::Real)
-    gmsh.model.occ.synchronize()
-    ents = select(geo, kind, tag)
-    dim_ids = _get_dimids_from_entities(ents)
-    pts_dim_ids = gmsh.model.get_boundary(dim_ids, true, false, true)
-
-    length(pts_dim_ids) == 0 && return
-    gmsh.model.mesh.set_size(pts_dim_ids, size)
-end
-
-
-"""
-    set_size(geo, target, size)
-
-Assigns a target mesh size to the point entities on the boundary of the given `target` geometry entity or entities.
-If a single `GeoEntity` is passed, it is internally wrapped in a vector.
-
-# Arguments
-- `geo::GeoModel`: The geometry model where the mesh size will be assigned.
-- `target::Union{GeoEntity,Vector{<:GeoEntity}`: A single `GeoEntity` or a vector of them.
-- `size::Real`: The target mesh size to assign to the boundary points of the given entities.
-
-# Example
-```julia
-set_size(geo, some_line_entity, 0.05)
-set_size(geo, [curve1, surface1], 0.1)
-```
-"""
-function set_size(geo::GeoModel, target::Union{GeoEntity, Vector{<:GeoEntity}}, size::Real)
-    if target isa GeoEntity
-        set_size(geo, [target], size)
-    else
-        ents = target
-        dim_ids = _get_dimids_from_entities(ents)
-        pts_dim_ids = gmsh.model.get_boundary(dim_ids, true, false, true)
-
-        length(pts_dim_ids) == 0 && return
-        gmsh.model.mesh.set_size(pts_dim_ids, size)
-    end
-end
-
-
-"""
-    set_size(geo::GeoModel, size::Real)
-
-Sets the maximum mesh size for all entities in the Gmsh-based geometry model.
-
-# Arguments
-- `geo::GeoModel`: The geometry model whose mesh settings will be modified.
-- `size::Real`: The desired global mesh size.
-
-# Example
-```julia
-set_size(geo, 0.05)  # Set global mesh size to 0.05 units
-```
-"""
-function set_size(geo::GeoModel, size::Real)
-    gmsh.option.setNumber("Mesh.CharacteristicLengthMax", size)
-    # gmsh.option.setNumber("Mesh.CharacteristicLengthMin", size)
 end

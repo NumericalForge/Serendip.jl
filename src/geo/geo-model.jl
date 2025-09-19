@@ -75,7 +75,7 @@ struct GPath<:GeoEntity
     end
 end
 
-export add_path, add_array, add_block
+export add_path, add_array, add_block, set_size, set_refinement, set_transfinite_curve, set_transfinite_surface, set_recombine, set_transfinite_volume
 
 
 function Base.copy(p::GPath)
@@ -92,6 +92,17 @@ function move!(gpath::GPath; dx::Real=0.0, dy::Real=0.0, dz::Real=0.0)
     end
 end
 
+
+struct SizeField
+    coord::Vec3
+    rx::Float64
+    ry::Float64
+    rz::Float64
+    size1::Float64
+    size2::Float64
+    roundness::Float64
+    gradient::Float64
+end
 
 
 """
@@ -120,6 +131,7 @@ mutable struct GeoModel
     entities::OrderedDict{Tuple{Int,Int},GeoEntity}
     blocks::Vector{Block}
     gpaths::Vector{GPath}
+    fields::Vector{SizeField}
 
     function GeoModel(; size=0.0,quiet::Bool=false)
         quiet || printstyled("Geometry model:\n", bold=true, color=:cyan)
@@ -129,11 +141,13 @@ mutable struct GeoModel
         gmsh.initialize()
         gmsh.option.setNumber("General.Terminal", 0)
         size>0.0 && gmsh.option.setNumber("Mesh.CharacteristicLengthMax", size)
-        this = new()
-        this.blocks = Block[]
-        this.entities = OrderedDict{Tuple{Int,Int},GeoEntity}()
-        this.gpaths = GPath[]
-        return this
+
+        return new(
+            OrderedDict{Tuple{Int,Int},GeoEntity}(),
+            Block[],
+            GPath[],
+            SizeField[]
+        )
     end
 end
 
@@ -252,4 +266,165 @@ function add_array(geometry::GeoModel, gpath::GPath; nx::Int=1, ny::Int=1, nz::I
             end
         end
     end
+end
+
+
+
+
+
+# ❱❱❱ Transfinite
+
+function set_transfinite_curve(geo::GeoModel, ent, num_nodes)
+    gmsh.model.occ.synchronize()
+    gmsh.model.mesh.set_transfinite_curve(ent.id, num_nodes)
+end
+
+
+function set_transfinite_surface(geo::GeoModel, ent)
+    gmsh.model.occ.synchronize()
+    gmsh.model.mesh.set_transfinite_surface(ent.id)
+end
+
+
+function set_recombine(geo::GeoModel, ent)
+    gmsh.model.occ.synchronize()
+    gmsh.model.mesh.set_recombine(2, ent.id)
+end
+
+
+function set_transfinite_volume(ent)
+    gmsh.model.occ.synchronize()
+    gmsh.model.mesh.set_transfinite_volume(ent.id)
+end
+
+
+# ❱❱❱ Mesh size
+
+
+"""
+    set_size(geo, kind, tag, size)
+
+Assigns a local mesh size to all points on the boundary of entities selected by type (`kind`) and tag within a `GeoModel`.
+
+This function selects entities of a specific geometric type (`:point`, `:edge`, `:surface`, `:volume`) and tag, and sets the mesh size at the corresponding points.
+
+# Arguments
+- `geo::GeoModel`: The geometry model where the mesh size is applied.
+- `kind::Symbol`: Type of geometric entity to target (`:point, ``:edge`, `:face`, `:volume`).
+- `tag::String`: Tag string used to select the target entities.
+- `size::Real`: Target mesh size to assign at the boundary points of the selected entities.
+
+# Example
+```julia
+set_size(geo, :surface, "foundation_zone", 0.05)
+```
+"""
+function set_size(geo::GeoModel, kind::Symbol, tag::String, size::Real)
+    gmsh.model.occ.synchronize()
+    ents = select(geo, kind, tag)
+    dim_ids = _get_dimids_from_entities(ents)
+    pts_dim_ids = gmsh.model.get_boundary(dim_ids, true, false, true)
+
+    length(pts_dim_ids) == 0 && return
+    gmsh.model.mesh.set_size(pts_dim_ids, size)
+end
+
+
+"""
+    set_size(geo, target, size)
+
+Assigns a target mesh size to the point entities on the boundary of the given `target` geometry entity or entities.
+If a single `GeoEntity` is passed, it is internally wrapped in a vector.
+
+# Arguments
+- `geo::GeoModel`: The geometry model where the mesh size will be assigned.
+- `target::Union{GeoEntity,Vector{<:GeoEntity}`: A single `GeoEntity` or a vector of them.
+- `size::Real`: The target mesh size to assign to the boundary points of the given entities.
+
+# Example
+```julia
+set_size(geo, some_line_entity, 0.05)
+set_size(geo, [curve1, surface1], 0.1)
+```
+"""
+function set_size(geo::GeoModel, target::Union{GeoEntity, Vector{<:GeoEntity}}, size::Real)
+    if target isa GeoEntity
+        set_size(geo, [target], size)
+    else
+        ents = target
+        dim_ids = _get_dimids_from_entities(ents)
+        pts_dim_ids = gmsh.model.get_boundary(dim_ids, true, false, true)
+
+        length(pts_dim_ids) == 0 && return
+        gmsh.model.mesh.set_size(pts_dim_ids, size)
+    end
+end
+
+
+"""
+    set_size(geo::GeoModel, size::Real)
+
+Sets the maximum mesh size for all entities in the Gmsh-based geometry model.
+
+# Arguments
+- `geo::GeoModel`: The geometry model whose mesh settings will be modified.
+- `size::Real`: The desired global mesh size.
+
+# Example
+```julia
+set_size(geo, 0.05)  # Set global mesh size to 0.05 units
+```
+"""
+function set_size(geo::GeoModel, size::Real)
+    gmsh.option.setNumber("Mesh.CharacteristicLengthMax", size)
+end
+
+
+# ❱❱❱ Mesh refinement
+
+
+"""
+    set_refinement(geo, X, rx, ry, rz, size1, size2; gradient=0.1, roundness=0.5)
+
+Register a mesh-refinement field centered at `X`.
+The field targets element size `size1` near `X`, transitioning to `size2` away from it.
+The radii `rx`, `ry`, and `rz` set the extents along the x/y/z axes. If `ry` or `rz`
+are omitted, they default to `rx`.
+
+# Arguments
+- `geo`::GeoModel            : geometry model.
+- `X`::AbstractVector{<:Real}: 3D center `[x, y, z]`.
+- `rx`::Real                 : extent along x.
+- `ry`::Real                 : extent along y.
+- `rz`::Real                 : extent along z.
+- `size1`::Real              : inner target size.
+- `size2`::Real              : outer target size.
+
+# Keywords
+- `gradient`::Real ∈ [0,1] = 0.1 : transition gradient from `size1` to `size2`
+  (`0` = sharp, `1` = linear).
+- `roundness`::Real  ∈ [0,1] = 0.5 : shape of the refinement region
+  (`0` = box-like, `1` = ellipsoidal).
+
+# Example
+```julia
+set_refinement(geo, [0.5, 0.5, 0.5], 10.0, 20.0, 15.0, 0.1, 0.5;
+               gradient=0.5, roundness=0.8)
+```
+"""
+function set_refinement(geo::GeoModel, X::Vector{<:Real}, rx::Real, ry::Real, rz::Real, size1::Real, size2::Real; gradient::Real=0.1, roundness::Real=0.5)
+    gmsh.model.occ.synchronize()
+
+    @check length(X) == 3 "set_refinement: coordinate 'X' must be a vector of length 3"
+
+    @check rx>0 "set_refinement: 'rx' must be positive"
+    @check ry>0 "set_refinement: 'ry' must be positive"
+    @check rz>0 "set_refinement: 'rz' must be positive"
+    @check size1>0 "set_refinement: 'size1' must be positive"
+    @check size2>0 "set_refinement: 'size2' must be positive"
+    @check 0.0<=gradient<=1.0 "set_refinement: 'gradient' must be in [0, 1]"
+    @check 0.0<=roundness<=1.0 "set_refinement: 'roundness' must be in [0, 1]"
+
+    push!(geo.fields, SizeField(X, rx, ry, rz, size1, size2, roundness, gradient))
+
 end
