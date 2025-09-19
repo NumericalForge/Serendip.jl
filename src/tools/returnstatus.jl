@@ -1,13 +1,13 @@
 mutable struct ReturnStatus
-    success::Bool
+    successful::Bool
     message::String
-    function ReturnStatus(success::Bool=true, message::String="")
-        return new(success, message)
+    function ReturnStatus(successful::Bool=true, message::String="")
+        return new(successful, message)
     end
 end
 
-failed(rs::ReturnStatus)    = !rs.success
-succeeded(rs::ReturnStatus) =  rs.success
+failed(rs::ReturnStatus)    = !rs.successful
+succeeded(rs::ReturnStatus) =  rs.successful
 
-failure(msg::String...)      = ReturnStatus(false, join(msg,"\n"))
-Base.success(msg::String="") = ReturnStatus(true, msg)
+failure(msg...)      = ReturnStatus(false, join(msg))
+Base.success(msg...) = ReturnStatus(true, join(msg))
