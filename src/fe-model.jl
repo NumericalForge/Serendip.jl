@@ -148,15 +148,12 @@ function FEModel(
 
             elem = Element{eform}()
 
-            # @show cell.shape.name cell.embedded
-
             if cell.embedded
                 emb_form = embedded_formulation(eform)
                 elem_form = emb_form(;elem_kwargs...)
                 elem = Element{emb_form}()
             end
 
-            # @show eform
             if compat_role(eform) != cell.role
                 error("FEModel: Element formulation $(eform) is not compatible with elements type $(repr(cell.role)) (selector: $(repr(selector)), shape: $(cell.shape.name))\n")
             end
