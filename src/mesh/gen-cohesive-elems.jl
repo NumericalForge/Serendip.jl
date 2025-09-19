@@ -85,7 +85,7 @@ function add_boundary_interface_elements(
 
     if !quiet
         @printf "  %4dd mesh                             \n" mesh.ctx.ndim
-        @printf "  %5d points\n" length(mesh.nodes)
+        @printf "  %5d nodes\n" length(mesh.nodes)
         @printf "  %5d total cells\n" length(mesh.elems)
         @printf "  %5d new joint cells\n" length(joint_cells)
         nfaces = length(mesh.faces)
@@ -126,7 +126,7 @@ Inserts cohesive (joint) elements into `mesh` to connect bulk elements.
 """
 function add_cohesive_elements(
     mesh         ::Mesh,
-    selector     ::Union{Expr,Symbolic,String,Nothing}=nothing;
+    selector     ::Union{Expr,Symbolic,Tuple,String,Nothing}=nothing;
     inter_regions::Bool=false,
     auto_tag     ::Bool=false,
     layers       ::Int64=2,
@@ -386,7 +386,7 @@ function add_cohesive_elements(
 
     if !quiet
         @printf "  %4dd mesh                             \n" mesh.ctx.ndim
-        @printf "  %5d points\n" length(mesh.nodes)
+        @printf "  %5d nodes\n" length(mesh.nodes)
         @printf "  %5d total cells\n" length(mesh.elems)
         @printf "  %5d new joint cells\n" length(jointcells)
         nfaces = length(mesh.faces)
