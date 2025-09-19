@@ -178,13 +178,15 @@ function FEModel(
 
     # Check if all elements have material defined
     undefined_elem_shapes = Set{String}()
+    undefined_elem_tags   = Set{String}()
     for i in 1:ncells
         if !isassigned(model.elems, i)
             push!(undefined_elem_shapes, mesh.elems[i].shape.name)
+            push!(undefined_elem_tags, repr(mesh.elems[i].tag))
         end
     end
     if !isempty(undefined_elem_shapes)
-        error("FEModel: missing material definition to allocate elements with shape: $(join(undefined_elem_shapes, ", "))\n")
+        throw(SerendipException("FEModel: missing material definition to allocate elements with tag $(join(undefined_elem_tags, ", ")) and shape $(join(undefined_elem_shapes, ", "))\n"))
     end
 
     # Setting linked elements
