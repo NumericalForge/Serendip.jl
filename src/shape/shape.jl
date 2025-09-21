@@ -65,7 +65,7 @@ end
 
 
 # Available VTK shapes
-const VTK2SHAPE = Dict{VTKCellType,CellShape}(
+const Vtk2CellShape_dict = Dict{VTKCellType,CellShape}(
     VTK_POLY_VERTEX             => POLYVERTEX,
     VTK_LINE                    => LIN2,
     VTK_TRIANGLE                => TRI3,
@@ -95,40 +95,40 @@ const ALL_ISO_SHAPES = [ LIN2, LIN3, LIN4, TRI3, TRI6, QUAD4, QUAD8, QUAD9, QUAD
 # )
 
 
-function get_shape_from_vtk(vtk_type::VTKCellType, npoints::Int64, ndim::Int64, nlayers::Int64=0)
-    # vtk_type: VTK cell code
-    # npoints : total number of cell points
-    # ndim    : analysis dimension
-    # nlayers : number of layers for joint elements
+# function get_shape_from_vtk(vtk_type::VTKCellType, npoints::Int64, nlayers::Int64=0)
+#     # vtk_type: VTK cell code
+#     # npoints : total number of cell points
+#     # nlayers : number of layers for joint elements
 
-    if vtk_type==VTK_POLYGON
-        if npoints==12
-            return QUAD12
-        end
-    end
+#     # if vtk_type==VTK_POLYGON # TODO: Fix for this
+#     #     if npoints==12
+#     #         return QUAD12
+#     #     end
+#     # end
 
-    vtk_type==VTK_POLY_VERTEX || return VTK2SHAPE[vtk_type]
+    
+#     vtk_type==VTK_POLY_VERTEX || return Vtk2CellShape_dict[vtk_type]
+    
+    
+#     # Check if it is a joint cell with layers
+#     # if nlayers in (2,3)
+#     #     @show vtk_type
+#     #     shapedict = _joint_ndim_nfpoints_nlayers_dict
+#     #     nfpoints = div(npoints,nlayers)
 
-    # Check if it is a joint cell with layers
-    if nlayers in (2,3)
-        shapedict = _joint_ndim_nfpoints_nlayers_dict
-        nfpoints = div(npoints,nlayers)
 
+#     #     if haskey(shapedict, (ndim, nfpoints, nlayers))
+#     #         return shapedict[(ndim, nfpoints, nlayers)]
+#     #     end
+#     # end
 
-        if haskey(shapedict, (ndim, nfpoints, nlayers))
-            return shapedict[(ndim, nfpoints, nlayers)]
-        end
-    end
+#     # Check for other cells
+#     if npoints==9   return TRI9
+#     elseif npoints==10  return TRI10
+#     end
 
-    # Check for other cells
-    if     npoints==2   return LIN2
-    elseif npoints==3   return LIN3
-    elseif npoints==9   return TRI9
-    elseif npoints==10  return TRI10
-    end
-
-    error("get_shape_from_vtk: Unknown shape for vtk_type $vtk_type and npoints $npoints with ndim $ndim")
-end
+#     error("get_shape_from_vtk: Unknown shape for vtk_type $vtk_type and npoints $npoints with ndim $ndim")
+# end
 
 
 function get_shape_from_ndim_npoints(npoints::Int64, ndim::Int64)::CellShape

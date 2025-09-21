@@ -165,31 +165,6 @@ end
 
 
 function save_vtu(mesh::AbstractDomain, filename::String; desc::String="", compress=false)
-    # Update tag fields if available: add two UInt64 fields to enconde the tag
-    tags = collect(Set(elem.tag for elem in mesh.elems))
-    if length(tags)>1 || tags[1] != ""
-        tag_d = Dict( tag=>i for (i,tag) in enumerate(tags) )
-        parts = Tuple{String,String}[]
-        for tag in tags
-            length(codeunits(tag))>16  && error("Mesh: tag '$tag' too long. Max length is 16 UTF units.")
-            t1, t2 = safe_string_cut(tag, 8)
-            push!(parts, (t1, t2))
-        end
-
-        Ts1 = zeros(UInt, length(mesh.elems))
-        Ts2 = zeros(UInt, length(mesh.elems))
-        for (i,elem) in enumerate(mesh.elems)
-            t1, t2 = parts[tag_d[elem.tag]]
-            Ts1[i] = encode_string_to_uint64(t1)
-            Ts2[i] = encode_string_to_uint64(t2)
-        end
-
-        T = Int[ tag_d[elem.tag]-1 for elem in mesh.elems ]
-
-        mesh.elem_data["tag-s1"] = Ts1
-        mesh.elem_data["tag-s2"] = Ts2
-        mesh.elem_data["tag"]    = T
-    end
 
     npoints = length(mesh.nodes)
     ncells  = length(mesh.elems)
@@ -232,7 +207,11 @@ function save_vtu(mesh::AbstractDomain, filename::String; desc::String="", compr
     # Write cell types
     types = Int32[]
     for cell in mesh.elems
-        push!(types, Int32(cell.shape.vtk_type))
+        if cell.role in (:interface, :line_interface)
+            push!(types, Int32(VTK_POLY_VERTEX))
+        else
+            push!(types, Int32(cell.shape.vtk_type))
+        end
     end
     addchild!(xcells, get_array_node!(types, "types", compress, buf))
     addchild!(piece, xcells)
@@ -276,42 +255,49 @@ end
 
 
 function add_extra_fields!(mesh::AbstractDomain)
+    ncells = length(mesh.elems)
+
     # Add field for joints
     if any( c.role==:interface for c in mesh.elems )
-        ncells = length(mesh.elems)
-        joint_data = zeros(Int, ncells, 3) # nlayers, first linked cell, second linked cell
+        interface_data = zeros(Int, ncells, 4) # vtk_type, npoints, first linked cell, second linked cell
+        mesh.elem_data["interface-data"] = interface_data
+
         for i in 1:ncells
             cell = mesh.elems[i]
-            nlayers = cell.shape.name[1:2]=="J3" ? 3 : 2
+            nlayers = 2 # Todo: Fix for 3 layers
             if cell.role==:interface
-                joint_data[i,1] = nlayers
-                joint_data[i,2] = cell.couplings[1].id
+                interface_data[i,1] = Int(cell.shape.vtk_type)
+                interface_data[i,2] = length(cell.nodes)
+                interface_data[i,3] = cell.couplings[1].id
                 if length(cell.couplings)==2 # only for cohesive elements (boundary joints have only one linked cell)
-                    joint_data[i,3] = cell.couplings[2].id
+                    interface_data[i,4] = cell.couplings[2].id
                 end
             end
         end
-        mesh.elem_data["joint-data"] = joint_data
     end
 
     # Add field for inset nodes
     if any( c.role==:line_interface for c in mesh.elems )
-        ncells = length(mesh.elems)
-        inset_data = zeros(Int, ncells, 3) # npoints, first linked cell id, second linked cell id
+        if haskey(mesh.elem_data, "interface-data")
+            interface_data = mesh.elem_data["interface-data"]
+        else
+            interface_data = zeros(Int, ncells, 4) # vtk_type, npoints, first linked cell, second linked cell
+            mesh.elem_data["interface-data"] = interface_data 
+        end
+
         for i in 1:ncells
             cell = mesh.elems[i]
             if cell.role==:line_interface
-                inset_data[i,1] = cell.shape.npoints
-                inset_data[i,2] = cell.couplings[1].id
-                inset_data[i,3] = cell.couplings[2].id
+                interface_data[i,1] = Int(cell.shape.vtk_type)
+                interface_data[i,2] = cell.shape.npoints
+                interface_data[i,3] = cell.couplings[1].id
+                interface_data[i,4] = cell.couplings[2].id
             end
         end
-        mesh.elem_data["inset-data"] = inset_data
     end
 
     # Add field for embedded elements
     if any( c.role==:line && length(c.couplings)>0 for c in mesh.elems )
-        ncells = length(mesh.elems)
         embedded_data = zeros(Int, ncells) # host cell id
         for i in 1:ncells
             cell = mesh.elems[i]
@@ -321,6 +307,32 @@ function add_extra_fields!(mesh::AbstractDomain)
         end
         mesh.elem_data["embedded-data"] = embedded_data
     end
+
+    # Add two UInt64 fields to enconde the tag of maximum 16 UTF units
+    tags = collect(Set(elem.tag for elem in mesh.elems))
+    if length(tags)>1 || tags[1] != ""
+        tag_d = Dict( tag=>i for (i,tag) in enumerate(tags) )
+        parts = Tuple{String,String}[]
+        for tag in tags
+            length(codeunits(tag))>16  && error("Mesh: tag '$tag' too long. Max length is 16 UTF units.")
+            t1, t2 = safe_string_cut(tag, 8)
+            push!(parts, (t1, t2))
+        end
+
+        Ts1 = zeros(UInt, length(mesh.elems))
+        Ts2 = zeros(UInt, length(mesh.elems))
+        for (i,elem) in enumerate(mesh.elems)
+            t1, t2 = parts[tag_d[elem.tag]]
+            Ts1[i] = encode_string_to_uint64(t1)
+            Ts2[i] = encode_string_to_uint64(t2)
+        end
+
+        T = Int[ tag_d[elem.tag]-1 for elem in mesh.elems ]
+
+        mesh.elem_data["tag-s1"] = Ts1
+        mesh.elem_data["tag-s2"] = Ts2
+        mesh.elem_data["tag"]    = T
+    end
 end
 
 
@@ -329,7 +341,7 @@ end
 
 Saves a mesh object into a file. Available formats are vtu and vtk.
 """
-function save(mesh::AbstractDomain, filename::String; compress=false, quiet=false)
+function save(mesh::AbstractDomain, filename::String; compress=true, quiet=false)
     formats = (".vtk", ".vtu")
     _, format = splitext(filename)
     format in formats || error("save: Cannot save $(typeof(mesh)) to $filename. Available formats are $formats.")
@@ -491,18 +503,6 @@ function read_vtk(filename::String)
 end
 
 
-# # Build tag if available
-# function buil_tag_fields!(mesh::AbstractDomain)
-#     if haskey(mesh.elem_data, "tag-s1") && haskey(mesh.elem_data, "tag-s2")
-#         Ts1 = mesh.elem_data["tag-s1"]
-#         Ts2 = mesh.elem_data["tag-s2"]
-#         for (i, elem) in enumerate(mesh.elems)
-#             elem.tag = decode_uint64_to_string(Ts1[i]) * decode_uint64_to_string(Ts2[i])
-#         end
-#     end
-# end
-
-
 function read_vtu(filename::String)
     doc = XmlDocument(filename)
 
@@ -511,7 +511,7 @@ function read_vtu(filename::String)
         raw = Vector{UInt8}(strip(getchild(doc.root, "AppendedData").content[2:end])) # remove first character _
         nodes = getallchildren(doc.root)
 
-        # update content on nodes with offset att
+        # update content on xml nodes with offset att
         for node in nodes
             node isa XmlElement || continue
             node.name == "DataArray" && haskey(node.attributes, "offset") || continue
@@ -526,6 +526,7 @@ function read_vtu(filename::String)
             first = offset + 4*sizeof(UInt64(0)) + 1
             last  = first + len - 1
 
+            # fill xml nodes with decompressed data
             node.content = transcode(ZlibDecompressor, raw[first:last]) # decompression
         end
     end
@@ -627,16 +628,21 @@ function Mesh(coords, connects, vtk_types, node_data, elem_data)
         if vtk_shape == VTK_POLY_VERTEX
             shape = POLYVERTEX
             has_polyvertex = true
-            role = :undefined
+            role = :undefined # to be fixed based on interface_data field
         else
-            shape = get_shape_from_vtk( vtk_shape, length(conn), ndim )
+            if vtk_shape==VTK_POLYGON
+                shape = QUAD12
+            else
+                shape = Vtk2CellShape_dict[vtk_shape]
+            end
+            
             if shape.ndim==1
                 role = :line
-            elseif shape.ndim==3
+            else
                 role = :bulk
             end
 
-            if shape.ndim==2 &&  ndim==3
+            if shape.ndim==2 && ndim==3
                 role = :surface
             end
         end
@@ -651,39 +657,25 @@ function Mesh(coords, connects, vtk_types, node_data, elem_data)
     # Setting data
     mesh.node_data = node_data
     mesh.elem_data  = elem_data
-    # mesh.node_data = merge(mesh.node_data, node_data)
-    # mesh.elem_data  = merge(mesh.elem_data, elem_data)
 
-    # Fix information for 1D joints
-    if haskey(mesh.elem_data, "inset-data")
-        inset_data = mesh.elem_data["inset-data"]
+    if haskey(mesh.elem_data, "interface-data")
+        interface_data = mesh.elem_data["interface-data"]
+        
+        # Fix information for 1d and 2d/3d interface elements
         for (i,cell) in enumerate(mesh.elems)
-            if cell.shape==POLYVERTEX && inset_data[i,1]>0
-                linked_ids = inset_data[i,2:3]
-                cell.couplings = mesh.elems[linked_ids]
-                cell.couplings[1].crossed = true # host cell is crossed
-                n = length(cell.couplings[2].nodes)
-                cell.shape = get_shape_from_vtk(VTK_POLY_VERTEX, n, ndim)
-                cell.role = :line_interface
-            end
-        end
-    end
+            if cell.shape==POLYVERTEX && interface_data[i,1]>0
+                vtk_shape = VTKCellType(interface_data[i,1])
+                cell.shape = Vtk2CellShape_dict[vtk_shape]
 
-    # Fix information for joints
-    if haskey(mesh.elem_data, "joint-data")
-        joint_data = mesh.elem_data["joint-data"]
-        for (i,cell) in enumerate(mesh.elems)
-            if cell.shape==POLYVERTEX && joint_data[i,1] in (2,3)
-                nlayers = joint_data[i,1]+0
-                if joint_data[i,3]>0
-                    linked_ids = joint_data[i,2:3]
-                else
-                    linked_ids = joint_data[i,2:2] # boundary joint has only one linked cell
+                if interface_data[i,4]>0 && mesh.elems[interface_data[i,4]].role==:line # :line interface
+                    cell.role = :line_interface
+                    cell.couplings = mesh.elems[interface_data[i, 3:4]]
+                    cell.couplings[1].crossed = true # host cell is crossed
+                else # 2d/3d interface
+                    cell.role = :interface
+                    rng = interface_data[i,4]>0 ? (3:4) : (3:3)  # boundary joint has only one linked cell
+                    cell.couplings = mesh.elems[interface_data[i, rng]]
                 end
-                cell.couplings = mesh.elems[linked_ids]
-                n = length(cell.nodes)
-                cell.shape = get_shape_from_vtk(VTK_POLY_VERTEX, n, ndim, nlayers)
-                cell.role = :interface
             end
         end
     end
