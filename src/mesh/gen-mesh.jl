@@ -83,14 +83,13 @@ function Mesh(geo::GeoModel;
 
         # set physical groups by tags: TODO: requires syncronnization of occ entities to geo.entities trying to preserve tags
             # ents = [ ent for ((dim,id), ent) in geo.entities if dim==gmsh_ndim ]  # list of entities of dimension gmsh_ndim
-            # tagset = Set([ ent.tag for ent in ents ])
-            # tags_gidx_dict = Dict( tag=>i for (i,tag) in enumerate(tagset) )
+            # tags = unique( ent.tag for ent in ents ) # unique tags
+            # tags_gidx_dict = Dict( tag=>i for (i,tag) in enumerate(tags) )
 
             # for (tag, gidx) in tags_gidx_dict
             #     ent_ids = [ ent.id for ent in ents if ent.tag==tag ]
             #     gmsh.model.addPhysicalGroup(gmsh_ndim, ent_ids, gidx) # ndim, entities, group_id
             # end
-        
 
         # set physical groups
         for (i, (_, gidx)) in enumerate(dim_ids)
@@ -121,7 +120,7 @@ function Mesh(geo::GeoModel;
                 x, y, z = field.coord
 
                 field_id = gmsh.model.mesh.field.add("MathEval")
-                n = 2/field.roundness # roundness 1 -> n=2 (ellipsoid), roundness 0 -> n=∞ (box)
+                n = 2/max(field.roundness,0.01) # roundness 1 -> n=2 (ellipsoid), roundness 0 -> n=∞ (box)
                 g = field.gradient # 0 -> sharp, 1 -> linear
 
                 an, bn, cn = a^n, b^n, c^n

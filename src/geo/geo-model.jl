@@ -388,8 +388,7 @@ end
 
 Register a mesh-refinement field centered at `X`.
 The field targets element size `size1` near `X`, transitioning to `size2` away from it.
-The radii `rx`, `ry`, and `rz` set the extents along the x/y/z axes. If `ry` or `rz`
-are omitted, they default to `rx`.
+The radii `rx`, `ry`, and `rz` set the extents along the x/y/z axes.
 
 # Arguments
 - `geo`::GeoModel            : geometry model.
@@ -401,9 +400,9 @@ are omitted, they default to `rx`.
 - `size2`::Real              : outer target size.
 
 # Keywords
-- `gradient`::Real ∈ [0,1] = 0.1 : transition gradient from `size1` to `size2`
+- `gradient`::Real (>0) = 0.1 : transition gradient from `size1` to `size2`
   (`0` = sharp, `1` = linear).
-- `roundness`::Real  ∈ [0,1] = 0.5 : shape of the refinement region
+- `roundness`::Real ∈ [0,1] = 0.5 : shape of the refinement region
   (`0` = box-like, `1` = ellipsoidal).
 
 # Example
@@ -422,7 +421,7 @@ function set_refinement(geo::GeoModel, X::Vector{<:Real}, rx::Real, ry::Real, rz
     @check rz>0 "set_refinement: 'rz' must be positive"
     @check size1>0 "set_refinement: 'size1' must be positive"
     @check size2>0 "set_refinement: 'size2' must be positive"
-    @check 0.0<=gradient<=1.0 "set_refinement: 'gradient' must be in [0, 1]"
+    @check gradient>0 "set_refinement: 'gradient' must be positive"
     @check 0.0<=roundness<=1.0 "set_refinement: 'roundness' must be in [0, 1]"
 
     push!(geo.fields, SizeField(X, rx, ry, rz, size1, size2, roundness, gradient))
