@@ -81,9 +81,20 @@ function Mesh(geo::GeoModel;
         gmsh_ndim = gmsh.model.getDimension()
         dim_ids = gmsh.model.occ.getEntities(gmsh_ndim)
 
+        # set physical groups by tags: TODO: requires syncronnization of occ entities to geo.entities trying to preserve tags
+            # ents = [ ent for ((dim,id), ent) in geo.entities if dim==gmsh_ndim ]  # list of entities of dimension gmsh_ndim
+            # tagset = Set([ ent.tag for ent in ents ])
+            # tags_gidx_dict = Dict( tag=>i for (i,tag) in enumerate(tagset) )
+
+            # for (tag, gidx) in tags_gidx_dict
+            #     ent_ids = [ ent.id for ent in ents if ent.tag==tag ]
+            #     gmsh.model.addPhysicalGroup(gmsh_ndim, ent_ids, gidx) # ndim, entities, group_id
+            # end
+        
+
         # set physical groups
-        for (i, (_, idx)) in enumerate(dim_ids)
-            gmsh.model.addPhysicalGroup(gmsh_ndim, [idx], i)
+        for (i, (_, gidx)) in enumerate(dim_ids)
+            gmsh.model.addPhysicalGroup(gmsh_ndim, [gidx], i)
         end
 
         # make model coherent by fragmentation, removing duplicates and joining points
@@ -111,10 +122,10 @@ function Mesh(geo::GeoModel;
 
                 field_id = gmsh.model.mesh.field.add("MathEval")
                 n = 2/field.roundness # roundness 1 -> n=2 (ellipsoid), roundness 0 -> n=∞ (box)
-                m = field.gradient # 0 -> sharp, 1 -> linear
+                g = field.gradient # 0 -> sharp, 1 -> linear
 
                 an, bn, cn = a^n, b^n, c^n
-                expr = "$size2 + ($size1 - $size2) * ( 1 - (abs(x-$x)^$n/$an + abs(y-$y)^$n/$bn + abs(z-$z)^$n/$cn)^(1/$n))^$m * step(1 - ( abs(x-$x)^$n/$an + abs(y-$y)^$n/$bn + abs(z-$z)^$n/$cn ))"
+                expr = "$size2 + ($size1 - $size2) * ( 1 - (abs(x-$x)^$n/$an + abs(y-$y)^$n/$bn + abs(z-$z)^$n/$cn)^(1/$n))^$g * step(1 - ( abs(x-$x)^$n/$an + abs(y-$y)^$n/$bn + abs(z-$z)^$n/$cn ))"
 
                 gmsh.model.mesh.field.setString(field_id, "F", expr)
                 push!(field_ids, field_id)
