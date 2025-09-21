@@ -42,23 +42,23 @@ add_boundary_interface_elements(mesh, selector="boundary_faces", tag="spring", s
 ```
 """
 function add_boundary_interface_elements(
-    mesh       :: Mesh,
-    selector     :: Union{Expr,Symbolic,String};
-    tag        :: String="",
+    mesh        :: Mesh,
+    selector    :: Union{Expr,Symbolic,Tuple,String};
+    tag         :: String="",
     support_tag :: String="",
-    quiet      :: Bool=false,
+    quiet       :: Bool=false,
 )
 
     quiet || printstyled("Addition of boundary interface elements:\n", bold=true, color=:cyan)
-    support_tag == "" && error("add_boundary_interface_elements: tag for support nodes 'support_tag' is required")
+    @check support_tag != "" "add_boundary_interface_elements: tag for support nodes 'support_tag' is required"
 
     # Get target cells
     faces = mesh.faces[selector]
-    isempty(faces) && error("add_boundary_interface_elements: no target cells found for selector $selector")
+    @check !isempty(faces) "add_boundary_interface_elements: no target cells found for selector $(repr(selector))"
 
     # Add interface elements
     joint_cells = Cell[]
-    new_nodes_d  = Dict{UInt64, Node}()
+    new_nodes_d = Dict{UInt64, Node}()
     for face in faces
         conn = copy(face.nodes)
         for (i, node) in enumerate(face.nodes)
@@ -69,7 +69,7 @@ function add_boundary_interface_elements(
             push!(conn, n)
         end
 
-        jshape = joint_shape_dict[(face.shape.name, 2)]
+        jshape = face.shape
         cell = Cell(jshape, conn, tag=tag)
         cell.couplings = [ face.owner ]
         push!(joint_cells, cell)
@@ -84,14 +84,73 @@ function add_boundary_interface_elements(
     synchronize!(mesh, sort=true, cleandata=true)
 
     if !quiet
-        @printf "  %4dd mesh                             \n" mesh.ctx.ndim
-        @printf "  %5d nodes\n" length(mesh.nodes)
+        @printf "  %5d new interface cells\n" length(joint_cells)
         @printf "  %5d total cells\n" length(mesh.elems)
-        @printf "  %5d new joint cells\n" length(joint_cells)
-        nfaces = length(mesh.faces)
-        nfaces>0 && @printf("  %5d faces\n", nfaces)
-        nedges = length(mesh.edges)
-        nedges>0 && @printf("  %5d edges\n", nedges)
+    end
+
+    return mesh
+end
+
+
+function add_boundary_shell_elements(
+    mesh          :: Mesh,
+    selector      :: Union{Expr,Symbolic,Tuple,String};
+    tag           :: String="",
+    interface_tag :: String="",
+    quiet         :: Bool=false,
+)
+
+    quiet || printstyled("Addition of boundary shell elements:\n", bold=true, color=:cyan)
+    
+    faces = mesh.faces[selector]
+    gen_interface_elems = interface_tag != ""
+
+    # Add shell elements
+    new_interface_cells   = Cell[]
+    new_nodes_d = Dict{UInt64, Node}()
+    for face in faces
+        conn = copy(face.nodes)
+        
+        if gen_interface_elems
+            conn2 = Node[]
+            for (i, node) in enumerate(face.nodes)
+                hs = hash(node)
+                n  = get!(new_nodes_d, hs) do
+                    Node(node.coord)
+                end
+                push!(conn2, n)
+            end
+            shell_cell = Cell(face.shape, conn2, tag=tag)
+            shell_cell.role = :surface
+            push!(new_shell_cells, shell_cell)
+
+            interface_cell = Cell(face.shape, [conn;conn2], tag=interface_tag)
+            interface_cell.couplings = [ face.owner, shell_cell ]
+            interface_cell.role = :interface
+            push!(new_interface_cells, interface_cell)
+        else
+            shell_cell = Cell(face.shape, conn, tag=tag)
+            shell_cell.role = :surface
+            push!(new_shell_cells, shell_cell)
+        end
+
+    end
+    new_nodes = collect(values(new_nodes_d))
+
+    # All cells
+    append!(new_shell_cells, shell_cells)
+    append!(mesh.elems, new_interface_cells)
+    append!(mesh.nodes, new_nodes)
+
+    # Update and reorder mesh
+    synchronize!(mesh, sort=true, cleandata=true)
+
+    if !quiet
+        @printf "  %4d dimensions                           \n" mesh.ctx.ndim
+        @printf "  %5d nodes\n" length(mesh.nodes)
+        @printf "  %5d new shell cells\n", length(new_shell_cells)
+        length(new_interface_cells)>0 && @printf("  %5d new interface cells\n", length(new_interface_cells))
+        @printf "  %5d total cells\n" length(mesh.elems)
     end
 
     return mesh
