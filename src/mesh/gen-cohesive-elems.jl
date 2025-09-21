@@ -148,7 +148,7 @@ function add_boundary_shell_elements(
     if !quiet
         @printf "  %4d dimensions                           \n" mesh.ctx.ndim
         @printf "  %5d nodes\n" length(mesh.nodes)
-        @printf "  %5d new shell cells\n", length(new_shell_cells)
+        @printf "  %5d new shell cells\n" length(new_shell_cells)
         length(new_interface_cells)>0 && @printf("  %5d new interface cells\n", length(new_interface_cells))
         @printf "  %5d total cells\n" length(mesh.elems)
     end
