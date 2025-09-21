@@ -50,9 +50,7 @@ function save(figure::Figure, files::String...)
             finish(surf)
         end
 
-        figure.quiet || println("  figure saved to $file")
-
-        # copypath!="" && cp(file, joinpath(dirname(copypath), basename(file)), force=true)
+        figure.quiet || printstyled("  file $file saved\n", color=:cyan)
     end
 
 end
