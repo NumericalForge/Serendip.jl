@@ -34,4 +34,4 @@ add_bc(stage, :node, (y==0, z==0), ux=0, uy=0, uz=0)
 add_bc(stage, :node, (y==6, z==0), uz=0)
 add_bc(stage, :edge, (y==3, z==0), qz=-1.0)
 
-run(ana, autoinc=true, scheme=:Ralston, tol=0.01, maxits=3).success
+run(ana, autoinc=true, tangent_scheme=:ralston, tol=0.01, maxits=3).successful

@@ -23,4 +23,4 @@ add_bc(stage, :node, (z==0.5), uz=+0.008)
 add_bc(stage, :node, :(x==0 || x==1.0), ux=0, uy=0)
 add_bc(stage, :node, :(y==0 || y==1.0), ux=0, uy=0)
 
-@test run(ana, autoinc=true, tol=1e-2).success
+@test run(ana, autoinc=true, tol=1e-2).successful

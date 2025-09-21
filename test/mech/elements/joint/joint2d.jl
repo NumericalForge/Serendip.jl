@@ -38,7 +38,7 @@ add_mapping(mapper, "joint", MechInterface, LinearInterface, ks=1e8, kn=1e8)
     add_bc(stage, :node, "left", ux=0, uy=0)
     add_bc(stage, :node, "right", ux=-1e-9, uy=8e-5)
 
-    run(ana, autoinc=true, maxits=3, tol=0.001, rspan=0.01, dTmax=0.1, scheme=:Ralston)
+    run(ana, autoinc=true, maxits=3, tol=0.001, rspan=0.01, dTmax=0.1, tangent_scheme=:ralston)
 
     # if makeplots
     #     table = log1.table

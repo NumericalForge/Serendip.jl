@@ -20,7 +20,7 @@ add_bc(stage, :node, (x==0, y==9), ux=0, uy=0)
 add_bc(stage, :node, (x==9, y==0), fy=-450.)
 add_bc(stage, :node, (x==18, y==0), fy=-450.)
 add_bc(stage, :body, x>=0, wy=-10.0)
-@test run(ana).success
+@test run(ana).successful
 
 
 # 3D Truss plus self weight
@@ -38,7 +38,7 @@ add_bc(stage, :node, (x==0, y==1, z==0), ux=0, uy=0, uz=0)
 add_bc(stage, :node, (x==0, y==1, z==1), ux=0, uy=0)
 add_bc(stage, :node, (x==0, y==0), fz=-50.)
 add_bc(stage, :body, x>=0, wz=-10.0)
-@test run(ana).success
+@test run(ana).successful
 
 save(model, "model.vtu")
 

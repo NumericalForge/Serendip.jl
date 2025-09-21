@@ -15,4 +15,4 @@ stage = add_stage(ana)
 add_bc(stage, :node, (x==0, y==0), ux=0, uy=0)
 add_bc(stage, :node, (x==1, y==0), uy=0)
 add_bc(stage, :node, (x==1, y==0), ux=0.003)
-@test run(ana).success
+@test run(ana).successful

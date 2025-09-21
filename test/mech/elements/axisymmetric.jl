@@ -19,7 +19,7 @@ for shape in (TRI3, TRI6, QUAD4, QUAD8)
     add_bc(stage, :face, x==0, ux=0)
     add_bc(stage, :face, y==0, uy=0)
     add_bc(stage, :face, y==1, ty=-10)
-    run(ana).success
+    run(ana).successful
 
     sample_node = select(model, :node, (x==1, y==1))[1]
     uxr = get_dof(sample_node, :ux).vals[:ux]
@@ -39,7 +39,7 @@ for shape in (TRI3, TRI6, QUAD4, QUAD8)
     add_bc(stage, :node, (x==0,y==0), ux=0, uy=0)
     add_bc(stage, :face, y==0, uy=0)
     add_bc(stage, :face, y==1, ty=-10)
-    run(ana).success
+    run(ana).successful
 
     sample_node = select(model, :node, (x==1, y==1))[1]
     ux = get_dof(sample_node, :ux).vals[:ux]

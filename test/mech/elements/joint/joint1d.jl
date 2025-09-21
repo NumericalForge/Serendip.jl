@@ -41,7 +41,7 @@ add_bc(stage, :node, (y==0.0, z==0.0), ux=0, uy=0, uz=0)
 add_bc(stage, :node, (y==6.0, z==0.0), uz=0.0)
 add_bc(stage, :face, z==1.0, tz=-1000)
 
-@test run(ana).success
+@test run(ana).successful
 
 # bcs = [
     #    :(y==0 && z==0) => NodeBC(uy=0, uz=0),
@@ -51,4 +51,4 @@ add_bc(stage, :face, z==1.0, tz=-1000)
 
 # addlogger!(ana, :(x==0.5 && y==3.0 && z==0.5) => NodeLogger() )
 # addstage!(ana, bcs, nincs=20)
-# @test solve!(ana).success
+# @test solve!(ana).successful

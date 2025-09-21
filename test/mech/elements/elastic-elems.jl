@@ -21,7 +21,7 @@ for shape in (TRI3, TRI6, QUAD4, QUAD8, QUAD9)
     stage = add_stage(ana)
     add_bc(stage, :edge, "bottom", ux=0, uy=0)
     add_bc(stage, :edge, "top", ty=-10.)
-    run(ana).success
+    run(ana).successful
 
     global top_node = select(model, :node, y==1)[1]
     ux = top_node.dofs[:ux].vals[:ux]
@@ -52,7 +52,7 @@ for shape in (TET4, TET10, HEX8, HEX20, HEX27)
     add_bc(stage, :face, "bottom", ux=0, uy=0, uz=0)
     add_bc(stage, :face, "sides", ux=0)
     add_bc(stage, :face, "top", tz=-10.)
-    run(ana).success
+    run(ana).successful
 
     # top_node = model.nodes[:(z==1)][1]
     global top_node = select(model, :node, z==1)[1]

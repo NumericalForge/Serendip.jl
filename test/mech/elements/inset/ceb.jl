@@ -26,7 +26,7 @@ add_mapping(mapper, "joints", MechBondSlip, CebBondSlip,
             ks=(12/0.001)*5, kn=5e3, p=0.25)
 
 model = FEModel(mesh, mapper)
-# settings = SolverSettings(autoinc=true, tol=0.01, maxits=3, scheme=:Ralston)
+# settings = SolverSettings(autoinc=true, tol=0.01, maxits=3, tangent_scheme=:ralston)
 ana = MechAnalysis(model)
 
 select(get_ips(select(model, :element, "joints")), tag="joint_ips")
@@ -57,7 +57,7 @@ stage = add_stage(ana, nincs=nincs)
 add_bc(stage, :node, "fixed_points", ux=0, uy=0, uz=0)
 add_bc(stage, :node, "tip", uy=+0.005)
 
-run(ana, autoinc=true, tol=0.01, maxits=3, scheme=:Ralston)
+run(ana, autoinc=true, tol=0.01, maxits=3, tangent_scheme=:ralston)
 
 # makeplots = true
 # if @isdefined(makeplots) && makeplots

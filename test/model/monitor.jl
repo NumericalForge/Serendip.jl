@@ -23,4 +23,4 @@ stage = add_stage(ana, nincs=4, nouts=4)
 add_bc(stage, :node, z==0, ux=0, uy=0, uz=0 )
 add_bc(stage, :face, z==1, tz=-10.0)
 
-@test run(ana).success
+@test run(ana).successful

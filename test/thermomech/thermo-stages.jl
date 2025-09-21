@@ -57,9 +57,9 @@ rho   = 7850    # material specific weight kg/m3
 cv    = 480  # specific heat (capacity) kJ/Ton/K
 alpha = 1.2e-5 # thermal expansion coefficient  1/K or 1/°C
 
-#k = PathFunction(:M, 0, 14.2, :L, 1000, 24.5, :L, 1500, 24.5)
-#cv = PathFunction(:M, 0, 500, :L, 800, 580, :L, 1500, 24.5)
-#alpha = PathFunction(:M, 0, 1.2e-5, :L, 750, 28)
+#k = AbstractSpline(:M, 0, 14.2, :L, 1000, 24.5, :L, 1500, 24.5)
+#cv = AbstractSpline(:M, 0, 500, :L, 800, 580, :L, 1500, 24.5)
+#alpha = AbstractSpline(:M, 0, 1.2e-5, :L, 750, 28)
 
 
 mats = ["shell1" << TMShell << TMCombined{ConstConductivity,LinearElastic} <<  (E=E, fy=fy, nu=nu, thickness = th1, k=k, alpha = alpha, rho=rho, cv=cv),

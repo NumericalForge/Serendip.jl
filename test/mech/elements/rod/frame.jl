@@ -18,4 +18,4 @@ add_bc(stage, :node, (x==1.0), mz=1.0)
 add_bc(stage, :node, (x==1.0), fy=-1.0)
 add_bc(stage, :edge, (x>=1.0), qy=-12)
 
-run(ana)
+@test run(ana).successful
