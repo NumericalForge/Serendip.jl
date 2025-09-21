@@ -325,6 +325,10 @@ function Base.run(ana::Analysis;
         println("  type: ", ana.name)
         ctx.stress_state != :auto && println("  stress model: ", ctx.stress_state)
         println("  tangent rule: ", tangent_scheme)
+        print("  output dir: ")
+        printstyled(ana.data.outdir, "\n", color=:cyan)
+        print("  output key: ")
+        printstyled(ana.data.outkey, "\n", color=:cyan)
 
         print("  active threads: ")
         nthreads = Threads.nthreads()
