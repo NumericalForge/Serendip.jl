@@ -2,12 +2,13 @@ using Serendip
 
 # ❱❱❱ Geometry and mesh
 
+ℓ = 0.1
 h = 0.2
 
 geo = GeoModel()
 
-add_block(geo, [0,0,0], [0.1,0.1,h], shape=HEX8, nx=1, ny=1, nz=1)
-# box = add_box(geo, [0,0,0], 0.1, 0.1, h)
+add_block(geo, [0,0,0], [ℓ,ℓ,h], shape=HEX8, nx=2, ny=2, nz=4)
+# box = add_box(geo, [0,0,0], ℓ, ℓ, h)
 # set_size(geo, box, 0.05)
 
 
@@ -21,64 +22,66 @@ ft = 2.95e3
 
 mapper = RegionMapper()
 add_mapping(mapper, "solids", MechBulk, UCP, 
-    E=30e6, nu=0.2, 
-    alpha=0.666, beta=1.15, 
-    fc=fc, epsc=-0.002, eta=2.2,
-    ft=ft, 
-    GF=0.1,
-    )
+    E=30.0e6, nu=0.25, alpha=0.66, beta=1.15, 
+    fc=fc, epsc=-0.002, eta=2.0, ft=ft, wc=0.000002 )
+# add_mapping(mapper, "solids", MechBulk, LinearElastic, E=30.0e6, nu=0.25)
+
+# "solids" => MechSolid => CSCP => (E=30e6, nu=0.25, alpha=0.66, beta=1.15, fc=fc, ft=ft, epsc=-0.002, GF=0.1, wc=0.00005, n=2.0)
+
 
 # ❱❱❱ Analysis 1: compression
 
 # model = FEModel(mesh, mapper)
 # ana = MechAnalysis(model, outkey="compression")
 
-# log = add_logger(ana, :ip, [0.05, 0.05, 0.05])
-# add_monitor(ana, :ip, [0.05, 0.05, 0.05], :σzz)
+# log = add_logger(ana, :ip, [0.0, 0.0, 0.0])
+# add_monitor(ana, :ip, [0.0, 0.0, 0.0], :σzz)
 
-# stage1 = add_stage(ana, nouts=10)
+# stage1 = add_stage(ana)
+# uu = -0.001
 # add_bc(stage1, :node, x==0, ux=0)
 # add_bc(stage1, :node, y==0, uy=0)
 # add_bc(stage1, :node, z==0, uz=0)
-# # add_bc(stage1, :node, z==0, ux=0, uy=0, uz=0)
-# add_bc(stage1, :node, z==0.1, uz=-0.001)
+# add_bc(stage1, :node, x==ℓ, ux=uu)
+# add_bc(stage1, :node, y==ℓ, uy=uu)
 
-# run(ana, autoinc=true, tol=0.01)
-# # run(ana, autoinc=true, tangent_tangent_scheme=:ralston)
-
-# # Post-process
-# table = log.table
-# chart = Chart(
-#     xlabel=L"$ε_{zz} × 10^3$", xmult=1000,
-#     ylabel=L"$σ_{zz}$ [MPa]", ymult=1e-3,
-# )
-# add_series(chart, -table["εzz"], -table["σzz"], mark=:circle)
-# save(chart, "compression.pdf")
-
+# run(ana, autoinc=true, tol=0.006, rspan=0.02, dT0=0.002,)
 
 # ❱❱❱ Analysis 2: tension
 
 model = FEModel(mesh, mapper)
 ana = MechAnalysis(model, outkey="tension")
 
-log = add_logger(ana, :ip, [0.05, 0.05, h/2])
-add_monitor(ana, :ip, [0.05, 0.05, h/2], :σzz)
+log = add_logger(ana, :ip, [0.0, 0.0, 0.0])
+add_monitor(ana, :ip, [0.0, 0.0, 0.0], :σxx)
+
 
 stage1 = add_stage(ana, nouts=10)
+uu = 0.0002
 add_bc(stage1, :node, x==0, ux=0)
 add_bc(stage1, :node, y==0, uy=0)
 add_bc(stage1, :node, z==0, uz=0)
-# add_bc(stage1, :node, z==0, ux=0, uy=0, uz=0)
-add_bc(stage1, :node, z==h, uz=0.0002)
+# add_bc(stage1, :node, x==ℓ, ux=uu)
+add_bc(stage1, :node, z==h, uz=uu)
 
-run(ana, autoinc=true, dTmax=0.01)
+run(ana, autoinc=true)
 
-# Post-process
+
+# ❱❱❱ Post-process
+
 table = log.table
+
 chart = Chart(
-    xlabel=L"$ε_{zz} × 10^3$", xmult=1000,
-    ylabel=L"$σ_{zz}$ [MPa]", ymult=1e-3,
+    xlabel=L"$ε_{zz}$",
+    ylabel=L"$σ_{zz}$",
 )
 add_series(chart, table["εzz"], table["σzz"], mark=:circle)
-save(chart, "tension.pdf")
+save(chart, "σ-ε.pdf")
+
+chart = Chart(
+    xlabel=L"$ξ$",
+    ylabel=L"$ρ",
+)
+add_series(chart, table["ξ"], table["ρ"], mark=:circle)
+save(chart, "ξ-ρ.pdf")
 

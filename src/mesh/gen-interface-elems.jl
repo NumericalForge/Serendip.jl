@@ -203,25 +203,25 @@ function add_cohesive_elements(
     # Target and locked cells
     # locked cells include solids, lines, beams, etc.
     if selector===nothing
-        targetcells = select(mesh.elems, :bulk)
-        lockedcells = setdiff(mesh.elems, targetcells)
+        target_cells = select(mesh.elems, :bulk)
+        locked_cells = setdiff(mesh.elems, target_cells)
         # remove previous joints at locked region
-        lockedcells = setdiff(lockedcells, select(lockedcells, :interface))
+        locked_cells = setdiff(locked_cells, select(locked_cells, :interface))
     else
-        targetcells = select(mesh.elems, selector, :bulk)
-        # targetcells = mesh.elems[selector].solids
-        if length(targetcells)==0
-            error("add_cohesive_elements: no targetcells found for selector $selector")
+        target_cells = select(mesh.elems, selector, :bulk)
+        # target_cells = mesh.elems[selector].solids
+        if length(target_cells)==0
+            error("add_cohesive_elements: no target_cells found for selector $selector")
         end
-        lockedcells = setdiff(mesh.elems, targetcells)
+        locked_cells = setdiff(mesh.elems, target_cells)
         # remove previous joints at filtered region
-        lockedcells = setdiff(lockedcells, select(lockedcells, selector, :interface))
+        locked_cells = setdiff(locked_cells, select(locked_cells, selector, :interface))
     end
 
     if !inter_regions
             # Splitting
             # generating new nodes at target cells
-            for c in targetcells
+            for c in target_cells
                 for (i,p) in enumerate(c.nodes)
                     newp = Node(p.coord, tag=p.tag)
                     newp.id = -1
@@ -229,12 +229,12 @@ function add_cohesive_elements(
                 end
             end
 
-            lockedouterfaces = get_outer_facets(lockedcells)
+            locked_outer_faces = get_outer_facets(locked_cells)
 
             # Get faces pairs
             facedict = Dict{UInt64, Cell}()
             face_pairs = Tuple{Cell, Cell}[]
-            for cell in targetcells
+            for cell in target_cells
                 for face in getfacets(cell)
                     hs = hash(face)
                     f  = get(facedict, hs, nothing)
@@ -248,7 +248,7 @@ function add_cohesive_elements(
             end
 
             # Add pairs using surface faces from locked cells
-            for face in lockedouterfaces
+            for face in locked_outer_faces
                 hs = hash(face)
                 f  = get(facedict, hs, nothing)
                 f===nothing && continue
@@ -259,7 +259,7 @@ function add_cohesive_elements(
     else # generate joints between tagged regions only
         # Get tags
         tag_set = Set{String}()
-        for cell in targetcells
+        for cell in target_cells
             # cell.tag != "" && push!(tag_set, cell.tag)
             push!(tag_set, cell.tag)
         end
@@ -267,7 +267,7 @@ function add_cohesive_elements(
         # Get joint faces
         trial_faces = CellFace[]
         for tag in tag_set
-            for face in get_outer_facets(targetcells[tag])
+            for face in get_outer_facets(target_cells[tag])
                 push!(trial_faces, face)
             end
         end
@@ -298,7 +298,7 @@ function add_cohesive_elements(
         # @show length(nodes_to_dup)
 
         # Duplicate nodes
-        for cell in targetcells
+        for cell in target_cells
             for (i,node) in enumerate(cell.nodes)
                 if node in nodes_to_dup
                     newnode = Node(node.coord)
@@ -311,7 +311,7 @@ function add_cohesive_elements(
         # Join nodes per tag
         for tag in tag_set
             nodedict = Dict{UInt64, Node}()
-            for cell in targetcells[tag]
+            for cell in target_cells[tag]
                 for (i,node) in enumerate(cell.nodes)
                     hs = hash(node)
                     n  = get(nodedict, hs, nothing)
@@ -407,7 +407,7 @@ function add_cohesive_elements(
     end
 
     # Fix cells connectivities for special interface elements
-    for c in lockedcells
+    for c in locked_cells
         c.role in (:tip, :line_interface) || continue
         scell = c.couplings[1]
         nspts = length(scell.nodes)
@@ -420,7 +420,7 @@ function add_cohesive_elements(
     end
 
     # All cells
-    mesh.elems  = vcat(lockedcells, targetcells, jointcells)
+    mesh.elems  = vcat(locked_cells, target_cells, jointcells)
 
     # Nodes dict
     nodesdict = Dict{Int,Node}()
@@ -447,7 +447,7 @@ function add_cohesive_elements(
         @printf "  %4dd mesh                             \n" mesh.ctx.ndim
         @printf "  %5d nodes\n" length(mesh.nodes)
         @printf "  %5d total cells\n" length(mesh.elems)
-        @printf "  %5d new joint cells\n" length(jointcells)
+        @printf "  %5d new interface elements\n" length(jointcells)
         nfaces = length(mesh.faces)
         nfaces>0 && @printf("  %5d faces\n", nfaces)
         nedges = length(mesh.edges)
@@ -455,68 +455,110 @@ function add_cohesive_elements(
     end
 
     return mesh
-
 end
 
 
-# function generate_joints_by_tag!(mesh::Mesh; layers::Int64=2, verbose::Bool=true)
-#     # Get tags
-#     tag_set = Set{String}()
-#     for cell in mesh.cells
-#         push!(tag_set, cell.tag)
-#     end
 
-#     # Get joint faces
-#     joint_faces = CellFace[]
-#     for tag in tag_set
-#         for face in get_outer_facets(mesh.cells[tag])
-#             push!(joint_faces, face)
-#         end
-#     end
 
-#     # Get nodes to duplicate
-#     nodes_to_dup = Set{Node}()
-#     for face in joint_faces
-#         for node in face
-#             push!(nodes_to_dup, node)
-#         end
-#     end
+function add_cohesive_elements2(
+    mesh         ::Mesh,
+    selector     ::Union{Expr,Symbolic,Tuple,String,Nothing}=nothing;
+    inter_regions::Bool=false,
+    layers       ::Int64=2,
+    tag          ::String="",
+    quiet        ::Bool=false,
+    midnodes_tag ::String=""
+)
 
-#     # List of owner cells
-#     ocells = Cell[ f.owner for f in joint_faces ]
+    quiet || printstyled("Addition of cohesive elements:\n", bold=true, color=:cyan)
 
-#     # Duplicate nodes
-#     for cell in ocells
-#         for (i,node) in enumerate(cell.nodes)
-#             if node in nodes_to_dup
-#                 cell.nodes[i] = copy(node)
-#             end
-#         end
-#     end
+    layers in (2,3) || error("add_cohesive_elements: wrong number of layers ($layers).")
 
-#     # Get joint faces (now with new nodes)
-#     joint_faces = CellFace[]
-#     for tag in tag_set
-#         for face in get_outer_facets(ocells[tag])
-#             push!(joint_faces, face)
-#         end
-#     end
+    inter_regions && tag=="" && (auto_tag=true)
 
-#     # Get paired faces
-#     facedict = Dict{UInt64, Cell}()
-#     face_pairs = Tuple{Cell, Cell}[]
-#     for face in joint_faces
-#         hs = hash(face)
-#         f  = get(facedict, hs, nothing)
-#         if f===nothing
-#             facedict[hs] = face
-#         else
-#             push!(face_pairs, (face, f))
-#             delete!(facedict, hs)
-#         end
-#     end
+    # Target and locked cells
+    # locked cells include solids, lines, beams, etc.
+    if selector===nothing
+        target_cells = select(mesh.elems, :bulk)
+        locked_cells = setdiff(mesh.elems, target_cells)
+        # remove previous joints at locked region
+        locked_cells = setdiff(locked_cells, select(locked_cells, :interface))
+    else
+        target_cells = select(mesh.elems, selector, :bulk)
+        if length(target_cells)==0
+            error("add_cohesive_elements: no target_cells found for selector $selector")
+        end
+        locked_cells = setdiff(mesh.elems, target_cells)
+        # remove previous joints at filtered region
+        locked_cells = setdiff(locked_cells, select(locked_cells, selector, :interface))
+    end
 
-# end
+
+    # Get faces pairs
+    face_dict = Dict{UInt64, Cell}() # dictionary of unpaired faces
+    face_pairs = Tuple{Cell, Cell}[] # array of paired faces
+    for cell in target_cells
+        for face in getfacets(cell)
+            hs = hash(face)
+            f  = get(face_dict, hs, nothing)
+            if f===nothing
+                face_dict[hs] = face
+            else
+                push!(face_pairs, (face, f))
+                delete!(face_dict, hs)
+            end
+        end
+    end
+
+    # Add pairs using surface faces from locked cells
+    locked_outer_faces = get_outer_facets(locked_cells)
+
+    for face in locked_outer_faces
+        hs = hash(face)
+        f  = get(face_dict, hs, nothing)
+        f===nothing && continue
+        push!(face_pairs, (face, f))
+        delete!(face_dict, hs)
+    end
+
+    # Generate joint elements
+    interface_cells = Cell[]
+    for (f1, f2) in face_pairs
+        n   = length(f1.nodes)
+        con = Array{Node}(undef, 2*n)
+        k = 0
+        for (i,p1) in enumerate(f1.nodes)
+            for p2 in f2.nodes
+                if hash(p1)==hash(p2)
+                    k += 1
+                    con[i]   = p1
+                    con[n+i] = p2
+                    break
+                end
+            end
+        end
+        k==n || error("add_cohesive_elements: faces f1 and f2 are not coincident.")
+
+        cell           = Cell(f1.shape, :interface, con, tag=tag)
+        cell.couplings = [f1.owner, f2.owner]
+        push!(interface_cells, cell)
+    end
+
+    # All cells
+    mesh.elems  = vcat(mesh.elems, interface_cells)
+
+    # Update and reorder mesh
+    synchronize!(mesh, sort=true, cleandata=true)
+
+    if !quiet
+        @printf "  %5d new interface elements\n" length(interface_cells)
+        @printf "  %5d total elements\n" length(mesh.elems)
+        @printf "  %5d total nodes\n" length(mesh.nodes)
+    end
+
+    return mesh
+end
+
 
 
 function cracksmesh(mesh::Mesh, opening::Real)

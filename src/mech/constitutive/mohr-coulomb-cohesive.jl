@@ -6,38 +6,35 @@ export MohrCoulombCohesive
 """
     MohrCoulombCohesive(; E, nu=0.0, ft, GF, wc, mu, ft_law=:hordijk, zeta=5.0)
 
-Constitutive model for cohesive elements with a Mohr–Coulomb (MC) strength criterion.  
-The tensile ft_law branch is regularized through a measure of the
-bulk element size `h` to ensure mesh-objective fracture energy dissipation.
+Constitutive model for cohesive elements with a Mohr–Coulomb strength criterion.
+The tensile branch is regularized with the bulk characteristic length `h` to
+ensure mesh-objective dissipation. Normal and shear interface stiffnesses are
+derived from `E`, `nu`, `zeta`, and `h`.
 
 # Keyword arguments
-- `E::Real`:  
-  Young’s modulus from the bulk material (must be > 0).
-- `nu::Real`:  
+- `E::Real`
+  Young’s modulus of the bulk material (> 0).
+- `nu::Real`
   Poisson’s ratio (0 ≤ ν < 0.5).
-- `ft::Real`:  
-  Tensile strength (>= 0).
-- `wc::Real`:  
-  Critical crack opening (must be > 0 if given). Can be specified alternatively to `GF`.
-- `mu::Real`:  
+- `ft::Real`
+  Tensile strength (> 0).
+- `wc::Real`
+  Critical crack opening (> 0 if provided). May be computed from `GF`.
+- `GF::Real`
+  Mode-I fracture energy (> 0 if provided). May be used to compute `wc`.
+- `mu::Real`
   Friction coefficient (> 0).
-- `GF::Real`:  
-  Fracture energy (must be > 0 if given). Can be specified alternatively to `wc`.
-- `ft_law::Symbol = :hordijk`:  
-  Softening law for post-peak tensile response. Options are:
-  `:linear`, `:bilinear`, `:hordijk`, `:soft`.  
-- `zeta::Real = 5.0`:  
-  Factor to control elastic relative displacements in cohesive formulations (≥ 0).
+- `ft_law::Union{Symbol,AbstractSpline} = :hordijk`
+  Tensile softening law. Symbols: `:linear`, `:bilinear`, `:hordijk`; or a custom Spline.
+- `zeta::Real = 5.0`
+  Dimensionless factor controlling elastic relative displacements (≥ 0).
 
 # Returns
 A `MohrCoulombCohesive` object.
 
 # Notes
-- Either `wc` or `GF` must be provided. If only `GF` is given, `wc` is computed
-  internally based on the chosen ft_law.
-- The frictional contribution is governed by `mu`.
-- Normal and shear stiffnesses (`kn`, `ks`) are computed from the mechanical properties of
-  the bulk material and the characteristic length `h` of the adjacent bulk elements.
+- Provide either `wc` or `GF`. If only `GF` is given, `wc` is computed from `ft_law`.
+- Frictional strength is governed by `mu`.
 """
 mutable struct MohrCoulombCohesive<:Constitutive
     E  ::Float64
@@ -66,7 +63,7 @@ mutable struct MohrCoulombCohesive<:Constitutive
         @check mu>0 "MohrCoulombCohesive: Friction coefficient mu must be non-negative. Got $(repr(mu))."
         @check zeta>=0 "MohrCoulombCohesive: Factor zeta must be non-negative. Got $(repr(zeta))."
 
-        wc, ft_law, ft_fun, status = setup_tensile_strength(ft,  GF, wc, ft_law)
+        wc, ft_law, ft_fun, status = setup_tensile_strength(ft, GF, wc, ft_law)
         failed(status) && throw(ArgumentError("MohrCoulombCohesive: " * status.message))
 
         return new(E, nu, ft, wc, mu, ft_law, ft_fun, zeta)
@@ -95,7 +92,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{MohrCoulombCohesive}, ::Type{MechInterface}, ctx::Context) = MohrCoulombCohesiveState
+compat_state_type(::Type{MohrCoulombCohesive}, ::Type{MechCohesive}, ctx::Context) = MohrCoulombCohesiveState
 
 
 function yield_func(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σ::Array{Float64,1})
@@ -153,23 +150,28 @@ function deriv_σmax_upa(mat::MohrCoulombCohesive, up::Float64)
 end
 
 
-function calc_kn_ks_De(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
-
+function calc_kn_ks(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
     kn = mat.E*mat.ζ/state.h
     G  = mat.E/(2*(1 + mat.ν))
     ks = G*mat.ζ/state.h
-    
+
+    return kn, ks
+end
+
+
+function calc_De(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, ks::Float64, kn::Float64 )
     ndim = state.ctx.ndim
+
     if ndim == 3
         De = [  kn  0.0  0.0
                0.0   ks  0.0
                0.0  0.0   ks ]
     else
         De = [  kn   0.0
-                 0.0  ks  ]
+                0.0  ks  ]
     end
 
-    return kn, ks, De
+    return De
 end
 
 
@@ -180,10 +182,10 @@ function calc_Δλ(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σ
     f      = 0.0
     up     = 0.0
     tol    = 1e-4
+    μ      = mat.μ
+    kn, ks = calc_kn_ks(mat, state)
 
     for i in 1:maxits
-        μ      = mat.μ
-        kn, ks, De = calc_kn_ks_De(mat, state)
 
         # quantities at n+1
         if ndim == 3
@@ -247,7 +249,7 @@ end
 function calc_σ_upa(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σtr::Array{Float64,1})
     ndim = state.ctx.ndim
     μ = mat.μ
-    kn, ks, De = calc_kn_ks_De(mat, state)
+    kn, ks, = calc_kn_ks(mat, state)
 
     if ndim == 3
         if σtr[1] > 0
@@ -271,7 +273,8 @@ end
 
 function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
     ndim = state.ctx.ndim
-    kn, ks, De = calc_kn_ks_De(mat, state)
+    kn, ks = calc_kn_ks(mat, state)
+    De = calc_De(mat, state, ks, kn)
     σmax = calc_σmax(mat, state.up)
 
     if state.Δλ == 0.0  # Elastic 
@@ -283,10 +286,10 @@ function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
         Dep  = De*1e-3
         return Dep
     else
-        v    = yield_deriv(mat, state)
-        r    = potential_derivs(mat, state, state.σ)
-        y    = -mat.μ # ∂F/∂σmax
-        m    = deriv_σmax_upa(mat, state.up)  # ∂σmax/∂up
+        v = yield_deriv(mat, state)
+        r = potential_derivs(mat, state, state.σ)
+        y = -mat.μ # ∂F/∂σmax
+        m = deriv_σmax_upa(mat, state.up)  # ∂σmax/∂up
 
         #Dep  = De - De*r*v'*De/(v'*De*r - y*m*norm(r))
 
@@ -312,7 +315,8 @@ function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState,
     ndim = state.ctx.ndim
     σini = copy(state.σ)
 
-    kn, ks, De = calc_kn_ks_De(mat, state)
+    kn, ks = calc_kn_ks(mat, state)
+    De = calc_De(mat, state, ks, kn)
     σmax = calc_σmax(mat, state.up)  
 
     if isnan(Δw[1]) || isnan(Δw[2])
@@ -320,9 +324,8 @@ function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState,
     end
 
     # σ trial and F trial
-    σtr  = state.σ + De*Δw
-
-    Ftr  = yield_func(mat, state, σtr) 
+    σtr = state.σ + De*Δw
+    Ftr = yield_func(mat, state, σtr)
 
     # Elastic and EP integration
     if σmax == 0.0 && state.w[1] >= 0.0
@@ -367,29 +370,17 @@ function state_values(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
     ndim = state.ctx.ndim
     σmax = calc_σmax(mat, state.up)
     τ = norm(state.σ[2:ndim])
-    if ndim == 3
-        return Dict(
-            :w => state.w[1],
-            :σn => state.σ[1],
-            :τ  => τ,
-            :s2 => state.σ[2],
-            :s3 => state.σ[3],
-            :up => state.up,
-            :σmax => σmax
-          )
-    else
-        return Dict(
-            :w => state.w[1],
-            :σn => state.σ[1],
-            :τ  => τ,
-            :s2 => state.σ[2],
-            :up => state.up,
-            :σmax => σmax
-        )
-    end
+
+    return Dict(
+        :w => state.w[1],
+        :σn => state.σ[1],
+        :τ  => τ,
+        :up => state.up,
+        :σmax => σmax
+      )
 end
 
 
-function output_keys(mat::MohrCoulombCohesive)
+function output_keys(::MohrCoulombCohesive)
     return Symbol[:w, :σn, :τ, :up]
 end

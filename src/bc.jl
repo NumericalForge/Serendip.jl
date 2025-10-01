@@ -66,7 +66,7 @@ function add_bc(
     end
     target = select(items, selector)
 
-    length(target) == 0 && notify("setup_bc: No $(item_name)s found for selector: ", selector)
+    length(target) == 0 && alert("add_bc: No $(item_name)s found for selector: ", selector)
 
     bc = BoundaryCondition{target_type}(kind, selector, conds, target)
     push!(stage.bcs, bc)

@@ -6,7 +6,7 @@
         size=(220,150), face_color=:aliceblue, warp=0.0,
         edge_width=0.3, edge_color=:auto, outline_width=0.4,
         line_element_width=0.6,
-        field="", limits=[0.0,0.0], field_kind=:auto, field_factor=1.0,
+        field="", limits=[0.0,0.0], field_kind=:auto, field_mult=1.0,
         label="", colormap=:coolwarm, diverging=false,
         colorbar=:right, colorbar_length_factor=0.9, bins=6,
         font="NewComputerModern", font_size=7.0,
@@ -34,7 +34,7 @@ Create a customizable domain plot for meshes and FE models.
 - `field::AbstractString`: scalar field name for coloring; empty disables.
 - `limits::Vector{<:Real}`: field range `[min,max]`; `[0,0]` → auto.
 - `field_kind::Symbol`: `:auto | :none | :node | :element`.
-- `field_factor::Real`: multiplier applied to field values.
+- `field_mult::Real`: multiplier applied to field values.
 - `label::AbstractString`: colorbar label (alias: `colorbar_label`).
 - `colormap::Union{Symbol,Colormap}`: e.g. `:viridis`, `:coolwarm`, or a `Colormap`.
 - `diverging::Bool`: center colormap at zero.
@@ -96,7 +96,7 @@ mutable struct DomainPlot<:Figure
     field::String
     field_kind::Symbol
     limits::Vector{Float64}
-    field_factor::Float64
+    field_mult::Float64
     warp::Float64
     label::AbstractString
     colormap::Colormap
@@ -124,7 +124,7 @@ mutable struct DomainPlot<:Figure
         field::AbstractString="",
         field_kind::Symbol=:auto,
         limits::Vector{Float64}=[0.0,0.0],
-        field_factor::Real=1.0,
+        field_mult::Real=1.0,
         label::AbstractString="",
         colormap::Union{Symbol,Colormap}=:coolwarm,
         diverging::Bool=false,
@@ -169,7 +169,7 @@ mutable struct DomainPlot<:Figure
         field        = string(field)
         field_kind   = string(field) == "" ? :none : field_kind
         limits       = collect(limits)
-        field_factor = field_factor
+        field_mult   = field_mult
         warp         = warp
         label        = label
 
@@ -199,7 +199,7 @@ mutable struct DomainPlot<:Figure
             width, height,
             edge_width, edge_color, outline_width, 
             line_elem_width, face_color,
-            field, field_kind, limits, field_factor,
+            field, field_kind, limits, field_mult,
             warp, label, colormap, diverging,
             colorbar_location, colorbar_length_factor,
             bins, font, font_size,
@@ -396,14 +396,11 @@ function configure!(mplot::DomainPlot)
         end
 
         if mplot.field_kind == :element
-        # if haskey(elem_data, field)
-            fvals = elem_data[field].*mplot.field_factor
+            fvals = elem_data[field].*mplot.field_mult
             fmax = maximum(fvals)
             fmin = minimum(fvals)
         else
-        # end
-        # if haskey(node_data, field)
-            fvals = node_data[field].*mplot.field_factor
+            fvals = node_data[field].*mplot.field_mult
             fmax = maximum(fvals[node.id] for node in nodes)
             fmin = minimum(fvals[node.id] for node in nodes)
         end

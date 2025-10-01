@@ -161,9 +161,9 @@ function elem_stiffness(elem::Element{MechFrame})
     ℓ  = norm(C[2,:]-C[1,:])
     ℓ2 = ℓ*ℓ
     ℓ3 = ℓ*ℓ*ℓ
-    eform = elem.eform
-    EA = eform.E*eform.A
-    EI = eform.E*eform.I
+    etype = elem.etype
+    EA = etype.E*etype.A
+    EI = etype.E*etype.I
 
     K0 = [ EA/ℓ     0         0         -EA/ℓ    0         0
            0       12*EI/ℓ3   6*EI/ℓ2    0     -12*EI/ℓ3   6*EI/ℓ2

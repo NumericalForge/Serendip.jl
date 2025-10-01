@@ -2,6 +2,7 @@
 
 
 include("elements/mech.jl")
+include("elements/utils.jl")
 include("elements/distributed.jl")
 
 # Elements
@@ -11,11 +12,11 @@ include("elements/mech-solid.jl")
 include("elements/mech-bar.jl")
 include("elements/mech-embtruss.jl")
 include("elements/mech-beam.jl")
-include("elements/mech-joint.jl")
+include("elements/mech-contact.jl")
+include("elements/mech-cohesive.jl")
 include("elements/mech-bondslip.jl")
 include("elements/mech-bondtip.jl")
 include("elements/mech-shell.jl")
-
 
 include("constitutive/evolution_laws.jl")
 

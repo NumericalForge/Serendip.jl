@@ -2,11 +2,13 @@
 
 abstract type ElementFormulation end
 
+# abstract type ElementCache{T <: ElementFormulation} end
+
 mutable struct  Element{T}<:AbstractCell where T<:ElementFormulation
     id    ::Int
     shape ::CellShape
     role  ::Symbol # :vertex, :line, :bulk, :surface, :interface, :line_interface, :tip
-    eform::T       # ElementFormulation
+    etype ::T       # ElementFormulation
     tag   ::String
     active::Bool
     nodes ::Vector{Node}
@@ -15,6 +17,7 @@ mutable struct  Element{T}<:AbstractCell where T<:ElementFormulation
     couplings::Vector{Element}
     cacheV::Vector{FixedSizeVector{Float64}}
     cacheM::Vector{FixedSizeMatrix{Float64}}
+    # cache::ElementCache{T}
     ctx  ::Context
 
     function Element{T}() where T<:ElementFormulation
@@ -116,15 +119,15 @@ function set_quadrature(elem::Element, n::Int=0)
         w = ipc[i].w
         elem.ips[i] = Ip(R, w)
         elem.ips[i].id = i
-        elem.ips[i].state = compat_state_type(typeof(elem.cmodel), typeof(elem.eform), elem.ctx)(elem.ctx)
+        elem.ips[i].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype), elem.ctx)(elem.ctx)
         elem.ips[i].owner = elem
     end
 
     # finding ips global coordinates
     C = get_coords(elem)
 
-    # fix for joint elements
-    if elem.role==:interface
+    # fix for interface elements
+    if elem.role == :interface
         C = C[1:shape.npoints, : ]
     end
 

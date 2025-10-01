@@ -111,7 +111,7 @@ function set_quadrature(elem::Element{MechBeam}, n::Int=0)
                 m = (i-1)*nj*nk + (j-1)*nk + k
                 elem.ips[m] = Ip(R, w)
                 elem.ips[m].id = m
-                elem.ips[m].state = compat_state_type(typeof(elem.cmodel), typeof(elem.eform), elem.ctx)(elem.ctx)
+                elem.ips[m].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype), elem.ctx)(elem.ctx)
                 elem.ips[m].owner = elem
             end
         end
@@ -211,8 +211,8 @@ function setB(elem::Element{MechBeam}, ip::Ip, L::Matx, N::Vect, dNdX::Matx, Rθ
     ndim = elem.ctx.ndim
     ndof = ndim==2 ? 3 : 6
     nnodes = size(dNdX,1)
-    thz = elem.eform.thz
-    thy = elem.eform.thy
+    thz = elem.etype.thz
+    thy = elem.etype.thy
     # Note that matrix B is designed to work with tensors in Mandel's notation
     if ndim==2
         Rθ[3,3] = 1.0
@@ -255,8 +255,8 @@ end
 function elem_stiffness(elem::Element{MechBeam})
     ndim = elem.ctx.ndim
     nnodes = length(elem.nodes)
-    thz = elem.eform.thz
-    thy = elem.eform.thy
+    thz = elem.etype.thz
+    thy = elem.etype.thy
     ndof = ndim==2 ? 3 : 6
     nstr = 3
 
@@ -296,8 +296,8 @@ end
 function elem_internal_forces(elem::Element{MechBeam}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim = elem.ctx.ndim
     nnodes = length(elem.nodes)
-    thz = elem.eform.thz
-    thy = elem.eform.thy
+    thz = elem.etype.thz
+    thy = elem.etype.thy
     ndof = ndim==2 ? 3 : 6
     nstr = 3
 
@@ -360,8 +360,8 @@ end
 
 function elem_recover_nodal_values(elem::Element{MechBeam})
     ndim = elem.ctx.ndim
-    thz = elem.eform.thz
-    thy = elem.eform.thy
+    thz = elem.etype.thz
+    thy = elem.etype.thy
     ndof = ndim==2 ? 3 : 6
 
     nnodes = length(elem.nodes)

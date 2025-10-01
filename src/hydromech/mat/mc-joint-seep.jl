@@ -75,9 +75,9 @@ mutable struct MCJointSeep<:Constitutive
             elseif softmodel == :bilinear
                 wc = round(5*GF/ft, sigdigits=5)
             elseif softmodel==:hordijk
-                wc = round(GF/(0.1947019536*ft), sigdigits=5)  
+                wc = round(GF/(0.1947*ft), sigdigits=5)  
             elseif softmodel==:soft
-                wc = round(GF/(0.1947019536*ft), sigdigits=5)
+                wc = round(GF/(0.1947*ft), sigdigits=5)
             end
         end
 

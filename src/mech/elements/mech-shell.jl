@@ -79,7 +79,7 @@ function set_quadrature(elem::Element{MechShell}, n::Int=0)
         dNdR = elem.shape.deriv(ip.R) # 3xn
         J = C'*dNdR
         No = normalize(cross(J[:,1], J[:,2]))
-        ip.coord += elem.eform.th/2*ip.R[3]*No
+        ip.coord += elem.etype.th/2*ip.R[3]*No
     end
 
 end
@@ -135,7 +135,7 @@ end
 
 function setB(elem::Element{MechShell}, ip::Ip, N::Vect, L::Matx, dNdX::Matx, Rθ::Matx, Bil::Matx, Bi::Matx, B::Matx)
     nnodes = size(dNdX,1)
-    th = elem.eform.th
+    th = elem.etype.th
     # Note that matrix B is designed to work with tensors in Mandel's notation
 
     ndof = 6
@@ -192,7 +192,7 @@ end
 function setNN(elem::Element{MechShell}, ip::Ip, N::Vect, NNil::Matx, NNi::Matx, L::Matx, Rθ::Matx, NN::Matx)
     nnodes = length(N)
     ndof = 6
-    th = elem.eform.th
+    th = elem.etype.th
     ζ = ip.R[3]
 
     for i in 1:nnodes
@@ -216,8 +216,8 @@ end
 
 function elem_stiffness(elem::Element{MechShell})
     nnodes = length(elem.nodes)
-    th     = elem.eform.th
-    κ      = elem.eform.κ
+    th     = elem.etype.th
+    κ      = elem.etype.κ
     ndof   = 6
     nstr   = 6
     C      = get_coords(elem)
@@ -273,9 +273,9 @@ end
 
 function elem_mass(elem::Element{MechShell})
     nnodes = length(elem.nodes)
-    th     = elem.eform.th
+    th     = elem.etype.th
     ndof   = 6 #6
-    ρ      = elem.eform.ρ
+    ρ      = elem.etype.ρ
     C      = get_coords(elem)
     M      = zeros(nnodes*ndof, nnodes*ndof)
     L      = zeros(3,3)
@@ -310,7 +310,7 @@ end
 
 function elem_internal_forces(elem::Element{MechShell}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
     nnodes = length(elem.nodes)
-    th   = elem.eform.th
+    th   = elem.etype.th
     ndof = 6
 
     map = elem_map(elem)
@@ -363,7 +363,7 @@ end
 
 # function update_elem!(elem::Element{MechShell}, U::Array{Float64,1}, dt::Float64)
 #     nnodes = length(elem.nodes)
-#     th   = elem.eform.th
+#     th   = elem.etype.th
 #     ndof = 6
 
 #     map = elem_map(elem)

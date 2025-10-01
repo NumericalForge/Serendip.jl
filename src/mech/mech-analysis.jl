@@ -154,7 +154,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     ndofs = length(dofs)
     umap  = 1:nu         # map for unknown displacements
     pmap  = nu+1:ndofs   # map for prescribed displacements
-    model.ndofs = length(dofs)
+    # model.ndofs = length(dofs)
 
     println(data.info,"unknown dofs: $nu")
     println(data.log, "unknown dofs: $nu")
@@ -203,8 +203,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     for bc in stage.bcs
         compute_bc_values(ana, bc, 0.0, Uex, Fex)
     end
-
-    # Uex, Fex = get_bc_vals(model, bcs)
 
     # Get unbalanced forces from activated elements
     if length(stage.activate)>0
@@ -320,6 +318,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         end
 
         if converged
+            
             # Update forces and displacement for the current stage
             U .+= ΔUa
             F .+= ΔFin

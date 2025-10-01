@@ -51,7 +51,7 @@ end
 
 # Type of corresponding state structure
 compat_state_type(::Type{HMCombined{M1,M2}}, ::Type{HMSolid}, ctx::Context) where {M1,M2} = HMCombinedState{compat_state_type(M1,SeepSolid,ctx), compat_state_type(M2,MechBulk,ctx)}
-compat_state_type(::Type{HMCombined{M1,M2}}, ::Type{HMJoint}, ctx::Context) where {M1,M2} = HMCombinedState{compat_state_type(M1,HydroJoint,ctx), compat_state_type(M2,MechInterface,ctx)}
+compat_state_type(::Type{HMCombined{M1,M2}}, ::Type{HMJoint}, ctx::Context) where {M1,M2} = HMCombinedState{compat_state_type(M1,HydroJoint,ctx), compat_state_type(M2,MechContact,ctx)}
 
 # compat_elem_types(::Type{HMCombined{M1,M2}}) where {M1,M2} = (HMSolid, HMJoint)
 

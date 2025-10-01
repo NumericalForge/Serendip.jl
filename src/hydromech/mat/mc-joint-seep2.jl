@@ -67,7 +67,7 @@ mutable struct MCJointSeep2<:Constitutive
                     ws = round(1.5*Gf/ft, digits=10)
                 end
             elseif softcurve == "hordijk"
-                wc = round(GF/(0.1947019536*ft), digits=10)
+                wc = round(GF/(0.1947*ft), digits=10)
             end
         end
 

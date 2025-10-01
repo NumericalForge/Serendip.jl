@@ -123,15 +123,15 @@ function update_state(mat::DruckerPrager, state::DruckerPragerState, Δε::Array
         j1tr  = tr(σtr)
         j2dtr = J2(σtr)
 
-        if √j2dtr - state.Δγ*n*G > 0.0 # conventional return # todo fix this
+        if √j2dtr - state.Δγ*n*G > 0.0 # conventional return # TODO: check this
             state.Δγ = ftr/(9*α*α*n*K + n*G + H)
-            j1     = j1tr - 9*state.Δγ*α*n*K
-            m      = 1.0 - state.Δγ*n*G/√j2dtr
+            j1       = j1tr - 9*state.Δγ*α*n*K
+            m        = 1.0 - state.Δγ*n*G/√j2dtr
             state.σ  = m*dev(σtr) + j1/3.0*I2
         else # return to apex
-            κ      = mat.κ
+            κ        = mat.κ
             state.Δγ = (α*j1tr-κ-H*state.εpa)/(3*√3*α*K + H)
-            j1     = j1tr - 3*√3*state.Δγ*K
+            j1       = j1tr - 3*√3*state.Δγ*K
             state.σ  = j1/3.0*I2
         end
 

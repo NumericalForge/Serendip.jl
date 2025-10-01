@@ -50,7 +50,7 @@ function set_quadrature(elem::Element{MechBondSlip}, n::Int=0)
         w = ipc[i].w
         elem.ips[i] = Ip(R, w)
         elem.ips[i].id = i
-        elem.ips[i].state = compat_state_type(typeof(elem.cmodel), typeof(elem.eform), elem.ctx)(elem.ctx)
+        elem.ips[i].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype), elem.ctx)(elem.ctx)
         elem.ips[i].owner = elem
     end
 
@@ -168,7 +168,7 @@ end
 function elem_stiffness(elem::Element{MechBondSlip})
     ndim = elem.ctx.ndim
     nnodes = length(elem.nodes)
-    p = elem.eform.p
+    p = elem.etype.p
 
     K  = zeros(nnodes*ndim, nnodes*ndim)
     DB = zeros(ndim, nnodes*ndim)
@@ -191,7 +191,7 @@ end
 function elem_internal_forces(elem::Element{MechBondSlip}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
-    p = elem.eform.p
+    p = elem.etype.p
 
     keys = (:ux, :uy, :uz)[1:ndim]
     map  = [ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]

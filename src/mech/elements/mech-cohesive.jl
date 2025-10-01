@@ -1,16 +1,17 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export MechInterface
+export MechCohesive
 
-mutable struct MechInterface<:MechFormulation
+mutable struct MechCohesive<:MechFormulation
+    _state::Symbol # :idle, :leading, :split 
+    MechCohesive() = new(:idle)
 end
 
 # Return the shape family that works with this element
-compat_role(::Type{MechInterface}) = :interface
+compat_role(::Type{MechCohesive}) = :interface
 
 
-function elem_init(elem::Element{MechInterface})
-
+function elem_init(elem::Element{MechCohesive})
     # Computation of characteristic length 'h' for cohesive elements
     # and set it in the integration point state
 
@@ -45,37 +46,88 @@ function elem_init(elem::Element{MechInterface})
     end
 
 end
-function matrixT(J::Matrix{Float64})
-    if size(J,2)==2
-        L2 = vec(J[:,1])
-        L3 = vec(J[:,2])
-        L1 = cross(L2, L3)  # L1 is normal to the first joint face
-        L2 = cross(L3, L1)
-        normalize!(L1)
-        normalize!(L2)
-        normalize!(L3)
-        return collect([L1 L2 L3]') # collect is used to avoid Adjoint type
+
+
+function check_open_condition(elem::Element{MechCohesive})
+    # Check if the element should be opened
+    # according to normal and shear stresses at integration points of bulk elements
+    # coupled to the cohesive element
+    @assert elem.etype._state != :split
+    ndim = elem.ctx.ndim
+
+    ips = [ ip for elem in elem.couplings for ip in elem.ips ]
+    Xs  = [ ip.coord for ip in ips ]
+    nips = length(ips)
+
+    # compute element center
+    m  = div(length(elem.nodes), 2)
+    C  = get_coords(elem.nodes[1:m])
+    Xc = sum(C, dims=1)/m
+
+    # number of selected ips
+    n = min(2^ndim, nips)
+    
+    # find the n closest ips to the element center
+    dists = [ norm(Xc - Xs[i]) for i in 1:nips ]
+    perm  = partialsortperm(dists, 1:n)
+    ips   = ips[perm]
+
+    # average stress at selected ips
+    σ = sum( ip.state.σ for ip in ips )/n
+
+    # compute Jacobian and rotation matrix at element center
+    R    = elem.shape.base_shape==TRI3 ? [1/3, 1/3] : [0.0, 0.0]
+    dNdR = elem.shape.deriv(R)
+    J = C'*dNdR
+    T = fzeros(ndim, ndim)
+    set_joint_rotation(J, T)
+
+    # compute normal and shear stresses
+    n1 = T[:,1]
+    n2 = T[:,2]
+    if ndim==3
+        n3  = T[:,3]
+        σn1 = σ*n1
+        σn  = dot(σn1, n1)
+        τ1  = dot(σn1, n2)
+        τ2  = dot(σn1, n3)
+        τ   = √(τ1*τ1 + τ2*τ2)
     else
-        L2 = normalize(vec(J))
-        L1 = [ L2[2], -L2[1] ] # It follows the anti-clockwise numbering of 2D elements: L1 should be normal to the first joint face
-        return collect([L1 L2]')
+        σn = dot(σ, n1)
+        τ  = dot(σ, n2)
+    end
+
+    # check against maximum stresses if the element is leading
+    if elem.etype._state == :leading
+        for ip in elem.ips
+            σn = max(σn, ip.state.σ[1])
+            τ  = max(τ,  norm(ip.state.σ[2:end]))
+        end
+    end
+
+    # check if the element should be opened
+    if σn>0.8*elem.cmodel.ft || τ>0.5*elem.cmodel.ft
+        elem.etype._state = :split
     end
 end
 
 
-function elem_stiffness(elem::Element{MechInterface})
+function elem_stiffness(elem::Element{MechCohesive})
+    elem.etype._state == :idle || return zeros(0,0), Int[], Int[] # return empty arrays if the element is idle
+
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
     hnodes = div(nnodes, 2) # half the number of total nodes
 
     C = get_coords(elem)[1:hnodes,:]
-    B = zeros(ndim, nnodes*ndim)
-    K = zeros(nnodes*ndim, nnodes*ndim)
+    B = fzeros(ndim, nnodes*ndim)
+    K = fzeros(nnodes*ndim, nnodes*ndim)
 
-    DB = zeros(ndim, nnodes*ndim)
-    J  = zeros(ndim, ndim-1)
-    NN = zeros(ndim, nnodes*ndim)
+    DB = fzeros(ndim, nnodes*ndim)
+    J  = fzeros(ndim, ndim-1)
+    T  = fzeros(ndim, ndim)
+    NN = fzeros(ndim, nnodes*ndim)
 
     for ip in elem.ips
         if elem.ctx.stress_state==:axisymmetric
@@ -90,16 +142,15 @@ function elem_stiffness(elem::Element{MechInterface})
         detJ = norm2(J)
 
         # compute B matrix
-        T   = matrixT(J)
-        NN .= 0.0  # NN = [ -N[]  N[] ]
         for i in 1:hnodes
             for dof=1:ndim
                 NN[dof, (i-1)*ndim + dof              ] = -N[i]
                 NN[dof, hnodes*ndim + (i-1)*ndim + dof] =  N[i]
             end
         end
-
-        @mul B = T*NN
+        
+        set_joint_rotation(J, T)
+        @mul B = T'*NN
 
         # compute K
         coef = detJ*ip.w*th
@@ -114,14 +165,9 @@ function elem_stiffness(elem::Element{MechInterface})
 end
 
 
-# function elem_internal_forces(elem::Element{MechInterface}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
+function elem_internal_forces(elem::Element{MechCohesive}, ΔUg::Vector{Float64}=Float64[], Δt::Float64=0.0)
+    elem.etype._state == :idle || return zeros(0), Int[], success() # return empty arrays if the element is idle
 
-
-#     return Float64[], Int[], success()
-# end
-
-
-function elem_internal_forces(elem::Element{MechInterface}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
@@ -135,12 +181,13 @@ function elem_internal_forces(elem::Element{MechInterface}, ΔUg::Vector{Float64
         Δω = zeros(ndim)
     end
 
-    ΔF = zeros(nnodes*ndim)
+    ΔF = fzeros(nnodes*ndim)
     C  = get_coords(elem)[1:hnodes,:]
-    B  = zeros(ndim, nnodes*ndim)
+    B  = fzeros(ndim, nnodes*ndim)
 
-    J  = zeros(ndim, ndim-1)
-    NN = zeros(ndim, nnodes*ndim)
+    J  = fzeros(ndim, ndim-1)
+    T  = fzeros(ndim, ndim)
+    NN = fzeros(ndim, nnodes*ndim)
 
 
     for ip in elem.ips
@@ -155,15 +202,15 @@ function elem_internal_forces(elem::Element{MechInterface}, ΔUg::Vector{Float64
         detJ = norm2(J)
 
         # compute B matrix
-        T = matrixT(J)
-        NN[:,:] .= 0.0  # NN = [ -N[]  N[] ]
         for i in 1:hnodes
             for dof=1:ndim
                 NN[dof, (i-1)*ndim + dof              ] = -N[i]
                 NN[dof, hnodes*ndim + (i-1)*ndim + dof] =  N[i]
             end
         end
-        @mul B = T*NN
+
+        set_joint_rotation(J, T)
+        @mul B = T'*NN
 
         if update
             @mul Δω = B*ΔU
@@ -182,7 +229,7 @@ function elem_internal_forces(elem::Element{MechInterface}, ΔUg::Vector{Float64
 end
 
 
-function elem_recover_nodal_values(elem::Element{MechInterface})
+function elem_recover_nodal_values(elem::Element{MechCohesive})
     nips = length(elem.ips)
 
     keys = output_keys(elem.cmodel)

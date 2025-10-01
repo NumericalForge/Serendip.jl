@@ -5,8 +5,6 @@ mutable struct FEModel<:AbstractDomain
     elems::Vector{Element}
     faces::Vector{CellFace}
     edges::Vector{CellEdge}
-    thickness::Float64
-    ndofs   ::Integer
     ctx     ::Context
 
     # Data
@@ -23,9 +21,6 @@ mutable struct FEModel<:AbstractDomain
         this.elems = []
         this.faces = []
         this.edges = []
-
-        this.thickness = 1.0
-        this.ndofs   = 0
 
         this._elempartition = ElemPartition()
         this.node_data      = OrderedDict()
@@ -75,22 +70,17 @@ function FEModel(
 )
 
     ctx = Context(
-        ndim        = max(ndim, mesh.ctx.ndim),
-        stress_state= stress_state,
-        transient   = nothing,
-        thickness   = thickness,
-        g           = g,
-        T0          = T0,
+        ndim         = max(ndim, mesh.ctx.ndim),
+        stress_state = stress_state,
+        transient    = nothing,
+        thickness    = thickness,
+        g            = g,
+        T0           = T0,
     )
-
-    ndim = mesh.ctx.ndim
-    @assert ndim>0
 
     # FEModel and environment data
     model  = FEModel()
-    model.thickness = ctx.thickness
     model.ctx = ctx
-    ctx.ndim = ndim
 
     quiet || printstyled("FE model setup\n", bold=true, color=:cyan)
 
@@ -102,7 +92,7 @@ function FEModel(
     model.elems = Vector{Element}(undef, ncells)
     for mapping in mapper.mappings
         selector = mapping.selector
-        eform  = mapping.eform
+        etype  = mapping.etype
         cmodel = mapping.cmodel
         kwargs = mapping.params
 
@@ -118,23 +108,23 @@ function FEModel(
         # Check if Physics model is compatible with the Element model
         compatible_elem_models = [ argtps[2] for argtps in typeofargs(compat_state_type) if length(argtps)>1 && cmodel isa argtps[1] ]
 
-        if !any(isa.(eform, compatible_elem_models))
-            comp_phys_model  = [ argtps[1].parameters[1] for argtps in typeofargs(compat_state_type) if length(argtps)>1 && typeof(argtps[1])!=UnionAll && argtps[2].parameters[1]==eform ]
+        if !any(isa.(etype, compatible_elem_models))
+            comp_phys_model  = [ argtps[1].parameters[1] for argtps in typeofargs(compat_state_type) if length(argtps)>1 && typeof(argtps[1])!=UnionAll && argtps[2].parameters[1]==etype ]
 
-            msg = "FEModel: Element formulation $(eform) is not compatible with Physics model $(cmodel) (selector: $(repr(selector)))\n\
+            msg = "FEModel: Element formulation $(etype) is not compatible with Physics model $(cmodel) (selector: $(repr(selector)))\n\
             Compatible element formulations for model $(cmodel): $(join(compatible_elem_models, ", ", " and ")) \n\
-            Compatible constitutive models for element formulation $(eform): $(join(comp_phys_model, ", ", " and "))"
+            Compatible constitutive models for element formulation $(etype): $(join(comp_phys_model, ", ", " and "))"
             msg = replace(msg, r"Serendip\." => "")
             throw(SerendipException(msg))
         end
 
         # material parameters and arguments
         phys_params = Base.kwarg_decl( methods(cmodel)[1] )
-        elem_params = Base.kwarg_decl( methods(eform)[1] )
+        elem_params = Base.kwarg_decl( methods(etype)[1] )
 
         for key in keys(kwargs)
             if !(key in phys_params) && !(key in elem_params)
-                warn("FEModel: Ignoring unknown parameter `$key` for `$eform` with `$cmodel`.")
+                warn("FEModel: Ignoring unknown parameter `$key` for `$etype` with `$cmodel`.")
             end
         end
 
@@ -142,20 +132,20 @@ function FEModel(
 
         phys_model  = cmodel(;phys_kwargs...)
         elem_kwargs = NamedTuple(key => kwargs[key] for key in elem_params if haskey(kwargs, key))
-        elem_form   = eform(;elem_kwargs...)
+        elem_form   = etype(;elem_kwargs...)
 
         for cell in cells
 
-            elem = Element{eform}()
+            elem = Element{etype}()
 
             if cell.embedded
-                emb_form = embedded_formulation(eform)
+                emb_form = embedded_formulation(etype)
                 elem_form = emb_form(;elem_kwargs...)
                 elem = Element{emb_form}()
             end
 
-            if compat_role(eform) != cell.role
-                error("FEModel: Element formulation $(eform) is not compatible with elements type $(repr(cell.role)) (selector: $(repr(selector)), shape: $(cell.shape.name))\n")
+            if compat_role(etype) != cell.role
+                error("FEModel: Element formulation $(etype) is not compatible with elements type $(repr(cell.role)) (selector: $(repr(selector)), shape: $(cell.shape.name))\n")
             end
 
             conn = [ p.id for p in cell.nodes ]
@@ -166,7 +156,7 @@ function FEModel(
             elem.tag       = cell.tag
             elem.nodes     = model.nodes[conn]
             elem.cmodel    = phys_model
-            elem.eform     = elem_form
+            elem.etype     = elem_form
             elem.active    = true
             elem.ips       = [] # jet to be set
             elem.couplings = [] # jet to be set
@@ -396,7 +386,7 @@ function update_output_data!(model::FEModel)
     end
     append!(node_fields, fields_rec)
 
-    # add nodal values from local recovery (joints) : extrapolation + averaging
+    # add nodal values from local recovery (interfaces) : extrapolation + averaging
     V_rec, fields_rec = nodal_local_recovery(model)
     for (i,field) in enumerate(fields_rec)
         model.node_data[string(field)] = V_rec[:,i]
@@ -477,7 +467,7 @@ function get_node_and_elem_vals(model::FEModel)
     NV = [ NV V_rec ]
     node_fields = [ collect(node_fields_set); fields_rec ]
 
-    # add nodal values from local recovery (joints) : extrapolation + averaging
+    # add nodal values from local recovery (interfaces) : extrapolation + averaging
     V_rec, fields_rec = nodal_local_recovery(model)
     NV = [ NV V_rec ]
     node_fields = [ node_fields; fields_rec ]
@@ -707,7 +697,7 @@ end
 
 
 function nodal_local_recovery(model::FEModel)
-    # Recovers nodal values from non-solid elements such as joints and joint1d elements
+    # Recovers nodal values from non-solid elements such as interfaces and interface1d elements
     # The element type should implement the elem_recover_nodal_values function
     # Note: nodal ids in the fe model must be numbered starting from 1
 

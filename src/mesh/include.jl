@@ -12,7 +12,7 @@ include("partition.jl")
 include("mesh.jl")
 include("structured.jl")
 # include("unstructured.jl")
-include("gen-line-inset-elems.jl")
+include("gen-line-interface-elems.jl")
 include("gen-mesh.jl")
 
 include("io.jl")
@@ -36,7 +36,7 @@ export slice
 include("smooth.jl")
 export smooth!, laplacian_smooth!, fast_smooth!
 
-include("gen-cohesive-elems.jl")
+include("gen-interface-elems.jl")
 export add_cohesive_elements, add_boundary_interface_elements
 
 include("embedded.jl")

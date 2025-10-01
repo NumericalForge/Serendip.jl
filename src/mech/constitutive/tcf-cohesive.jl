@@ -71,10 +71,10 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{TCFJoint}, ::Type{MechInterface}, ctx::Context) = TCFJointState
+compat_state_type(::Type{TCFJoint}, ::Type{MechContact}, ctx::Context) = TCFJointState
 
 # Element types that work with this material
-# compat_elem_types(::Type{TCFJoint}) = (MechInterface,)
+# compat_elem_types(::Type{TCFJoint}) = (MechContact,)
 
 
 # function init_state(mat::TCFJoint, state::TCFJointState; h::Float64=0.0)

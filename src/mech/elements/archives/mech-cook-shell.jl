@@ -21,7 +21,7 @@ mutable struct CookShell<:MechFormulation
     end
 end
 
-compat_role(::Type{CookShell}) = :bulk
+compat_role(::Type{CookShell}) = (:bulk,)
 
 
 function elem_init(elem::CookShell)

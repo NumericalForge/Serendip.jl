@@ -396,7 +396,7 @@ nothing # hide
 The `mplot` function allow to save a plot of the domain in several formats (e.g. "pdf", "svg", "png", etc.).
 In this case, the deformed state is plot using a mangnification scale of 100.
 Also the ``u_y`` field is displayed and the corresponding label is placed next to the colorbar.
-To adjunst the point of view, the `azim`, `elev` and `dist` parameters can be set. They represent, respectively, the azimut, elevation angle and distance to the rendered domain.
+To adjunst the point of view, the `azim`, `elev` and `dist` parameters can be set. They represent, respectively, the h, elevation angle and distance to the rendered domain.
 
 ```@example fem
 mplot(model, "beam.svg", warpscale=100, field=:uz, colorbarlabel=raw"$u_z$", colorbarscale=0.4, azim=-90, elev=30, dist=7)
@@ -458,9 +458,9 @@ That information is updated at every increment and can be saved to a file.
 ```@example
 using Serendip
 
-nodelog = NodeLogger("nodelog.table")
-iplog = IpLogger("nodelog.table")
-facelog = FacesSumLogger("nodelog.table")
+nodelog = NodeLogger("nodelog.dat")
+iplog = IpLogger("nodelog.dat")
+facelog = FacesSumLogger("nodelog.dat")
 nodeslog = NodeGroupLogger("nodes.book")
 nothing # hide
 ```
@@ -492,8 +492,8 @@ bcs = [
 ]
 
 loggers = [
-    :(x==1) => FacesSumLogger("tip.table"),
-    [0.05, 0.05, 0.1] => IpLogger("ip.table"),
+    :(x==1) => FacesSumLogger("tip.dat"),
+    [0.05, 0.05, 0.1] => IpLogger("ip.dat"),
     :(y==0.1 && z==0.1) => NodeGroupLogger("topgroup.book"),
     [0 0.05 0.1; 1 0.05 0.1] => SegmentLogger("top.book", n=40),
     [0 0.05 0.0; 1 0.05 0.0] => SegmentLogger("bottom.book", n=40),
@@ -515,7 +515,7 @@ calling the constructors of the types `DataTable` and `DataBook`.
 ```@example
 using Serendip
 
-tip = DataTable("tip.table")
+tip = DataTable("tip.dat")
 ```
 
 ```@example
@@ -532,9 +532,9 @@ to ease the visualization of the data stored in `DataTable` and `DataBook` objec
 ```@example plot
 using Serendip
 
-tip = DataTable("tip.table")
+tip = DataTable("tip.dat")
 cplot(
-    (x=tip.uz, y=tip.fz, marker="o"),
+    (x=tip.uz, y=tip.fz, mark="o"),
     "uz_vs_fz.svg",
     xmult  = 1e3,
     xlabel = raw"$u_z$ [mm]",
@@ -543,7 +543,7 @@ cplot(
 
 topgroup = DataBook("topgroup.book").tables[end]
 cplot(
-    (x=topgroup.x, y=topgroup.uz, marker="o"),
+    (x=topgroup.x, y=topgroup.uz, mark="o"),
     "x_vs_uz.svg",
     ymult  = 1e3,
     xlabel = raw"$x$ [m]",
@@ -553,8 +553,8 @@ cplot(
 top = DataBook("top.book").tables[end]
 bottom = DataBook("bottom.book").tables[end]
 cplot(
-    (x=top.x, y=top.sxx, marker="o", label="top"),
-    (x=bottom.x, y=bottom.sxx, marker="o", label="bottom"),
+    (x=top.x, y=top.sxx, mark="o", label="top"),
+    (x=bottom.x, y=bottom.sxx, mark="o", label="bottom"),
     "x_vs_sxx.svg",
     ymult  = 1e-3,
     xlabel = raw"$x$ [m]",

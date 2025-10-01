@@ -187,8 +187,8 @@ function stage_iterator(ana::Analysis, solver_settings::SolverSettings; quiet::B
             status_cycler_task = Threads.@spawn :interactive status_cycler(ana, sw)
         end
 
-        local runerror
-        local error_st
+        local run_error
+        local error_stack
         try
             solstatus = stage_solver(ana, stage, solver_settings; quiet=quiet)
             if succeeded(solstatus)
@@ -197,38 +197,38 @@ function stage_iterator(ana::Analysis, solver_settings::SolverSettings; quiet::B
                 stage.status = :failed
             end
         catch err
-            runerror = err
+            run_error = err
             flush(data.log)
             if err isa InterruptException
                 stage.status = :interrupted
             else
                 stage.status = :error
-                error_st = stacktrace(catch_backtrace())
+                error_stack = stacktrace(catch_backtrace())
             end
         end
         close(data.log)
 
         if !quiet
             wait(status_cycler_task)
-            solstatus.message != "" && println(solstatus.message)
+            solstatus.message != "" && alert(solstatus.message)
         end
 
         if stage.status == :interrupted
             throw(SerendipException("The analysis was interrupted"))
         elseif stage.status == :error
             # trim not important frames; try to find the frame that contains REPL/_iterator
-            # idx = findfirst(contains("_iterator"), string(frame) for frame in error_st)
-            idx = findfirst(contains("REPL"), string(frame) for frame in error_st)
+            # idx = findfirst(contains("_iterator"), string(frame) for frame in error_stack)
+            idx = findfirst(contains("REPL"), string(frame) for frame in error_stack)
             if idx!==nothing
-                error_st = error_st[1:idx-1]
+                error_stack = error_stack[1:idx-1]
             end
 
             alert("Serendip internal error", level=1)
-            showerror(stdout, runerror, error_st)
-            # Base.show_backtrace(stdout, error_st) # shows only the stacktrace
+            showerror(stdout, run_error, error_stack)
+            # Base.show_backtrace(stdout, error_stack) # shows only the stacktrace
             println()
             stop()
-            throw(runerror)
+            throw(run_error)
         end
 
         getlapse(sw)>60 && sound_alert()
@@ -333,7 +333,7 @@ function Base.run(ana::Analysis;
         print("  active threads: ")
         nthreads = Threads.nthreads()
         if nthreads==1
-            printstyled(Threads.nthreads(), "\n", color=:red)
+            printstyled(Threads.nthreads(), "\n", bold=true, color=:red)
         else
             printstyled(Threads.nthreads(), "\n", color=:green)
         end

@@ -133,7 +133,7 @@ function elem_mass(elem::Element{MechBulk})
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
-    ρ = elem.eform.ρ
+    ρ = elem.etype.ρ
     C = get_coords(elem)
     M = zeros(nnodes*ndim, nnodes*ndim)
     N = zeros(ndim, nnodes*ndim)

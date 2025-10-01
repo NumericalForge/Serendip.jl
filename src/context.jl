@@ -58,6 +58,7 @@ mutable struct Context
         g::Float64           = 0.0,
         T0::Float64          = 0.0,
     )
+        @check ndim == 2 || ndim == 3 "Context: ndim must be 2 or 3."
         @check stress_state in (:auto, :plane_stress, :plane_strain, :axisymmetric)
         return new(ndim, stress_state, transient, thickness, g, T0)
     end

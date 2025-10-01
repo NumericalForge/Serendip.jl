@@ -448,7 +448,7 @@ function split_by(table::DataTable, col_name::String)
         new_name = isempty(original_name) ? string(group_key) : "$(original_name)_$(group_key)"
 
         # Construct the new DataTable for this group and add it to the result vector
-        push!(result_tables, DataTable(original_header, new_cols, new_name))
+        push!(result_tables, DataTable(original_header, new_cols, name=new_name))
     end
 
     return result_tables

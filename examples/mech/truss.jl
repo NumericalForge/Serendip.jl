@@ -26,6 +26,7 @@ plot = DomainPlot(model,
     field = "σx´",
     colormap = :coolwarm,
     label = L"\sigma_x",
-    warp = 100
+    warp = 100,
+    node_labels = true
 )
 save(plot, "truss.pdf")

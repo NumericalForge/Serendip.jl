@@ -9,7 +9,7 @@ MechBar
 MechBeam
 MechShell
 MechLSJoint
-MechInterface
+MechContact
 ```
 
 ## Constitutive models

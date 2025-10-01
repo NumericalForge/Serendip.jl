@@ -43,7 +43,7 @@ function elem_stiffness(elem::Element{MechBar})
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
 
-    A = elem.eform.A
+    A = elem.etype.A
     C = get_coords(elem)
     K = zeros(nnodes*ndim, nnodes*ndim)
     B = zeros(1, nnodes*ndim)
@@ -76,8 +76,8 @@ function elem_mass(elem::Element{MechBar})
 
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
-    ρ = elem.eform.ρ
-    A = elem.eform.A
+    ρ = elem.etype.ρ
+    A = elem.etype.A
 
     C = get_coords(elem)
     M = zeros(nnodes*ndim, nnodes*ndim)
@@ -136,7 +136,7 @@ end
 function elem_internal_forces(elem::Element{MechBar}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
-    A      = elem.eform.A
+    A      = elem.etype.A
     keys   = [:ux, :uy, :uz][1:ndim]
     map    = Int[ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]
 
@@ -189,7 +189,7 @@ end
 
 #     ndim   = elem.ctx.ndim
 #     nnodes = length(elem.nodes)
-#     A      = elem.eform.A
+#     A      = elem.etype.A
 #     keys   = [:ux, :uy, :uz][1:ndim]
 #     map    = [ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]
 

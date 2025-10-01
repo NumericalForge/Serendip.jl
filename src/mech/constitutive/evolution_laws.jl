@@ -132,6 +132,8 @@ function calc_tensile_strength(mat::Constitutive, w::Float64)
     wc     = mat.wc
     ft_law = mat.ft_law
 
+    w < 0 && return ft # This condition is important for the case of compression
+
     if ft_law == :constant
         return ft
     elseif ft_law == :hordijk
@@ -191,6 +193,8 @@ function calc_tensile_strength_derivative(mat::Constitutive, w::Float64)
     ft     = mat.ft
     wc     = mat.wc
     ft_law = mat.ft_law
+
+    # w < 0 && return ft # TODO: Check for the right behavior
 
     if ft_law == :linear
         if w < wc

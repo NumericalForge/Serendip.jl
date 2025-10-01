@@ -99,8 +99,6 @@ mutable struct PowerYieldCohesive<:Constitutive
     end
 end
 
-@deprecate PowerYieldCrack PowerYieldCohesive
-
 
 mutable struct PowerYieldCohesiveState<:IpState
     ctx::Context
@@ -122,7 +120,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{PowerYieldCohesive}, ::Type{MechInterface}, ctx::Context) = PowerYieldCohesiveState
+compat_state_type(::Type{PowerYieldCohesive}, ::Type{MechCohesive}, ctx::Context) = PowerYieldCohesiveState
 
 
 function paramsdict(mat::PowerYieldCohesive)

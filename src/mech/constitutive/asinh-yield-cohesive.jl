@@ -137,7 +137,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{AsinhYieldCohesive}, ::Type{MechInterface}, ctx::Context) = AsinhYieldCohesiveState
+compat_state_type(::Type{AsinhYieldCohesive}, ::Type{MechCohesive}, ctx::Context) = AsinhYieldCohesiveState
 
 
 function paramsdict(mat::AsinhYieldCohesive)
@@ -451,26 +451,14 @@ function state_values(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
     ndim = state.ctx.ndim
     σmax = calc_σmax(mat, state.up)
     τ = norm(state.σ[2:ndim])
-    if ndim == 3
-        return Dict(
-            :w => state.w[1],
-            :σn => state.σ[1],
-            :τ  => τ,
-            :s2 => state.σ[2],
-            :s3 => state.σ[3],
-            :up => state.up,
-            :σmax => σmax
-          )
-    else
-        return Dict(
-            :w => state.w[1],
-            :σn => state.σ[1],
-            :τ  => τ,
-            :s2 => state.σ[2],
-            :up => state.up,
-            :σmax => σmax
-        )
-    end
+    
+    return Dict(
+        :w => state.w[1],
+        :σn => state.σ[1],
+        :τ  => τ,
+        :up => state.up,
+        :σmax => σmax
+      )
 end
 
 

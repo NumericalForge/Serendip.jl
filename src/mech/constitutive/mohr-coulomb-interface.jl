@@ -1,14 +1,80 @@
  #This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export MohrCoulombInterface
+export MohrCoulombContact
 
-mutable struct MohrCoulombInterfaceState<:IpState
+
+"""
+    MohrCoulombContact(; ft, wc, GF, mu, kn, ks, ft_law=:hordijk)
+
+Constitutive model for interface/contact elements with a Mohr–Coulomb strength
+criterion. It combines normal and shear stiffness, tensile strength, friction,
+and a post-peak tensile softening law defined either by the critical crack
+opening `wc` or by the fracture energy `GF`.
+
+# Keyword arguments
+- `ft::Real`
+  Tensile strength (≥ 0).
+- `mu::Real`
+  Friction coefficient (> 0).
+- `kn::Real`
+  Normal stiffness per unit area (> 0).
+- `ks::Real`
+  Shear stiffness per unit area (> 0).
+- `wc::Real`
+  Critical crack opening (> 0 if provided). May be computed from `GF`.
+- `GF::Real`
+  Mode-I fracture energy (> 0 if provided). May be used to compute `wc`.
+- `ft_law::Union{Symbol,AbstractSpline} = :hordijk`
+  Tensile softening law. Use a symbol `:linear`, `:bilinear`, or `:hordijk`,
+  or pass a Spline.
+
+# Returns
+An `MohrCoulombContact` object.
+
+# Notes
+- Provide either `wc` or `GF`. If only `GF` is given, `wc` is computed based on `ft_law`.
+- `kn` and `ks` control the elastic response before reaching the strength envelope.
+"""
+mutable struct MohrCoulombContact<:Constitutive
+    ft ::Float64
+    wc ::Float64
+    μ  ::Float64
+    ft_law::Symbol
+    ft_fun::Union{AbstractSpline,Nothing}
+    kn ::Float64
+    ks ::Float64
+
+    function MohrCoulombContact(; 
+            ft::Real=NaN,
+            wc::Real=NaN,
+            GF::Real=NaN,
+            mu::Real=NaN,
+            kn::Real=NaN,
+            ks::Real=NaN,
+            ft_law::Union{Symbol,AbstractSpline} = :hordijk,
+        )
+
+        @check ft>=0 "MohrCoulombContact: Tensile strength ft must be >= 0. Got $(repr(ft))."
+        @check mu>0 "MohrCoulombContact: Friction coefficient mu must be non-negative. Got $(repr(mu))."
+        @check kn>0 "MohrCoulombContact: Normal stiffness per area kn must be non-negative. Got $(repr(kn))."
+        @check ks>0 "MohrCoulombContact: Shear stiffness per area ks must be non-negative. Got $(repr(ks))."
+
+        wc, ft_law, ft_fun, status = setup_tensile_strength(ft, GF, wc, ft_law)
+        failed(status) && throw(ArgumentError("MohrCoulombContact: " * status.message))
+
+        this = new(ft, wc, mu, ft_law, ft_fun, kn, ks)
+        return this
+    end
+end
+
+
+mutable struct MohrCoulombContactState<:IpState
     ctx::Context
     σ  ::Array{Float64,1} # stress
     w  ::Array{Float64,1} # relative displacements
     up::Float64           # effective plastic relative displacement
     Δλ ::Float64          # plastic multiplier
-    function MohrCoulombInterfaceState(ctx::Context)
+    function MohrCoulombContactState(ctx::Context)
         this    = new(ctx)
         ndim    = ctx.ndim
         this.σ  = zeros(ndim)
@@ -20,90 +86,13 @@ mutable struct MohrCoulombInterfaceState<:IpState
 end
 
 
-"""
-    MohrCoulombInterface(;ft, GF, wc, mu, kn, ks, softening=:hordijk, zeta=5.0)
-
-Constitutive model for interface/contact elements with a Mohr–Coulomb (MC) strength criterion.  
-It combines normal and shear stiffness, tensile strength, frictional strength, and a
-softening law that can be defined either by the critical crack opening `wc` or by the
-fracture energy `GF`.
-
-# Keyword arguments
-- `ft::Real`  
-  Tensile strength (>= 0).
-- `mu::Real`  
-  Friction coefficient (> 0).
-- `kn::Real`  
-  Normal stiffness per unit area (> 0).
-- `ks::Real`  
-  Shear stiffness per unit area (> 0).
-- `wc::Real`  
-  Critical crack opening (must be > 0 if given). Can be computed alternatively from `GF`.
-- `GF::Real`  
-  Fracture energy (must be > 0 if given). Can be computed alternatively from `wc`.
-- `softening::Symbol = :hordijk`  
-  Softening law for post-peak tensile response. Options are:
-  `:linear`, `:bilinear`, `:hordijk`, `:soft`.  
-
-# Returns
-An `MohrCoulombInterface` object.
-
-# Notes
-- Either `wc` or `GF` must be provided. If only `GF` is given, `wc` is computed
-  internally based on the chosen softening law.
-- Normal and shear stiffnesses (`kn`, `ks`) control the elastic regime before
-  reaching the strength envelope.
-- The frictional contribution is governed by `mu`.
-"""
-mutable struct MohrCoulombInterface<:Constitutive
-    μ  ::Float64
-    kn ::Float64
-    ks ::Float64
-
-    function MohrCoulombInterface(; 
-            ft::Real=NaN,
-            GF::Real=NaN,
-            wc::Real=NaN,
-            mu::Real=NaN,
-            kn::Real=NaN,
-            ks::Real=NaN,
-            softening::Symbol=:hordijk,
-        )
-
-        @check ft>=0 "MohrCoulombInterface: Tensile strength ft must be >= 0. Got $(repr(ft))."
-        @check mu>0 "MohrCoulombInterface: Friction coefficient mu must be non-negative. Got $(repr(mu))."
-        @check kn>0 "MohrCoulombInterface: Normal stiffness per area kn must be non-negative. Got $(repr(kn))."
-        @check ks>0 "MohrCoulombInterface: Shear stiffness per area ks must be non-negative. Got $(repr(ks))."
-        @check softening in (:linear, :bilinear, :hordijk) "MohrCoulombInterface: Unknown softening model: $softening. Supported models are :linear, :bilinear and :hordijk."
-
-        @check !isnan(wc) || !isnan(GF) "MohrCoulombInterface: Either wc or GF must be provided."
-
-        if isnan(wc) 
-            @check GF>0 "MohrCoulombInterface: Fracture energy GF must be positive. Got $(repr(GF))."
-            if softening == :linear
-                wc = round(2*GF/ft, sigdigits=5)
-            elseif softening == :bilinear
-                wc = round(5*GF/ft, sigdigits=5)
-            elseif softening == :hordijk
-                wc = round(GF/(0.1947*ft), sigdigits=5)  
-            end
-        else
-            @check wc>0 "MohrCoulombInterface: Critical crack opening wc must be positive. Got $(repr(wc))."
-        end
-
-        this = new(ft, wc, mu, kn, ks, softening, zeta)
-        return this
-    end
-end
-
-
 # Type of corresponding state structure
-compat_state_type(::Type{MohrCoulombInterface}, ::Type{MechInterface}, ctx::Context) = MohrCoulombInterfaceState
+compat_state_type(::Type{MohrCoulombContact}, ::Type{MechContact}, ctx::Context) = MohrCoulombContactState
 
 
-function yield_func(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, σ::Array{Float64,1})
+function yield_func(mat::MohrCoulombContact, state::MohrCoulombContactState, σ::Array{Float64,1})
     ndim = state.ctx.ndim
-    σmax = calc_σmax(mat, state, state.up)
+    σmax = calc_σmax(mat, state.up)
     if ndim == 3
         return sqrt(σ[2]^2 + σ[3]^2) + (σ[1]-σmax)*mat.μ
     else
@@ -112,7 +101,7 @@ function yield_func(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState,
 end
 
 
-function yield_deriv(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState)
+function yield_deriv(mat::MohrCoulombContact, state::MohrCoulombContactState)
     ndim = state.ctx.ndim
     if ndim == 3
         return [ mat.μ, state.σ[2]/sqrt(state.σ[2]^2 + state.σ[3]^2), state.σ[3]/sqrt(state.σ[2]^2 + state.σ[3]^2)]
@@ -122,7 +111,7 @@ function yield_deriv(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState
 end
 
 
-function potential_derivs(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, σ::Array{Float64,1})
+function potential_derivs(mat::MohrCoulombContact, state::MohrCoulombContactState, σ::Array{Float64,1})
     ndim = state.ctx.ndim
     if ndim == 3
         if σ[1] >= 0.0 
@@ -145,77 +134,18 @@ function potential_derivs(mat::MohrCoulombInterface, state::MohrCoulombInterface
 end
 
 
-function calc_σmax(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, up::Float64)
-    if mat.softening == :linear
-        if up < mat.wc
-            a = mat.ft 
-            b = mat.ft /mat.wc
-        else
-            a = 0.0
-            b = 0.0
-        end
-        σmax = a - b*up
-    elseif mat.softening == :bilinear
-        σs = 0.25*mat.ft 
-        if up < mat.ws
-            a  = mat.ft  
-            b  = (mat.ft  - σs)/mat.ws
-        elseif up < mat.wc
-            a  = mat.wc*σs/(mat.wc-mat.ws)
-            b  = σs/(mat.wc-mat.ws)
-        else
-            a = 0.0
-            b = 0.0
-        end
-        σmax = a - b*up
-    elseif mat.softening == :hordijk
-        if up < mat.wc
-            e = exp(1.0)
-            z = (1 + 27*(up/mat.wc)^3)*e^(-6.93*up/mat.wc) - 28*(up/mat.wc)*e^(-6.93)           
-        else
-            z = 0.0
-        end
-        σmax = z*mat.ft 
-    end
-
-    return σmax
+function calc_σmax(mat::MohrCoulombContact, up::Float64)
+    return calc_tensile_strength(mat, up)
 end
 
 
-function σmax_deriv(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, up::Float64)
-    # ∂σmax/∂up = dσmax
-    if mat.softening == :linear
-        if up < mat.wc
-            b = mat.ft /mat.wc
-        else
-            b = 0.0
-        end
-        dσmax = -b
-    elseif mat.softening == :bilinear
-        σs = 0.25*mat.ft 
-        if up < mat.ws
-            b  = (mat.ft  - σs)/mat.ws
-        elseif up < mat.wc
-            b  = σs/(mat.wc-mat.ws)
-        else
-            b = 0.0
-        end
-        dσmax = -b
-    elseif mat.softening == :hordijk
-        if up < mat.wc
-            e = exp(1.0)
-            dz = ((81*up^2*e^(-6.93*up/mat.wc)/mat.wc^3) - (6.93*(1 + 27*up^3/mat.wc^3)*e^(-6.93*up/mat.wc)/mat.wc) - 0.02738402432/mat.wc)
-        else
-            dz = 0.0
-        end
-        dσmax = dz*mat.ft 
-    end
-
-    return dσmax
+function deriv_σmax_upa(mat::MohrCoulombContact, up::Float64)
+    # ∂σmax/∂up
+    return calc_tensile_strength_derivative(mat, up)
 end
 
 
-function calc_De(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState)
+function calc_De(mat::MohrCoulombContact, state::MohrCoulombContactState)
     ndim = state.ctx.ndim
     ks, kn = mat.ks, mat.kn
 
@@ -225,25 +155,24 @@ function calc_De(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState)
                0.0  0.0   ks ]
     else
         De = [  kn   0.0
-                 0.0  ks  ]
+                0.0  ks  ]
     end
 
-    return kn, ks, De
+    return De
 end
 
 
-function calc_Δλ(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, σtr::Array{Float64,1})
+function calc_Δλ(mat::MohrCoulombContact, state::MohrCoulombContactState, σtr::Array{Float64,1})
     ndim   = state.ctx.ndim
     maxits = 100
     Δλ     = 0.0
     f      = 0.0
     up     = 0.0
     tol    = 1e-4
+    μ      = mat.μ
+    ks, kn = mat.ks, mat.kn
 
     for i in 1:maxits
-        μ      = mat.μ
-        ks, kn = mat.ks, mat.kn
-        De = calc_De(mat, state)
 
         # quantities at n+1
         if ndim == 3
@@ -271,8 +200,8 @@ function calc_Δλ(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, 
         r        = potential_derivs(mat, state, σ)
         norm_r   = norm(r)
         up       = state.up + Δλ*norm_r
-        σmax     = calc_σmax(mat, state, up)
-        m        = σmax_deriv(mat, state, up)
+        σmax     = calc_σmax(mat, up)
+        m        = deriv_σmax_upa(mat, up)
         dσmaxdΔλ = m*(norm_r + Δλ*dot(r/norm_r, drdΔλ))
 
         if ndim == 3
@@ -292,19 +221,19 @@ function calc_Δλ(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, 
         abs(f) < tol && break
 
         if i == maxits || isnan(Δλ)
-            # warn("""MohrCoulombInterface: Could not find Δλ. This may happen when the system
+            # warn("""MohrCoulombContact: Could not find Δλ. This may happen when the system
             # becomes hypostatic and thus the global stiffness matrix is nearly singular.
             # Increasing the mesh refinement may result in a nonsingular matrix.
             # """)
             # warn("iterations=$i Δλ=$Δλ")
-            return 0.0, failure("MohrCoulombInterface: Could nof find Δλ.")
+            return 0.0, failure("MohrCoulombContact: Could nof find Δλ.")
         end
     end
     return Δλ, success()
 end
 
 
-function calc_σ_upa(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, σtr::Array{Float64,1})
+function calc_σ_upa(mat::MohrCoulombContact, state::MohrCoulombContactState, σtr::Array{Float64,1})
     ndim = state.ctx.ndim
     μ = mat.μ
     ks, kn = mat.ks, mat.kn
@@ -329,10 +258,11 @@ function calc_σ_upa(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState
 end
 
 
-function calcD(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState)
+function calcD(mat::MohrCoulombContact, state::MohrCoulombContactState)
     ndim = state.ctx.ndim
+    ks, kn = mat.ks, mat.kn
     De = calc_De(mat, state)
-    σmax = calc_σmax(mat, state, state.up)
+    σmax = calc_σmax(mat, state.up)
 
     if state.Δλ == 0.0  # Elastic 
         return De
@@ -343,10 +273,10 @@ function calcD(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState)
         Dep  = De*1e-3
         return Dep
     else
-        v    = yield_deriv(mat, state)
-        r    = potential_derivs(mat, state, state.σ)
-        y    = -mat.μ # ∂F/∂σmax
-        m    = σmax_deriv(mat, state, state.up)  # ∂σmax/∂up
+        v = yield_deriv(mat, state)
+        r = potential_derivs(mat, state, state.σ)
+        y = -mat.μ # ∂F/∂σmax
+        m = deriv_σmax_upa(mat, state.up)  # ∂σmax/∂up
 
         #Dep  = De - De*r*v'*De/(v'*De*r - y*m*norm(r))
 
@@ -368,21 +298,20 @@ function calcD(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState)
 end
 
 
-function update_state(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState, Δw::Array{Float64,1})
+function update_state(mat::MohrCoulombContact, state::MohrCoulombContactState, Δw::Array{Float64,1})
     ndim = state.ctx.ndim
     σini = copy(state.σ)
 
     De = calc_De(mat, state)
-    σmax = calc_σmax(mat, state, state.up)  
+    σmax = calc_σmax(mat, state.up)  
 
     if isnan(Δw[1]) || isnan(Δw[2])
-        alert("MohrCoulombInterface: Invalid value for joint displacement: Δw = $Δw")
+        alert("MohrCoulombContact: Invalid value for joint displacement: Δw = $Δw")
     end
 
     # σ trial and F trial
-    σtr  = state.σ + De*Δw
-
-    Ftr  = yield_func(mat, state, σtr) 
+    σtr = state.σ + De*Δw
+    Ftr = yield_func(mat, state, σtr)
 
     # Elastic and EP integration
     if σmax == 0.0 && state.w[1] >= 0.0
@@ -414,7 +343,7 @@ function update_state(mat::MohrCoulombInterface, state::MohrCoulombInterfaceStat
                       
         # Return to surface:
         F  = yield_func(mat, state, state.σ)   
-        F > 1e-3 && alert("MohrCoulombInterface: Yield function value ($F) outside tolerance")
+        F > 1e-3 && alert("MohrCoulombContact: Yield function value ($F) outside tolerance")
 
     end
     state.w += Δw
@@ -423,30 +352,23 @@ function update_state(mat::MohrCoulombInterface, state::MohrCoulombInterfaceStat
 end
 
 
-function state_values(mat::MohrCoulombInterface, state::MohrCoulombInterfaceState)
+function state_values(mat::MohrCoulombContact, state::MohrCoulombContactState)
     ndim = state.ctx.ndim
-    if ndim == 3
-       return Dict(
-          :jw  => state.w[1] ,
-          :jw2  => state.w[2] ,
-          :jw3  => state.w[3] ,
-          :jσn  => state.σ[1] ,
-          :js2  => state.σ[2] ,
-          :js3  => state.σ[3] ,
-          :jup => state.up
-          )
-    else
-        return Dict(
-          :jw  => state.w[1] ,
-          :jw2  => state.w[2] ,
-          :jσn  => state.σ[1] ,
-          :js2  => state.σ[2] ,
-          :jup => state.up
-          )
-    end
+    σmax = calc_σmax(mat, state.up)
+    τ = norm(state.σ[2:ndim])
+    s = norm(state.w[2:ndim])
+
+    return Dict(
+       :w => state.w[1],
+       :s  => s,
+       :σn => state.σ[1],
+       :τ  => τ,
+       :up => state.up,
+       :σmax => σmax
+       )
 end
 
 
-function output_keys(::MohrCoulombInterface)
-    return Symbol[:jw, :jσn, :jup]
+function output_keys(::MohrCoulombContact)
+    return Symbol[:w, :s, :σn, :τ, :up]
 end

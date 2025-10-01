@@ -31,7 +31,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{<:LinearCohesive}, ::Type{MechInterface}, ::Context) = LinearCohesiveState
+compat_state_type(::Type{<:LinearCohesive}, ::Type{MechCohesive}, ::Context) = LinearCohesiveState
 
 # LinearCohesive
 function calcD(mat::LinearCohesive, state::LinearCohesiveState)

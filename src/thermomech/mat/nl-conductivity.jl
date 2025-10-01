@@ -31,21 +31,21 @@ mutable struct NLConductivity<:Constitutive
     #   1200 28
     k::Float64
     cv::Float64
-    k_fun::PathFunction
-    cv_fun::PathFunction
+    k_fun::AbstractSpline
+    cv_fun::AbstractSpline
 
     function NLConductivity(; args...)
         args = checkargs(args, NLConductivity_params)
         this = new()
 
-        if args.k isa PathFunction
+        if args.k isa AbstractSpline
             this.k = 0.0
             this.k_fun = args.k
         else
             this.k = args.k
         end
 
-        if args.cv isa PathFunction
+        if args.cv isa AbstractSpline
             this.cv = 0.0
             this.cv_fun = args.cv
         else

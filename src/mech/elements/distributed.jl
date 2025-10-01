@@ -14,7 +14,7 @@ function mech_line_distributed_forces(elem::Element, t::Float64, key::Symbol, va
     nodes  = elem.nodes
     nnodes = length(nodes)
     # t      = elem.ctx.t
-    A      = isedgebc ? 1.0 :  elem.eform.A
+    A      = isedgebc ? 1.0 :  elem.etype.A
 
     # Calculate the elem coordinates matrix
     C = get_coords(nodes, ndim)

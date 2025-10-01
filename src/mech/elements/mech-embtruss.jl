@@ -1,6 +1,5 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-
 mutable struct MechEmbBar<:MechFormulation
     A::Float64
 
@@ -92,7 +91,7 @@ end
 function elem_stiffness(elem::Element{MechEmbBar})
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
-    A = elem.eform.A
+    A = elem.etype.A
     C = get_coords(elem)
     K = zeros(nnodes*ndim, nnodes*ndim)
     B = zeros(1, nnodes*ndim)
@@ -126,7 +125,7 @@ end
 function elem_internal_forces(elem::Element{MechEmbBar}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
-    A      = elem.eform.A
+    A      = elem.etype.A
     NN     = elem.cacheM[1]
 
     map = elem_map(elem)
@@ -174,7 +173,7 @@ end
 # function update_elem!(elem::Element{MechEmbBar}, U::Array{Float64,1}, Δt::Float64)
 #     ndim   = elem.ctx.ndim
 #     nnodes = length(elem.nodes)
-#     A      = elem.eform.A
+#     A      = elem.etype.A
 #     NN     = elem.cacheM[1]
 
 #     map = elem_map(elem)
@@ -220,12 +219,12 @@ end
 
 function elem_vals(elem::Element{MechEmbBar})
     # get area and average stress and axial force
-    vals = OrderedDict(:A => elem.eform.A )
+    vals = OrderedDict(:A => elem.etype.A )
     σx´ = [ state_values(elem.cmodel, ip.state)[:σx´] for ip in elem.ips ]
     _, idx = findmax(abs, σx´)
     max_σx´ = σx´[idx]
     vals[:σx´] = max_σx´
-    vals[:fx´] = elem.eform.A*max_σx´
+    vals[:fx´] = elem.etype.A*max_σx´
     return vals
 end
 

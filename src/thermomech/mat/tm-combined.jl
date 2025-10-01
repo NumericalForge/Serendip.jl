@@ -35,7 +35,7 @@ mutable struct TMCombined{M1,M2}<:Constitutive
     tmat::M1 # thermo
     mmat::M2 # mech
     α::Float64 # thermal expansion coefficient
-    α_fun::PathFunction
+    α_fun::AbstractSpline
 
     function TMCombined{M1,M2}(; args...) where {M1,M2}
         tmat = M1(;args...)
@@ -45,7 +45,7 @@ mutable struct TMCombined{M1,M2}<:Constitutive
 
         this = new{M1,M2}(tmat, mmat)
 
-        if args.alpha isa PathFunction
+        if args.alpha isa AbstractSpline
             this.α = 0.0
             this.alpha_fun = args.alpha
         else

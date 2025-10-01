@@ -114,7 +114,7 @@ function stage_solver(ana::MechModalAnalysis, stage::Stage, solver_settings::Sol
 
     # check density
     for elem in model.elems
-        elem.eform.ρ==0 && error("mech_modal_solver: density should not be zero")
+        elem.etype.ρ==0 && error("mech_modal_solver: density should not be zero")
     end
 
     # get dofs organized according to boundary conditions

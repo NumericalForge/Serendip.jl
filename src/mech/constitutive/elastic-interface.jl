@@ -80,7 +80,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{<:ElasticInterface}, ::Type{MechInterface}, ::Context) = ElasticInterfaceState
+compat_state_type(::Type{<:ElasticInterface}, ::Type{MechContact}, ::Context) = ElasticInterfaceState
 
 
 function elastic_interface_D(ndim::Int, kn::Float64, ks::Float64)
@@ -121,28 +121,23 @@ function update_state(mat::ElasticInterface, state::ElasticInterfaceState, Δu)
 end
 
 
-function state_values(::ElasticInterface, state::ElasticInterfaceState)
+function state_values(mat::ElasticInterface, state::ElasticInterfaceState)
     ndim = state.ctx.ndim
-    if ndim == 3
-       return Dict(
-          :jw  => state.w[1],
-          :jw2  => state.w[2],
-          :jw3  => state.w[3],
-          :jσn  => state.σ[1],
-          :js2  => state.σ[2],
-          :js3  => state.σ[3],
-          )
-    else
-        return Dict(
-          :jw  => state.w[1],
-          :jw2  => state.w[2],
-          :jσn  => state.σ[1],
-          :js2  => state.σ[2],
-          )
-    end
+    σmax = calc_σmax(mat, state.up)
+    τ = norm(state.σ[2:ndim])
+    s = norm(state.w[2:ndim])
+
+    return Dict(
+        :w => state.w[1],
+        :s  => s,
+        :σn => state.σ[1],
+        :τ  => τ,
+        :up => state.up,
+        :σmax => σmax
+    )
 end
 
 
 function output_keys(::ElasticInterface)
-    return Symbol[:jw, :jw]
+    return Symbol[:w, :s, :σn, :τ, :up]
 end

@@ -193,6 +193,7 @@ function calc_rξ(mat::UCP, ξb::Float64, ξ::Float64)
     return spow((ξb-ξ)/fc_pk, α)
 end
 
+
 function calc_rc(mat::UCP, ξa::Float64, ξ::Float64)
     ξc = 2*mat.fb/√3
     ξ>=ξc && return 1.0
@@ -203,7 +204,10 @@ end
 
 function calc_fc(mat::UCP, εcp::Float64)
     fc0 = 0.35*mat.fc
-    fcr = 0.1*mat.fc
+    # fcr = 0.1*mat.fc
+    fc0 = 0.4*mat.fc
+    fcr = 0.5*mat.fc
+
     return calc_compressive_strength(mat, fc0, fcr, εcp)
 end
 
@@ -236,17 +240,21 @@ function calc_ξa_ξb_κ(mat::UCP, state::UCPState, εtp::Float64, εcp::Float64
     Ω  = (-ft/(fc*e))^(1/α)
     ξb = 1/√3*(fc*Ω - ft)/(Ω-1)
     
-    if ξb<0
-        @show ξb
-        @show α
-        @show Ω
-        @show εcp
-        @show εtp
-        @show fc
-        @show ft
-        @show ξa
-        @show ξb
-    end
+    # if ξb<0
+    # if debug
+    #     @show w
+    #     @show e
+    #     @show ξb
+    #     @show α
+    #     @show Ω
+    #     @show εcp
+    #     @show εtp
+    #     @show fc
+    #     @show ft
+    #     @show ξa
+    #     @show ξb
+    #     error()
+    # end
 
     κ  = -√(2/3)*fc*((ξb-fc/√3)/fc_pk)^-α  # fc and ft are current strengths
     @assert κ>0
@@ -254,6 +262,7 @@ function calc_ξa_ξb_κ(mat::UCP, state::UCPState, εtp::Float64, εcp::Float64
     return ξa, ξb, κ
 end
 
+debug = false
 
 function yield_func(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
     # f(σ) = ρ - rθ⋅rc⋅rξ⋅κ
@@ -267,6 +276,17 @@ function yield_func(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float64,
     rθ = calc_rθ(mat, σ)
     rc = calc_rc(mat, ξa, ξ)
     rξ = calc_rξ(mat, ξb, ξ)
+
+    # if debug
+    #     @show i1, j2
+    #     @show ξ, ρ
+    #     @show εtp, εcp, εvp
+    #     @show mat.ft, mat.fc
+    #     @show ξa, ξb, κ
+    #     @show rθ, rc, rξ
+    #     @show ρ - rθ*rc*rξ*κ
+    #     # error()
+    # end
 
     return ρ - rθ*rc*rξ*κ
 end
@@ -314,7 +334,10 @@ function yield_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float6
     dfdrc = -rθ*rξ*κ
     dfdrξ = -rθ*rc*κ
     drcdξ = ξa<ξ<ξc ? (ξc-ξ)/(ξc-ξa)^2/√(1-((ξc-ξ)/(ξc-ξa))^2) : 0.0
-    drξdξ = ξb-ξ!=0.0 ? -α/fc_pk * abs((ξb-ξ)/fc_pk)^(α-1) : 0.0
+
+    # drξdξ = ξb-ξ!=0.0 ? -α/fc_pk * abs((ξb-ξ)/fc_pk)^(α-1) : 0.0
+    drξdξ = ξ < ξb ? -α/fc_pk * abs((ξb-ξ)/fc_pk)^(α-1) : 0.0
+    
     dfdξ  = dfdrc*drcdξ + dfdrξ*drξdξ
     dfdrθ = -rc*rξ*κ
     dfdθ  = dfdrθ*drθdθ
@@ -341,7 +364,7 @@ end
 
 
 function potential_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
-    # f(σ) = ρ - e⋅rc⋅rξ⋅κ
+    # g(σ) = ρ - e⋅rc⋅rξ⋅κ
 
     e  = mat.e
     α  = mat.α
@@ -351,10 +374,10 @@ function potential_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Fl
     ξ  = i1/√3
     s  = dev(σ)
     ρ  = norm(s)
-    ρ == 0 && ξ >=0 && return √3/3*I2 # apex
+    ρ <1e-6 && ξ >=0 && return √3/3*I2 # apex
 
     ξa, ξb, κ = calc_ξa_ξb_κ(mat, state, εtp, εcp, εvp)
-    ξ > ξb && return √3/3*I2 # apex
+    ξ >= ξb && return √3/3*I2 # apex
 
     ξc = 2*mat.fb/√3
     rc = calc_rc(mat, ξa, ξ)
@@ -364,8 +387,12 @@ function potential_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Fl
     dgdrξ = -e*rc*κ
     drcdξ = ξa<ξ<ξc ? (ξc-ξ)/(ξc-ξa)^2/√(1-((ξc-ξ)/(ξc-ξa))^2) : 0.0
     
-    # drξdξ = ξb-ξ!=0.0 ? -α/fc_pk * abs((ξb-ξ)/fc_pk)^(α-1) : 0.0
+    # drξdξ = ξb-ξ!=0.0 ? -α/fc_pk * abs((ξb-ξ)/fc_pk)^(α-1) : 0.0s
     drξdξ = ξ < ξb ? -α/fc_pk * abs((ξb-ξ)/fc_pk)^(α-1) : 0.0
+    # drξdξ = ξ < 0.0 ? -α/fc_pk * abs((ξb-ξ)/fc_pk)^(α-1) : 0.0
+    if ξ > 0.0
+        drξdξ *= 0.2
+    end
 
     dgdξ  = dgdrc*drcdξ + dgdrξ*drξdξ
 
@@ -396,8 +423,8 @@ end
 
 function calc_σ_εp_Δλ(mat::UCP, state::UCPState, σtr::Vec6)
     maxits = 50
-    tol    = 1.0
     tol    = 0.1
+    tol    = 1.0
     dgdσ   = potential_derivs(mat, state, state.σ, state.εtp, state.εcp, state.εvp)
     De     = calcDe(mat.E, mat.ν, state.ctx.stress_state)
     Δλ     = eps()
@@ -434,12 +461,23 @@ function calc_σ_εp_Δλ(mat::UCP, state::UCPState, σtr::Vec6)
         εcp = state.εcp + Δλ*norm(min.(0.0, Λ))
         εvp = state.εvp + Δλ*sum(abs, min.(0.0, Λ))
 
+
         w  = εtp*state.h
         ft = calc_ft(mat, w)
         fc = calc_fc(mat, εcp)
         abs(fc*mat.e/ft) > 1.1 || return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: numerical issue: |fc·e/ft| > 1.1")
 
         f = yield_func(mat, state, σ, εtp, εcp, εvp)
+
+        # @show i
+        # @show σ
+        # @show Δλ
+        # @show εtp
+        # @show εcp
+        # @show εvp
+        # @show dfdΔλ
+        # @show f
+        # error()
 
         if abs(f) < tol
             Δλ < 0.0 && return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: negative Δλ")
@@ -463,7 +501,6 @@ function update_state(mat::UCP, state::UCPState, Δε::AbstractArray)
     ftr  = yield_func(mat, state, σtr, state.εtp, state.εcp, state.εvp)
 
     Δλ  = 0.0
-    tol = 1.0
     tol = 0.1
 
     if ftr < tol
@@ -471,13 +508,20 @@ function update_state(mat::UCP, state::UCPState, Δε::AbstractArray)
         state.Δλ = 0.0
         state.σ  = σtr
     else
+        
+        
         # plastic
         state.σ, state.εtp, state.εcp, state.εvp, state.Δλ, status = calc_σ_εp_Δλ(mat, state, σtr)
         @assert state.εcp >= 0.0
         @assert state.εtp >= 0.0
         @assert state.εvp >= 0.0
-
+        
         Δσ = state.σ - σini
+        
+        # @show Δε
+        # @show Δσ
+        # error()
+
 
         failed(status) && return state.σ, status
     end

@@ -40,6 +40,6 @@ using Serendip
     "constitutive/vm-beam-3d.jl",
 
     "elements/joint/joint2d.jl",
-    "constitutive/cohesive.jl",
+    "constitutive/interfaces.jl",
 ]
 
