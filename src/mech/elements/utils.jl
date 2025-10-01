@@ -1,7 +1,7 @@
 
 
 
-function set_joint_rotation(J::AbstractMatrix{Float64}, R::AbstractMatrix{Float64})
+function set_interface_rotation(J::AbstractMatrix{Float64}, R::AbstractMatrix{Float64})
     if size(J,2) == 2
         # 3D interface: J ∈ ℝ^{3×2}, columns are tangents v2, v3
         @inbounds begin

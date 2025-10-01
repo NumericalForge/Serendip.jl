@@ -84,7 +84,7 @@ function elem_stiffness(elem::Element{MechContact})
             end
         end
         
-        set_joint_rotation(J, T)
+        set_interface_rotation(J, T)
         @mul B = T'*NN
 
         # compute K
@@ -142,7 +142,7 @@ function elem_internal_forces(elem::Element{MechContact}, ΔUg::Vector{Float64}=
             end
         end
 
-        set_joint_rotation(J, T)
+        set_interface_rotation(J, T)
         @mul B = T'*NN
 
         if update

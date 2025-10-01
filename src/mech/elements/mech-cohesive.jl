@@ -80,7 +80,7 @@ function check_open_condition(elem::Element{MechCohesive})
     dNdR = elem.shape.deriv(R)
     J = C'*dNdR
     T = fzeros(ndim, ndim)
-    set_joint_rotation(J, T)
+    set_interface_rotation(J, T)
 
     # compute normal and shear stresses
     n1 = T[:,1]
@@ -149,7 +149,7 @@ function elem_stiffness(elem::Element{MechCohesive})
             end
         end
         
-        set_joint_rotation(J, T)
+        set_interface_rotation(J, T)
         @mul B = T'*NN
 
         # compute K
@@ -209,7 +209,7 @@ function elem_internal_forces(elem::Element{MechCohesive}, ΔUg::Vector{Float64}
             end
         end
 
-        set_joint_rotation(J, T)
+        set_interface_rotation(J, T)
         @mul B = T'*NN
 
         if update
