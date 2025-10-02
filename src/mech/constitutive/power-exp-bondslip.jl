@@ -3,7 +3,7 @@
 export PowerExpBondSlip
 
 """
-    PowerExpBondSlip(; taumax, taures=0.0, speak, sc=5.0*speak, alpha=0.5, ks=taumax/speak, kn=100*ks)
+    PowerExpBondSlip(; taumax, taures=0.0, speak, sc=20*speak, alpha=0.5, ks=taumax/speak, kn=100*ks)
 
 Construct an exponential decay bond–slip material model.
 
@@ -11,7 +11,7 @@ Construct an exponential decay bond–slip material model.
 - `taumax`: Peak bond stress τmax (must be positive).
 - `taures=0.0`: Residual bond stress τres (non-negative, ≤ τmax).
 - `speak`: Slip at which τmax is reached.
-- `sc=5.0*speak`: Critical slip where softening branch tend to stabilize.
+- `sc=20*speak`: Critical slip where softening branch tend to stabilize.
 - `alpha=0.5`: Shape parameter controlling decay (must lie in (0,1)).
 - `ks=taumax/speak`: Tangential stiffness in slip direction (defaults to τmax/speak).
 - `kn=100*ks`: Normal stiffness (defaults to 100·ks).
@@ -36,7 +36,7 @@ mutable struct PowerExpBondSlip<:Constitutive
         taumax::Real=NaN,
         taures::Real=0.0,
         speak::Real,
-        sc::Real=5.0*speak, # critical slip (bend point)
+        sc::Real=20*speak, # critical slip (bend point)
         alpha::Real=0.5,
         ks::Real=NaN,
         kn::Real=NaN,
