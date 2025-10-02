@@ -60,7 +60,8 @@ mutable struct UCP<:Constitutive
     ft::Float64
     wc::Float64
     fb::Float64
-    p0::Float64
+    ξa0::Float64
+    ξb0::Float64
     ft_law::Symbol
     ft_fun::Union{Nothing,AbstractSpline}
     fc_law::Symbol
@@ -120,16 +121,22 @@ mutable struct UCP<:Constitutive
         else
             @check wc>=0 "UCP: Critical crack opening wc must be >= 0. Got $(repr(wc))."
         end
+        wc > 1e-5 || notify("UCP: Warning: very low value of wc=$(repr(wc)).")
 
         if isnan(p0)
-            ξc = 2*fb/√3
-            ξa = 1.5*ξc
-            p0 = ξa/√3
+            ξc  = 2*fb/√3
+            ξa0 = 1.5*ξc
         else
             @check p0<0 "UCP: Elastic limit in isotropic compression p0 must be < 0. Got $(repr(p0))."
+            ξa0 = √3*p0
         end
 
-        return new(E, nu, fc, epsc, eta, ft, wc, fb, p0, ft_law, ft_fun, fc_law, fc_fun, α, e, H)
+        fc0 = 0.35*fc
+        ft0 = ft
+        Ω   = (-ft0/(fc0*e))^(1/α)
+        ξb0 = 1/√3*(fc0*Ω - ft0)/(Ω-1)
+
+        return new(E, nu, fc, epsc, eta, ft, wc, fb, ξa0, ξb0, ft_law, ft_fun, fc_law, fc_fun, α, e, H)
     end
 end
 
@@ -217,11 +224,6 @@ function calc_ft(mat::UCP, w::Float64)
 end
 
 
-function calc_p(mat::UCP, εvp::Float64)
-    return mat.p0 + mat.H*εvp
-end
-
-
 function calc_ξa_ξb_κ(mat::UCP, state::UCPState, εtp::Float64, εcp::Float64, εvp::Float64)
     e  = mat.e
     α  = mat.α
@@ -231,30 +233,17 @@ function calc_ξa_ξb_κ(mat::UCP, state::UCPState, εtp::Float64, εcp::Float64
     fc    = calc_fc(mat, εcp)
     fc_pk = abs(mat.fc)
 
+    # p = p0 + H*εvp  -> ξa = √3*p0 + √3*H*εvp
+    ξa = mat.ξa0 + √3*mat.H*εvp # hardening in isotropic compression
+
     # ξa = √3*mat.p_fun(√3*εcp)    # ξ = √3p ; plastic volumetric strain εvp = √3*εcp in isotropic compression
-    p  = calc_p(mat, εvp)
-    ξa = √3*p    # ξ = √3p
+    # ξa = √3*p    # ξ = √3p
     @assert ξa<0
     @assert ξa<fc/√3
 
     Ω  = (-ft/(fc*e))^(1/α)
     ξb = 1/√3*(fc*Ω - ft)/(Ω-1)
     
-    # if ξb<0
-    # if debug
-    #     @show w
-    #     @show e
-    #     @show ξb
-    #     @show α
-    #     @show Ω
-    #     @show εcp
-    #     @show εtp
-    #     @show fc
-    #     @show ft
-    #     @show ξa
-    #     @show ξb
-    #     error()
-    # end
 
     κ  = -√(2/3)*fc*((ξb-fc/√3)/fc_pk)^-α  # fc and ft are current strengths
     @assert κ>0
@@ -262,7 +251,6 @@ function calc_ξa_ξb_κ(mat::UCP, state::UCPState, εtp::Float64, εcp::Float64
     return ξa, ξb, κ
 end
 
-debug = false
 
 function yield_func(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
     # f(σ) = ρ - rθ⋅rc⋅rξ⋅κ
@@ -276,17 +264,6 @@ function yield_func(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float64,
     rθ = calc_rθ(mat, σ)
     rc = calc_rc(mat, ξa, ξ)
     rξ = calc_rξ(mat, ξb, ξ)
-
-    # if debug
-    #     @show i1, j2
-    #     @show ξ, ρ
-    #     @show εtp, εcp, εvp
-    #     @show mat.ft, mat.fc
-    #     @show ξa, ξb, κ
-    #     @show rθ, rc, rξ
-    #     @show ρ - rθ*rc*rξ*κ
-    #     # error()
-    # end
 
     return ρ - rθ*rc*rξ*κ
 end
@@ -364,37 +341,36 @@ end
 
 
 function potential_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
-    # g(σ) = ρ - e⋅rc⋅rξ⋅κ
-
-    e  = mat.e
-    α  = mat.α
-    fc_pk = abs(mat.fc)
+    # g(σ) = ρ - e⋅rc⋅rξ⋅rg⋅κ
 
     i1 = tr(σ)
     ξ  = i1/√3
-    s  = dev(σ)
-    ρ  = norm(s)
-    ρ <1e-6 && ξ >=0 && return √3/3*I2 # apex
-
+    
     ξa, ξb, κ = calc_ξa_ξb_κ(mat, state, εtp, εcp, εvp)
     ξ >= ξb && return √3/3*I2 # apex
+
+    e   = mat.e
+    α   = mat.α
+    s   = dev(σ)
+    ρ   = norm(s)
+    ξb0 = mat.ξb0
+    # ρ <1e-6 && ξ >=0 && return √3/3*I2 # apex
+
+    fc_pk = abs(mat.fc)
 
     ξc = 2*mat.fb/√3
     rc = calc_rc(mat, ξa, ξ)
     rξ = calc_rξ(mat, ξb, ξ)
+    rg = ξ < ξb ? exp(-(ξb0/(ξb0 - ξ))^2) : 0.0
 
-    dgdrc = -e*rξ*κ
-    dgdrξ = -e*rc*κ
+    dgdrc = -e*rξ*rg*κ
+    dgdrξ = -e*rc*rg*κ
+    dgdrg = -e*rc*rξ*κ
     drcdξ = ξa<ξ<ξc ? (ξc-ξ)/(ξc-ξa)^2/√(1-((ξc-ξ)/(ξc-ξa))^2) : 0.0
-    
-    # drξdξ = ξb-ξ!=0.0 ? -α/fc_pk * abs((ξb-ξ)/fc_pk)^(α-1) : 0.0s
     drξdξ = ξ < ξb ? -α/fc_pk * abs((ξb-ξ)/fc_pk)^(α-1) : 0.0
-    # drξdξ = ξ < 0.0 ? -α/fc_pk * abs((ξb-ξ)/fc_pk)^(α-1) : 0.0
-    if ξ > 0.0
-        drξdξ *= 0.2
-    end
+    drgdξ = ξ < ξb ? -2*rg*ξb0^2/(ξb0 - ξ)^3 : 0.0
 
-    dgdξ  = dgdrc*drcdξ + dgdrξ*drξdξ
+    dgdξ  = dgdrc*drcdξ + dgdrξ*drξdξ + dgdrg*drgdξ
 
     dξdσ = √3/3*I2
     dgdρ = 1.0
@@ -435,7 +411,7 @@ function calc_σ_εp_Δλ(mat::UCP, state::UCPState, σtr::Vec6)
     εtp = state.εtp
     εvp = state.εvp
 
-    f   = yield_func(mat, state, state.σ, εtp, εcp, εvp)
+    f = yield_func(mat, state, σ, εtp, εcp, εvp)
     ω = 1.0 # initial damping
 
     # iterative process
@@ -445,10 +421,6 @@ function calc_σ_εp_Δλ(mat::UCP, state::UCPState, σtr::Vec6)
         dfdΔλ   = -dfdσ'*De*dgdσ
 
         Δλ = Δλ - ω*f/dfdΔλ
-        if Δλ<0
-            # Δλ = abs(Δλ)
-            # @show Δλ
-        end
 
         if isnan(Δλ)
             return state.σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: Δλ is NaN")
@@ -461,26 +433,16 @@ function calc_σ_εp_Δλ(mat::UCP, state::UCPState, σtr::Vec6)
         εcp = state.εcp + Δλ*norm(min.(0.0, Λ))
         εvp = state.εvp + Δλ*sum(abs, min.(0.0, Λ))
 
-
-        w  = εtp*state.h
-        ft = calc_ft(mat, w)
-        fc = calc_fc(mat, εcp)
-        abs(fc*mat.e/ft) > 1.1 || return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: numerical issue: |fc·e/ft| > 1.1")
-
+        
         f = yield_func(mat, state, σ, εtp, εcp, εvp)
-
-        # @show i
-        # @show σ
-        # @show Δλ
-        # @show εtp
-        # @show εcp
-        # @show εvp
-        # @show dfdΔλ
-        # @show f
-        # error()
-
+        
         if abs(f) < tol
             Δλ < 0.0 && return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: negative Δλ")
+            
+            w  = εtp*state.h
+            ft = calc_ft(mat, w)
+            fc = calc_fc(mat, εcp)
+            abs(fc*mat.e/ft) > 1.1 || return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: numerical issue: |fc·e/ft| > 1.1")
 
             return σ, εtp, εcp, εvp, Δλ, success()
         end
@@ -488,6 +450,73 @@ function calc_σ_εp_Δλ(mat::UCP, state::UCPState, σtr::Vec6)
         # dumping
         i>10 && (ω = 0.6)
         i>15 && (ω = 0.3)
+    end
+
+    return state.σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: maximum iterations reached")
+end
+
+
+function calc_σ_εp_Δλ_sear(mat::UCP, state::UCPState, σtr::Vec6)
+    maxits = 50
+    tol    = 0.1
+    tol    = 1.0
+    dgdσ   = potential_derivs(mat, state, state.σ, state.εtp, state.εcp, state.εvp)
+    De     = calcDe(mat.E, mat.ν, state.ctx.stress_state)
+    Δλ     = eps()
+
+    σ  = σtr - Δλ*(De*dgdσ)
+
+    εcp = state.εcp
+    εtp = state.εtp
+    εvp = state.εvp
+
+    f = yield_func(mat, state, σ, εtp, εcp, εvp)
+
+    nsearch = 5
+
+    # iterative process
+    for i in 1:maxits
+        if abs(f) < tol
+             Δλ < 0.0 && return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: negative Δλ")
+             return σ, εtp, εcp, εvp, Δλ, success()
+        end
+
+        dfdσ, _ = yield_derivs(mat, state, σ, εtp, εcp, εvp)
+        dgdσ    = potential_derivs(mat, state, σ, εtp, εcp, εvp)
+        dfdΔλ   = -dfdσ'*De*dgdσ 
+        Λ = eigvals(dgdσ, sort=false)
+
+        Δλ_bk = Δλ
+        f_bk  = f
+        
+        ω = 1.0 # initial damping
+        for j in 1:nsearch
+            Δλ = Δλ_bk - ω*f/dfdΔλ
+            ω = 0.8*ω # reduce damping for the next iteration
+            (isnan(Δλ) || Δλ < 0.0) && continue
+
+            σ  = σtr - Δλ*(De*dgdσ)
+            εtp = state.εtp + Δλ*maximum(max.(0.0, Λ))
+            εcp = state.εcp + Δλ*norm(min.(0.0, Λ))
+            εvp = state.εvp + Δλ*sum(abs, min.(0.0, Λ))
+
+            # w  = εtp*state.h
+            # ft = calc_ft(mat, w)
+            # fc = calc_fc(mat, εcp)
+            # abs(fc*mat.e/ft) > 1.1 || return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: numerical issue: |fc·e/ft| > 1.1")
+
+            f = yield_func(mat, state, σ, εtp, εcp, εvp)
+
+            if abs(f) < abs(f_bk)
+                break
+            end
+
+            # j == nsearch && return state.σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: line search failed")
+        end
+
+        # dumping
+        # i>10 && (ω = 0.6)
+        # i>15 && (ω = 0.3)
     end
 
     return state.σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: maximum iterations reached")
