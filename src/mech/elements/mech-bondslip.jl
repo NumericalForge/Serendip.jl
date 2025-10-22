@@ -16,7 +16,7 @@ Create a mechanical line-interface formulation for bond–slip between a rebar a
 # Returns
 - A `MechBondSlip` object.
 """
-mutable struct MechBondSlip<:MechFormulation
+struct MechBondSlip<:MechFormulation
     p::Float64
 
     function MechBondSlip(; p=NaN)
@@ -28,7 +28,7 @@ end
 compat_role(::Type{MechBondSlip}) = :line_interface
 
 
-function set_quadrature(elem::Element{MechBondSlip}, n::Int=0)
+function set_quadrature(elem::Element{MechBondSlip}, n::Int=0; state::NamedTuple=NamedTuple())
 
     bar   = elem.couplings[2]
     if n==0
@@ -50,7 +50,7 @@ function set_quadrature(elem::Element{MechBondSlip}, n::Int=0)
         w = ipc[i].w
         elem.ips[i] = Ip(R, w)
         elem.ips[i].id = i
-        elem.ips[i].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype), elem.ctx)(elem.ctx)
+        elem.ips[i].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype), elem.ctx)(elem.ctx; state...)
         elem.ips[i].owner = elem
     end
 
@@ -248,7 +248,7 @@ function elem_recover_nodal_values(elem::Element{MechBondSlip})
     N = [ zeros(nhnodes, nfields); N ]
 
     # Filling nodal and elem vals
-    node_vals = OrderedDict{Symbol, Array{Float64,1}}(field => N[:,i] for (i,field) in enumerate(fields))
+    node_vals = OrderedDict{Symbol, Vector{Float64}}(field => N[:,i] for (i,field) in enumerate(fields))
 
     return node_vals
 end

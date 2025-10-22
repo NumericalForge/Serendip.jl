@@ -151,6 +151,7 @@ mutable struct GeoModel
     end
 end
 
+
 # Save gmsh geometry as step
 function save(geometry::GeoModel, filename::String, quiet=false)
     gmsh.model.occ.synchronize()
@@ -267,8 +268,6 @@ function add_array(geometry::GeoModel, gpath::GPath; nx::Int=1, ny::Int=1, nz::I
         end
     end
 end
-
-
 
 
 

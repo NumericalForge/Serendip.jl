@@ -25,13 +25,13 @@ mutable struct ThermoShell<:ThermoMech
     id    ::Int
     shape ::CellShape
 
-    nodes ::Array{Node,1}
-    ips   ::Array{Ip,1}
+    nodes ::Vector{Node}
+    ips   ::Vector{Ip}
     tag   ::String
     mat   ::Constitutive
     props ::ThermoShellProps
     active::Bool
-    couplings::Array{Element,1}
+    couplings::Vector{Element}
     ctx::Context
 
     function ThermoShell();
@@ -199,7 +199,7 @@ function elem_mass_matrix(elem::ThermoShell)
 end
 
 #=
-function elem_internal_forces(elem::ThermoShell, F::Array{Float64,1})
+function elem_internal_forces(elem::ThermoShell, F::Vector{Float64})
     ndim   = elem.ctx.ndim
     th     = thickness   # elem.ctx.thickness
     nnodes = length(elem.nodes)
@@ -256,7 +256,7 @@ end
 =#
 
 
-function update_elem!(elem::ThermoShell, DU::Array{Float64,1}, Δt::Float64)
+function update_elem!(elem::ThermoShell, DU::Vector{Float64}, Δt::Float64)
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
     th     = elem.props.th

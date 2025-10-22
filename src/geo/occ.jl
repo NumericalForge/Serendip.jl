@@ -692,7 +692,7 @@ function fuse(geo::GeoModel, ents1, ents2, remove_object=true, remove_tool=true)
 end
 
 
-function intersect(geo::GeoModel, ents1, ents2, remove_object=true)
+function Base.intersect(geo::GeoModel, ents1, ents2, remove_object=true)
     ents1 = ents1 isa Vector ? ents1 : [ents1]
     ents2 = ents2 isa Vector ? ents2 : [ents2]
     gmsh.model.occ.synchronize()

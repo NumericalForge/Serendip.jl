@@ -314,7 +314,7 @@ function stage_solver(ana::DynamicAnalysis, stage::Stage, solver_settings::Solve
     # t  = data.t
 
     inc  = 0             # increment counter
-    iout = data.out  # file output counter
+    iout = data.out      # file output counter
     U    = zeros(ndofs)  # total displacements for current stage
     R    = zeros(ndofs)  # vector for residuals of natural values
     Fin  = zeros(ndofs)  # total internal force

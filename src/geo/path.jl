@@ -23,7 +23,7 @@ mutable struct Path
     points::Array{Point}
     cmds::Array{PathCmd}
     closed::Bool
-    len::Array{Float64,1} # normalized cumulative length
+    len::Vector{Float64} # normalized cumulative length
 
     function Path(points::Vector{Point}, cmds::Vector{PathCmd}; closed::Bool=false)
         # check commands

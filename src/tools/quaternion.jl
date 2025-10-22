@@ -1,4 +1,4 @@
-mutable struct Quaternion<:AbstractArray{Float64,1}
+mutable struct Quaternion<:AbstractVector{Float64}
     w::Float64
     x::Float64
     y::Float64
@@ -18,12 +18,12 @@ mutable struct Quaternion<:AbstractArray{Float64,1}
 end
 
 
-function Base.convert(::Type{Array{Float64,1}}, V::Quaternion)
+function Base.convert(::Type{Vector{Float64}}, V::Quaternion)
     return [ V.w, V.x, V.y, V.z]
 end
 
 
-function Base.convert(::Type{Quaternion}, A::Array{Float64,1})
+function Base.convert(::Type{Quaternion}, A::Vector{Float64})
     n = length(A)
     @assert n==4
     return Quaternion(A[1], A[2], A[3], A[4])

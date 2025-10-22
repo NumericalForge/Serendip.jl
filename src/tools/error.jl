@@ -49,7 +49,7 @@ macro check(expr, args...)
         msg_nan = "Parameter $param was not provided."
         m = match(r"^(\"?[A-Za-z]\w+)(?=:)", string(msg)) # get the function name if any
         if m !== nothing
-            msg = m.match * ": " * msg_nan
+            msg_nan = m.match * ": " * msg_nan
         end
 
         push!(ex.args, :( 

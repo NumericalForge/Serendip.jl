@@ -154,9 +154,8 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     ndofs = length(dofs)
     umap  = 1:nu         # map for unknown displacements
     pmap  = nu+1:ndofs   # map for prescribed displacements
-    # model.ndofs = length(dofs)
 
-    println(data.info,"unknown dofs: $nu")
+    # println(data.info,"unknown dofs: $nu")
     println(data.log, "unknown dofs: $nu")
 
     quiet || nu==ndofs && println(data.alerts, "No essential boundary conditions")
@@ -204,16 +203,14 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         compute_bc_values(ana, bc, 0.0, Uex, Fex)
     end
 
-    # Get unbalanced forces from activated elements
-    if length(stage.activate)>0
-        Fin = zeros(ndofs)
-        for elem in stage.activate
-            Fe, map, status = elem_internal_forces(elem)
-            failed(status) && return status
-            Fin[map] .+= Fe
-        end
-        Fex .-= Fin # add negative forces to external forces vector
+
+    # Add unbalanced forces from all active elements
+    for elem in active_elems
+        Fe, map, status = elem_internal_forces(elem)
+        failed(status) && return status
+        Fex[map] .-= Fe
     end
+    
 
     if tangent_scheme==:forward_euler
         p1=1.0; q11=1.0
@@ -231,6 +228,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         # Update counters
         inc += 1
         data.inc = inc
+        data.nu  = nu
 
         println(data.log, "  inc $inc")
 
@@ -333,14 +331,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                 dof.vals[dof.natname] += ΔFin[i]
             end
 
-            # # Update nodal displacements
-            # for node in model.nodes
-            #     ux = ΔUa[node.dofdict[:ux].eq_id]
-            #     uy = ΔUa[node.dofdict[:uy].eq_id]
-            #     uz = ΔUa[node.dofdict[:uz].eq_id]
-            #     node.coord = node.coord + [ux, uy, uz]
-            # end
-
             # Update time
             T += ΔT
             data.T = T
@@ -365,12 +355,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                     ΔT = min(ΔTbk, Tcheck-T)
                     ΔTbk = 0.0
                 else
-                    # if nits==1
-                    #     # q = 1+tanh(log10(ftol/res))
-                    #     q = 1.333
-                    # else
-                    #     q = 1+tanh(log10(rtol/err))
-                    # end
                     q = 1+tanh(log10(ftol/(res1+eps())))
                     q = max(q, 1.1)
 
@@ -390,6 +374,31 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                     end
                 end
             end
+
+            # # hook for cohesive elements
+            # added, map1, map2, _nu = update_cohesive_elems(model, dofs)
+            # if added
+            #     # @show "hiii"
+            #     nu = _nu
+            #     ndofs = length(dofs)
+            #     umap  = 1:nu         # map for unknown displacements
+            #     pmap  = nu+1:ndofs   # map for prescribed displacements
+
+            #     # update displacement vectors
+            #     U   = U[map1]
+            #     ΔUa = ΔUa[map1]
+            #     ΔUi = ΔUi[map1]
+            #     Uex = Uex[map1]
+
+            #     # update force vectors
+            #     F    = get.(Ref(F), map2, 0.0)
+            #     ΔFin = get.(Ref(ΔFin), map2, 0.0)
+            #     R    = get.(Ref(R), map2, 0.0)
+            #     Rc   = get.(Ref(Rc), map2, 0.0)
+            #     Fex  = get.(Ref(Fex), map2, 0.0)
+
+            # end
+
         else
             # Restore counters
             inc -= 1
@@ -399,12 +408,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
             if autoinc
                 println(data.log, "      increment failed")
-                # if nits==1
-                #     # q = 1+tanh(log10(ftol/res))
-                #     q = 0.666
-                # else
-                #     q = 1+tanh(log10(rtol/err))
-                # end
 
                 q = 1+tanh(log10(ftol/(res1+eps())))
                 q = clamp(q, 0.2, 0.9)

@@ -27,13 +27,13 @@ mutable struct ThermoSolid<:ThermoMech
     id    ::Int
     shape ::CellShape
 
-    nodes ::Array{Node,1}
-    ips   ::Array{Ip,1}
+    nodes ::Vector{Node}
+    ips   ::Vector{Ip}
     tag   ::String
     mat::Constitutive
     props ::ThermoSolidProps
     active::Bool
-    couplings::Array{Element,1}
+    couplings::Vector{Element}
     ctx::Context
 
     function ThermoSolid()
@@ -179,7 +179,7 @@ function elem_mass_matrix(elem::ThermoSolid)
 end
 
 #=
-function elem_internal_forces(elem::ThermoSolid, F::Array{Float64,1})
+function elem_internal_forces(elem::ThermoSolid, F::Vector{Float64})
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
     C   = get_coords(elem)
@@ -224,7 +224,7 @@ end
 =#
 
 
-function update_elem!(elem::ThermoSolid, DU::Array{Float64,1}, Δt::Float64)
+function update_elem!(elem::ThermoSolid, DU::Vector{Float64}, Δt::Float64)
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
     th     = elem.ctx.thickness

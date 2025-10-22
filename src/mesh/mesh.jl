@@ -2,10 +2,10 @@
 
 
 mutable struct Mesh<:AbstractDomain
-    nodes::Array{Node,1}
-    elems::Array{Cell,1}
-    faces::Array{Cell,1}
-    edges::Array{Cell,1}
+    nodes::Vector{Node}
+    elems::Vector{Cell}
+    faces::Vector{Cell}
+    edges::Vector{Cell}
     node_data::OrderedDict{String,Array}
     elem_data ::OrderedDict{String,Array}
     ctx::MeshContext
@@ -70,7 +70,7 @@ function get_outer_facets(cells::Array{<:AbstractCell,1})
 
     # Get only unique faces. If dup, original and dup are deleted
     for cell in cells
-        for face in getfacets(cell)
+        for face in get_facets(cell) 
             hs = hash(face)
             if haskey(face_d, hs)
                 delete!(face_d, hs)
@@ -91,7 +91,7 @@ function get_outer_facets_by_id(cells::Array{<:AbstractCell,1})
 
     # Get only unique faces. If dup, original and dup are deleted
     for cell in cells
-        for face in getfacets(cell)
+        for face in get_facets(cell)
             hs = hash1(face)
             if haskey(face_d, hs)
                 delete!(face_d, hs)
@@ -127,7 +127,7 @@ function get_neighbors(cells::Vector{Cell})
 
     # Get cell faces. If dup, original and dup are deleted but neigh info saved
     for cell in cells
-        for face in getfacets(cell)
+        for face in get_facets(cell)
             hs = hash(face)
             other = get(faces_dict, hs, nothing)
             if other === nothing
@@ -264,17 +264,6 @@ function sort_mesh(mesh::Mesh; reverse::Bool=true)
 end
 
 
-# function update_quality!(mesh::Mesh)
-#     # Quality
-#     Q = Float64[]
-#     for c in mesh.elems
-#         c.quality = cell_quality(c)
-#         push!(Q, c.quality)
-#     end
-#     mesh.elem_data["quality"] = Q
-# end
-
-
 function compute_facets(mesh::Mesh)
 
     if mesh.ctx.ndim==2
@@ -332,13 +321,25 @@ function synchronize!(mesh::Mesh; sort=false, cleandata=false)
     # Faces and edges
     compute_facets(mesh)
 
+    # Update node adjacents
+    for node in mesh.nodes
+        resize!(node.elems, 0)
+    end
+    for elem in mesh.elems
+        for node in elem.nodes
+            push!(node.elems, elem)
+        end
+    end
+    for node in mesh.nodes
+        unique!(node.elems)
+    end
+
     # Quality
     Q = Float64[]
     for c in mesh.elems
         c.quality = cell_quality(c)
         push!(Q, c.quality)
     end
-
     
     # update data
     if cleandata
@@ -349,7 +350,7 @@ function synchronize!(mesh::Mesh; sort=false, cleandata=false)
     mesh.node_data["node-id"]   = collect(1:length(mesh.nodes))
     mesh.elem_data["quality"]   = Q
     mesh.elem_data["elem-id"]   = collect(1:length(mesh.elems))
-    mesh.elem_data["cell-type"] = [ Int(cell.shape.vtk_type) for cell in mesh.elems ]
+    mesh.elem_data["cell-type"] = [ cell.role in (:interface, :line_interface) ? Int32(VTK_POLY_VERTEX) : Int32(cell.shape.vtk_type) for cell in mesh.elems ]
 
     # Ordering
     sort && sort_mesh(mesh)
@@ -686,17 +687,22 @@ end
 export randmesh
 function randmesh(n::Int...; shape=nothing)
     ndim = length(n)
+    geo = GeoModel()
     if ndim==2
         lx, ly = (1.0, 1.0)
         nx, ny = n
-        isnothing(cellshape) && (shape=rand((TRI3, TRI6, QUAD4, QUAD8)))
-        m = Mesh(Block([0.0 0.0; lx ly], nx=nx, ny=ny, shape=cellshape), quiet=true)
+        isnothing(shape) && (shape=rand((TRI3, TRI6, QUAD4, QUAD8)))
+        add_block(geo, [0.0, 0.0], [lx, ly], nx=nx, ny=ny, shape=shape)
+        # return Mesh(geo; quiet=true)
+        # m = Mesh(Block([0.0 0.0; lx ly], nx=nx, ny=ny, shape=shape), quiet=true)
     else
         lx, ly, lz = (1.0, 1.0, 1.0)
         nx, ny, nz = n
-        isnothing(cellshape) && (shape=rand((TET4, TET10, HEX8, HEX20)))
-        m = Mesh(Block([0.0 0.0 0.0; lx ly lz], nx=nx, ny=ny, nz=nz, shape=cellshape), quiet=true)
+        isnothing(shape) && (shape=rand((TET4, TET10, HEX8, HEX20)))
+        add_block(geo, [0.0, 0.0, 0.0], [lx, ly, lz], nx=nx, ny=ny, nz=nz, shape=shape)
+        # m = Mesh(Block([0.0 0.0 0.0; lx ly lz], nx=nx, ny=ny, nz=nz, shape=shape), quiet=true)
     end
+    return Mesh(geo; quiet=true)
 end
 
 

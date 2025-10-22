@@ -6,7 +6,7 @@ export ConstConductivity
 mutable struct ConstConductivityState<:IpState
     ctx::Context
     ut::Float64
-    Q::Array{Float64,1}
+    Q::Vector{Float64}
     function ConstConductivityState(ctx::Context)
         this = new(ctx)
         this.ut = 0.0
@@ -53,7 +53,7 @@ function calcK(mat::ConstConductivity, state::ConstConductivityState) # Thermal 
 end
 
 
-function update_state(mat::ConstConductivity, state::ConstConductivityState, Δut::Float64, G::Array{Float64,1}, Δt::Float64)
+function update_state(mat::ConstConductivity, state::ConstConductivityState, Δut::Float64, G::Vector{Float64}, Δt::Float64)
     K = calcK(mat, state)
     q = -K*G
     state.Q  += q*Δt

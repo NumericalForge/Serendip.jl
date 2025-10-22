@@ -133,6 +133,18 @@ end
 # TODO: do we need this?
 LinearAlgebra.norm(T::Vec6) = √dot(T,T)
 
+function LinearAlgebra.dot(T::Vec6, V::Vec3)
+    t11, t22, t33, t23, t13, t12 = T[1], T[2], T[3], T[4]/SR2, T[5]/SR2, T[6]/SR2
+    v1, v2, v3 = V 
+    return Vec3( 
+        t11*v1 + t12*v2 + t13*v3,
+        t12*v1 + t22*v2 + t23*v3,
+        t13*v1 + t23*v2 + t33*v3
+    )
+
+end
+
+
 
 function rotation_tensor!(V::Array{Float64,2})
     # V : second order tensor with direction cosines (new system axes in old system coordinates)

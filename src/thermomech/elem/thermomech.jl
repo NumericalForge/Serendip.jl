@@ -39,7 +39,7 @@ This function also updates strains, stresses and internal variables of all
 `IpState` objects at integration points.
 This function must be redefined by concrete types.
 """
-function update_elem!(elem::ThermoMech, dU::Array{Float64,1})
+function update_elem!(elem::ThermoMech, dU::Vector{Float64})
     error("elem_dF function not defined for material type $(typeof(elem.cmodel))")
 end
 
@@ -87,5 +87,5 @@ end
 Gets internal nodal forces from current element state.
 This function must be defined by each concrete type.
 """
-function elem_internal_forces(elem::ThermoMech, F::Array{Float64,1})
+function elem_internal_forces(elem::ThermoMech, F::Vector{Float64})
 end

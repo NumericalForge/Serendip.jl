@@ -25,7 +25,7 @@ select(mesh, :element, x==0, tag="base")
 select(mesh, :node, x==0, tag="base")
 
 model = FEModel(mesh, mapper, thickness=1.0)
-ana      = MechAnalysis(model)
+ana   = MechAnalysis(model)
 
 add_logger(ana, :node, x==0, "a.dat")
 add_logger(ana, :nodegroup, x==0, "b.dat")
@@ -41,7 +41,7 @@ stage = add_stage(ana, nincs=10)
 add_bc(stage, :node, x==0, ux=0, uy=0)
 add_bc(stage, :node, x==1, uy=0)
 add_bc(stage, :face, z==0, tz=0)
-add_bc(stage, :body, z==1, fz=1)
+add_bc(stage, :body, z==1, wz=-1)
 
 
 run(ana, tol=1e-6)

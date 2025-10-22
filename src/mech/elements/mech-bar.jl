@@ -13,7 +13,7 @@ This formulation defines uniaxial axial behavior along the element length. It is
 - `A::Float64`: *Cross-sectional area* of the bar. Must be strictly positive.
 
 """
-mutable struct MechBar<:MechFormulation
+struct MechBar<:MechFormulation
     A::Float64
 
     function MechBar(;A::Float64=NaN)
@@ -180,12 +180,12 @@ function elem_internal_forces(elem::Element{MechBar}, ΔUg::Vector{Float64}=Floa
 end
 
 
-function elem_activate(elem::Element{MechBar}, F::Array{Float64,1})
+function elem_activate(elem::Element{MechBar}, F::Vector{Float64})
     elem_internal_forces(elem, F)
 end
 
 
-# function update_elem!(elem::Element{MechBar}, U::Array{Float64,1}, Δt::Float64)
+# function update_elem!(elem::Element{MechBar}, U::Vector{Float64}, Δt::Float64)
 
 #     ndim   = elem.ctx.ndim
 #     nnodes = length(elem.nodes)

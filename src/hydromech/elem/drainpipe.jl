@@ -24,13 +24,13 @@ mutable struct DrainPipe<:Hydromech
     id    ::Int
     shape ::CellShape
 
-    nodes ::Array{Node,1}
-    ips   ::Array{Ip,1}
+    nodes ::Vector{Node}
+    ips   ::Vector{Ip}
     tag   ::String
     mat::Constitutive
     props ::DrainPipeProps
     active::Bool
-    couplings::Array{Element,1}
+    couplings::Vector{Element}
     ctx::Context
 
     function DrainPipe()
@@ -116,7 +116,7 @@ function elem_RHS_vector(elem::DrainPipe)
 end
 
 
-function elem_internal_forces(elem::DrainPipe, F::Array{Float64,1})
+function elem_internal_forces(elem::DrainPipe, F::Vector{Float64})
     local k::Float64, A::Float64, coef::Float64, dNdR::Matrix{Float64}
 
     ndim   = elem.ctx.ndim
@@ -151,7 +151,7 @@ function elem_internal_forces(elem::DrainPipe, F::Array{Float64,1})
 end
 
 
-function update_elem!(elem::DrainPipe, DU::Array{Float64,1}, Δt::Float64)
+function update_elem!(elem::DrainPipe, DU::Vector{Float64}, Δt::Float64)
     local A::Float64, coef::Float64, dNdR::Matrix{Float64}
 
     ndim   = elem.ctx.ndim

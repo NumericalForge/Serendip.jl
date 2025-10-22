@@ -369,7 +369,7 @@ function to_xml_node(dict::AbstractDict, name::String="Dict", attributes::Abstra
 end
 
 
-function to_xml_node(obj::Any, name::String=""; exclude::Array{Symbol,1}=Symbol[])
+function to_xml_node(obj::Any, name::String=""; exclude::Vector{Symbol}=Symbol[])
     name=="" && (name=string(typeof(obj)))
     attributes=Dict{String,String}()
     children = XmlElement[]
@@ -396,6 +396,6 @@ function to_xml_node(obj::Any, name::String=""; exclude::Array{Symbol,1}=Symbol[
 end
 
 
-function XmlElement(obj::Any, name::String=""; exclude::Array{Symbol,1}=Symbol[])
+function XmlElement(obj::Any, name::String=""; exclude::Vector{Symbol}=Symbol[])
     return to_xml_node(obj, name, exclude=exclude)
 end

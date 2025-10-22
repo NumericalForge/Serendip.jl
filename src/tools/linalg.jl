@@ -17,7 +17,7 @@ const FMatrix = FixedSizeMatrix
 @inline fzeros(n)    = ( V = FixedSizeArray{Float64}(undef, n); V .= 0.0 )
 
 
-function Base.convert(::Type{Vec3}, A::Array{Float64,1})
+function Base.convert(::Type{Vec3}, A::Vector{Float64})
     n = length(A)
     @assert n in (1,2,3)
     if n==3
@@ -44,7 +44,7 @@ function print_matrix(M::Array{Float64,2})
     end
 end
 
-function extend!(V::AbstractArray{Float64,1}, n::Int)
+function extend!(V::AbstractVector{Float64}, n::Int)
     while length(V)<n
         push!(V, 0.0)
     end
@@ -163,7 +163,7 @@ end
 function Base.split(A::AbstractArray, knots::AbstractArray)
 
     # R = Array{eltype(A),1}[]
-    R = Array{Int,1}[]
+    R = Vector{Int}[]
     n = length(A)
 
     knots = unique(knots)

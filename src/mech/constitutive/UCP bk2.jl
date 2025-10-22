@@ -91,7 +91,6 @@ mutable struct UCP<:Constitutive
         @check 0.2<alpha<=1.0 "UCP: Curvature coefficient alpha must be in the range (0.2, 1.0]. Got $alpha."
         @check 1<=beta<=1.5 "UCP: Factor beta must be in the range [1.0, 1.5]. Got $beta."
         @check eta>1 "UCP: Shape parameter eta must be > 1. Got $eta."
-
         @check ft>0 "UCP: Tensile strength ft must be > 0. Got $ft."
         @check H>=0 "UCP: Plastic modulus H must be >= 0. Got $H."
 
@@ -194,8 +193,11 @@ function calc_rθ(mat::UCP, σ::Vec6)
 end
 
 
-@inline function calc_rξ(mat::UCP, ξa::Float64, ξb::Float64, ξ::Float64)
-    return spow((ξb-ξ)/(ξb-ξa), mat.α)
+function calc_rξ(mat::UCP, ξb::Float64, ξ::Float64)
+    α  = mat.α
+    fc_pk = abs(mat.fc)
+
+    return spow((ξb-ξ)/fc_pk, α)
 end
 
 
@@ -211,7 +213,7 @@ function calc_fc(mat::UCP, εcp::Float64)
     fc0 = 0.35*mat.fc
     # fcr = 0.1*mat.fc
     fc0 = 0.4*mat.fc
-    fcr = 0.1*mat.fc
+    fcr = 0.5*mat.fc
 
     return calc_compressive_strength(mat, fc0, fcr, εcp)
 end
@@ -229,17 +231,21 @@ function calc_ξa_ξb_κ(mat::UCP, state::UCPState, εtp::Float64, εcp::Float64
 
     ft    = calc_ft(mat, w)
     fc    = calc_fc(mat, εcp)
+    fc_pk = abs(mat.fc)
 
     # p = p0 + H*εvp  -> ξa = √3*p0 + √3*H*εvp
     ξa = mat.ξa0 + √3*mat.H*εvp # hardening in isotropic compression
 
+    # ξa = √3*mat.p_fun(√3*εcp)    # ξ = √3p ; plastic volumetric strain εvp = √3*εcp in isotropic compression
+    # ξa = √3*p    # ξ = √3p
     @assert ξa<0
     @assert ξa<fc/√3
 
     Ω  = (-ft/(fc*e))^(1/α)
     ξb = 1/√3*(fc*Ω - ft)/(Ω-1)
     
-    κ  = -√(2/3)*fc*((ξb-fc/√3)/(ξb-ξa))^-α  # fc and ft are current strengths
+
+    κ  = -√(2/3)*fc*((ξb-fc/√3)/fc_pk)^-α  # fc and ft are current strengths
     @assert κ>0
 
     return ξa, ξb, κ
@@ -256,38 +262,30 @@ function yield_func(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float64,
 
     ξa, ξb, κ = calc_ξa_ξb_κ(mat, state, εtp, εcp, εvp)
     rθ = calc_rθ(mat, σ)
-    rχ = calc_rc(mat, ξa, ξ)
-    rξ = calc_rξ(mat, ξa, ξb, ξ)
+    rc = calc_rc(mat, ξa, ξ)
+    rξ = calc_rξ(mat, ξb, ξ)
 
-    return ρ - rθ*rχ*rξ*κ
+    return ρ - rθ*rc*rξ*κ
 end
 
 
 function yield_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
+    e = mat.e
+    α = mat.α
+    fc_pk = abs(mat.fc)
 
-    # ∂f/∂εtp, ∂f/∂εcp
-    f_εcp  = εcp -> yield_func(mat, state, σ, εtp, εcp, εvp)
-    dfdεcp = derive(f_εcp, εcp)
+    i1, j2 = tr(σ), J2(σ)
 
-    f_εtp  = εtp -> yield_func(mat, state, σ, εtp, εcp, εvp)
-    dfdεtp = derive(f_εtp, εtp)
+    ρ = √(2*j2)
+    ξ = i1/√3
 
-    ξa, ξb, κ = calc_ξa_ξb_κ(mat, state, εtp, εcp, εvp)
-    
-    # check apex condition
-    ξ = tr(σ)/√3
-    ξ >= ξb && return √3/3*I2, dfdεtp, dfdεcp
-    
     # deviatoric derivatives
-    j2     = J2(σ)
-    ρ      = √(2*j2)
     s      = dev(σ)
     det_s  = J3(σ)
     adj_s  = det_s*inv(s)
     norm_s = ρ
-    
+
     # θ and derivatives
-    e        = mat.e
     θ        = 1/3*acos( clamp(3*√6*det_s/norm_s^3, -1.0, 1.0) )
     rnum     = 2*(1-e^2)*cos(θ) + (2*e-1)*√(4*(1-e^2)*cos(θ)^2 + 5*e^2 - 4*e)
     rden     = 4*(1-e^2)*cos(θ)^2 + (2*e-1)^2
@@ -302,20 +300,23 @@ function yield_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float6
         dθds = 0.0*I2
     end
 
+    ξa, ξb, κ = calc_ξa_ξb_κ(mat, state, εtp, εcp, εvp)
+
     ξc = 2*mat.fb/√3
-    rχ = calc_rc(mat, ξa, ξ)
-    rξ = calc_rξ(mat, ξa, ξb, ξ)
+    rc = calc_rc(mat, ξa, ξ)
+    rξ = calc_rξ(mat, ξb, ξ)
 
     # f derivative w.r.t. σ:
     dfdρ  = 1.0
-    dfdrχ = -rθ*rξ*κ
-    dfdrξ = -rθ*rχ*κ
-    drχdξ = ξa<ξ<ξc ? (ξc-ξ)/(ξc-ξa)^2/√(1-((ξc-ξ)/(ξc-ξa))^2) : 0.0
+    dfdrc = -rθ*rξ*κ
+    dfdrξ = -rθ*rc*κ
+    drcdξ = ξa<ξ<ξc ? (ξc-ξ)/(ξc-ξa)^2/√(1-((ξc-ξ)/(ξc-ξa))^2) : 0.0
 
-    drξdξ = -mat.α/(ξb-ξa) * abs((ξb-ξ)/(ξb-ξa))^(mat.α-1)
+    # drξdξ = ξb-ξ!=0.0 ? -α/fc_pk * abs((ξb-ξ)/fc_pk)^(α-1) : 0.0
+    drξdξ = ξ < ξb ? -α/fc_pk * abs((ξb-ξ)/fc_pk)^(α-1) : 0.0
     
-    dfdξ  = dfdrχ*drχdξ + dfdrξ*drξdξ
-    dfdrθ = -rχ*rξ*κ
+    dfdξ  = dfdrc*drcdξ + dfdrξ*drξdξ
+    dfdrθ = -rc*rξ*κ
     dfdθ  = dfdrθ*drθdθ
 
     dρdσ = s/norm(s)
@@ -323,14 +324,24 @@ function yield_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float6
     dsdσ = Psd
     dθdσ = dsdσ*dθds
 
-    dfdσ = dfdρ*dρdσ + dfdξ*dξdσ + dfdθ*dθdσ
-    
+    if ξ > ξb # apex
+        dfdσ = √3/3*I2
+    else
+        dfdσ = dfdρ*dρdσ + dfdξ*dξdσ + dfdθ*dθdσ
+    end
+
+    f_εcp  = εcp -> yield_func(mat, state, σ, εtp, εcp, εvp)
+    dfdεcp = derive(f_εcp, εcp)
+
+    f_εtp  = εtp -> yield_func(mat, state, σ, εtp, εcp, εvp)
+    dfdεtp = derive(f_εtp, εtp)
+
     return dfdσ, dfdεtp, dfdεcp
 end
 
 
 function potential_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
-    # g(σ) = ρ - e⋅rc⋅rξ⋅rψ⋅κ
+    # g(σ) = ρ - e⋅rc⋅rξ⋅rg⋅κ
 
     i1 = tr(σ)
     ξ  = i1/√3
@@ -342,23 +353,24 @@ function potential_derivs(mat::UCP, state::UCPState, σ::AbstractArray, εtp::Fl
     α   = mat.α
     s   = dev(σ)
     ρ   = norm(s)
-
     ξb0 = mat.ξb0
     # ρ <1e-6 && ξ >=0 && return √3/3*I2 # apex
 
+    fc_pk = abs(mat.fc)
+
     ξc = 2*mat.fb/√3
-    rχ = calc_rc(mat, ξa, ξ)
-    rξ = calc_rξ(mat, ξa, ξb, ξ)
-    rψ = ξ < ξb ? exp(-(ξb0/(ξb0 - ξ))^2) : 0.0
+    rc = calc_rc(mat, ξa, ξ)
+    rξ = calc_rξ(mat, ξb, ξ)
+    rg = ξ < ξb ? exp(-(ξb0/(ξb0 - ξ))^2) : 0.0
 
-    dgdrχ = -e*rξ*rψ*κ
-    dgdrξ = -e*rχ*rψ*κ
-    dgdrψ = -e*rχ*rξ*κ
-    drχdξ = ξa<ξ<ξc ? (ξc-ξ)/(ξc-ξa)^2/√(1-((ξc-ξ)/(ξc-ξa))^2) : 0.0
-    drξdξ = ξ < ξb ? -α/(ξb-ξa) * abs((ξb-ξ)/(ξb-ξa))^(α-1) : 0.0
-    drψdξ = ξ < ξb ? -2*rψ*ξb0^2/(ξb0 - ξ)^3 : 0.0
+    dgdrc = -e*rξ*rg*κ
+    dgdrξ = -e*rc*rg*κ
+    dgdrg = -e*rc*rξ*κ
+    drcdξ = ξa<ξ<ξc ? (ξc-ξ)/(ξc-ξa)^2/√(1-((ξc-ξ)/(ξc-ξa))^2) : 0.0
+    drξdξ = ξ < ξb ? -α/fc_pk * abs((ξb-ξ)/fc_pk)^(α-1) : 0.0
+    drgdξ = ξ < ξb ? -2*rg*ξb0^2/(ξb0 - ξ)^3 : 0.0
 
-    dgdξ  = dgdrχ*drχdξ + dgdrξ*drξdξ + dgdrψ*drψdξ
+    dgdξ  = dgdrc*drcdξ + dgdrξ*drξdξ + dgdrg*drgdξ
 
     dξdσ = √3/3*I2
     dgdρ = 1.0
@@ -417,17 +429,17 @@ function calc_σ_εp_Δλ(mat::UCP, state::UCPState, σtr::Vec6)
         σ  = σtr - Δλ*(De*dgdσ)
 
         Λ   = eigvals(dgdσ, sort=false)
-        # εtp = state.εtp + Δλ*norm(max.(0.0, Λ))
         εtp = state.εtp + Δλ*maximum(max.(0.0, Λ))
         εcp = state.εcp + Δλ*norm(min.(0.0, Λ))
         εvp = state.εvp + Δλ*sum(abs, min.(0.0, Λ))
+
         
         f = yield_func(mat, state, σ, εtp, εcp, εvp)
         
         if abs(f) < tol
             Δλ < 0.0 && return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: negative Δλ")
             
-            w  = εtp * state.h
+            w  = εtp*state.h
             ft = calc_ft(mat, w)
             fc = calc_fc(mat, εcp)
             abs(fc*mat.e/ft) > 1.1 || return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: numerical issue: |fc·e/ft| > 1.1")
@@ -444,71 +456,71 @@ function calc_σ_εp_Δλ(mat::UCP, state::UCPState, σtr::Vec6)
 end
 
 
-# function calc_σ_εp_Δλ_sear(mat::UCP, state::UCPState, σtr::Vec6)
-#     maxits = 50
-#     tol    = 0.1
-#     tol    = 1.0
-#     dgdσ   = potential_derivs(mat, state, state.σ, state.εtp, state.εcp, state.εvp)
-#     De     = calcDe(mat.E, mat.ν, state.ctx.stress_state)
-#     Δλ     = eps()
+function calc_σ_εp_Δλ_sear(mat::UCP, state::UCPState, σtr::Vec6)
+    maxits = 50
+    tol    = 0.1
+    tol    = 1.0
+    dgdσ   = potential_derivs(mat, state, state.σ, state.εtp, state.εcp, state.εvp)
+    De     = calcDe(mat.E, mat.ν, state.ctx.stress_state)
+    Δλ     = eps()
 
-#     σ  = σtr - Δλ*(De*dgdσ)
+    σ  = σtr - Δλ*(De*dgdσ)
 
-#     εcp = state.εcp
-#     εtp = state.εtp
-#     εvp = state.εvp
+    εcp = state.εcp
+    εtp = state.εtp
+    εvp = state.εvp
 
-#     f = yield_func(mat, state, σ, εtp, εcp, εvp)
+    f = yield_func(mat, state, σ, εtp, εcp, εvp)
 
-#     nsearch = 5
+    nsearch = 5
 
-#     # iterative process
-#     for i in 1:maxits
-#         if abs(f) < tol
-#              Δλ < 0.0 && return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: negative Δλ")
-#              return σ, εtp, εcp, εvp, Δλ, success()
-#         end
+    # iterative process
+    for i in 1:maxits
+        if abs(f) < tol
+             Δλ < 0.0 && return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: negative Δλ")
+             return σ, εtp, εcp, εvp, Δλ, success()
+        end
 
-#         dfdσ, _ = yield_derivs(mat, state, σ, εtp, εcp, εvp)
-#         dgdσ    = potential_derivs(mat, state, σ, εtp, εcp, εvp)
-#         dfdΔλ   = -dfdσ'*De*dgdσ 
-#         Λ = eigvals(dgdσ, sort=false)
+        dfdσ, _ = yield_derivs(mat, state, σ, εtp, εcp, εvp)
+        dgdσ    = potential_derivs(mat, state, σ, εtp, εcp, εvp)
+        dfdΔλ   = -dfdσ'*De*dgdσ 
+        Λ = eigvals(dgdσ, sort=false)
 
-#         Δλ_bk = Δλ
-#         f_bk  = f
+        Δλ_bk = Δλ
+        f_bk  = f
         
-#         ω = 1.0 # initial damping
-#         for j in 1:nsearch
-#             Δλ = Δλ_bk - ω*f/dfdΔλ
-#             ω = 0.8*ω # reduce damping for the next iteration
-#             (isnan(Δλ) || Δλ < 0.0) && continue
+        ω = 1.0 # initial damping
+        for j in 1:nsearch
+            Δλ = Δλ_bk - ω*f/dfdΔλ
+            ω = 0.8*ω # reduce damping for the next iteration
+            (isnan(Δλ) || Δλ < 0.0) && continue
 
-#             σ  = σtr - Δλ*(De*dgdσ)
-#             εtp = state.εtp + Δλ*maximum(max.(0.0, Λ))
-#             εcp = state.εcp + Δλ*norm(min.(0.0, Λ))
-#             εvp = state.εvp + Δλ*sum(abs, min.(0.0, Λ))
+            σ  = σtr - Δλ*(De*dgdσ)
+            εtp = state.εtp + Δλ*maximum(max.(0.0, Λ))
+            εcp = state.εcp + Δλ*norm(min.(0.0, Λ))
+            εvp = state.εvp + Δλ*sum(abs, min.(0.0, Λ))
 
-#             # w  = εtp*state.h
-#             # ft = calc_ft(mat, w)
-#             # fc = calc_fc(mat, εcp)
-#             # abs(fc*mat.e/ft) > 1.1 || return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: numerical issue: |fc·e/ft| > 1.1")
+            # w  = εtp*state.h
+            # ft = calc_ft(mat, w)
+            # fc = calc_fc(mat, εcp)
+            # abs(fc*mat.e/ft) > 1.1 || return σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: numerical issue: |fc·e/ft| > 1.1")
 
-#             f = yield_func(mat, state, σ, εtp, εcp, εvp)
+            f = yield_func(mat, state, σ, εtp, εcp, εvp)
 
-#             if abs(f) < abs(f_bk)
-#                 break
-#             end
+            if abs(f) < abs(f_bk)
+                break
+            end
 
-#             # j == nsearch && return state.σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: line search failed")
-#         end
+            # j == nsearch && return state.σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: line search failed")
+        end
 
-#         # dumping
-#         i>10 && (ω = 0.6)
-#         i>15 && (ω = 0.s3)
-#     end
+        # dumping
+        # i>10 && (ω = 0.6)
+        # i>15 && (ω = 0.3)
+    end
 
-#     return state.σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: maximum iterations reached")
-# end
+    return state.σ, 0.0, 0.0, 0.0, 0.0, failure("UCP: maximum iterations reached")
+end
 
 
 function update_state(mat::UCP, state::UCPState, Δε::AbstractArray)
@@ -519,13 +531,14 @@ function update_state(mat::UCP, state::UCPState, Δε::AbstractArray)
 
     Δλ  = 0.0
     tol = 0.1
-    tol = 0.01
 
     if ftr < tol
         # elastic
         state.Δλ = 0.0
         state.σ  = σtr
     else
+        
+        
         # plastic
         state.σ, state.εtp, state.εcp, state.εvp, state.Δλ, status = calc_σ_εp_Δλ(mat, state, σtr)
         @assert state.εcp >= 0.0
@@ -533,6 +546,11 @@ function update_state(mat::UCP, state::UCPState, Δε::AbstractArray)
         @assert state.εvp >= 0.0
         
         Δσ = state.σ - σini
+        
+        # @show Δε
+        # @show Δσ
+        # error()
+
 
         failed(status) && return state.σ, status
     end
@@ -547,7 +565,7 @@ function state_values(mat::UCP, state::UCPState)
     σ, ε  = state.σ, state.ε
     ρ = √(2*J2(σ))
     ξ = tr(σ)/√3
-    θ  = calc_θ(mat, σ)
+    # θ  = calc_θ(mat, σ)
     # r  = calc_rθ(mat, σ)
 
     w  = state.εtp*state.h
@@ -557,8 +575,8 @@ function state_values(mat::UCP, state::UCPState)
     # fc = mat.fc_fun(state.εcp)
 
     ξa, ξb, κ = calc_ξa_ξb_κ(mat, state, state.εtp, state.εcp, state.εvp)
-    # rχ = calc_rc(mat, ξa, ξ)
-    # rξ = calc_rξ(mat, ξa, ξb, ξ)
+    # rc = calc_rc(mat, ξa, ξ)
+    # rξ = calc_rξ(mat, ξb, ξ)
 
     vals_d = stress_strain_dict(σ, ε, state.ctx.stress_state)
 
@@ -566,15 +584,15 @@ function state_values(mat::UCP, state::UCPState)
     vals_d[:εtp] = state.εtp
     vals_d[:ξ]   = ξ
     vals_d[:ρ]   = ρ
-    vals_d[:θ]   = θ
+    # vals_d[:θ]   = θ
     vals_d[:fc]  = fc
     vals_d[:ft]  = ft
     vals_d[:ξa]  = ξa
     vals_d[:ξb]  = ξb
-    vals_d[:κ]   = κ
+    # vals_d[:κ]   = κ
     # vals_d[:r]   = r
     # vals_d[:rξ]  = rξ
-    # vals_d[:rχ]  = rχ
+    # vals_d[:rc]  = rc
     # vals_d[:ξc]  = 2*mat.fb/√3
     # vals_d[:fcb] = abs(mat.fc)
 

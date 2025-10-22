@@ -2,17 +2,17 @@
 
 export MechBondTip
 
-mutable struct MechBondTip<:MechFormulation
+struct MechBondTip<:MechFormulation
     MechBondTip() = new()
 end
 
 compat_role(::Type{MechBondTip}) = :tip
 
 
-function set_quadrature(elem::Element{MechBondTip}, n::Int=1)
+function set_quadrature(elem::Element{MechBondTip}, n::Int=1; state::NamedTuple=NamedTuple())
     ip = Ip([0.0, 0.0, 0.0], 0.0)
     ip.id = 1
-    ip.state = compat_state_type(typeof(elem.cmodel), MechBondTip, elem.ctx)(elem.ctx)
+    ip.state = compat_state_type(typeof(elem.cmodel), MechBondTip, elem.ctx)(elem.ctx; state...)
     ip.owner = elem
     ip.coord = elem.nodes[end].coord
 

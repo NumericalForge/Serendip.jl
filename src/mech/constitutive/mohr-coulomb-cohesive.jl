@@ -73,9 +73,9 @@ end
 
 mutable struct MohrCoulombCohesiveState<:IpState
     ctx::Context
-    σ  ::Array{Float64,1} # stress
-    w  ::Array{Float64,1} # relative displacements
-    up::Float64           # effective plastic relative displacement
+    σ  ::Vector{Float64}  # stress
+    w  ::Vector{Float64}  # relative displacements
+    up ::Float64          # effective plastic relative displacement
     Δλ ::Float64          # plastic multiplier
     h  ::Float64          # characteristic length from bulk elements
     function MohrCoulombCohesiveState(ctx::Context)
@@ -95,7 +95,8 @@ end
 compat_state_type(::Type{MohrCoulombCohesive}, ::Type{MechCohesive}, ctx::Context) = MohrCoulombCohesiveState
 
 
-function yield_func(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σ::Array{Float64,1})
+
+function yield_func(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σ::Vector{Float64})
     ndim = state.ctx.ndim
     σmax = calc_σmax(mat, state.up)
     if ndim == 3
@@ -103,6 +104,14 @@ function yield_func(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, �
     else
         return abs(σ[2]) + (σ[1]-σmax)*mat.μ
     end
+end
+
+
+function strength_utilization(mat::MohrCoulombCohesive, σ::Vector{Float64})
+    σmax = calc_σmax(mat, 0.0)
+    σn   = σ[1]
+    τ    = norm(σ[2:end])
+    return clamp( (τ + σn*mat.μ) / (σmax*mat.μ), 0.0, 1.0)
 end
 
 
@@ -116,7 +125,7 @@ function yield_deriv(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
 end
 
 
-function potential_derivs(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σ::Array{Float64,1})
+function potential_derivs(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σ::Vector{Float64})
     ndim = state.ctx.ndim
     if ndim == 3
         if σ[1] >= 0.0 
@@ -175,7 +184,7 @@ function calc_De(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, ks::
 end
 
 
-function calc_Δλ(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σtr::Array{Float64,1})
+function calc_Δλ(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σtr::Vector{Float64})
     ndim   = state.ctx.ndim
     maxits = 100
     Δλ     = 0.0
@@ -246,7 +255,7 @@ function calc_Δλ(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σ
 end
 
 
-function calc_σ_upa(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σtr::Array{Float64,1})
+function calc_σ_upa(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σtr::Vector{Float64})
     ndim = state.ctx.ndim
     μ = mat.μ
     kn, ks, = calc_kn_ks(mat, state)
@@ -311,7 +320,7 @@ function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
 end
 
 
-function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, Δw::Array{Float64,1})
+function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, Δw::Vector{Float64})
     ndim = state.ctx.ndim
     σini = copy(state.σ)
 

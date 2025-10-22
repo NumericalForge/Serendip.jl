@@ -3,7 +3,7 @@
 export MechBulk
 
 
-mutable struct MechBulk<:MechFormulation
+struct MechBulk<:MechFormulation
     ρ::Float64
     γ::Float64
 
@@ -23,7 +23,6 @@ function elem_init(elem::Element{MechBulk})
         V = cell_extent(elem)*elem.ctx.thickness
 
         # Representative length size for the element
-        nips = length(elem.ips)
         ndim = elem.ctx.ndim
         h = V^(1/ndim)
 

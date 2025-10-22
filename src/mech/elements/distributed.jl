@@ -213,7 +213,6 @@ function mech_solid_body_forces(elem::Element, key::Symbol, val::Union{Real,Symb
     # generate a map
     keys = (:ux, :uy, :uz)[1:ndim]
     map  = [ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]
-    # map  = [ node.dofdict[key].eq_id for node in elem.nodes for key in keys ]
 
     return reshape(F', nnodes*ndim), map
 end

@@ -200,7 +200,7 @@ function calcD(mat::LinearElastic, state::ElasticBeamState)
 end
 
 
-function update_state(mat::LinearElastic, state::ElasticBeamState, dε::Array{Float64,1})
+function update_state(mat::LinearElastic, state::ElasticBeamState, dε::Vector{Float64})
     D = calcD(mat, state)
     dσ = D*dε
     state.ε += dε

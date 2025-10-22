@@ -39,7 +39,7 @@ using Serendip
     "constitutive/vm-beam-2d.jl",
     "constitutive/vm-beam-3d.jl",
 
-    "elements/joint/joint2d.jl",
+    # "elements/joint/joint2d.jl",
     "constitutive/interfaces.jl",
 ]
 

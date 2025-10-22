@@ -1,6 +1,6 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-mutable struct MechEmbBar<:MechFormulation
+struct MechEmbBar<:MechFormulation
     A::Float64
 
     function MechEmbBar(;A=Nan)
@@ -11,6 +11,12 @@ end
 
 
 compat_role(::Type{MechEmbBar}) = :line
+
+
+mutable struct MechEmbBarCache <: ElementCache
+    # NN matrix to map host displacements to embedded displacements
+    NN::FixedSizeMatrix{Float64}
+end
 
 
 function elem_config_dofs(elem::Element{MechEmbBar})
@@ -67,17 +73,18 @@ function elem_init(elem::Element{MechEmbBar})
         # node.dofdict[:uz].eq_id = -1
     end
 
+    elem.cache = MechEmbBarCache( _mountNN(elem) )
     # elem.cacheM = Array{Matrix}(undef, 1)
-    elem.cacheM = Vector{FixedSizeMatrix{Float64}}(undef, 1)
+    # elem.cacheM = Vector{FixedSizeMatrix{Float64}}(undef, 1)
 
-    elem.cacheM[1] = _mountNN(elem)
+    # elem.cache.NN = _mountNN(elem)
     return nothing
 end
 
 
 function elem_displacements(elem::Element{MechEmbBar})
     ndim    = elem.ctx.ndim
-    NN      = elem.cacheM[1]
+    NN      = elem.cache.NN
     keys    = (:ux, :uy, :uz)[1:ndim]
     Uhost   = [ node.dofdict[key].vals[key] for node in elem.couplings[1].nodes for key in keys ]
     Ubar    = NN*Uhost
@@ -115,7 +122,7 @@ function elem_stiffness(elem::Element{MechEmbBar})
         @mul K += coef*B'*B
     end
 
-    NN = elem.cacheM[1]
+    NN = elem.cache.NN
     map = elem_map(elem)
     # @show "stiffness"
     return NN'*K*NN, map, map
@@ -126,7 +133,7 @@ function elem_internal_forces(elem::Element{MechEmbBar}, ΔUg::Vector{Float64}=F
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
     A      = elem.etype.A
-    NN     = elem.cacheM[1]
+    NN     = elem.cache.NN
 
     map = elem_map(elem)
     update = !isempty(ΔUg)
@@ -170,11 +177,11 @@ function elem_internal_forces(elem::Element{MechEmbBar}, ΔUg::Vector{Float64}=F
 end
 
 
-# function update_elem!(elem::Element{MechEmbBar}, U::Array{Float64,1}, Δt::Float64)
+# function update_elem!(elem::Element{MechEmbBar}, U::Vector{Float64}, Δt::Float64)
 #     ndim   = elem.ctx.ndim
 #     nnodes = length(elem.nodes)
 #     A      = elem.etype.A
-#     NN     = elem.cacheM[1]
+#     NN     = elem.cache.NN
 
 #     map = elem_map(elem)
 #     dU  = U[map]
@@ -231,7 +238,7 @@ end
 
 # function post_process(elem::Element{MechEmbBar})
 #     ndim    = elem.ctx.ndim
-#     NN      = elem.cacheM[1]
+#     NN      = elem.cache.NN
 
 #     # update displacements
 #     keys    = (:ux, :uy, :uz)[1:ndim]

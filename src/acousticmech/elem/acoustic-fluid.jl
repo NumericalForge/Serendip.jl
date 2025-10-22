@@ -25,13 +25,13 @@ mutable struct AcousticFluid<:AcousticMech
     id    ::Int
     shape ::CellShape
 
-    nodes ::Array{Node,1}
-    ips   ::Array{Ip,1}
+    nodes ::Vector{Node}
+    ips   ::Vector{Ip}
     tag   ::String
     mat   ::Constitutive
     props ::AcousticFluidProps
     active::Bool
-    couplings::Array{Element,1}
+    couplings::Vector{Element}
     ctx::Context
 
     function AcousticFluid()
@@ -124,7 +124,7 @@ end
 
 
 # TODO
-function update_elem!(elem::AcousticFluid, DU::Array{Float64,1}, Δt::Float64)
+function update_elem!(elem::AcousticFluid, DU::Vector{Float64}, Δt::Float64)
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
     th     = elem.ctx.thickness

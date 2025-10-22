@@ -312,11 +312,11 @@ function normal_to_faces(faces::Array{Cell, 1})
 end
 
 
-function faces_normal(faces::Array{Cell,1}, facetol)
+function faces_normal(faces::Vector{Cell}, facetol)
     ndim = 1 + faces[1].shape.ndim
 
-    #normals = Set{Array{Float64,1}}()
-    normals = Array{Float64,1}[]
+    #normals = Set{Vector{Float64}}()
+    normals = Vector{Float64}[]
 
     for f in faces
 
@@ -341,7 +341,7 @@ function faces_normal(faces::Array{Cell,1}, facetol)
                 push!(normals, N)
             end
         #else
-            #return Array{Float64,1}[]
+            #return Vector{Float64}[]
         #end
     end
 
@@ -380,7 +380,7 @@ function mountA(mesh::Mesh, fixed::Bool, conds, facetol)
         if conds !== nothing
             p = snode.node
             if any( Bool[ ff(p.coord.x, p.coord.y, p.coord.z) for ff in fconds ] )
-                snode.normals = Array{Float64,1}[]
+                snode.normals = Vector{Float64}[]
                 n += ndim
                 continue
             end
@@ -451,7 +451,7 @@ function mountA(mesh::Mesh, fixed::Bool, conds, facetol)
 end
 
 
-function rigid_transform(source::Array{Float64,2}, target::Array{Float64,2}, pindexes::Array{Int64,1}=Int[])
+function rigid_transform(source::Array{Float64,2}, target::Array{Float64,2}, pindexes::Vector{Int64}=Int[])
     # source: Source coordingates
     # target: Destination reference
     # pindexes: Indexes for prioriy matching
@@ -688,7 +688,7 @@ function find_weighted_pos(mesh::Mesh, patches, extended, α, qmin, in_border)
 end
 
 
-function str_histogram(hist::Array{Int64,1})
+function str_histogram(hist::Vector{Int64})
     m = maximum(hist)
     H = round.(Int, hist./m*7)
     chars = [" ","_","▁","▂","▃","▄","▅","▆","▇","█"]
@@ -1255,7 +1255,7 @@ function laplacian_smooth!(mesh::Mesh; maxit::Int64=20, quiet=true, fixed=false,
     nodes, patches = get_patches(mesh)  # key nodes and corresponding patches
 
     # list of nodes per patch (without key node)
-    P = Array{Node,1}[]
+    P = Vector{Node}[]
     for (node, patch) in zip(nodes, patches)
         patch_nodes =get_nodes(patch)
         idx = findfirst( p -> hash(p) == hash(node), patch_nodes)

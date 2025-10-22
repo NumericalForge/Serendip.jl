@@ -1,9 +1,6 @@
-# This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
-
 export MechBeam
 
-
-mutable struct MechBeam<:MechFormulation
+struct MechBeam<:MechFormulation
     thy::Float64
     thz::Float64
     ρ::Float64
@@ -51,7 +48,7 @@ function elem_init(elem::Element{MechBeam})
 end
 
 
-function set_quadrature(elem::Element{MechBeam}, n::Int=0)
+function set_quadrature(elem::Element{MechBeam}, n::Int=0; state::NamedTuple=NamedTuple())
     ndim = elem.ctx.ndim
 
     if ndim==3
@@ -111,7 +108,7 @@ function set_quadrature(elem::Element{MechBeam}, n::Int=0)
                 m = (i-1)*nj*nk + (j-1)*nk + k
                 elem.ips[m] = Ip(R, w)
                 elem.ips[m].id = m
-                elem.ips[m].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype), elem.ctx)(elem.ctx)
+                elem.ips[m].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype), elem.ctx)(elem.ctx; state...)
                 elem.ips[m].owner = elem
             end
         end

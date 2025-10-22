@@ -105,7 +105,7 @@ function calcD(mat::DruckerPrager, state::DruckerPragerState)
 end
 
 
-function update_state(mat::DruckerPrager, state::DruckerPragerState, Δε::Array{Float64,1})
+function update_state(mat::DruckerPrager, state::DruckerPragerState, Δε::Vector{Float64})
     σini = state.σ
     De   = calcDe(mat.E, mat.ν, state.ctx.stress_state)
     σtr  = state.σ + De*Δε

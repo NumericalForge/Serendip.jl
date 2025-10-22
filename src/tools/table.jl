@@ -156,7 +156,7 @@ function Base.keys(table::DataTable)
 end
 
 
-function Base.push!(table::DataTable, row::Array{T,1} where T)
+function Base.push!(table::DataTable, row::Vector{T} where T)
     nr, nc = size(table)
     @assert nc==length(row)
     columns = getcolumns(table)
@@ -300,7 +300,7 @@ function Base.getindex(table::DataTable, rowidx::Int)
 end
 
 
-function Base.getindex(table::DataTable, idxs::Union{Colon,UnitRange{Int},Array{Int,1},BitArray{1}})
+function Base.getindex(table::DataTable, idxs::Union{Colon,UnitRange{Int},Vector{Int},BitArray{1}})
     columns = getcolumns(table)
     cols = [ columns[i][idxs] for i in 1:length(columns) ]
 
@@ -323,7 +323,7 @@ function Base.Array(table::DataTable)
 end
 
 
-function Base.getindex(table::DataTable, rowidx::Union{Int,Colon,UnitRange{Int},Array{Int,1}}, colmap::Union{Int,Colon,UnitRange{Int},Array{Int,1}})
+function Base.getindex(table::DataTable, rowidx::Union{Int,Colon,UnitRange{Int},Vector{Int}}, colmap::Union{Int,Colon,UnitRange{Int},Vector{Int}})
     table_temp = table[rowidx]
     columns = getcolumns(table_temp)[colmap]
     return reduce(hcat, columns)
@@ -519,7 +519,7 @@ function resize(table::DataTable, n::Int=0; ratio=1.0)
     nb = floor(Int64, ns/3)    # number of bezier curves
     ds = 1.0 / nb              # spacing between curves
 
-    cols = Array{Any,1}[]
+    cols = Vector{Any}[]
     for (j,field) in enumerate(header)
         U = table[field]
         V = zeros(n)
@@ -678,7 +678,7 @@ function denoise!(table::DataTable, fieldx, fieldy=nothing; noise=0.05, npatch=4
     # end
 
     # Linear interpolation of dropped points
-    cols = Array{Any,1}[]
+    cols = Vector{Any}[]
     for column in getcolumns(table)
         # V = copy(column)
         V = column

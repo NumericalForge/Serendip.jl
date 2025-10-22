@@ -16,10 +16,10 @@ mutable struct AcousticModalAnalysis<:Analysis
     sctx  ::SolverContext
 
     stages  ::Array{Stage}
-    loggers ::Array{AbstractLogger,1}
-    monitors::Array{AbstractMonitor,1}
+    loggers ::Vector{AbstractLogger}
+    monitors::Vector{AbstractMonitor}
 
-    freqs::Array{Float64,1} # frequencies
+    freqs::Vector{Float64} # frequencies
     modes::Array{Float64,2} # modes
 
     function AcousticModalAnalysis(model::FEModel; outdir=".", outkey="out")

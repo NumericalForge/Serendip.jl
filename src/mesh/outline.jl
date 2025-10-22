@@ -20,7 +20,7 @@ end
 
 mutable struct EdgeFaces
     edge::CellEdge
-    faces::Array{CellFace,1}
+    faces::Vector{CellFace}
     function EdgeFaces()
     end
 end
@@ -55,7 +55,7 @@ function get_feature_edges(cells::Vector{<:AbstractCell}; angle=150)
     # @show faces
 
     # Get normals
-    normals = Dict{CellFace,Array{Float64,1}}( f => get_facet_normal(f) for f in faces )
+    normals = Dict{CellFace,Vector{Float64}}( f => get_facet_normal(f) for f in faces )
     face_edge_d = Dict{UInt64,Cell}()
     outline = CellEdge[]
 

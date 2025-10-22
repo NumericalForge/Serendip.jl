@@ -4,8 +4,8 @@ export LinearInterface, LinearContact
 
 mutable struct ElasticInterfaceState<:IpState
     ctx::Context
-    σ   ::Array{Float64,1}
-    w   ::Array{Float64,1}
+    σ   ::Vector{Float64}
+    w   ::Vector{Float64}
     function ElasticInterfaceState(ctx::Context)
         this = new(ctx)
         this.σ = zeros(ctx.ndim)
@@ -123,7 +123,6 @@ end
 
 function state_values(mat::ElasticInterface, state::ElasticInterfaceState)
     ndim = state.ctx.ndim
-    σmax = calc_σmax(mat, state.up)
     τ = norm(state.σ[2:ndim])
     s = norm(state.w[2:ndim])
 
@@ -132,12 +131,10 @@ function state_values(mat::ElasticInterface, state::ElasticInterfaceState)
         :s  => s,
         :σn => state.σ[1],
         :τ  => τ,
-        :up => state.up,
-        :σmax => σmax
     )
 end
 
 
 function output_keys(::ElasticInterface)
-    return Symbol[:w, :s, :σn, :τ, :up]
+    return Symbol[:w, :s, :σn, :τ]
 end

@@ -4,12 +4,12 @@ export MCJointSeep
 
 mutable struct MCJointSeepState<:IpState
     ctx::Context
-    σ  ::Array{Float64,1}  # stress
-    w  ::Array{Float64,1}  # relative displacements
-    Vt ::Array{Float64,1}  # transverse fluid velocity
-    #D   ::Array{Float64,1}  # distance traveled by the fluid
-    L  ::Array{Float64,1} 
-    uw ::Array{Float64,1}  # interface pore pressure
+    σ  ::Vector{Float64}  # stress
+    w  ::Vector{Float64}  # relative displacements
+    Vt ::Vector{Float64}  # transverse fluid velocity
+    #D   ::Vector{Float64}  # distance traveled by the fluid
+    L  ::Vector{Float64} 
+    uw ::Vector{Float64}  # interface pore pressure
     up ::Float64           # effective plastic relative displacement
     Δλ ::Float64           # plastic multiplier
     h  ::Float64           # characteristic length from bulk elements
@@ -91,7 +91,7 @@ end
 compat_state_type(::Type{MCJointSeep}, ::Type{HMJoint}, ctx::Context) = MCJointSeepState
 
 
-function yield_func(mat::MCJointSeep, state::MCJointSeepState, σ::Array{Float64,1})
+function yield_func(mat::MCJointSeep, state::MCJointSeepState, σ::Vector{Float64})
     ndim = state.ctx.ndim
     σmax = calc_σmax(mat, state, state.up)
     if ndim == 3
@@ -112,7 +112,7 @@ function yield_deriv(mat::MCJointSeep, state::MCJointSeepState)
 end
 
 
-function potential_derivs(mat::MCJointSeep, state::MCJointSeepState, σ::Array{Float64,1})
+function potential_derivs(mat::MCJointSeep, state::MCJointSeepState, σ::Vector{Float64})
     ndim = state.ctx.ndim
     if ndim == 3
             if σ[1] >= 0.0 
@@ -222,7 +222,7 @@ function calc_kn_ks_De(mat::MCJointSeep, state::MCJointSeepState)
 end
 
 
-function calc_Δλ(mat::MCJointSeep, state::MCJointSeepState, σtr::Array{Float64,1})
+function calc_Δλ(mat::MCJointSeep, state::MCJointSeepState, σtr::Vector{Float64})
     ndim = state.ctx.ndim
     maxits = 100
     Δλ     = 0.0
@@ -293,7 +293,7 @@ function calc_Δλ(mat::MCJointSeep, state::MCJointSeepState, σtr::Array{Float6
 end
 
 
-function calc_σ_upa(mat::MCJointSeep, state::MCJointSeepState, σtr::Array{Float64,1})
+function calc_σ_upa(mat::MCJointSeep, state::MCJointSeepState, σtr::Vector{Float64})
     ndim = state.ctx.ndim
     μ = mat.μ
     kn, ks, De = calc_kn_ks_De(mat, state)
@@ -360,7 +360,7 @@ function calcD(mat::MCJointSeep, state::MCJointSeepState)
 end
 
 
-function update_state(mat::MCJointSeep, state::MCJointSeepState, Δw::Array{Float64,1}, Δuw::Array{Float64,1},  G::Array{Float64,1}, BfUw::Array{Float64,1}, Δt::Float64)
+function update_state(mat::MCJointSeep, state::MCJointSeepState, Δw::Vector{Float64}, Δuw::Vector{Float64},  G::Vector{Float64}, BfUw::Vector{Float64}, Δt::Float64)
     ndim = state.ctx.ndim
     σini = copy(state.σ)
 

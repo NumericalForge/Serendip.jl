@@ -6,8 +6,8 @@ mutable struct LinearElasticSeepState<:IpState
     ctx::Context
     σ::Vec6 # stress
     ε::Vec6 # strain
-    V::Array{Float64,1} # fluid velocity
-    D::Array{Float64,1} # distance traveled by the fluid
+    V::Vector{Float64} # fluid velocity
+    D::Vector{Float64} # distance traveled by the fluid
     uw::Float64         # pore pressure
     function LinearElasticSeepState(ctx::Context)
         this = new(ctx)
@@ -71,7 +71,7 @@ function calcK(mat::LinearElasticSeep, state::LinearElasticSeepState) # Hydrauli
 end
 
 
-function update_state(mat::LinearElasticSeep, state::LinearElasticSeepState, Δε::Array{Float64,1}, Δuw::Float64, G::Array{Float64,1}, Δt::Float64)
+function update_state(mat::LinearElasticSeep, state::LinearElasticSeepState, Δε::Vector{Float64}, Δuw::Float64, G::Vector{Float64}, Δt::Float64)
     De = calcD(mat, state)
     Δσ = De*Δε
     state.ε  += Δε

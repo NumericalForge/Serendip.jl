@@ -5,8 +5,8 @@ export NLConductivity
 mutable struct NLConductivityState<:IpState
     ctx::Context
     ut::Float64
-    Q::Array{Float64,1} # thermal flow
-    D::Array{Float64,1}
+    Q::Vector{Float64} # thermal flow
+    D::Vector{Float64}
     function NLConductivityState(ctx::Context)
         this = new(ctx)
         this.ut = 0.0
@@ -75,7 +75,7 @@ function calcK(mat::NLConductivity, state::NLConductivityState) # Thermal conduc
 end
 
 
-function update_state(mat::NLConductivity, state::NLConductivityState, Δut::Float64, G::Array{Float64,1}, Δt::Float64)
+function update_state(mat::NLConductivity, state::NLConductivityState, Δut::Float64, G::Vector{Float64}, Δt::Float64)
     K = calcK(mat, state)
     state.Q   = -K*G
     state.D  += state.Q*Δt

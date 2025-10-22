@@ -65,6 +65,9 @@ function _show(io::IO, x, maxdepth::Int, indent::String="", tab::String="    ")
         if :id in pnames && isdefined(x, :id )
             print(io, "  id=", getfield(x, :id))
         end
+        if :eq_id in pnames && isdefined(x, :eq_id )
+            print(io, "  eq_id=", getfield(x, :eq_id))
+        end
         if :tag in pnames && isdefined(x, :tag )
             tag = getfield(x, :tag)
             tag=="" || print(io, "  tag=", repr(tag))

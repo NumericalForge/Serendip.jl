@@ -46,6 +46,7 @@ set_transfinite_curve(geo, bz, 3)
 # add_arc(geo,
 # add_block(geo, [0 0 0; 1 0 0], [0.5 0 0.5]; nx=2, shape=LIN3, tag="beam")
 mesh = Mesh(geo, ndim=3, quadratic=true)
+# mesh = Mesh(geo, ndim=3)
 
 mapper = RegionModel(MechBeam, LinearElastic, E=1e4, nu=0.0, thy=0.1, thz=0.1)
 
@@ -71,7 +72,7 @@ add_monitor(ana, :node, x==1, :uz)
 # setmonitors!(ana, monitors)
 
 stage = add_stage(ana)
-add_bc(stage, :node, x==0, rx=0,  ry=0, rz=0, ux=0, uy=0, uz=0)
+add_bc(stage, :node, x==0, rx=0, ry=0, rz=0, ux=0, uy=0, uz=0)
 add_bc(stage, :node, x==1, fx=1, fz=2)
 
 run(ana, quiet=false)

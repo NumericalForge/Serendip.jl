@@ -30,8 +30,8 @@ end
 
 mutable struct CompressiveConcreteState<:IpState
     ctx::Context
-    σ          ::Array{Float64,1}  # current stress
-    ε          ::Array{Float64,1}  # current strain
+    σ          ::Vector{Float64}  # current stress
+    ε          ::Vector{Float64}  # current strain
     ε̅c         ::Float64
     ε̅min       ::Float64
 
@@ -105,7 +105,7 @@ function calcD(mat::CompressiveConcrete, state::CompressiveConcreteState)
 end
 
 
-function update_state(mat::CompressiveConcrete, state::CompressiveConcreteState, Δε::Array{Float64,1})
+function update_state(mat::CompressiveConcrete, state::CompressiveConcreteState, Δε::Vector{Float64})
     # special function
     neg(x) = (-abs(x)+x)/2.0
 

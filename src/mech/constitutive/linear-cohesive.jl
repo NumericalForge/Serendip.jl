@@ -4,8 +4,8 @@ export LinearCohesive
 
 mutable struct LinearCohesiveState<:IpState
     ctx::Context
-    σ  ::Array{Float64,1}
-    w  ::Array{Float64,1}
+    σ  ::Vector{Float64}
+    w  ::Vector{Float64}
     h  ::Float64
     function LinearCohesiveState(ctx::Context)
         this = new(ctx)
@@ -69,15 +69,15 @@ function state_values(::LinearCohesive, state::LinearCohesiveState)
             :w => state.w[1],
             :σn => state.σ[1],
             :τ  => τ,
-            :s2 => state.σ[2],
-            :s3 => state.σ[3],
+            :σ2 => state.σ[2],
+            :σ3 => state.σ[3],
           )
     else
         return Dict(
             :w => state.w[1],
             :σn => state.σ[1],
             :τ  => τ,
-            :s2 => state.σ[2],
+            :σ2 => state.σ[2],
         )
     end
 end

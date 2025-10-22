@@ -18,6 +18,18 @@ function elem_config_dofs(elem::Element{<:MechFormulation})
     end
 end
 
+function reset_displacements(model::AbstractDomain)
+    for n in model.nodes
+        for dof in n.dofs
+            for key in (:ux, :uy, :uz, :rx, :ry, :rz)
+                haskey(dof.vals, key) && (dof.vals[key]=0.0)
+            end
+        end
+    end
+end
+
+
+
 
 # """
 # `elem_stiffness(elem)`
@@ -50,7 +62,7 @@ end
 # Gets internal nodal forces from current element state.
 # This function must be defined by each concrete type.
 # """
-# function elem_internal_forces(elem::Element{<:MechFormulation}, F::Array{Float64,1})
+# function elem_internal_forces(elem::Element{<:MechFormulation}, F::Vector{Float64})
 # end
 
 # """
@@ -60,6 +72,6 @@ end
 # natural quantities. It also updates the global vector F.
 # This function must be defined by each concrete type.
 # """
-# function update_elem!(elem::Element{<:MechFormulation}, U::Array{Float64,1}, Δt::Float64)
+# function update_elem!(elem::Element{<:MechFormulation}, U::Vector{Float64}, Δt::Float64)
 #     error("update_elem function not defined for material type $(typeof(elem.cmodel))")
 # end

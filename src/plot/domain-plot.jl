@@ -492,7 +492,7 @@ function configure!(mplot::DomainPlot)
 end
 
 
-function iscounterclockwise(points::Array{Node,1})
+function iscounterclockwise(points::Vector{Node})
     val = 0.0
     n = length(points)
     for i in 1:n

@@ -4,11 +4,11 @@ export LeakoffJoint
 
 mutable struct LeakoffJointState<:IpState
     ctx::Context
-    V    ::Array{Float64,1} # fluid velocity
-    #D    ::Array{Float64,1} # distance traveled by the fluid
-    L    ::Array{Float64,1}
-    #S    ::Array{Float64,1}
-    uw   ::Array{Float64,1} # interface pore pressure
+    V    ::Vector{Float64} # fluid velocity
+    #D    ::Vector{Float64} # distance traveled by the fluid
+    L    ::Vector{Float64}
+    #S    ::Vector{Float64}
+    uw   ::Vector{Float64} # interface pore pressure
     h    ::Float64          # characteristic length from bulk elements
     function LeakoffJointState(ctx::Context)
         this     = new(ctx)
@@ -65,7 +65,7 @@ compat_state_type(::Type{LeakoffJoint}, ::Type{HydroJoint}, ctx::Context) = Leak
 # compat_elem_types(::Type{LeakoffJoint}) = (HydroJoint,)
 
 
-function update_state(mat::LeakoffJoint, state::LeakoffJointState, Δuw::Array{Float64,1}, G::Array{Float64,1}, BfUw::Array{Float64,1}, Δt::Float64)
+function update_state(mat::LeakoffJoint, state::LeakoffJointState, Δuw::Vector{Float64}, G::Vector{Float64}, BfUw::Vector{Float64}, Δt::Float64)
     state.uw +=  Δuw
     state.V   = -mat.kt*G
     #state.D  +=  state.V*Δt

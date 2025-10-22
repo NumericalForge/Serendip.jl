@@ -6,18 +6,18 @@ mutable struct Cell<:AbstractCell
     id     ::Integer
     shape  ::CellShape
     role::Symbol  # :vertex, :line, :bulk, :surface, :interface, :line_interface, :tip
-    nodes  ::Array{Node,1}
+    nodes  ::Vector{Node}
     tag    ::String
     active ::Bool
     quality::Float64              # quality index: surf/(reg_surf)
     embedded::Bool                # flag for embedded cells
     crossed::Bool                 # flag if cell crossed by linear inclusion
     owner  ::Union{AbstractCell,Nothing}  # owner cell if this cell is a face/edge
-    couplings::Array{AbstractCell,1}   # neighbor cells in case of interface cells
+    couplings::Vector{AbstractCell}   # neighbor cells in case of interface cells
     ctx::MeshContext                 # mesh environment variables
 
 
-    function Cell(shape::CellShape, role::Symbol, nodes::Array{Node,1}; ctx::MeshContext=MeshContext(0), tag::String="", owner=nothing, id::Int=-1, active=true)
+    function Cell(shape::CellShape, role::Symbol, nodes::Vector{Node}; ctx::MeshContext=MeshContext(0), tag::String="", owner=nothing, id::Int=-1, active=true)
         this = new()
         this.id = id
         this.shape = shape
@@ -273,7 +273,7 @@ function iscoplanar(cell::AbstractCell)
 end
 
 
-function nearest(cells::Array{Cell,1}, coord)
+function nearest(cells::Vector{Cell}, coord)
     n = length(cells)
     D = zeros(n)
     X = vec(coord)
@@ -318,7 +318,7 @@ end
 
 
 # gets all facets of a cell
-function getfacets(cell::AbstractCell)
+function get_facets(cell::AbstractCell)
     faces  = Cell[]
     all_facets_idxs = cell.shape.facet_idxs
     facet_shape    = cell.shape.facet_shape
@@ -339,13 +339,6 @@ function getfacets(cell::AbstractCell)
 
     return faces
 end
-
-# gets all faces of a cell
-# function getfaces(cell::AbstractCell)
-#     # Return a cell with the same shape in case of a 2D cell in 3D space
-#     cell.shape.ndim==2 && return [ Cell(cell.shape, cell.nodes, tag=cell.tag, owner=cell) ]
-#     return getfacets(cell)
-# end
 
 
 # gets all edges of a cell
@@ -468,7 +461,7 @@ end
 # Returns the cell quality ratio as vol/reg_vol
 function cell_quality_2(c::AbstractCell)::Float64
     # get faces
-    faces = getfacets(c)
+    faces = get_facets(c)
     length(faces)==0 && return 1.0
 
     # cell surface
@@ -486,7 +479,7 @@ function cell_quality(c::AbstractCell)::Float64
     # get faces
     c.role != :bulk && return 1.0
 
-    faces = getfacets(c)
+    faces = get_facets(c)
     length(faces)==0 && return 1.0
 
     # cell surface
@@ -551,7 +544,7 @@ function get_patches(cells::Array{<:AbstractCell,1})
 end
 
 
-function inverse_map(cell::AbstractCell, X::AbstractArray{Float64,1}, tol=1.0e-7)
+function inverse_map(cell::AbstractCell, X::AbstractVector{Float64}, tol=1.0e-7)
     return inverse_map(cell.shape, get_coords(cell), X, tol)
 end
 

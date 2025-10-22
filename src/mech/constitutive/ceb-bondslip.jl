@@ -4,8 +4,8 @@ export CebBondSlip, CebBondSlip
 
 mutable struct CebBondSlipState<:IpState
     ctx::Context
-    σ  ::Array{Float64,1}
-    u  ::Array{Float64,1}
+    σ  ::Vector{Float64}
+    u  ::Vector{Float64}
     τy ::Float64      # max stress
     sy ::Float64      # accumulated relative displacement
     elastic::Bool

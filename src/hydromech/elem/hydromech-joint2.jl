@@ -3,12 +3,12 @@ mutable struct HMJoint2<:Hydromech
     id    ::Int
     shape ::CellShape
 
-    nodes ::Array{Node,1}
-    ips   ::Array{Ip,1}
+    nodes ::Vector{Node}
+    ips   ::Vector{Ip}
     tag   ::String
     mat::Constitutive
     active::Bool
-    couplings::Array{Element,1}
+    couplings::Vector{Element}
     ctx::Context
 
     function HMJoint2()
@@ -407,7 +407,7 @@ function elem_RHS_vector(elem::HMJoint2)
 end
 
 #=
-function elem_internal_forces(elem::HMJoint2, F::Array{Float64,1})
+function elem_internal_forces(elem::HMJoint2, F::Vector{Float64})
     ndim     = elem.ctx.ndim
     th       = elem.ctx.thickness
     nnodes   = length(elem.nodes)
@@ -511,7 +511,7 @@ function elem_internal_forces(elem::HMJoint2, F::Array{Float64,1})
 end
 =#
 
-function update_elem!(elem::HMJoint2, U::Array{Float64,1}, Δt::Float64)
+function update_elem!(elem::HMJoint2, U::Vector{Float64}, Δt::Float64)
     ndim     = elem.ctx.ndim
     th       = elem.ctx.thickness
     nnodes   = length(elem.nodes)

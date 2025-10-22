@@ -29,13 +29,13 @@ mutable struct TMShell<:ThermoMech
     ctx::Context
     id    ::Int
     shape ::CellShape
-    nodes ::Array{Node,1}
-    ips   ::Array{Ip,1}
+    nodes ::Vector{Node}
+    ips   ::Vector{Ip}
     tag   ::String
     mat   ::Constitutive
     props ::TMShellProps
     active::Bool
-    couplings::Array{Element,1}
+    couplings::Vector{Element}
     Dlmn::Array{ SMatrix{3,3,Float64}, 1}
 
     function TMShell();
@@ -375,7 +375,7 @@ function elem_mass_matrix(elem::TMShell)
 end
 
 
-function elem_internal_forces(elem::TMShell, F::Array{Float64,1})
+function elem_internal_forces(elem::TMShell, F::Vector{Float64})
     ndim   = elem.ctx.ndim
     th     = elem.props.th
     T0k    = elem.ctx.T0 + 273.15
@@ -458,7 +458,7 @@ function elem_internal_forces(elem::TMShell, F::Array{Float64,1})
 end
 
 
-function update_elem!(elem::TMShell, DU::Array{Float64,1}, Δt::Float64)
+function update_elem!(elem::TMShell, DU::Vector{Float64}, Δt::Float64)
     ndim   = elem.ctx.ndim
     th     = elem.props.th
     T0k    = elem.ctx.T0 + 273.15

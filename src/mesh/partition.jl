@@ -2,12 +2,12 @@
 
 
 mutable struct ElemPartition
-    partition::Array{Array{AbstractCell,1},3}
+    partition::Array{Vector{AbstractCell},3}
     bbox::Array{Float64,2}
     lbin::Float64
     function ElemPartition(nx=0, ny=0, nz=0, bbox=nothing)
         this = new()
-        this.partition = Array{Array{AbstractCell,1}}(undef, nx, nx, nx)
+        this.partition = Array{Vector{AbstractCell}}(undef, nx, nx, nx)
         this.bbox = zeros(0,0)
         # this.lbin = ..
         return this
@@ -75,7 +75,7 @@ function build_bins(cells::Array{<:AbstractCell,1}, cellpartition::ElemPartition
     nz = floor(Int, Lz/lbin) + 1
 
     # Allocate cellpartition
-    cellpartition.partition = Array{Array{AbstractCell,1}}(undef, nx, ny, nz)
+    cellpartition.partition = Array{Vector{AbstractCell}}(undef, nx, ny, nz)
     for k in 1:nz, j=1:ny, i=1:nx
         cellpartition.partition[i,j,k] = AbstractCell[]
     end
@@ -100,7 +100,7 @@ function build_bins(cells::Array{<:AbstractCell,1}, cellpartition::ElemPartition
 end
 
 # Find the cell that contains a given point
-function find_elem(X::AbstractArray{Float64,1}, cells::Array{<:AbstractCell,1}, cellpartition::ElemPartition; tol::Float64=1e-7, exclude::Array{<:AbstractCell,1}=AbstractCell[])
+function find_elem(X::AbstractVector{Float64}, cells::Array{<:AbstractCell,1}, cellpartition::ElemPartition; tol::Float64=1e-7, exclude::Array{<:AbstractCell,1}=AbstractCell[])
     X = vcat(X, 0)[1:3]
     # Node coordinates
     x, y, z = X

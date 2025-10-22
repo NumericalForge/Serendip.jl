@@ -4,8 +4,8 @@ export LinearBondSlip, ElasticRSJoint, ElasticBondSlip
 
 mutable struct LinearBondSlipState<:IpState
     ctx::Context
-    σ ::Array{Float64,1}
-    u ::Array{Float64,1}
+    σ ::Vector{Float64}
+    u ::Vector{Float64}
     function LinearBondSlipState(ctx::Context)
         this = new(ctx)
         this.σ = zeros(ctx.ndim)

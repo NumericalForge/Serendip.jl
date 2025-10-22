@@ -4,13 +4,13 @@ export ElasticJointSeep2
 
 mutable struct JointSeepState2<:IpState
     ctx::Context
-    σ    ::Array{Float64,1} # stress
-    w    ::Array{Float64,1} # relative displacements
-    Vt   ::Array{Float64,1} # transverse fluid velocity
-    #D    ::Array{Float64,1} # distance traveled by the fluid
-    L    ::Array{Float64,1}
-    #S    ::Array{Float64,1}
-    uw   ::Array{Float64,1} # interface pore pressure
+    σ    ::Vector{Float64} # stress
+    w    ::Vector{Float64} # relative displacements
+    Vt   ::Vector{Float64} # transverse fluid velocity
+    #D    ::Vector{Float64} # distance traveled by the fluid
+    L    ::Vector{Float64}
+    #S    ::Vector{Float64}
+    uw   ::Vector{Float64} # interface pore pressure
     h    ::Float64          # characteristic length from bulk elements
     up  ::Float64          # effective plastic relative displacement
     function JointSeepState2()
@@ -83,7 +83,7 @@ function calcD(mat::ElasticJointSeep2, state::JointSeepState2)
 end
 
 
-function update_state(mat::ElasticJointSeep2, state::JointSeepState2, Δu::Array{Float64,1}, Δuw::Array{Float64,1}, G::Array{Float64,1}, BfUw::Array{Float64,1}, Δt::Float64)
+function update_state(mat::ElasticJointSeep2, state::JointSeepState2, Δu::Vector{Float64}, Δuw::Vector{Float64}, G::Vector{Float64}, BfUw::Vector{Float64}, Δt::Float64)
     ndim = state.ctx.ndim
     D  = calcD(mat, state)
     Δσ = D*Δu

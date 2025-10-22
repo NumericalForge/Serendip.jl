@@ -4,14 +4,14 @@ export TCJointSeep
 
 mutable struct TCJointSeepState<:IpState
     ctx::Context
-    σ  ::Array{Float64,1} # stress
-    w  ::Array{Float64,1} # relative displacements
+    σ  ::Vector{Float64} # stress
+    w  ::Vector{Float64} # relative displacements
     up::Float64          # effective plastic relative displacement
     Δλ ::Float64          # plastic multiplier
     h  ::Float64          # characteristic length from bulk elements
-    uw ::Array{Float64,1} # interface pore pressure
-    Vt ::Array{Float64,1} # transverse fluid velocity
-    L  ::Array{Float64,1} 
+    uw ::Vector{Float64} # interface pore pressure
+    Vt ::Vector{Float64} # transverse fluid velocity
+    L  ::Vector{Float64} 
     function TCJointSeepState(ctx::Context)
         this = new(ctx)
         ndim = ctx.ndim
@@ -111,7 +111,7 @@ function calcD(mat::TCJointSeep, state::TCJointSeepState)
 end
 
 
-function update_state(mat::TCJointSeep, state::TCJointSeepState, Δw::Array{Float64,1}, Δuw::Array{Float64,1},  G::Array{Float64,1}, BfUw::Array{Float64,1}, Δt::Float64)
+function update_state(mat::TCJointSeep, state::TCJointSeepState, Δw::Vector{Float64}, Δuw::Vector{Float64},  G::Vector{Float64}, BfUw::Vector{Float64}, Δt::Float64)
     
     Δσ, status = invoke(update_state, Tuple{Constitutive, IpState, Vector{Float64}}, mat, state, Δw)
 

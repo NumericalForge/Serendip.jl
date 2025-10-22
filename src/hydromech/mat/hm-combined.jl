@@ -77,7 +77,7 @@ function calcK(mat::HMCombined, state::HMCombinedState) # Hydraulic conductivity
     return calcK(mat.tmat, state.hstate)
 end
 
-function update_state(mat::HMCombined, state::HMCombinedState, Δε::Array{Float64,1}, Δut::Float64, G::Array{Float64,1}, Δt::Float64)
+function update_state(mat::HMCombined, state::HMCombinedState, Δε::Vector{Float64}, Δut::Float64, G::Vector{Float64}, Δt::Float64)
     QQ = update_state(mat.tmat, state.hstate, Δut, G, Δt)
     Δσ, status = update_state(mat.mmat, state.mstate, Δε)
     return Δσ, QQ, status

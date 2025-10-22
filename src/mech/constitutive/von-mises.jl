@@ -24,7 +24,7 @@ Stored in `VonMisesState` (and its variants for reduced kinematics):
 - `VonMisesState`: 3D continuum elements (full stress/strain in Voigt notation).
 - `VonMisesPlaneStressState`: Plane stress elements.
 - `VonMisesBeamState`: Beam elements (axial + bending stress/strain).
-- `VonMisesTrussState`: Truss elements (uniaxial stress/strain).
+- `VonMisesBarState`: Truss elements (uniaxial stress/strain).
 """
 mutable struct VonMises<:Constitutive
     E ::Float64
@@ -99,15 +99,15 @@ mutable struct VonMisesBeamState<:IpState
     end
 end
 
-mutable struct VonMisesTrussState<:IpState
+mutable struct VonMisesBarState<:IpState
     ctx::Context
     σ::Float64
     ε::Float64
     εpa::Float64
     Δλ::Float64
-    function VonMisesTrussState(ctx::Context)
+    function VonMisesBarState(ctx::Context; σ=0.0)
         this = new(ctx)
-        this.σ   = 0.0
+        this.σ   = σ
         this.ε   = 0.0
         this.εpa = 0.0
         this.Δλ  = 0.0
@@ -119,8 +119,8 @@ end
 compat_state_type(::Type{VonMises}, ::Type{MechBulk}, ctx::Context) = ctx.stress_state==:plane_stress ? VonMisesPlaneStressState : VonMisesState
 compat_state_type(::Type{VonMises}, ::Type{MechShell}, ctx::Context) = VonMisesPlaneStressState
 compat_state_type(::Type{VonMises}, ::Type{MechBeam}, ctx::Context) = VonMisesBeamState
-compat_state_type(::Type{VonMises}, ::Type{MechBar}, ctx::Context) = VonMisesTrussState
-compat_state_type(::Type{VonMises}, ::Type{MechEmbBar}, ctx::Context) = VonMisesTrussState
+compat_state_type(::Type{VonMises}, ::Type{MechBar}, ctx::Context) = VonMisesBarState
+compat_state_type(::Type{VonMises}, ::Type{MechEmbBar}, ctx::Context) = VonMisesBarState
 
 
 # VonMises model for 3D and 2D bulk elements (not including plane-stress state)
@@ -150,7 +150,7 @@ function calcD(mat::VonMises, state::VonMisesState)
 end
 
 
-function update_state(mat::VonMises, state::VonMisesState, Δε::Array{Float64,1})
+function update_state(mat::VonMises, state::VonMisesState, Δε::Vector{Float64})
     σini = state.σ
     De   = calcDe(mat.E, mat.ν)
     σtr  = state.σ + De*Δε
@@ -224,7 +224,7 @@ function calcD(mat::VonMises, state::VonMisesPlaneStressState; is_shell::Bool=fa
 end
 
 
-function update_state(mat::VonMises, state::VonMisesPlaneStressState, Δε::Array{Float64,1}; is_shell::Bool=false)
+function update_state(mat::VonMises, state::VonMisesPlaneStressState, Δε::Vector{Float64}; is_shell::Bool=false)
     σini = state.σ
     αs   = is_shell ? mat.αs : 1.0
     De   = calcDe(mat.E, mat.ν, :plane_stress, αs)
@@ -409,7 +409,7 @@ function calcD(mat::VonMises, state::VonMisesBeamState)
 end
 
 
-function update_state(mat::VonMises, state::VonMisesBeamState, Δε::Array{Float64,1})
+function update_state(mat::VonMises, state::VonMisesBeamState, Δε::Vector{Float64})
     σini = state.σ
 
     E, ν = mat.E, mat.ν
@@ -535,12 +535,12 @@ end
 # ============================
 
 
-function yield_func(mat::VonMises, state::VonMisesTrussState, σ::Float64, εpa::Float64)
+function yield_func(mat::VonMises, state::VonMisesBarState, σ::Float64, εpa::Float64)
     return abs(σ) - (mat.σy + mat.H*εpa)
 end
 
 
-function calcD(mat::VonMises, state::VonMisesTrussState)
+function calcD(mat::VonMises, state::VonMisesBarState)
     if state.Δλ == 0.0
         return mat.E
     else
@@ -550,7 +550,7 @@ function calcD(mat::VonMises, state::VonMisesTrussState)
 end
 
 
-function update_state(mat::VonMises, state::VonMisesTrussState, Δε::Float64)
+function update_state(mat::VonMises, state::VonMisesBarState, Δε::Float64)
     E, H    = mat.E, mat.H
     σini    = state.σ
     σtr     = σini + E*Δε
@@ -572,7 +572,7 @@ function update_state(mat::VonMises, state::VonMisesTrussState, Δε::Float64)
 end
 
 
-function state_values(mat::VonMises, state::VonMisesTrussState)
+function state_values(mat::VonMises, state::VonMisesBarState)
     return OrderedDict{Symbol,Float64}(
         :σx´  => state.σ,
         :εx´  => state.ε,

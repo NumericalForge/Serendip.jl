@@ -6,7 +6,7 @@ export Cell, select
 include("cell.jl")
 include("collapse.jl")
 
-export get_coords, get_node, get_nodes, getfacets, getfaces, getedges, get_patches, cell_extent, cell_quality, cell_aspect_ratio
+export get_coords, get_node, get_nodes, get_facets, getfaces, getedges, get_patches, cell_extent, cell_quality, cell_aspect_ratio
 include("partition.jl")
 
 include("mesh.jl")

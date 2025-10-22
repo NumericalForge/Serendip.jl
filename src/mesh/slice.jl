@@ -3,7 +3,7 @@
 
 Orders an array of `nodes` to get a closed polygon.
 """
-function getpolygon(nodes::Array{Node,1})
+function getpolygon(nodes::Vector{Node})
     # the nodes might be placed an arbitrary 3D plane
 
     # find the best fit plane
@@ -117,7 +117,7 @@ function sortnodes(nodes::Vector{Node}, Vx´, Vy´)
 end
 
 
-function makecells(nodes::Array{Node,1}; quadratic=false)
+function makecells(nodes::Vector{Node}; quadratic=false)
     cells = Cell[]
     nnodes = length(nodes)
     # @assert nnodes==shape.npoints

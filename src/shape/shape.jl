@@ -159,7 +159,7 @@ end
 
 
 
-function bdistance(shape::CellShape, R::Array{Float64,1})
+function bdistance(shape::CellShape, R::Vector{Float64})
     # Returns a real value which is a pseudo distance from a point to the border of an element
     # Arguments:
     #     R - a vector containing the point coordinates
@@ -178,14 +178,14 @@ function bdistance(shape::CellShape, R::Array{Float64,1})
 end
 
 
-function inverse_map(shape::CellShape, coords::Array{Float64,2}, X0::AbstractArray{Float64,1}, tol=1.0e-7)
+function inverse_map(shape::CellShape, coords::Array{Float64,2}, X0::AbstractVector{Float64}, tol=1.0e-7)
     maxits = 20
     ndim   = shape.ndim
     R      = zeros(ndim)
     C      = coords[:,1:ndim]
     X      = X0[1:ndim]
 
-    local ΔX::Array{Float64,1}
+    local ΔX::Vector{Float64}
 
     for k in 1:maxits
         # calculate Jacobian

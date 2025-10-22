@@ -293,7 +293,7 @@ function hm_stage_solver!(model::FEModel, stage::Stage; args...)
     end
 
     local G::SparseMatrixCSC{Float64,Int64}
-    local RHS::Array{Float64,1}
+    local RHS::Vector{Float64}
 
     while T < 1.0-ΔTmin
         ctx.ΔT = ΔT

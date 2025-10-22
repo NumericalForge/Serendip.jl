@@ -365,7 +365,7 @@ function solve!(
     end
 
     local G::SparseMatrixCSC{Float64,Int64}
-    local RHS::Array{Float64,1}
+    local RHS::Vector{Float64}
 
     while T < 1.0 - Ttol
         # Update counters

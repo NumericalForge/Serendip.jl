@@ -1,23 +1,6 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
-# const joint_shape_dict = Dict(
-#                         ("LIN2" ,2) => JLIN2,
-#                         ("LIN3" ,2) => JLIN3,
-#                         ("LIN4" ,2) => JLIN4,
-#                         ("TRI3" ,2) => JTRI3,
-#                         ("TRI6" ,2) => JTRI6,
-#                         ("QUAD4",2) => JQUAD4,
-#                         ("QUAD8",2) => JQUAD8,
-#                         ("LIN2" ,3) => J3LIN2,
-#                         ("LIN3" ,3) => J3LIN3,
-#                         ("LIN4" ,3) => J3LIN4,
-#                         ("TRI3" ,3) => J3TRI3,
-#                         ("TRI6" ,3) => J3TRI6,
-#                         ("QUAD4",3) => J3QUAD4,
-#                         ("QUAD8",3) => J3QUAD8,
-#                        )
-
 """
     add_boundary_interface_elements(mesh, selector; tag="", support_tag="", quiet=false)
 
@@ -235,7 +218,7 @@ function add_cohesive_elements(
             facedict = Dict{UInt64, Cell}()
             face_pairs = Tuple{Cell, Cell}[]
             for cell in target_cells
-                for face in getfacets(cell)
+                for face in get_facets(cell)
                     hs = hash(face)
                     f  = get(facedict, hs, nothing)
                     if f===nothing
@@ -267,7 +250,8 @@ function add_cohesive_elements(
         # Get joint faces
         trial_faces = CellFace[]
         for tag in tag_set
-            for face in get_outer_facets(target_cells[tag])
+            # for face in get_outer_facets(target_cells[tag])
+            for face in get_outer_facets(select(target_cells, tag))
                 push!(trial_faces, face)
             end
         end
@@ -311,7 +295,7 @@ function add_cohesive_elements(
         # Join nodes per tag
         for tag in tag_set
             nodedict = Dict{UInt64, Node}()
-            for cell in target_cells[tag]
+            for cell in select(target_cells, tag)
                 for (i,node) in enumerate(cell.nodes)
                     hs = hash(node)
                     n  = get(nodedict, hs, nothing)
@@ -327,7 +311,7 @@ function add_cohesive_elements(
         # Update joint faces (now with new nodes)
         trial_faces = CellFace[]
         for tag in tag_set
-            for face in get_outer_facets(ocells[tag])
+            for face in get_outer_facets(select(ocells, tag))
                 push!(trial_faces, face)
             end
         end
@@ -458,8 +442,6 @@ function add_cohesive_elements(
 end
 
 
-
-
 function add_cohesive_elements2(
     mesh         ::Mesh,
     selector     ::Union{Expr,Symbolic,Tuple,String,Nothing}=nothing;
@@ -498,7 +480,7 @@ function add_cohesive_elements2(
     face_dict = Dict{UInt64, Cell}() # dictionary of unpaired faces
     face_pairs = Tuple{Cell, Cell}[] # array of paired faces
     for cell in target_cells
-        for face in getfacets(cell)
+        for face in get_facets(cell)
             hs = hash(face)
             f  = get(face_dict, hs, nothing)
             if f===nothing
@@ -567,7 +549,7 @@ function cracksmesh(mesh::Mesh, opening::Real)
     facedict = Dict{UInt64, Cell}()
     face_pairs = Tuple{Cell, Cell}[]
     for cell in mesh.elems
-        for face in getfacets(cell)
+        for face in get_facets(cell)
             hs = hash(face)
             f  = get(facedict, hs, nothing)
             if f===nothing

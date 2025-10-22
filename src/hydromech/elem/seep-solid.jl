@@ -14,13 +14,13 @@ mutable struct SeepSolid<:Hydromech
     id    ::Int
     shape ::CellShape
 
-    nodes ::Array{Node,1}
-    ips   ::Array{Ip,1}
+    nodes ::Vector{Node}
+    ips   ::Vector{Ip}
     tag   ::String
     mat::Constitutive
     props ::SeepSolidProps
     active::Bool
-    couplings::Array{Element,1}
+    couplings::Vector{Element}
     ctx::Context
 
     function SeepSolid(props=SeepSolidProps())
@@ -204,7 +204,7 @@ function elem_RHS_vector(elem::SeepSolid)
 end
 
 
-function elem_internal_forces(elem::SeepSolid, F::Array{Float64,1})
+function elem_internal_forces(elem::SeepSolid, F::Vector{Float64})
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
@@ -244,7 +244,7 @@ function elem_internal_forces(elem::SeepSolid, F::Array{Float64,1})
 end
 
 
-function update_elem!(elem::SeepSolid, DU::Array{Float64,1}, Δt::Float64)
+function update_elem!(elem::SeepSolid, DU::Vector{Float64}, Δt::Float64)
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
     th     = elem.ctx.thickness

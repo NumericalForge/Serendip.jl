@@ -70,8 +70,8 @@ end
 
 mutable struct MohrCoulombContactState<:IpState
     ctx::Context
-    σ  ::Array{Float64,1} # stress
-    w  ::Array{Float64,1} # relative displacements
+    σ  ::Vector{Float64} # stress
+    w  ::Vector{Float64} # relative displacements
     up::Float64           # effective plastic relative displacement
     Δλ ::Float64          # plastic multiplier
     function MohrCoulombContactState(ctx::Context)
@@ -90,7 +90,7 @@ end
 compat_state_type(::Type{MohrCoulombContact}, ::Type{MechContact}, ctx::Context) = MohrCoulombContactState
 
 
-function yield_func(mat::MohrCoulombContact, state::MohrCoulombContactState, σ::Array{Float64,1})
+function yield_func(mat::MohrCoulombContact, state::MohrCoulombContactState, σ::Vector{Float64})
     ndim = state.ctx.ndim
     σmax = calc_σmax(mat, state.up)
     if ndim == 3
@@ -111,7 +111,7 @@ function yield_deriv(mat::MohrCoulombContact, state::MohrCoulombContactState)
 end
 
 
-function potential_derivs(mat::MohrCoulombContact, state::MohrCoulombContactState, σ::Array{Float64,1})
+function potential_derivs(mat::MohrCoulombContact, state::MohrCoulombContactState, σ::Vector{Float64})
     ndim = state.ctx.ndim
     if ndim == 3
         if σ[1] >= 0.0 
@@ -162,7 +162,7 @@ function calc_De(mat::MohrCoulombContact, state::MohrCoulombContactState)
 end
 
 
-function calc_Δλ(mat::MohrCoulombContact, state::MohrCoulombContactState, σtr::Array{Float64,1})
+function calc_Δλ(mat::MohrCoulombContact, state::MohrCoulombContactState, σtr::Vector{Float64})
     ndim   = state.ctx.ndim
     maxits = 100
     Δλ     = 0.0
@@ -233,7 +233,7 @@ function calc_Δλ(mat::MohrCoulombContact, state::MohrCoulombContactState, σtr
 end
 
 
-function calc_σ_upa(mat::MohrCoulombContact, state::MohrCoulombContactState, σtr::Array{Float64,1})
+function calc_σ_upa(mat::MohrCoulombContact, state::MohrCoulombContactState, σtr::Vector{Float64})
     ndim = state.ctx.ndim
     μ = mat.μ
     ks, kn = mat.ks, mat.kn
@@ -298,7 +298,7 @@ function calcD(mat::MohrCoulombContact, state::MohrCoulombContactState)
 end
 
 
-function update_state(mat::MohrCoulombContact, state::MohrCoulombContactState, Δw::Array{Float64,1})
+function update_state(mat::MohrCoulombContact, state::MohrCoulombContactState, Δw::Vector{Float64})
     ndim = state.ctx.ndim
     σini = copy(state.σ)
 

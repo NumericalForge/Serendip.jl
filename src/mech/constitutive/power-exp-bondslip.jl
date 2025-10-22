@@ -59,8 +59,8 @@ end
 
 mutable struct PowerExpBondSlipState<:IpState
     ctx::Context
-    σ  ::Array{Float64,1}
-    u  ::Array{Float64,1}
+    σ  ::Vector{Float64}
+    u  ::Vector{Float64}
     τy ::Float64      # max stress
     s ::Float64      # accumulated relative displacement
     elastic::Bool
@@ -88,8 +88,8 @@ compat_elem_types(::Type{PowerExpBondSlip}) = (MechBondSlip,)
 
 function Tau(mat::PowerExpBondSlip, s::Float64)
     if s<mat.speak
-        # return mat.τmax*(s/mat.speak)^mat.α
-        return mat.τmax*(1 - (1 - (s/mat.speak))^(1/mat.α))
+        return mat.τmax*(s/mat.speak)^mat.α
+        # return mat.τmax*(1 - (1 - (s/mat.speak))^(1/mat.α))
     else
         w = (s - mat.speak)/(mat.sc - mat.speak)
         z = (1 + 27*w^3)*exp(-6.93*w) - 28*w*exp(-6.93)
@@ -105,15 +105,13 @@ function deriv(mat::PowerExpBondSlip, state::PowerExpBondSlipState, s::Float64)
     end
 
     if s<=mat.speak
-        # return mat.α*mat.τmax/mat.speak*(s/mat.speak)^(mat.α-1)
-        return mat.τmax/(mat.speak*mat.α)*(1 - s/mat.speak)^(1/mat.α - 1)
-    elseif s<mat.sc
+        return mat.α*mat.τmax/mat.speak*(s/mat.speak)^(mat.α-1)
+        # return mat.τmax/(mat.speak*mat.α)*(1 - s/mat.speak)^(1/mat.α - 1)
+    else
         w = (s - mat.speak)/(mat.sc - mat.speak)
         dwds = 1/(mat.sc - mat.speak)
         dzdw = ( 81*w^2 - 6.93*(1 + 27*w^3))*exp(-6.93*w) - 28*exp(-6.93)
         return (mat.τmax - mat.τres)*dzdw*dwds
-    else
-        return mat.ks*1e-3
     end
 end
 

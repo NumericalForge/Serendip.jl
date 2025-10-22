@@ -4,12 +4,12 @@ mutable struct MechSpring<:MechFormulation
     id    ::Int
     shape ::CellShape
 
-    nodes ::Array{Node,1}
-    ips   ::Array{Ip,1}
+    nodes ::Vector{Node}
+    ips   ::Vector{Ip}
     tag   ::String
     mat::Constitutive
     active::Bool
-    couplings::Array{Element,1}
+    couplings::Vector{Element}
     ctx::Context
 
     function MechSpring()
@@ -82,7 +82,7 @@ function elem_damping(elem::MechSpring)
 end
 
 
-function update_elem!(elem::MechSpring, U::Array{Float64,1}, Δt::Float64)
+function update_elem!(elem::MechSpring, U::Vector{Float64}, Δt::Float64)
     K, map, _  = elem_stiffness(elem)
     dU = U[map]
     dF = K*dU

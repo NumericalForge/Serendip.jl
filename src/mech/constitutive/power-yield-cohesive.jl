@@ -102,8 +102,8 @@ end
 
 mutable struct PowerYieldCohesiveState<:IpState
     ctx::Context
-    σ  ::Array{Float64,1} # stress
-    w  ::Array{Float64,1} # relative displacements
+    σ  ::Vector{Float64} # stress
+    w  ::Vector{Float64} # relative displacements
     up ::Float64          # effective plastic relative displacement
     Δλ ::Float64          # plastic multiplier
     h  ::Float64          # characteristic length from bulk elements
@@ -138,7 +138,7 @@ function beta(mat::PowerYieldCohesive, σmax::Float64)
 end
 
 
-function yield_func(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σ::Array{Float64,1}, σmax::Float64)
+function yield_func(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σ::Vector{Float64}, σmax::Float64)
     α  = mat.α
     β = beta(mat, σmax)
     ft = mat.ft
@@ -150,7 +150,7 @@ function yield_func(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σ:
 end
 
 
-function yield_derivs(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σ::Array{Float64,1}, σmax::Float64)
+function yield_derivs(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σ::Vector{Float64}, σmax::Float64)
     α = mat.α
     β = beta(mat, σmax)
     ft = mat.ft
@@ -167,7 +167,7 @@ function yield_derivs(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, �
 end
 
 
-function potential_derivs(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σ::Array{Float64,1})
+function potential_derivs(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σ::Vector{Float64})
     ndim = state.ctx.ndim
     if ndim == 3
         if σ[1] > 0.0 
@@ -264,7 +264,7 @@ function calcD(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
 end
 
 
-function calc_σ_up_Δλ(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σtr::Array{Float64,1})
+function calc_σ_up_Δλ(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σtr::Vector{Float64})
     ndim = state.ctx.ndim
     Δλ   = 0.0
     up   = 0.0
@@ -332,7 +332,7 @@ function calc_σ_up_Δλ(mat::PowerYieldCohesive, state::PowerYieldCohesiveState
 end
 
 
-function calc_σ_up(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σtr::Array{Float64,1}, Δλ::Float64)
+function calc_σ_up(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σtr::Vector{Float64}, Δλ::Float64)
     ndim = state.ctx.ndim
     kn, ks  = calc_kn_ks(mat, state)
 
@@ -356,7 +356,7 @@ function calc_σ_up(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σt
 end
 
 
-function calc_σ_up_Δλ_bis(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σtr::Array{Float64,1})
+function calc_σ_up_Δλ_bis(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σtr::Vector{Float64})
     ndim    = state.ctx.ndim
     kn, ks  = calc_kn_ks(mat, state)
     De      = diagm([kn, ks, ks][1:ndim])
@@ -389,7 +389,7 @@ function calc_σ_up_Δλ_bis(mat::PowerYieldCohesive, state::PowerYieldCohesiveS
 end
 
 
-function yield_func_from_Δλ(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σtr::Array{Float64,1}, Δλ::Float64)
+function yield_func_from_Δλ(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σtr::Vector{Float64}, Δλ::Float64)
     ndim = state.ctx.ndim
     kn, ks = calc_kn_ks(mat, state)
 
@@ -420,7 +420,7 @@ end
 
 
 
-function update_state(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, Δw::Array{Float64,1})
+function update_state(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, Δw::Vector{Float64})
 
     ndim = state.ctx.ndim
     σini = copy(state.σ)

@@ -69,7 +69,9 @@ function save_vtk(mesh::AbstractDomain, filename::String; desc::String="")
                     if isfloat
                         @printf f "%23.10e" Float32(D[i,j])
                     else
+                        # @show 30
                         @printf f "%10d" D[i,j]
+                        # @show 40
                     end
                 end
             end
@@ -210,6 +212,7 @@ function save_vtu(mesh::AbstractDomain, filename::String; desc::String="", compr
         if cell.role in (:interface, :line_interface)
             push!(types, Int32(VTK_POLY_VERTEX))
         else
+            # @show cell.role
             push!(types, Int32(cell.shape.vtk_type))
         end
     end
@@ -367,7 +370,7 @@ function read_vtk(filename::String)
     npoints = 0
     ncells  = 0
     coords  = zeros(0,0)
-    connects = Array{Int,1}[]
+    connects = Vector{Int}[]
     cell_types = Int[]
 
     node_data = OrderedDict{String,Array}()
@@ -404,7 +407,7 @@ function read_vtk(filename::String)
             ncdata = parse(Int64, data[idx+2])
             idx += 2
 
-            connects = Array{Int,1}[]
+            connects = Vector{Int}[]
             for i in 1:ncells
                 npts = parse(Int64, data[idx+1])
                 idx += 1
@@ -541,7 +544,7 @@ function read_vtu(filename::String)
     offsets    = get_array(xcells["Name"=>"offsets"][1])
     cell_types = get_array(xcells["Name"=>"types"][1])
 
-    connects = Array{Int,1}[]
+    connects = Vector{Int}[]
     pos = 1
     for off in offsets
         push!(connects, conn[pos:off])

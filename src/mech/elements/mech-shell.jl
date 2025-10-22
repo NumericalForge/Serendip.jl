@@ -45,7 +45,7 @@ function elem_init(elem::Element{MechShell})
 end
 
 
-function set_quadrature(elem::Element{MechShell}, n::Int=0)
+function set_quadrature(elem::Element{MechShell}, n::Int=0; state::NamedTuple=NamedTuple())
     # Set integration points
     if n in (8, 18)
         n = div(n,2)
@@ -62,7 +62,7 @@ function set_quadrature(elem::Element{MechShell}, n::Int=0)
             j = (k-1)*n + i
             elem.ips[j] = Ip(R, w)
             elem.ips[j].id = j
-            elem.ips[j].state = compat_state_type(typeof(elem.cmodel), MechShell, elem.ctx)(elem.ctx)
+            elem.ips[j].state = compat_state_type(typeof(elem.cmodel), MechShell, elem.ctx)(elem.ctx; state...)
             elem.ips[j].owner = elem
         end
     end
@@ -361,7 +361,7 @@ function elem_internal_forces(elem::Element{MechShell}, ΔUg::Vector{Float64}=Fl
      return ΔF, map, success()
 end
 
-# function update_elem!(elem::Element{MechShell}, U::Array{Float64,1}, dt::Float64)
+# function update_elem!(elem::Element{MechShell}, U::Vector{Float64}, dt::Float64)
 #     nnodes = length(elem.nodes)
 #     th   = elem.etype.th
 #     ndof = 6

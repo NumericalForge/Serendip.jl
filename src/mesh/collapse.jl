@@ -27,7 +27,7 @@ function collapse!(elem::AbstractCell)
             end
         elseif shape==QUAD8
             if nunodes==6
-                validfaces = filter(face -> face.nodes[1]!=face.nodes[2], getfacets(elem))
+                validfaces = filter(face -> face.nodes[1]!=face.nodes[2], get_facets(elem))
                 elem.nodes = [
                             validfaces[1].nodes[1],
                             validfaces[2].nodes[1],
@@ -46,7 +46,7 @@ function collapse!(elem::AbstractCell)
         end
 
     elseif shape.ndim==3
-        faces = getfacets(elem)
+        faces = get_facets(elem)
         validfaces = CellFace[]
         for face in faces
             funiquenodes = unique(face.nodes)

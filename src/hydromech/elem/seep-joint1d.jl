@@ -24,17 +24,17 @@ mutable struct SeepJoint1D<:Hydromech
     id    ::Int
     shape ::CellShape
 
-    nodes ::Array{Node,1}
-    ips   ::Array{Ip,1}
+    nodes ::Vector{Node}
+    ips   ::Vector{Ip}
     tag   ::String
     mat::Constitutive
     props ::SeepJoint1DProps
     active::Bool
-    couplings::Array{Element,1}
+    couplings::Vector{Element}
     ctx::Context
 
     # specific fields
-    uw_dofs   ::Array{Dof,1} # list of pore-pressure dofs
+    uw_dofs   ::Vector{Dof} # list of pore-pressure dofs
     cache_B   ::Array{Array{Float64,2}}
     cache_detJ::Array{Float64}
 
@@ -91,7 +91,7 @@ function mountB(elem::SeepJoint1D, R, Ch, Ct)
     end
 
     # Mount MM matrix
-    stack = Array{Float64,1}[]
+    stack = Vector{Float64}[]
     for i in 1:nbnodes
         Xj = bar.nodes[i].coord
         R  = inverse_map(hook.shape, Ch, Xj)
@@ -127,7 +127,7 @@ function elem_conductivity_matrix(elem::SeepJoint1D)
 end
 
 
-function elem_internal_forces(elem::SeepJoint1D, F::Array{Float64,1})
+function elem_internal_forces(elem::SeepJoint1D, F::Vector{Float64})
     p    = elem.props.p
 
     map_w = [ dof.eq_id for dof in elem.uw_dofs ]
@@ -148,7 +148,7 @@ function elem_internal_forces(elem::SeepJoint1D, F::Array{Float64,1})
 end
 
 
-function update_elem!(elem::SeepJoint1D, DU::Array{Float64,1}, Δt::Float64)
+function update_elem!(elem::SeepJoint1D, DU::Vector{Float64}, Δt::Float64)
     p    = elem.props.p
 
     map_w = [ dof.eq_id for dof in elem.uw_dofs ]
@@ -196,7 +196,7 @@ function elem_recover_nodal_values(elem::SeepJoint1D)
     N = [ zeros(nhnodes, nfields); N ]
 
     # Filling nodal and elem vals
-    node_vals = OrderedDict{Symbol, Array{Float64,1}}(field => N[:,i] for (i,field) in enumerate(fields))
+    node_vals = OrderedDict{Symbol, Vector{Float64}}(field => N[:,i] for (i,field) in enumerate(fields))
 
     return node_vals
 end

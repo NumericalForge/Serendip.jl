@@ -3,12 +3,12 @@ mutable struct HydroJoint<:Hydromech
     ctx::Context
     id    ::Int
     shape ::CellShape
-    nodes ::Array{Node,1}
-    ips   ::Array{Ip,1}
+    nodes ::Vector{Node}
+    ips   ::Vector{Ip}
     tag   ::String
     mat::Constitutive
     active::Bool
-    couplings::Array{Element,1}
+    couplings::Vector{Element}
 
     function HydroJoint()
         return new()
@@ -246,7 +246,7 @@ function elem_RHS_vector(elem::HydroJoint)
     return Q, map
 end
 #=
-function elem_internal_forces(elem::HydroJoint, F::Array{Float64,1})
+function elem_internal_forces(elem::HydroJoint, F::Vector{Float64})
     ndim     = elem.ctx.ndim
     th       = elem.ctx.thickness
     nnodes   = length(elem.nodes)
@@ -321,7 +321,7 @@ function elem_internal_forces(elem::HydroJoint, F::Array{Float64,1})
 end
 =#
 
-function update_elem!(elem::HydroJoint, U::Array{Float64,1}, Δt::Float64)
+function update_elem!(elem::HydroJoint, U::Vector{Float64}, Δt::Float64)
     ndim     = elem.ctx.ndim
     th       = elem.ctx.thickness
     nnodes   = length(elem.nodes)
@@ -413,7 +413,7 @@ function elem_recover_nodal_values(elem::HydroJoint)
     E  = extrapolator(elem.shape.facet_shape, nips)
     Uwn = E*[ ip.state.uw[3] for ip in elem.ips ]
 
-    node_vals = OrderedDict{Symbol, Array{Float64,1}}()
+    node_vals = OrderedDict{Symbol, Vector{Float64}}()
     node_vals[:uwn] = [ Uwn; Uwn; Uwn]
 
     return node_vals

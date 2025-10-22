@@ -6,12 +6,12 @@ mutable struct MechClassicalBeam<:MechFormulation
     id    ::Int
     shape ::CellShape
 
-    nodes ::Array{Node,1}
-    ips   ::Array{Ip,1}
+    nodes ::Vector{Node}
+    ips   ::Vector{Ip}
     tag   ::String
     mat::Constitutive
     active::Bool
-    couplings::Array{Element,1}
+    couplings::Vector{Element}
     ctx::Context
 
     function MechClassicalBeam()
@@ -67,7 +67,7 @@ function elem_config_dofs(elem::MechClassicalBeam)
 end
 
 
-function elem_map(elem::MechClassicalBeam)::Array{Int,1}
+function elem_map(elem::MechClassicalBeam)::Vector{Int}
     if elem.ctx.ndim==2
         dof_keys = (:ux, :uy, :rz)
     else
@@ -242,7 +242,7 @@ function elem_mass(elem::MechClassicalBeam)
 end
 
 
-function update_elem!(elem::MechClassicalBeam, U::Array{Float64,1}, dt::Float64)
+function update_elem!(elem::MechClassicalBeam, U::Vector{Float64}, dt::Float64)
     K, map, map = elem_stiffness(elem)
     dU  = U[map]
     F[map] += K*dU

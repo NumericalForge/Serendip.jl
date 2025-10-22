@@ -26,8 +26,6 @@ ks = 5.6e8
 
 # ❱❱❱ Finite element analyses
 
-models = [ "LinearCohesive", "MohrCoulombCohesive", "PowerYieldCohesive", "AsinhYieldCohesive", "MohrCoulombContact" ]
-
 models_props_d = Dict(
     LinearCohesive => (E=E, nu=nu, zeta=zeta),
     MohrCoulombCohesive => (E=E, nu=nu, ft=ft, mu=1.4, zeta=zeta, wc=wc),

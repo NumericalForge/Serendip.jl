@@ -2,7 +2,7 @@
 
 export MechContact
 
-mutable struct MechContact<:MechFormulation
+struct MechContact<:MechFormulation
 end
 
 # Return the shape family that works with this element
@@ -172,7 +172,7 @@ function elem_recover_nodal_values(elem::Element{MechContact})
         vals[i,:] = [ dict[key] for key in keys ]
     end
 
-    node_vals = OrderedDict{Symbol, Array{Float64,1}}()
+    node_vals = OrderedDict{Symbol, Vector{Float64}}()
     E = extrapolator(elem.shape, nips)
     for (i,key) in enumerate(keys)
         V = E*vals[:,i]

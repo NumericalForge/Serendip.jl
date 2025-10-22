@@ -6,8 +6,8 @@ mutable struct LinearElasticThermoState<:IpState
     ctx::Context
     σ::Vec6 # stress
     ε::Vec6 # strain
-    QQ::Array{Float64,1} # heat flux
-    D::Array{Float64,1}
+    QQ::Vector{Float64} # heat flux
+    D::Vector{Float64}
     ut::Float64
     function LinearElasticThermoState(ctx::Context)
         this    = new(ctx)
@@ -65,7 +65,7 @@ function calcK(mat::LinearElasticThermo, state::LinearElasticThermoState) # Ther
 end
 
 
-function update_state(mat::LinearElasticThermo, state::LinearElasticThermoState, Δε::Array{Float64,1}, Δut::Float64, G::Array{Float64,1}, Δt::Float64)
+function update_state(mat::LinearElasticThermo, state::LinearElasticThermoState, Δε::Vector{Float64}, Δut::Float64, G::Vector{Float64}, Δt::Float64)
     De = calcD(mat, state)
     Δσ = De*Δε
     state.ε  += Δε

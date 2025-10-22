@@ -32,7 +32,7 @@ mutable struct ThermoContext<:Context
     end
 end
 
-const ThermoContext = ThermoContext
+# const ThermoContext = ThermoContext
 
 
 # ThermomechAnalysis_params = [
@@ -46,8 +46,8 @@ mutable struct ThermoMechAnalysis<:TransientAnalysis
     sctx  ::SolverContext
 
     stages  ::Array{Stage}
-    loggers ::Array{AbstractLogger,1}
-    monitors::Array{AbstractMonitor,1}
+    loggers ::Vector{AbstractLogger}
+    monitors::Vector{AbstractMonitor}
 
     function ThermoMechAnalysis(model::FEModel; outdir=".", outkey="out")
         this = new(model, model.ctx)
@@ -342,7 +342,7 @@ function tm_stage_solver!(ana::ThermoMechAnalysis, stage::Stage; args...)
     end
 
     local G::SparseMatrixCSC{Float64,Int64}
-    local RHS::Array{Float64,1}
+    local RHS::Vector{Float64}
 
     while T < 1.0-ΔTmin
         sctx.ΔT = ΔT

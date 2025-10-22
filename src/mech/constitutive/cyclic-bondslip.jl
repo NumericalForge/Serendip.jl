@@ -4,8 +4,8 @@ export CyclicRSJoint, CyclicBondSlip
 
 mutable struct CyclicBondSlipState<:IpState
     ctx::Context
-    σ      ::Array{Float64,1}
-    u      ::Array{Float64,1}
+    σ      ::Vector{Float64}
+    u      ::Vector{Float64}
     τnl    ::Float64    # max stress
     τmax   ::Float64
     τres   ::Float64

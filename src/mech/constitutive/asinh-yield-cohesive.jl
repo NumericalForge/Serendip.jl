@@ -117,8 +117,8 @@ end
 
 mutable struct AsinhYieldCohesiveState<:IpState
     ctx::Context
-    σ  ::Array{Float64,1} # stress
-    w  ::Array{Float64,1} # relative displacements
+    σ  ::Vector{Float64} # stress
+    w  ::Vector{Float64} # relative displacements
     up ::Float64          # effective plastic relative displacement
     Δλ ::Float64          # plastic multiplier
     h  ::Float64          # characteristic length from bulk elements
@@ -156,7 +156,7 @@ function paramsdict(mat::AsinhYieldCohesive)
 end
 
 
-function yield_func(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ::Array{Float64,1}, σmax::Float64)
+function yield_func(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ::Vector{Float64}, σmax::Float64)
     β = calc_β(mat, σmax)
     χ = (σmax-σ[1])/mat.ft
 
@@ -170,7 +170,16 @@ function yield_func(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ:
 end
 
 
-function yield_derivs(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ::Array{Float64,1}, σmax::Float64)
+function strength_utilization(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
+    σmax = calc_σmax(mat, state.up)
+    β    = calc_β(mat, σmax)
+    χ    = (σmax - σ[1])/mat.ft
+    τ    = norm(state.σ[2:end])
+    return clamp(τ/(β*asinh(mat.α*χ)), 0.0, 1.0)
+end
+
+
+function yield_derivs(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ::Vector{Float64}, σmax::Float64)
     ft   = mat.ft
     α    = mat.α
     β    = calc_β(mat, σmax)
@@ -198,7 +207,7 @@ function yield_derivs(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, �
 end
 
 
-function potential_derivs(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ::Array{Float64,1})
+function potential_derivs(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ::Vector{Float64})
     ndim = state.ctx.ndim
     if ndim == 3
         if σ[1] > 0.0 
@@ -288,7 +297,7 @@ function calcD(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
 end
 
 
-function calc_σ_up_Δλ(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Array{Float64,1})
+function calc_σ_up_Δλ(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Vector{Float64})
     ndim = state.ctx.ndim
     Δλ   = 0.0
     up   = 0.0
@@ -351,7 +360,7 @@ function calc_σ_up_Δλ(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState
 end
 
 
-function calc_σ_up(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Array{Float64,1}, Δλ::Float64)
+function calc_σ_up(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Vector{Float64}, Δλ::Float64)
     ndim = state.ctx.ndim
     kn, ks  = calc_kn_ks(mat, state)
 
@@ -374,7 +383,7 @@ function calc_σ_up(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σt
     return σ, up
 end
 
-function calc_σ_up_Δλ_bis(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Array{Float64,1})
+function calc_σ_up_Δλ_bis(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Vector{Float64})
     ndim    = state.ctx.ndim
     kn, ks  = calc_kn_ks(mat, state)
     De      = diagm([kn, ks, ks][1:ndim])
@@ -401,7 +410,7 @@ function calc_σ_up_Δλ_bis(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveS
 end
 
 
-function update_state(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, Δw::Array{Float64,1})
+function update_state(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, Δw::Vector{Float64})
 
     ndim = state.ctx.ndim
     σini = copy(state.σ)

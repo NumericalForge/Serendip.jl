@@ -4,8 +4,8 @@ export ConstPermeability
 
 mutable struct ConstPermeabilityState<:IpState
     ctx::Context
-    V::Array{Float64,1} # fluid velocity
-    D::Array{Float64,1} # distance traveled by the fluid
+    V::Vector{Float64} # fluid velocity
+    D::Vector{Float64} # distance traveled by the fluid
     uw::Float64         # pore pressure
     function ConstPermeabilityState(ctx::Context)
         this = new(ctx)
@@ -57,7 +57,7 @@ function calcK(mat::ConstPermeability, state::ConstPermeabilityState) # Hydrauli
 end
 
 
-function update_state(mat::ConstPermeability, state::ConstPermeabilityState, Δuw::Float64, G::Array{Float64,1}, Δt::Float64)
+function update_state(mat::ConstPermeability, state::ConstPermeabilityState, Δuw::Float64, G::Vector{Float64}, Δt::Float64)
     K = calcK(mat, state)
     state.V   = -K*G
     state.D  += state.V*Δt

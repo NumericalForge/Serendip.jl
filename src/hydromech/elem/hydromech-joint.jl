@@ -13,13 +13,13 @@ mutable struct HMJoint<:Hydromech
     ctx::Context
     id    ::Int
     shape ::CellShape
-    nodes ::Array{Node,1}
-    ips   ::Array{Ip,1}
+    nodes ::Vector{Node}
+    ips   ::Vector{Ip}
     tag   ::String
     mat   ::Constitutive
     props ::HMJointProps
     active::Bool
-    couplings::Array{Element,1}
+    couplings::Vector{Element}
 
     function HMJoint(props=HMJointProps())
         return new()
@@ -448,7 +448,7 @@ function elem_RHS_vector(elem::HMJoint)
 end
 
 #=
-function elem_internal_forces(elem::HMJoint, F::Array{Float64,1})
+function elem_internal_forces(elem::HMJoint, F::Vector{Float64})
     ndim     = elem.ctx.ndim
     th       = elem.ctx.thickness
     nnodes   = length(elem.nodes)
@@ -555,7 +555,7 @@ function elem_internal_forces(elem::HMJoint, F::Array{Float64,1})
 end
 =#
 
-function update_elem!(elem::HMJoint, U::Array{Float64,1}, Δt::Float64)
+function update_elem!(elem::HMJoint, U::Vector{Float64}, Δt::Float64)
     ndim     = elem.ctx.ndim
     th       = elem.ctx.thickness
     nnodes   = length(elem.nodes)
@@ -700,7 +700,7 @@ function elem_recover_nodal_values(elem::HMJoint)
         vals[i,:] = [ dict[key] for key in keys ]
     end
     
-    node_vals = OrderedDict{Symbol, Array{Float64,1}}()
+    node_vals = OrderedDict{Symbol, Vector{Float64}}()
     E = extrapolator(elem.shape.facet_shape, nips)
     for (i,key) in enumerate(keys)
         V = E*vals[:,i]
