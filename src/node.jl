@@ -6,34 +6,32 @@ mutable struct Node
     coord  ::Vec3
     tag    ::String
     dofs   ::Vector{Dof}
-    # dofdict::OrderedDict{Symbol,Dof}
     vals   ::OrderedDict{Symbol,Float64}
     aux    ::Bool
-    # elems  ::Array{AbstractCell,1} # "elements that share the node"
+    elems  ::Vector{AbstractCell}
 
     function Node()
         this         = new()
         this.id      = -1
         this.coord   = Vec3()
         this.dofs    = Dof[]
-        # this.dofdict = OrderedDict{Symbol,Dof}()
         this.vals    = OrderedDict{Symbol,Float64}()
         this.aux     = false
-        # this.elems   = []
+        this.elems   = []
         return this
     end
-
-
+    
+    
     function Node(x::Real, y::Real=0.0, z::Real=0.0; tag::String="", id::Int=-1)
         x = round(x, digits=8) + 0.0 # +0.0 required to drop negative bit
         y = round(y, digits=8) + 0.0
         z = round(z, digits=8) + 0.0
-
+        
         this         = new(id, Vec3(x,y,z), tag)
         this.dofs    = Dof[]
-        # this.dofdict = OrderedDict{Symbol,Dof}()
         this.vals    = OrderedDict{Symbol,Float64}()
         this.aux     = false
+        this.elems   = []
         return this
     end
 
@@ -55,13 +53,11 @@ Base.hash(n::Node) = hash( (n.coord.x+1.0, n.coord.y+2.0, n.coord.z+3.0) ) # 1,2
 Base.isequal(n1::Node, n2::Node) = hash(n1)==hash(n2)
 
 
-
 function Base.copy(node::Node)
     newnode = Node(node.coord, tag=node.tag, id=node.id)
     for dof in node.dofs
         newdof = copy(dof)
         push!(newnode.dofs, newdof)
-        # newnode.dofdict[dof.name] = newdof
     end
     return newnode
 end
@@ -98,13 +94,6 @@ end
 
 get_essential_keys(node::Node) = [ dof.name for dof in node.dofs ]
 get_natural_keys(node::Node)  = [ dof.natname for dof in node.dofs ]
-
-# General node sorting
-# function Base.sort!(nodes::Array{Node,1})
-    # return sort!(nodes, by=node->sum(node.coord))
-# end
-
-
 
 
 # Node collection
@@ -184,7 +173,7 @@ function select(
 end
 
 
-function get_nodes(nodes::Array{Node,1}, P::AbstractArray{<:Real})
+function get_nodes(nodes::Vector{Node}, P::AbstractArray{<:Real})
     R = Node[]
     X = Vec3(P)
     for node in nodes
@@ -196,7 +185,7 @@ function get_nodes(nodes::Array{Node,1}, P::AbstractArray{<:Real})
 end
 
 
-# function getfromcoords(nodes::Array{Node,1}, P::AbstractArray{<:Real})
+# function getfromcoords(nodes::Vector{Node}, P::AbstractArray{<:Real})
 #     R = Node[]
 #     X = Vec3(P)
 #     for node in nodes
@@ -207,7 +196,7 @@ end
 
 
 # Get node coordinates for a collection of nodes as a matrix
-function get_coords(nodes::Array{Node,1}, ndim=3)
+function get_coords(nodes::Vector{Node}, ndim=3)
     nnodes = length(nodes)
     return [ nodes[i].coord[j] for i in 1:nnodes, j=1:ndim]
 end
@@ -232,7 +221,7 @@ end
 # end
 
 
-function get_values(nodes::Array{Node,1})
+function get_values(nodes::Vector{Node})
     table = DataTable()
     for node in nodes
         dict = OrderedDict{Symbol,Real}(:id => node.id)
@@ -245,7 +234,7 @@ function get_values(nodes::Array{Node,1})
 end
 
 
-function nearest(nodes::Array{Node,1}, coord)
+function nearest(nodes::Vector{Node}, coord)
     n = length(nodes)
     D = zeros(n)
     X = Vec3(coord)
@@ -266,7 +255,7 @@ end
 # end
 
 
-# function setvalue!(dofs::Array{Dof,1}, sym_val::Pair)
+# function setvalue!(dofs::Vector{Dof}, sym_val::Pair)
 #     for dof in dofs
 #         setvalue!(dof, sym_val)
 #     end

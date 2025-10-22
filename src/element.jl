@@ -3,6 +3,7 @@
 abstract type ElementFormulation end
 
 # abstract type ElementCache{T <: ElementFormulation} end
+abstract type ElementCache end
 
 mutable struct  Element{T}<:AbstractCell where T<:ElementFormulation
     id    ::Int
@@ -17,7 +18,8 @@ mutable struct  Element{T}<:AbstractCell where T<:ElementFormulation
     couplings::Vector{Element}
     cacheV::Vector{FixedSizeVector{Float64}}
     cacheM::Vector{FixedSizeMatrix{Float64}}
-    # cache::ElementCache{T}
+    cacheD::Dict{Symbol,Any}
+    cache::ElementCache
     ctx  ::Context
 
     function Element{T}() where T<:ElementFormulation
@@ -101,7 +103,7 @@ end
 # Set the quadrature points for an element
 # Default implementation of bulk line and interface elements
 # Other elements such as beams, shells and line_interfaces specialize this function
-function set_quadrature(elem::Element, n::Int=0)
+function set_quadrature(elem::Element, n::Int=0; state::NamedTuple=NamedTuple())
 
     if !(n in keys(elem.shape.quadrature))
         alert("set_quadrature: cannot set $n integration points for shape $(elem.shape.name)")
@@ -119,7 +121,7 @@ function set_quadrature(elem::Element, n::Int=0)
         w = ipc[i].w
         elem.ips[i] = Ip(R, w)
         elem.ips[i].id = i
-        elem.ips[i].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype), elem.ctx)(elem.ctx)
+        elem.ips[i].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype), elem.ctx)(elem.ctx; state...)
         elem.ips[i].owner = elem
     end
 
@@ -181,40 +183,23 @@ end
 
 
 # Define the state at all integration points in a collection of elements
-function setstate!(elems::Array{<:Element,1}; args...)
-    length(elems)==0 && notify("setstate!: Setting state to an empty array of elements.")
-
-    greek = Dict(
-                 :sigma => :σ,
-                 :epsilon => :ε,
-                 :eps => :ε,
-                 :gamma => :γ,
-                 :theta => :θ,
-                 :beta => :β,
-                )
-
+# function set_state(elems::Array{<:Element,1}; args...)
+function set_state(model, filter; args...)
     found = Set{Symbol}()
     notfound = Set{Symbol}()
 
+    elems = select(model, :element, filter)
+    length(elems)==0 && notify("set_state: Setting state to an empty array of elements.")
+
     for elem in elems
-        fields = fieldnames(compat_state_type(elem.cmodel))
+        fields = fieldnames(compat_state_type(typeof(elem.cmodel), typeof(elem.etype), elem.ctx))
         for ip in elem.ips
             for (k,v) in args
                 if k in fields
                     setfield!(ip.state, k, v)
                     push!(found, k)
                 else
-                    gk = get(greek, k, :none)
-                    if gk == :none
-                        push!(notfound, k)
-                    else
-                        if gk in fields
-                            setfield!(ip.state, gk, v)
-                            push!(found, k)
-                        else
-                            push!(notfound, k)
-                        end
-                    end
+                    push!(notfound, k)
                 end
             end
         end
@@ -222,10 +207,9 @@ function setstate!(elems::Array{<:Element,1}; args...)
 
     for k in notfound
         if k in found
-            msg1 = k in keys(greek) ? " ($(greek[k])) " : ""
-            alert("setstate!: field '$k$msg1' was not found at some elements while setting state values")
+            alert("set_state: field '$k' was not found at some elements while setting state values")
         else
-            error("setstate!: field '$k$msg1' was not found at selected elements while setting state values")
+            error("set_state: field '$k' was not found at selected elements while setting state values")
         end
     end
 end

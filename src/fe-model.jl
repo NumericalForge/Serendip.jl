@@ -32,7 +32,6 @@ end
 typeofargs(f) = [ ((t for t in fieldtypes(m.sig)[2:end])...,) for m in methods(f) ]
 
 
-
 """
     FEModel(mesh::Mesh, mapper::RegionMapper;
             ndim::Int=0, stress_state::Symbol=:auto, thickness::Real=1.0, 
@@ -90,11 +89,14 @@ function FEModel(
     # Setting new elements
     ncells      = length(mesh.elems)
     model.elems = Vector{Element}(undef, ncells)
+    elem_state_d = Dict{Int,NamedTuple}()
+
     for mapping in mapper.mappings
         selector = mapping.selector
-        etype  = mapping.etype
-        cmodel = mapping.cmodel
-        kwargs = mapping.params
+        etype    = mapping.etype
+        cmodel   = mapping.cmodel
+        cstate   = compat_state_type(cmodel, etype, ctx)
+        kwargs   = mapping.params
 
         cells = select(mesh, :element, selector)
         if !(cells isa Array)
@@ -119,20 +121,29 @@ function FEModel(
         end
 
         # material parameters and arguments
-        phys_params = Base.kwarg_decl( methods(cmodel)[1] )
-        elem_params = Base.kwarg_decl( methods(etype)[1] )
+        const_params = Base.kwarg_decl( methods(cmodel)[1] )
+        elem_params  = Base.kwarg_decl( methods(etype)[1] )
+        state_params = Base.kwarg_decl( methods(cstate)[1] )
 
         for key in keys(kwargs)
-            if !(key in phys_params) && !(key in elem_params)
+            if !(key in const_params) && !(key in elem_params)
                 warn("FEModel: Ignoring unknown parameter `$key` for `$etype` with `$cmodel`.")
             end
         end
 
-        phys_kwargs = NamedTuple(key => kwargs[key] for key in phys_params if haskey(kwargs, key))
+        for key in keys(mapping.state)
+            if !(key in state_params)
+                warn("FEModel: Ignoring unknown state parameter `$key` for state type `$cstate`.")
+            end
+        end
 
-        phys_model  = cmodel(;phys_kwargs...)
+        const_kwargs = NamedTuple(key => kwargs[key] for key in const_params if haskey(kwargs, key))
+        const_model  = cmodel(;const_kwargs...)
+
         elem_kwargs = NamedTuple(key => kwargs[key] for key in elem_params if haskey(kwargs, key))
-        elem_form   = etype(;elem_kwargs...)
+        elem_form   = etype(; elem_kwargs...)
+
+        state_kwargs = NamedTuple(key => mapping.state[key] for key in state_params if haskey(mapping.state, key))
 
         for cell in cells
 
@@ -155,7 +166,7 @@ function FEModel(
             elem.role      = cell.role
             elem.tag       = cell.tag
             elem.nodes     = model.nodes[conn]
-            elem.cmodel    = phys_model
+            elem.cmodel    = const_model
             elem.etype     = elem_form
             elem.active    = true
             elem.ips       = [] # jet to be set
@@ -163,6 +174,7 @@ function FEModel(
             elem.ctx       = ctx
 
             model.elems[cell.id] = elem
+            elem_state_d[cell.id] = state_kwargs
         end
     end
 
@@ -186,12 +198,13 @@ function FEModel(
         end
     end
 
-    # # Setting element references in nodes
-    # for elem in mesh.elems
-    #     for node in elem.nodes
-    #         push!(node.elems, elem)
-    #     end
-    # end
+    # Setting adjacent elements in nodes
+    for node in mesh.nodes
+        adjacent = model.nodes[node.id].elems
+        for elem in node.elems
+            push!(adjacent, model.elems[elem.id])
+        end
+    end
 
     # Setting faces
     model.faces = CellFace[]
@@ -223,7 +236,7 @@ function FEModel(
     ip_id = 0
     for elem in model.elems
         elem_config_dofs(elem)  # dofs
-        set_quadrature(elem)    # ips
+        set_quadrature(elem, state=elem_state_d[elem.id])    # ips
         for ip in elem.ips      # ip ids
             ip_id += 1
             ip.id = ip_id
@@ -351,7 +364,7 @@ function update_output_data!(model::FEModel)
     # Ids and cell type
     model.node_data["node-id"] = collect(1:length(model.nodes))
     model.elem_data["elem-id"]  = collect(1:length(model.elems))
-    model.elem_data["cell-type"] = [ Int(elem.shape.vtk_type) for elem in model.elems ]
+    model.elem_data["cell-type"] = [ elem.role in (:interface, :line_interface) ? Int32(VTK_POLY_VERTEX) : Int32(elem.shape.vtk_type) for elem in model.elems ]
 
     # Nodal values
     nnodes = length(model.nodes)
@@ -704,7 +717,7 @@ function nodal_local_recovery(model::FEModel)
     nnodes = length(model.nodes)
 
     # all local data from elements
-    all_node_vals  = Array{OrderedDict{Symbol,Array{Float64,1}}, 1}()
+    all_node_vals  = Array{OrderedDict{Symbol,Vector{Float64}}, 1}()
     all_fields_set = OrderedSet{Symbol}()
     rec_elements   = Array{Element, 1}()
 

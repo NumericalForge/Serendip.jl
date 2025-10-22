@@ -5,8 +5,8 @@ mutable struct Stage
     nincs       ::Int
     nouts       ::Int
     tspan       ::Float64
-    activate  ::Vector{Element}
-    deactivate::Vector{Element}
+    activate    ::Vector{Element}
+    deactivate  ::Vector{Element}
     status      ::Symbol # :idle, :pending, :solving, :done, :error
     analysis    ::Analysis
 

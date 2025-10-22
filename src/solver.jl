@@ -418,7 +418,7 @@ function status_cycler(ana::Analysis, sw::StopWatch)
 
         print("\e[$(nlines)A")
         stage.status != :solving && (last_loop=true)
-        sleep(0.05)
+        # sleep(0.05)
         # yield()
     end
 
@@ -434,7 +434,7 @@ function print_info(ana::Analysis)
 end
 
 
-function print_alerts(ana::Analysis, alerts::Array{String,1})
+function print_alerts(ana::Analysis, alerts::Vector{String})
     str = strip(String(take!(ana.data.alerts)))
 
     if str!=""
@@ -459,11 +459,12 @@ end
 
 function print_summary(ana::Analysis, sw::StopWatch)
     data = ana.data
-    nlines = 2
+    nlines = 3
 
     # line 1:
     T  = data.T
     ΔT = data.ΔT
+    println("  unknown dofs: ", data.nu, "\e[K")
     printstyled("  inc $(data.inc) output $(data.out)", bold=true, color=:light_blue)
     if data.transient
         t = round(data.t, sigdigits=3)
@@ -497,7 +498,6 @@ function print_summary(ana::Analysis, sw::StopWatch)
 
     head_len = maximum(length.(heads), init=0)
     label_len = maximum(length.(labels), init=0)
-    print("\e[K") # clear line
     for (h, l, v) in zip(heads, labels, values)
         str = "  " * h * " "^(head_len - length(h)) * " " * " "^(label_len - length(l)) * l *" = " * v * "\e[K\n"
         printstyled("  ", str, color=:light_blue)

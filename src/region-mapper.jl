@@ -4,6 +4,7 @@ struct RegionMapping
     etype::Type{<:ElementFormulation}
     cmodel::Type{<:Constitutive}
     params::NamedTuple
+    state::NamedTuple
 end
 
 """
@@ -53,10 +54,10 @@ add_mapping(mapper, x>=0, MechBulk, LinearElastic; rho=10.0, E=30.0e6, nu=0.3)
 # Trows
 An error if a mapping with the same `selector` already exists in the mapper.
 """
-function add_mapping(mapper::RegionMapper, selector, etype::Type{S}, cmodel::Type{T}; params...) where S<:ElementFormulation where T<:Constitutive
-    mapping = RegionMapping(selector, etype, cmodel, NamedTuple(params))
+function add_mapping(mapper::RegionMapper, selector, etype::Type{S}, cmodel::Type{T}; state::NamedTuple=(;), params...) where S<:ElementFormulation where T<:Constitutive
+    mapping = RegionMapping(selector, etype, cmodel, NamedTuple(params), state)
     for m in mapper.mappings
-        # m.selector == selector && error("Mapping already exists for selector: $selector")
+        m.selector == selector && error("Mapping already exists for selector: $selector")
     end
     push!(mapper.mappings, mapping)
 end

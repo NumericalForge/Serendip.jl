@@ -28,7 +28,7 @@ module Serendip
     include("tools/include.jl")
 
     # generic exports
-    export max, min, sort, reset, getindex, sort, copy!, show
+    export max, min, sort, getindex, sort, copy!, show
 
     abstract type AbstractCell end
     abstract type AbstractDomain end
@@ -62,7 +62,7 @@ module Serendip
 
     include("element.jl")
     export Element
-    export get_nodes, changequadrature!, get_ips, elems_ip_vals, update_material!, setstate!
+    export get_nodes, changequadrature!, get_ips, elems_ip_vals, update_material!, set_state
 
     # Plotting
     include("plot/include.jl")
@@ -102,6 +102,7 @@ module Serendip
     include("io.jl")
 
     # Mechanical module
+    export reset_displacements
     include("mech/include.jl")
 
     # Hydromech module

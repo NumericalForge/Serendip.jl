@@ -77,10 +77,12 @@ mutable struct Ip
     end
 end
 
-# The functions below can be used in conjuntion with sort
-# get_x(ip::Ip) = ip.coord[1]
-# get_y(ip::Ip) = ip.coord[2]
-# get_z(ip::Ip) = ip.coord[3]
+
+# Get node coordinates for a collection of nodes as a matrix
+function get_coords(ips::Vector{Ip}, ndim=3)
+    nips = length(ips)
+    return [ ips[i].coord[j] for i in 1:nips, j=1:ndim]
+end
 
 
 function get_values(ip::Ip)
@@ -162,86 +164,33 @@ function select(
     return ips[selected]
 end
 
-# function Base.getindex(ips::Array{<:Ip,1}, filters::NTuple; kwargs...)
-#     return getindex(ips, filters...; kwargs...)
-# end
 
-
-# Index operator for an collection of ips
-# function Base.getindex(
-#     ips::Array{Ip,1},
-#     filters::Union{Expr,Symbolic,String}...;
-#     invert = false
-#     )
-
-#     filtered = collect(1:length(ips))
-
-#     for filter in filters
-#         if typeof(filter) in (Expr, Symbolic)
-#             fips = ips[filtered]
-
-#             T = Bool[]
-#             for ip in fips
-#                 x, y, z = ip.coord.x, ip.coord.y, ip.coord.z
-#                 push!(T, evaluate(filter, x=x, y=y, z=z))
-#             end
-
-#             filtered = filtered[T]
-#         elseif filter isa String
-#             filtered = [ i for i in filtered if ips[i].tag==filter ]
-#         end
-#     end
-
-#     if invert
-#         filtered = setdiff(1:length(ips), filtered)
-#     end
-
-#     return ips[filtered]
-# end
-
-
-# # Index operator for a ip collection using expression
-# function Base.getindex(ips::Array{Ip,1}, filter::Union{Expr,Symbolic})
+# function getfromcoords(ips::Vector{Ip}, P::AbstractArray{<:Real})
 #     R = Ip[]
+#     X = Vec3(P)
 #     for ip in ips
-#         x, y, z = ip.coord
-#         evaluate(filter, x=x, y=y, z=z) && push!(R, ip)
+#         norm(X-ip.coord) < 1e-8 && push!(R, ip)
 #     end
 #     return R
 # end
 
 
-# function Base.getindex(ips::Array{Ip,1}, s::String)
-#     return Ip[ ip for ip in ips if ip.tag==s ]
-# end
-
-
-function getfromcoords(ips::Array{Ip,1}, P::AbstractArray{<:Real})
-    R = Ip[]
-    X = Vec3(P)
-    for ip in ips
-        norm(X-ip.coord) < 1e-8 && push!(R, ip)
-    end
-    return R
-end
-
-
 # Get the maximum value of a given coordinate for the whole collection of ips
-function maximum(ips::Array{Ip,1}, dir::Symbol)
+function maximum(ips::Vector{Ip}, dir::Symbol)
     idx = findfirst(isequal(dir), (:x, :y, :z))
     _, idx = findmax([ip.coord[idx] for ip in ips])
     return ips[idx]
 end
 
 
-function minimum(ips::Array{Ip,1}, dir::Symbol)
+function minimum(ips::Vector{Ip}, dir::Symbol)
     idx = findfirst(isequal(dir), (:x, :y, :z))
     _, idx = findmin([ip.coord[idx] for ip in ips])
     return ips[idx]
 end
 
 export nearest
-function nearest(ips::Array{Ip,1}, coord)
+function nearest(ips::Vector{Ip}, coord)
     n = length(ips)
     D = zeros(n)
     X = Vec3(coord)

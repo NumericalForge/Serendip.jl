@@ -27,7 +27,7 @@ function Base.copy(dof::Dof)
 end
 
 
-function Base.getindex(dofs::Array{Dof,1}, s::Symbol)
+function Base.getindex(dofs::Vector{Dof}, s::Symbol)
     for dof in dofs
         dof.name == s && return dof
         dof.natname == s && return dof
@@ -36,7 +36,7 @@ function Base.getindex(dofs::Array{Dof,1}, s::Symbol)
 end
 
 
-function Base.haskey(dofs::Array{Dof,1}, s::Symbol)
+function Base.haskey(dofs::Vector{Dof}, s::Symbol)
     for dof in dofs
         dof.name == s && return true
         dof.natname == s && return true

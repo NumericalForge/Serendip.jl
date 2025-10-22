@@ -64,6 +64,7 @@ mutable struct AnalysisData
     stage  ::Int      # Current stage
     inc    ::Int      # Current increment
     out    ::Int      # Current output file number
+    nu     ::Int      # Current number of unknown dofs
 
     residue::Float64  # Residue
 
@@ -90,6 +91,7 @@ mutable struct AnalysisData
         this.stage     = 0
         this.inc       = 0
         this.out       = 0
+        this.nu        = 0
         this.residue   = 0.0
 
         return this
@@ -118,7 +120,7 @@ function add_stage(
 end
 
 
-function compute_bc_values(ana::Analysis, bc::BoundaryCondition, t::Float64, U::Array{Float64,1}, F::Array{Float64,1})
+function compute_bc_values(ana::Analysis, bc::BoundaryCondition, t::Float64, U::Vector{Float64}, F::Vector{Float64})
 
     if bc.kind == :node
         # essential_keys = Set( dof.name for node in bc.nodes for dof in node.dofs )
@@ -179,13 +181,16 @@ end
 function configure_dofs(model::AbstractDomain, bcs::Vector{BoundaryCondition})
 
     # get active nodes
-    active_elems = select(model.elems, :active)
-    ids = [ node.id for elem in active_elems for node in elem.nodes ]
-    ids = sort(unique(ids)) # sort is required to preserve node numbering optimization
+    # active_elems = select(model.elems, :active)
+    # ids = [ node.id for elem in active_elems for node in elem.nodes ]
+    # ids = sort(unique(ids)) # sort is required to preserve node numbering optimization
+
+    ids = [ node.id for node in model.nodes ]
+
     active_nodes = model.nodes[ids]
 
     # All dofs
-    dofs = Dof[dof for node in active_nodes for dof in node.dofs]
+    # dofs = Dof[dof for node in active_nodes for dof in node.dofs]
     dofs = Dof[dof for node in active_nodes if !node.aux for dof in node.dofs]
 
     # Reset all dofs as natural conditions
