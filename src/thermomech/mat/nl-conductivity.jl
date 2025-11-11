@@ -58,8 +58,8 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{NLConductivity}, ::Type{ThermoSolid}, ctx::Context) = NLConductivityState
-compat_state_type(::Type{NLConductivity}, ::Type{ThermoShell}, ctx::Context) = NLConductivityState
+compat_state_type(::Type{NLConductivity}, ::Type{ThermoSolid}) = NLConductivityState
+compat_state_type(::Type{NLConductivity}, ::Type{ThermoShell}) = NLConductivityState
 
 
 function calc_cv(mat::NLConductivity, ut::Float64) # Specific heat

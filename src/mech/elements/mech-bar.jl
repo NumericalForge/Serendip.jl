@@ -180,49 +180,6 @@ function elem_internal_forces(elem::Element{MechBar}, ΔUg::Vector{Float64}=Floa
 end
 
 
-function elem_activate(elem::Element{MechBar}, F::Vector{Float64})
-    elem_internal_forces(elem, F)
-end
-
-
-# function update_elem!(elem::Element{MechBar}, U::Vector{Float64}, Δt::Float64)
-
-#     ndim   = elem.ctx.ndim
-#     nnodes = length(elem.nodes)
-#     A      = elem.etype.A
-#     keys   = [:ux, :uy, :uz][1:ndim]
-#     map    = [ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]
-
-#     dU = U[map]
-#     dF = zeros(nnodes*ndim)
-#     C  = get_coords(elem)
-#     B  = zeros(1, nnodes*ndim)
-#     J  = Array{Float64}(undef, ndim, 1)
-
-
-#     for ip in elem.ips
-#         dNdR = elem.shape.deriv(ip.R)
-#         @mul J = C'*dNdR
-#         detJ = norm(J)
-
-#         # mount B
-#         B .= 0.0
-#         for i in 1:nnodes
-#             for j in 1:ndim
-#                 B[1,j+(i-1)*ndim] = dNdR[i,1]*J[j]/detJ^2.0
-#             end
-#         end
-
-#         deps = (B*dU)[1]
-#         dsig, _ = update_state(elem.cmodel, ip.state, deps)
-#         coef = A*detJ*ip.w
-#         dF  .+= coef*vec(B')*dsig
-#     end
-
-#     return dF, map, success()
-# end
-
-
 function elem_vals(elem::Element{MechBar})
     # get ip average values
     ipvals = [ state_values(elem.cmodel, ip.state) for ip in elem.ips ]

@@ -36,8 +36,8 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{ConstConductivity}, ::Type{ThermoSolid}, ctx::Context) = ConstConductivityState
-compat_state_type(::Type{ConstConductivity}, ::Type{ThermoShell}, ctx::Context) = ConstConductivityState
+compat_state_type(::Type{ConstConductivity}, ::Type{ThermoSolid}) = ConstConductivityState
+compat_state_type(::Type{ConstConductivity}, ::Type{ThermoShell}) = ConstConductivityState
 
 
 function calc_cv(mat::ConstConductivity, ut::Float64) # Specific heat

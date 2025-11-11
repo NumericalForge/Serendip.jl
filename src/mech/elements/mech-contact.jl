@@ -6,7 +6,7 @@ struct MechContact<:MechFormulation
 end
 
 # Return the shape family that works with this element
-compat_role(::Type{MechContact}) = :interface
+compat_role(::Type{MechContact}) = :contact
 
 
 function elem_init(elem::Element{MechContact})

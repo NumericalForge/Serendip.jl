@@ -165,7 +165,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{UCP}, ::Type{MechBulk}, ctx::Context) = ctx.stress_state!=:plane_stress ? UCPState : error("UCP: This model is not compatible with planestress")
+compat_state_type(::Type{UCP}, ::Type{MechBulk}) = ctx.stress_state!=:plane_stress ? UCPState : error("UCP: This model is not compatible with planestress")
 
 
 function calc_θ(::UCP, σ::Vec6)

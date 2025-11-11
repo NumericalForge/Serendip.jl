@@ -1,7 +1,7 @@
 export VonMises
 
 """
-    VonMises(; E, nu=0.0, fy, H=0.0, alpha_s=5/6)
+    VonMises(; E, nu=0.0, fy, H=0.0)
 
 Linear-elastic constitutive model with Von Mises yield criterion and linear isotropic hardening.
 Implements J2 (pressure-insensitive) plasticity with associated flow rule.
@@ -11,11 +11,10 @@ Implements J2 (pressure-insensitive) plasticity with associated flow rule.
 - `nu::Float64`: Poisson’s ratio (0.0 ≤ ν < 0.5).
 - `fy::Float64`: Initial yield stress (must be > 0.0).
 - `H::Float64`: Hardening modulus (≥ 0.0). A value of 0.0 corresponds to perfect plasticity.
-- `alpha_s::Float64`: Shear correction factor for beam and shell elements (typically 5/6 for rectangular sections, > 0.0).
 
 # State Variables
 Stored in `VonMisesState` (and its variants for reduced kinematics):
-- `σ`: Stress tensor (full `Vec6` for 3D, reduced forms for plane stress, beam, and truss).
+- `σ`: Stress tensor (full `Vec6` for 3D, reduced forms for plane stress, beam, and bar).
 - `ε`: Strain tensor (same format as `σ`).
 - `εpa::Float64`: Accumulated plastic strain.
 - `Δλ::Float64`: Plastic multiplier increment.
@@ -31,21 +30,18 @@ mutable struct VonMises<:Constitutive
     ν ::Float64
     σy::Float64
     H ::Float64
-    αs::Float64
 
     function VonMises(;
         E::Real=NaN,
         nu::Real=0.0,
         fy::Real=0.0,
         H::Real=0.0,
-        alpha_s::Real=5/6
     )
         @check E > 0.0 "VonMises: Young's modulus E must be > 0.0. Got $E."
         @check nu >= 0.0 && nu < 0.5 "VonMises: Poisson's ratio nu must be in the range [0.0, 0.5). Got $nu."
         @check fy > 0.0 "VonMises: Initial yield stress fy must be > 0.0. Got $fy."
         @check H >= 0.0 "VonMises: Hardening modulus H must be >= 0.0. Got $H."
-        @check alpha_s > 0.0 "VonMises: Shear correction factor alpha_s must be > 0.0. Got $alpha_s."
-        return new(E, nu, fy, H, alpha_s)
+        return new(E, nu, fy, H)
     end
 
 end
@@ -57,31 +53,18 @@ mutable struct VonMisesState<:IpState
     ε::Vec6
     εpa::Float64
     Δλ::Float64
+    αs::Float64
     function VonMisesState(ctx::Context)
         this = new(ctx)
         this.σ   = zeros(Vec6)
         this.ε   = zeros(Vec6)
         this.εpa = 0.0
         this.Δλ  = 0.0
+        this.αs  = 1.0
         this
     end
 end
 
-mutable struct VonMisesPlaneStressState<:IpState
-    ctx::Context
-    σ::Vec6
-    ε::Vec6
-    εpa::Float64
-    Δλ::Float64
-    function VonMisesPlaneStressState(ctx::Context)
-        this = new(ctx)
-        this.σ   = zeros(Vec6)
-        this.ε   = zeros(Vec6)
-        this.εpa = 0.0
-        this.Δλ  = 0.0
-        this
-    end
-end
 
 mutable struct VonMisesBeamState<:IpState
     ctx::Context
@@ -89,12 +72,14 @@ mutable struct VonMisesBeamState<:IpState
     ε::Vec3
     εpa::Float64
     Δλ::Float64
+    αs::Float64
     function VonMisesBeamState(ctx::Context)
         this = new(ctx)
         this.σ   = zeros(Vec3)
         this.ε   = zeros(Vec3)
         this.εpa = 0.0
         this.Δλ  = 0.0
+        this.αs  = 1.0
         this
     end
 end
@@ -105,10 +90,10 @@ mutable struct VonMisesBarState<:IpState
     ε::Float64
     εpa::Float64
     Δλ::Float64
-    function VonMisesBarState(ctx::Context; σ=0.0)
+    function VonMisesBarState(ctx::Context; σ=0.0, ε=0.0)
         this = new(ctx)
         this.σ   = σ
-        this.ε   = 0.0
+        this.ε   = ε
         this.εpa = 0.0
         this.Δλ  = 0.0
         this
@@ -116,144 +101,137 @@ mutable struct VonMisesBarState<:IpState
 end
 
 
-compat_state_type(::Type{VonMises}, ::Type{MechBulk}, ctx::Context) = ctx.stress_state==:plane_stress ? VonMisesPlaneStressState : VonMisesState
-compat_state_type(::Type{VonMises}, ::Type{MechShell}, ctx::Context) = VonMisesPlaneStressState
-compat_state_type(::Type{VonMises}, ::Type{MechBeam}, ctx::Context) = VonMisesBeamState
-compat_state_type(::Type{VonMises}, ::Type{MechBar}, ctx::Context) = VonMisesBarState
-compat_state_type(::Type{VonMises}, ::Type{MechEmbBar}, ctx::Context) = VonMisesBarState
+compat_state_type(::Type{VonMises}, ::Type{MechBulk}) = VonMisesState
+compat_state_type(::Type{VonMises}, ::Type{MechShell}) = VonMisesState
+
+compat_state_type(::Type{VonMises}, ::Type{MechBeam}) = VonMisesBeamState
+compat_state_type(::Type{VonMises}, ::Type{MechBar}) = VonMisesBarState
+compat_state_type(::Type{VonMises}, ::Type{MechEmbBar}) = VonMisesBarState
 
 
-# VonMises model for 3D and 2D bulk elements (not including plane-stress state)
-# =============================================================================
+# ❱❱❱ VonMises model for 3D and 2D bulk elements and shell elements
 
 function yield_func(mat::VonMises, state::VonMisesState, σ::Vec6, εpa::Float64)
-    j2d = J2(σ)
-    σy  = mat.σy
-    H   = mat.H
-    return √(3*j2d) - σy - H*εpa
+    if state.ctx.stress_state==:plane_stress || state.αs!=1.0
+        # f = 1/2 σ*Psd*σ - 1/3 (fy + H εp)^2
+        # f = J2D - 1/3 (fy + H εp)^2
+
+        j2d = J2(σ)
+
+        σy  = mat.σy
+        H   = mat.H
+        return j2d - 1/3*(σy + H*εpa)^2
+    else
+        j2d = J2(σ)
+        σy  = mat.σy
+        H   = mat.H
+        return √(3*j2d) - σy - H*εpa
+    end
 end
 
 
 function calcD(mat::VonMises, state::VonMisesState)
-    De  = calcDe(mat.E, mat.ν)
-    state.Δλ==0.0 && return De
+    if state.ctx.stress_state==:plane_stress || state.αs!=1.0
+        αs  = state.αs
+        De = calcDe(mat.E, mat.ν, :plane_stress, αs)
+        state.Δλ==0.0 && return De
+        σ = state.σ
 
-    j2d = J2(state.σ)
-    @assert j2d>0
+        s     = SVector( 2/3*σ[1] - 1/3*σ[2], 2/3*σ[2] - 1/3*σ[1], -1/3*σ[1]-1/3*σ[2], σ[4], σ[5], σ[6] )
+        dfdσ  = s
+        dfdεp = -2/3*mat.H*(mat.σy + mat.H*state.εpa)
 
-    s     = dev(state.σ)
-    dfdσ  = √1.5*s/norm(s)
-    dfdεp = -mat.H
+        return De - De*dfdσ*dfdσ'*De / (dfdσ'*De*dfdσ - norm(s)*dfdεp)
 
-    return De - De*dfdσ*dfdσ'*De / (dfdσ'*De*dfdσ - √1.5*dfdεp)
+    else
+        De  = calcDe(mat.E, mat.ν)
+        state.Δλ==0.0 && return De
+
+        j2d = J2(state.σ)
+        @assert j2d>0
+
+        s     = dev(state.σ)
+        dfdσ  = √1.5*s/norm(s)
+        dfdεp = -mat.H
+
+        return De - De*dfdσ*dfdσ'*De / (dfdσ'*De*dfdσ - √1.5*dfdεp)
+    end
 
 end
 
 
 function update_state(mat::VonMises, state::VonMisesState, Δε::Vector{Float64})
-    σini = state.σ
-    De   = calcDe(mat.E, mat.ν)
-    σtr  = state.σ + De*Δε
-    ftr  = yield_func(mat, state, σtr, state.εpa)
-    tol  = 1e-8
+    if state.ctx.stress_state==:plane_stress || state.αs!=1.0
+        σini = state.σ
 
-    if ftr<tol
-        # elastic
-        state.Δλ = 0.0
-        state.σ  = σtr
+        αs   = state.αs
+        De   = calcDe(mat.E, mat.ν, :plane_stress, αs)
+        σtr  = state.σ + De*Δε
+        ftr  = yield_func(mat, state, σtr, state.εpa)
+        tol  = 1e-8
+
+        if ftr<tol
+            # elastic
+            state.Δλ = 0.0
+            state.σ  = σtr
+        else
+            # plastic
+            σ, εpa, Δλ, status = calc_σ_εpa_Δλ_plane_stress(mat, state, σtr)
+            failed(status) && return state.σ, status
+
+            state.σ, state.εpa, state.Δλ = σ, εpa, Δλ
+        end
+
+        state.ε += Δε
+        Δσ     = state.σ - σini
+
+        return Δσ, success()
     else
-        # plastic
-        E, ν  = mat.E, mat.ν
-        G     = E/(2*(1+ν))
-        j2dtr = J2(σtr)
+        σini = state.σ
+        De   = calcDe(mat.E, mat.ν)
+        σtr  = state.σ + De*Δε
+        ftr  = yield_func(mat, state, σtr, state.εpa)
+        tol  = 1e-8
 
-        state.Δλ = ftr/(3*G + √1.5*mat.H)
-        √j2dtr - state.Δλ*√3*G >= 0.0 || return state.σ, failure("VonMisses: Negative value for √J2D")
+        if ftr<tol
+            # elastic
+            state.Δλ = 0.0
+            state.σ  = σtr
+        else
+            # plastic
+            E, ν  = mat.E, mat.ν
+            G     = E/(2*(1+ν))
+            j2dtr = J2(σtr)
 
-        s = (1 - √3*G*state.Δλ/√j2dtr)*dev(σtr)
-        state.σ = σtr - √6*G*state.Δλ*s/norm(s)
-        state.εpa += state.Δλ
+            state.Δλ = ftr/(3*G + √1.5*mat.H)
+            √j2dtr - state.Δλ*√3*G >= 0.0 || return state.σ, failure("VonMisses: Negative value for √J2D")
+
+            s = (1 - √3*G*state.Δλ/√j2dtr)*dev(σtr)
+            state.σ = σtr - √6*G*state.Δλ*s/norm(s)
+            state.εpa += state.Δλ
+        end
+
+        state.ε += Δε
+        Δσ     = state.σ - σini
+        return Δσ, success()
     end
-
-    state.ε += Δε
-    Δσ     = state.σ - σini
-    return Δσ, success()
 end
 
 
 function state_values(mat::VonMises, state::VonMisesState)
     σ, ε  = state.σ, state.ε
-    j1    = tr(σ)
-    srj2d = √J2(σ)
+    # j1    = tr(σ)
+    # srj2d = √J2(σ)
 
-    D = stress_strain_dict(σ, ε, state.ctx.stress_state)
+    stress_state = state.αs==1.0 ? state.ctx.stress_state : :plane_stress
+    D = stress_strain_dict(σ, ε, stress_state)
     D[:εp]   = state.εpa
 
     return D
 end
 
 
-# VonMises model for 2D bulk elements under plane-stress state including shell elements
-# =====================================================================================
-
-
-function yield_func(mat::VonMises, state::VonMisesPlaneStressState, σ::AbstractArray, εpa::Float64)
-    # f = 1/2 σ*Psd*σ - 1/3 (fy + H εp)^2
-    # f = J2D - 1/3 (fy + H εp)^2
-
-    j2d = J2(σ)
-
-    σy  = mat.σy
-    H   = mat.H
-    return j2d - 1/3*(σy + H*εpa)^2
-end
-
-
-function calcD(mat::VonMises, state::VonMisesPlaneStressState; is_shell::Bool=false)
-    αs = is_shell ? mat.αs : 1.0
-    De = calcDe(mat.E, mat.ν, :plane_stress, αs)
-    state.Δλ==0.0 && return De
-    σ = state.σ
-
-    s     = SVector( 2/3*σ[1] - 1/3*σ[2], 2/3*σ[2] - 1/3*σ[1], -1/3*σ[1]-1/3*σ[2], σ[4], σ[5], σ[6] )
-    dfdσ  = s
-    dfdεp = -2/3*mat.H*(mat.σy + mat.H*state.εpa)
-
-    return De - De*dfdσ*dfdσ'*De / (dfdσ'*De*dfdσ - norm(s)*dfdεp)
-
-end
-
-
-function update_state(mat::VonMises, state::VonMisesPlaneStressState, Δε::Vector{Float64}; is_shell::Bool=false)
-    σini = state.σ
-    αs   = is_shell ? mat.αs : 1.0
-    De   = calcDe(mat.E, mat.ν, :plane_stress, αs)
-    σtr  = state.σ + De*Δε
-    ftr  = yield_func(mat, state, σtr, state.εpa)
-    tol  = 1e-8
-
-
-    if ftr<tol
-        # elastic
-        state.Δλ = 0.0
-        state.σ  = σtr
-    else
-        # plastic
-        σ, εpa, Δλ, status = calc_σ_εpa_Δλ(mat, state, σtr)
-        failed(status) && return state.σ, status
-
-        state.σ, state.εpa, state.Δλ = σ, εpa, Δλ
-    end
-
-    state.ε += Δε
-    Δσ     = state.σ - σini
-
-
-    return Δσ, success()
-end
-
-
-function calc_σ_εpa_Δλ(mat::VonMises, state::VonMisesPlaneStressState, σtr::Vec6)
+function calc_σ_εpa_Δλ_plane_stress(mat::VonMises, state::VonMisesState, σtr::Vec6)
     # Δλ estimative
     # De   = calcDe(mat.E, mat.ν, :plane_stress)
     # dfdσ = SVector( 2/3*σtr[1] - 1/3*σtr[2], 2/3*σtr[2] - 1/3*σtr[1], 0.0, σtr[4], σtr[5], σtr[6] )
@@ -266,9 +244,9 @@ function calc_σ_εpa_Δλ(mat::VonMises, state::VonMisesPlaneStressState, σtr:
     a = 0.0
     b = Δλ0
 
-    σ, εpa = calc_σ_εpa(mat, state, σtr, a)
+    σ, εpa = calc_σ_εpa_plane_stress(mat, state, σtr, a)
     fa     = yield_func(mat, state, σ, εpa)
-    σ, εpa = calc_σ_εpa(mat, state, σtr, b)
+    σ, εpa = calc_σ_εpa_plane_stress(mat, state, σtr, b)
     fb     = yield_func(mat, state, σ, εpa)
 
     # search for a valid interval
@@ -276,7 +254,7 @@ function calc_σ_εpa_Δλ(mat::VonMises, state::VonMisesPlaneStressState, σtr:
         maxits = 50
         for i in 1:maxits
             b  += Δλ0*(1.6)^i
-            σ, εpa = calc_σ_εpa(mat, state, σtr, b)
+            σ, εpa = calc_σ_εpa_plane_stress(mat, state, σtr, b)
             fb     = yield_func(mat, state, σ, εpa)
             fa*fb<0.0 && break
 
@@ -285,7 +263,7 @@ function calc_σ_εpa_Δλ(mat::VonMises, state::VonMisesPlaneStressState, σtr:
     end
 
     ff(Δλ) = begin
-        σ, εpa = calc_σ_εpa(mat, state, σtr, Δλ)
+        σ, εpa = calc_σ_εpa_plane_stress(mat, state, σtr, Δλ)
         yield_func(mat, state, σ, εpa)
     end
 
@@ -296,7 +274,7 @@ function calc_σ_εpa_Δλ(mat::VonMises, state::VonMisesPlaneStressState, σtr:
     # Δλ, status = findroot(ff, a, b, tol)
     # failed(status) && return state.σ, 0.0, 0.0, status
 
-    # σ, εpa = calc_σ_εpa(mat, state, σtr, Δλ)
+    # σ, εpa = calc_σ_εpa_plane_stress(mat, state, σtr, Δλ)
 
     # bissection method
     local f, Δλ, σ, εpa
@@ -307,7 +285,7 @@ function calc_σ_εpa_Δλ(mat::VonMises, state::VonMisesPlaneStressState, σtr:
 
     for i in 1:maxits
         Δλ = (a+b)/2
-        σ, εpa = calc_σ_εpa(mat, state, σtr, Δλ)
+        σ, εpa = calc_σ_εpa_plane_stress(mat, state, σtr, Δλ)
         f = yield_func(mat, state, σ, εpa)
 
         if fa*f<0
@@ -327,9 +305,9 @@ function calc_σ_εpa_Δλ(mat::VonMises, state::VonMisesPlaneStressState, σtr:
 end
 
 
-function calc_σ_εpa(mat::VonMises, state::VonMisesPlaneStressState, σtr::Vec6, Δλ::Float64)
+function calc_σ_εpa_plane_stress(mat::VonMises, state::VonMisesState, σtr::Vec6, Δλ::Float64)
     E, ν = mat.E, mat.ν
-    G    = E/(2*(1+ν))
+    G    = state.αs*E/2/(1+ν)
 
     # σ at n+1
     den = E^2*Δλ^2 - 2*E*ν*Δλ + 4*E*Δλ - 3*ν^2 + 3
@@ -354,23 +332,7 @@ function calc_σ_εpa(mat::VonMises, state::VonMisesPlaneStressState, σtr::Vec6
 end
 
 
-function state_values(mat::VonMises, state::VonMisesPlaneStressState)
-    σ, ε  = state.σ, state.ε
-    j1    = tr(σ)
-    srj2d = √J2(σ)
-
-    D = stress_strain_dict(σ, ε, :plane_stress)
-    D[:εp]   = state.εpa
-    D[:j1]    = j1
-    D[:srj2d] = srj2d
-
-    return D
-end
-
-
-# VonMises model for beam elements
-# ================================
-
+# ❱❱❱ VonMises model for beam elements
 
 function yield_func(mat::VonMises, state::VonMisesBeamState, σ::Vec3, εpa::Float64)
     # f = 1/2 σ*Psd*σ - 1/3 (fy + H εp)^2
@@ -387,11 +349,10 @@ end
 
 function calcD(mat::VonMises, state::VonMisesBeamState)
     E, ν = mat.E, mat.ν
-    G    = E/2/(1+ν)
-    αs   = mat.αs
-    De = @SMatrix [ E    0.0     0.0
-                    0.0  2*αs*G  0.0
-                    0.0  0.0     2*αs*G ]
+    G    = state.αs*E/2/(1+ν)
+    De = @SMatrix [ E    0.0  0.0
+                    0.0  2*G  0.0
+                    0.0  0.0  2*G ]
 
     state.Δλ==0.0 && return De
 
@@ -413,11 +374,11 @@ function update_state(mat::VonMises, state::VonMisesBeamState, Δε::Vector{Floa
     σini = state.σ
 
     E, ν = mat.E, mat.ν
-    G    = E/2/(1+ν)
-    αs   = mat.αs
-    De = @SMatrix [ E    0.0     0.0
-                    0.0  2*αs*G  0.0
-                    0.0  0.0     2*αs*G ]
+    G    = state.αs*E/2/(1+ν)
+    De = @SMatrix [ E    0.0  0.0
+                    0.0  2*G  0.0
+                    0.0  0.0  2*G ]
+
     σtr = state.σ + De*Δε
     ftr = yield_func(mat, state, σtr, state.εpa)
     tol = 1e-8
@@ -443,10 +404,7 @@ end
 function calc_σ_εpa_Δλ(mat::VonMises, state::VonMisesBeamState, σtr::Vec3)
     # Δλ estimative
     E, ν = mat.E, mat.ν
-    G    = E/2/(1+ν)
-    # De = @SMatrix [ E    0.0     0.0
-    #                 0.0  2*αs*G  0.0
-    #                 0.0  0.0     2*αs*G ]
+    G    = state.αs*E/2/(1+ν)
 
     De_dfdσ = Vec3( 2/3*E*σtr[1], 2*G*σtr[2], 2*G*σtr[3] ) # De_s reduced vector
     Δλ0     = norm(σtr-state.σ)/norm(De_dfdσ)
@@ -498,7 +456,7 @@ end
 
 function calc_σ_εpa(mat::VonMises, state::VonMisesBeamState, σtr::Vec3, Δλ::Float64)
     E, ν = mat.E, mat.ν
-    G    = E/(2*(1+ν))
+    G    = state.αs*E/2/(1+ν)
 
     # σ at n+1
     σ = SVector(
@@ -531,9 +489,7 @@ function state_values(mat::VonMises, state::VonMisesBeamState)
 end
 
 
-# Von Mises for truss elements
-# ============================
-
+# ❱❱❱ Von Mises for bar elements
 
 function yield_func(mat::VonMises, state::VonMisesBarState, σ::Float64, εpa::Float64)
     return abs(σ) - (mat.σy + mat.H*εpa)

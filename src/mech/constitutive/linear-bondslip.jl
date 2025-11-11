@@ -37,7 +37,7 @@ const ElasticRSJoint = LinearBondSlip
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{LinearBondSlip}, ::Type{MechBondSlip}, ctx::Context) = LinearBondSlipState
+compat_state_type(::Type{LinearBondSlip}, ::Type{MechBondSlip}) = LinearBondSlipState
 
 
 function calcD(mat::LinearBondSlip, state::LinearBondSlipState)

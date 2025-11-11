@@ -32,7 +32,7 @@ mutable struct ElasticFluidState<:IpState
 end
 
 
-compat_state_type(::Type{LinearElasticFluid}, ::Type{MechFluid}, ctx::Context)  = ElasticFluidState
+compat_state_type(::Type{LinearElasticFluid}, ::Type{MechFluid})  = ElasticFluidState
 
 
 function update_state(mat::LinearElasticFluid, state::ElasticFluidState, dεv::Float64)

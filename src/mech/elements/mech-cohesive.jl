@@ -8,7 +8,7 @@ end
 
 
 # Return the shape family that works with this element
-compat_role(::Type{MechCohesive}) = :interface
+compat_role(::Type{MechCohesive}) = :cohesive
 
 
 mutable struct MechCohesiveCache <: ElementCache
@@ -56,7 +56,7 @@ end
 
 
 function elem_stiffness(elem::Element{MechCohesive})
-    # elem.cache.open_state == :intact && return zeros(0,0), Int[], Int[] # return empty arrays if the element is intact
+    elem.cache.open_state == :intact && return zeros(0,0), Int[], Int[] # return empty arrays if the element is intact
 
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
@@ -109,7 +109,7 @@ end
 
 
 function elem_internal_forces(elem::Element{MechCohesive}, ΔUg::Vector{Float64}=Float64[], Δt::Float64=0.0)
-    # elem.cache.open_state == :intact && return zeros(0), Int[], success() # return empty arrays if the element is intact
+    elem.cache.open_state == :intact && return zeros(0), Int[], success() # return empty arrays if the element is intact
 
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
@@ -196,182 +196,255 @@ function elem_recover_nodal_values(elem::Element{MechCohesive})
 end
 
 
-function calc_cohesive_σ(elem::Element{MechCohesive})
-    # Check if the element should be opened
-    # according to normal and shear stresses at integration points of bulk elements
-    # coupled to the cohesive element
+# function calc_cohesive_stress(elem::Element{MechCohesive})
+#     # Check if the element should be opened
+#     # according to normal and shear stresses at integration points of bulk elements
+#     # coupled to the cohesive element
 
+#     ndim = elem.ctx.ndim
+
+#     # compute element center
+#     m  = div(length(elem.nodes), 2)
+#     C  = get_coords(elem.nodes[1:m])
+#     Xc = vec(sum(C, dims=1)/m)
+
+#     # gather all integration points from coupled bulk elements
+#     ips = [ ip for elem in elem.couplings for ip in elem.ips ]
+#     Xip  = [ ip.coord for ip in ips ]
+#     nips = length(ips)
+
+#     # number of selected ips
+#     n = min(2^ndim, nips)
+    
+#     # find the n closest ips to the element center
+#     dists = [ norm(Xc - Xip[i]) for i in 1:nips ]
+#     perm  = partialsortperm(dists, 1:n)
+#     ips   = ips[perm]
+
+#     # average stress at selected ips
+#     σ = sum( ip.state.σ for ip in ips )/n
+
+#     # compute Jacobian and rotation matrix at element center
+#     R    = elem.shape.base_shape==TRI3 ? [1/3, 1/3] : [0.0, 0.0]
+#     dNdR = elem.shape.deriv(R)
+#     J = C'*dNdR
+#     T = fzeros(ndim, ndim)
+#     set_interface_rotation(J, T)
+
+#     # compute normal and shear stresses
+#     n1 = T[:,1]
+#     n2 = T[:,2]
+#     if ndim==3
+#         n3 = T[:,3]
+#         # @show typeof(σ)
+#         # @show σ
+#         t1 = dott(σ, n1)
+#         σn = dot(t1, n1)
+#         τ1 = dot(t1, n2)
+#         τ2 = dot(t1, n3)
+#         return [ σn, τ1, τ2 ]
+#     else
+#         n1 = Vec3(n1[1], n1[2], 0.0)
+#         n2 = Vec3(n2[1], n2[2], 0.0)
+#         t1 = dott(σ, n1)
+#         σn = dot(t1, n1)
+#         τ  = dot(t1, n2)
+#         return [ σn, τ ]
+#     end
+
+# end
+
+"""
+    calc_cohesive_stress2(elem::Element{MechCohesive})
+
+Calculates the stress tensor at each integration point of a cohesive element using quadratic regression.
+
+The stress is estimated by performing a quadratic least-squares regression on the stress values
+from all integration points of the neighboring bulk elements. For each integration point of the
+cohesive element, the resulting polynomial is evaluated at its coordinate. Finally, the stress
+tensor is projected onto the element's local coordinate system to obtain normal and shear components.
+
+# Arguments
+- `elem::Element{MechCohesive}`: The cohesive element for which to calculate the stress.
+
+# Returns
+- A vector of vectors, where each inner vector contains the normal and shear stress components
+  for one integration point in the element's local coordinate system.
+
+"""
+function calc_cohesive_stress(elem::Element{MechCohesive})
     ndim = elem.ctx.ndim
-
-    # compute element center
-    m  = div(length(elem.nodes), 2)
-    C  = get_coords(elem.nodes[1:m])
-    Xc = vec(sum(C, dims=1)/m)
-
-    # gather all integration points from coupled bulk elements
-    ips = [ ip for elem in elem.couplings for ip in elem.ips ]
-    Xip  = [ ip.coord for ip in ips ]
+    nnodes = length(elem.nodes)
+    hnodes = div(nnodes, 2) # half the number of total nodes
+    C = get_coords(elem.nodes[1:hnodes], ndim)
+    # 1. Get all integration points from neighboring bulk elements
+    ips = [ip for bulk_elem in elem.couplings for ip in bulk_elem.ips]
     nips = length(ips)
 
-    # number of selected ips
-    n = min(2^ndim, nips)
-    
-    # find the n closest ips to the element center
-    dists = [ norm(Xc - Xip[i]) for i in 1:nips ]
-    perm  = partialsortperm(dists, 1:n)
-    ips   = ips[perm]
-
-    # average stress at selected ips
-    σ = sum( ip.state.σ for ip in ips )/n
-
-    # compute Jacobian and rotation matrix at element center
-    R    = elem.shape.base_shape==TRI3 ? [1/3, 1/3] : [0.0, 0.0]
-    dNdR = elem.shape.deriv(R)
-    J = C'*dNdR
-    T = fzeros(ndim, ndim)
-    set_interface_rotation(J, T)
-
-    # compute normal and shear stresses
-    n1 = T[:,1]
-    n2 = T[:,2]
-    if ndim==3
-        n3 = T[:,3]
-        t1 = σ*n1
-        σn = dot(t1, n1)
-        τ1 = dot(t1, n2)
-        τ2 = dot(t1, n3)
-        return [ σn, τ1, τ2 ]
-    else
-        n1 = Vec3(n1[1], n1[2], 0.0)
-        n2 = Vec3(n2[1], n2[2], 0.0)
-        t1 = dot(σ, n1)
-        σn = dot(t1, n1)
-        τ  = dot(t1, n2)
-        return [ σn, τ ]
+    # Helper for polynomial terms
+    function reg_terms(x::Float64, y::Float64, nterms::Int64)
+        nterms==4 && return ( 1.0, x, y, x*y )
+        nterms==3 && return ( 1.0, x, y )
+        return (1.0,)
     end
 
+    function reg_terms(x::Float64, y::Float64, z::Float64, nterms::Int64)
+        nterms==4  && return ( 1.0, x, y, z )
+        return (1.0,)
+    end
+
+    if ndim==3
+        nterms = nips>=4 ? 4 : 1
+    else
+        nterms = nips>=4 ? 4 : nips>=3 ? 3 : 1
+    end
+
+    # 2. Build the regression matrix M
+    M = FMatrix{Float64}(undef, nips, nterms)
+    for (i, ip) in enumerate(ips)
+        x, y, z = ip.coord
+        M[i, :] .= (ndim == 3) ? reg_terms(x, y, z, nterms) : reg_terms(x, y, nterms)
+    end
+
+    # 2. Build the coefficients matrix N
+    nstr  = length(ips[1].state.σ)
+    ncips = length(elem.ips)
+    N     = FMatrix{Float64}(undef, ncips, nterms)
+    for (i, ip) in enumerate(elem.ips)
+        x, y, z = ip.coord
+        N[i, :] .= (ndim == 3) ? reg_terms(x, y, z, nterms) : reg_terms(x, y, nterms)
+    end
+
+    N_inv_M = N*pinv(M)
+
+    V = FixedSizeMatrix{Float64}(undef, nstr, ncips) # to store stress components at selected ips
+
+    # 3. Perform regression for each stress component
+    for i in 1:nstr
+        W = [ ip.state.σ[i] for ip in ips ]
+        # @show W
+        V[i, :] = N_inv_M * W
+    end
+
+    projected_stress = Vector{Float64}[]
+    T = fzeros(ndim, ndim)
+    for (i,ip) in enumerate(elem.ips)
+        # compute Jacobian and rotation matrix at element center
+        dNdR = elem.shape.deriv(ip.R)
+        J = C'*dNdR
+        set_interface_rotation(J, T)
+        
+        # compute normal and shear stresses
+        n1 = T[:,1]
+        n2 = T[:,2]
+        σ  = V[:, i]
+        if ndim==3
+            n3 = T[:,3]
+            t1 = dott(σ, n1)
+            σn = dot(t1, n1)
+            τ1 = dot(t1, n2)
+            τ2 = dot(t1, n3)
+            push!(projected_stress, [ σn, τ1, τ2 ])
+        else
+            n1 = Vec3(n1[1], n1[2], 0.0)
+            n2 = Vec3(n2[1], n2[2], 0.0)
+            t1 = dott(σ, n1)
+            σn = dot(t1, n1)
+            τ  = dot(t1, n2)
+            push!(projected_stress, [ σn, τ ])
+        end
+    end
+
+    return projected_stress
 end
 
 
-function update_cohesive_elems(model::FEModel, dofs::Vector{Dof})
+function update_model_cohesive_elems(model::FEModel, dofs::Vector{Dof})
     cohesive_elems = [ elem for elem in model.elems if elem isa Element{MechCohesive} && elem.active && elem.cache.open_state != :split ]
-    new_nodes = Node[]
+
+    # dictionary to be used to find the reference node for each cohesive element for later node reordering
+    cohe_node_d = Dict{Int, Int}()
+    for cohe in cohesive_elems
+        ref_node_id = maximum( n.id for n in cohe.nodes )
+        for node in cohe.nodes
+            cohe_node_d[cohe.id] = ref_node_id
+        end
+    end
+
+    # list of new nodes ids for cohesive elements
+    new_node_ids = [ Int[] for _ in 1:length(model.nodes) ]
     
-    nnodes = length(model.nodes)
-    n_id   = nnodes
+    ndim = model.ctx.ndim
+    n_id = length(model.nodes)
+    nnodes_ini = length(model.nodes)
 
     for elem in cohesive_elems
         # check open condition
-        σ = calc_cohesive_σ(elem)
-        η = strength_utilization(elem.cmodel, σ)
-        η > 0.98 || continue
+        # σ = calc_cohesive_stress(elem)
+        # η = strength_utilization(elem.cmodel, σ)
+        # η > 0.95 || continue
 
-        # check_open_condition(elem) == :split || continue
-        m = div(length(elem.nodes),2) # half number of nodes
-        new_nodes_subset = Node[]
+        σs = calc_cohesive_stress(elem)
+        η = maximum( strength_utilization(elem.cmodel, σ) for σ in σs )
+        # @show [ ip.state.σ for e in elem.couplings for ip in e.ips ]
+        # @show [ strength_utilization(elem.cmodel, σ) for σ in σs ]
+        η > 0.95 || continue
 
-        # iterate along half the nodes (since the other half are duplicates)
-        for (k, node) in enumerate(elem.nodes[1:m])
-            # only duplicate if the "pair" still references the same node
-            node.id != elem.nodes[m+k].id && continue
-
-            # bulk neighbors touching this node
-            bulks = Element{MechBulk}[ e for e in node.elems if e.role == :bulk ]
-
-            # get cohesive elements that share the node and are not split
-            cohes = Element{MechCohesive}[ e for e in node.elems if e.role == :interface && e.cache.open_state != :split ]
-
-            # get bulk elements linked to the cohesive elements
-            buffer = Element{MechBulk}[]
-            for co in cohes
-                append!(buffer, co.couplings)
-            end
-            # keep only elements with two or more neighbors
-            buffer = [ b for (b,cnt) in countmap(buffer) if cnt>=2 ]
-
-            locked_bulks = Element{MechBulk}[]
-            if length(buffer) != length(bulks)
-                n = length(buffer)
-                for i in 1:n
-                    for j in i+1:n
-                        # add to locked bulks if they share a facet
-                        length(intersect(buffer[i].nodes, buffer[j].nodes)) < 2 && continue  # skip if they share less than two nodes
-                        length(intersect(get_facets(buffer[i]), get_facets(buffer[j]))) > 0 && push!(locked_bulks, buffer[i])
-                    end
-                end
-
-                # update the bulk list removing locked bulks
-                bulks = setdiff(bulks, locked_bulks)
-            end
-
-            # duplicate node for each selected bulk
-            skip_first = length(locked_bulks) == 0 # skip first bulk if no locked bulks
-            for (i, bulk) in enumerate(bulks)
-                
-                i==1 && skip_first && continue # skip first bulk if no locked bulks
-                
-                # locate position of this node inside the bulk
-                pos = findfirst( n->n.id==node.id, bulk.nodes )
-                pos === nothing && error("Node $(node.id) not found in bulk element $(bulk.id)")
-                
-                new_node = copy(node)
-                n_id += 1
-                new_node.id = n_id
-                # new_node_old_node_d[new_node.id] = node.id
-                new_node.elems = [bulk] # start membership with this bulk only
-                bulk.nodes[pos] = new_node
-                push!(new_nodes_subset, new_node)
-
-                # keep incidence consistent: remove bulk from old node
-                filter!(e -> e.id !== bulk.id, node.elems)
-            end
-
-            # rewire intact cohesive neighbors that touch the duplicated bulk side
-            for cohe in cohes
-                cohe.cache.open_state = :leading # assume all as leading
-                face1_nodes = cohe.nodes[1:m]
-                face2_nodes = cohe.nodes[m+1:end]
-
-                for (i, face_nodes) in enumerate((face1_nodes, face2_nodes))
-                    bulk = cohe.couplings[i]  # bulk coupled to each face
-                    pos_b = findfirst( n->hash(n)==hash(node), bulk.nodes )
-                    pos_b === nothing && error("Node $(node.id) not found in bulk element $(bulk.id)")
-                    bulk_node = bulk.nodes[pos_b]
-                    bulk_node.id > nnodes || continue # only consider new nodes
-                    pos_c = findfirst(n->hash(n)==hash(node), face_nodes)
-                    push!(bulk_node.elems, cohe) # update nodal reference
-                    face_nodes[pos_c] = bulk_node # update face nodes
-                end
-                cohe.nodes = vcat( face1_nodes, face2_nodes )
-
-                # remove references to cohe from node
-                if !(node.id in [ n.id for n in cohe.nodes ])
-                    filter!(e -> e.id !== cohe.id, node.elems)
-                end
-            end
-
-        end
-
-        append!(new_nodes, new_nodes_subset)
-
-        # set the current cohesive element as split
-        elem.cache.open_state = :split
-        
         # Sync stress
-        for ip in elem.ips
-            ip.state.σ = σ
+        for (i,ip) in enumerate(elem.ips)
+            ip.state.σ = σs[i]
+            # ip.state.σ = σ
         end
+
+        # @show calc_cohesive_stress(elem)
+        # @show σs
+        
+        # error()
+
+        # function from mesh/gen-interface-elems.jl
+        new_nodes_elem = split_cohesive_element(model, elem)
+        # set the current cohesive element as split
+        
+        length(new_nodes_elem) == 0 && continue
+
+        # select as reference node
+        if length(new_nodes_elem)>0
+            ref_node = cohe_node_d[elem.id]
+            append!(new_node_ids[ref_node], [ n.id for n in new_nodes_elem ])
+        end
+        
+    end # elem
+
+    length(model.nodes) == nnodes_ini  && return false, Int[], Int[], 0
+    new_nodes = model.nodes[nnodes_ini+1:end]
     
+    new_dofs = [ dof for node in new_nodes for dof in node.dofs ]
+    append!(dofs, new_dofs)    
+    
+    # ❱❱❱ Rebuild node list
+
+    # @show new_node_ids
+    
+    _nodes = Node[]
+    for (i, node) in enumerate(model.nodes)
+        i > nnodes_ini && break
+        push!(_nodes, node)
+        i_nodes = [ model.nodes[id] for id in new_node_ids[i] ]
+        append!(_nodes, i_nodes )
     end
 
-    length(new_nodes) == 0  && return false, Int[], Int[], 0
-    new_dofs = [ dof for node in new_nodes for dof in node.dofs ]
+    if length(_nodes) != length(model.nodes)
+        # @show length(_nodes)
+        # @show length(model.nodes)
+        error("Error updating model nodes after splitting cohesive elements")
+    end
 
-    # update global node list and dofs
-    append!(model.nodes, new_nodes)
-    append!(dofs, new_dofs)
-    
-    # Split dofs
+    model.nodes = _nodes
+    for (i, node) in enumerate(_nodes)
+        node.id = i
+    end
+
+    # ❱❱❱ Split dofs
     presc = [ dof.prescribed for dof in dofs ]
     pdofs = dofs[presc]
     udofs = dofs[.!presc]
@@ -381,7 +454,7 @@ function update_cohesive_elems(model::FEModel, dofs::Vector{Dof})
     append!(dofs, pdofs)
     nu = length(udofs)
 
-    # maps from old dofs to new dofs
+    # ❱❱❱ maps from old dofs to new dofs
     map1 = zeros(Int, length(dofs)) # map for displacements
     map2 = zeros(Int, length(dofs)) # map for forces
     

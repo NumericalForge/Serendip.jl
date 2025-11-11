@@ -77,7 +77,7 @@ mutable struct PowerExpBondSlipState<:IpState
 end
 
 
-compat_state_type(::Type{PowerExpBondSlip}, ::Type{MechBondSlip}, ctx::Context) = PowerExpBondSlipState
+compat_state_type(::Type{PowerExpBondSlip}, ::Type{MechBondSlip}) = PowerExpBondSlipState
 
 # Type of corresponding state structure
 compat_state_type(::Type{PowerExpBondSlip}) = PowerExpBondSlipState
@@ -87,16 +87,20 @@ compat_elem_types(::Type{PowerExpBondSlip}) = (MechBondSlip,)
 
 
 function Tau(mat::PowerExpBondSlip, s::Float64)
+
     if s<mat.speak
-        return mat.τmax*(s/mat.speak)^mat.α
-        # return mat.τmax*(1 - (1 - (s/mat.speak))^(1/mat.α))
+        # return mat.τmax*(s/mat.speak)^mat.α
+        # α = 0.5
+        return mat.τmax*(1 - ((s-mat.speak)/mat.speak)^2)^0.5
     else
-        w = (s - mat.speak)/(mat.sc - mat.speak)
-        z = (1 + 27*w^3)*exp(-6.93*w) - 28*w*exp(-6.93)
-        return mat.τres + (mat.τmax - mat.τres)*z
+        β = 0.9 # controls the rate of decay
+        c = 0.11
+        speak, sc = mat.speak, mat.sc
+        τmax, τres = mat.τmax, mat.τres
+        return τmax - (τmax - τres) * exp(c - c / ((s - speak)/(sc - speak))^β )
+        # let f(x,β) = τmax - (τmax - τres)*exp(c)*exp(-c/pow((x - s1)/(sc - s1), β))
     end
 end
-
 
 function deriv(mat::PowerExpBondSlip, state::PowerExpBondSlipState, s::Float64)
     s_factor = 0.01
@@ -105,15 +109,52 @@ function deriv(mat::PowerExpBondSlip, state::PowerExpBondSlipState, s::Float64)
     end
 
     if s<=mat.speak
-        return mat.α*mat.τmax/mat.speak*(s/mat.speak)^(mat.α-1)
-        # return mat.τmax/(mat.speak*mat.α)*(1 - s/mat.speak)^(1/mat.α - 1)
+        τ = Tau(mat, s)
+        return (mat.speak - s)/τ *(mat.τmax/mat.speak)^2
     else
-        w = (s - mat.speak)/(mat.sc - mat.speak)
-        dwds = 1/(mat.sc - mat.speak)
-        dzdw = ( 81*w^2 - 6.93*(1 + 27*w^3))*exp(-6.93*w) - 28*exp(-6.93)
-        return (mat.τmax - mat.τres)*dzdw*dwds
+        τ = Tau(mat, s)
+        β = 0.9 # controls the rate of decay
+        c = 0.11
+        speak, sc = mat.speak, mat.sc
+        τmax, τres = mat.τmax, mat.τres
+        return  -(τmax - τ)*(c*β)/(sc - speak) / ( (s - speak)/(sc - speak) )^(β + 1)
+        # return β/(sc-speak) * (τmax - τ) * log(1.0 - τres/τmax) / ((s - speak)/(sc-speak))^(β + 1)
+        # w = (s - mat.speak)/(mat.sc - mat.speak)
+        # dwds = 1/(mat.sc - mat.speak)
+        # dzdw = ( 81*w^2 - 6.93*(1 + 27*w^3))*exp(-6.93*w) - 28*exp(-6.93)
+        # return (mat.τmax - mat.τres)*dzdw*dwds
     end
 end
+
+# function Tau(mat::PowerExpBondSlip, s::Float64)
+#     if s<mat.speak
+#         return mat.τmax*(s/mat.speak)^mat.α
+#         # return mat.τmax*(1 - (1 - (s/mat.speak))^(1/mat.α))
+#     else
+#         w = (s - mat.speak)/(mat.sc - mat.speak)
+#         z = (1 + 27*w^3)*exp(-6.93*w) - 28*w*exp(-6.93)
+#         return mat.τres + (mat.τmax - mat.τres)*z
+#     end
+# end
+
+
+# function deriv(mat::PowerExpBondSlip, state::PowerExpBondSlipState, s::Float64)
+#     s_factor = 0.01
+#     if s < s_factor*mat.speak
+#         s = s_factor*mat.speak   # to avoid undefined derivative
+#     end
+
+#     if s<=mat.speak
+#         return mat.α*mat.τmax/mat.speak*(s/mat.speak)^(mat.α-1)
+#         # return mat.τmax/(mat.speak*mat.α)*(1 - s/mat.speak)^(1/mat.α - 1)
+#     else
+#         w = (s - mat.speak)/(mat.sc - mat.speak)
+#         dwds = 1/(mat.sc - mat.speak)
+#         dzdw = ( 81*w^2 - 6.93*(1 + 27*w^3))*exp(-6.93*w) - 28*exp(-6.93)
+#         return (mat.τmax - mat.τres)*dzdw*dwds
+#     end
+# end
+
 
 
 function calcD(mat::PowerExpBondSlip, state::PowerExpBondSlipState)

@@ -123,7 +123,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{WillamWarnke}, ::Type{MechBulk}, ctx::Context) = ctx.stress_state!=:plane_stress ? WillamWarnkeState : error("WillamWarnke: This model is not compatible with planestress")
+compat_state_type(::Type{WillamWarnke}, ::Type{MechBulk}) = ctx.stress_state!=:plane_stress ? WillamWarnkeState : error("WillamWarnke: This model is not compatible with planestress")
 
 
 function calc_θ(::WillamWarnke, σ::Vec6)

@@ -47,7 +47,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{ElasticShellThermo}, ::Type{TMShell}, ctx::Context) = ElasticShellThermoState
+compat_state_type(::Type{ElasticShellThermo}, ::Type{TMShell}) = ElasticShellThermoState
 
 
 function calc_cv(mat::ElasticShellThermo, ut::Float64) # Specific heat

@@ -12,7 +12,7 @@ compat_role(::Type{MechBondTip}) = :tip
 function set_quadrature(elem::Element{MechBondTip}, n::Int=1; state::NamedTuple=NamedTuple())
     ip = Ip([0.0, 0.0, 0.0], 0.0)
     ip.id = 1
-    ip.state = compat_state_type(typeof(elem.cmodel), MechBondTip, elem.ctx)(elem.ctx; state...)
+    ip.state = compat_state_type(typeof(elem.cmodel), MechBondTip)(elem.ctx; state...)
     ip.owner = elem
     ip.coord = elem.nodes[end].coord
 

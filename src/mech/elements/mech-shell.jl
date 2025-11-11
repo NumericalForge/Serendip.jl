@@ -41,6 +41,11 @@ function elem_init(elem::Element{MechShell})
         elem.cacheM[i] = FixedSizeMatrix([V1'; V2'; V3'])
     end
 
+    # set the value of αs at integration points
+    for ip in elem.ips
+        ip.state.αs = 5/6
+    end
+
     return nothing
 end
 
@@ -62,7 +67,7 @@ function set_quadrature(elem::Element{MechShell}, n::Int=0; state::NamedTuple=Na
             j = (k-1)*n + i
             elem.ips[j] = Ip(R, w)
             elem.ips[j].id = j
-            elem.ips[j].state = compat_state_type(typeof(elem.cmodel), MechShell, elem.ctx)(elem.ctx; state...)
+            elem.ips[j].state = compat_state_type(typeof(elem.cmodel), MechShell)(elem.ctx; state...)
             elem.ips[j].owner = elem
         end
     end
@@ -254,9 +259,8 @@ function elem_stiffness(elem::Element{MechShell})
         G  = E/(2*(1+nu))
 
         coef  = detJ′*ip.w
-        D     = calcD(elem.cmodel, ip.state, is_shell=true)
+        D     = calcD(elem.cmodel, ip.state)
         K    += coef*B'*D*B
-        # K    += coef*B'*S*D*B
 
         if i<=m # drilling stiffness (area integration)
             setB_dr(elem, N, L, dNdX′, Rθ_dr, Bil_dr, Bi_dr, B_dr)
@@ -361,46 +365,26 @@ function elem_internal_forces(elem::Element{MechShell}, ΔUg::Vector{Float64}=Fl
      return ΔF, map, success()
 end
 
-# function update_elem!(elem::Element{MechShell}, U::Vector{Float64}, dt::Float64)
-#     nnodes = length(elem.nodes)
-#     th   = elem.etype.th
-#     ndof = 6
 
-#     map = elem_map(elem)
-#     dU  = U[map]
-#     dF  = zeros(length(dU))
+const shell_keys_d = Dict{Symbol,Symbol}(
+    :σxx => :σx´x´,
+    :σyy => :σy´y´, 
+    :σxy => :σx´y´,
+    :σvm => :σvm,
+    :εxx => :εx´x´,
+    :εyy => :εy´y´,
+    :εxy => :εx´y´,
+)
 
-#     C = get_coords(elem)
-#     B = zeros(6, ndof*nnodes)
 
-#     L    = zeros(3,3)
-#     Rθ = zeros(5,ndof)
-#     Bil  = zeros(6,5)
-#     Bi   = zeros(6,ndof)
-#     Δε   = zeros(6)
+function elem_vals(elem::Element{MechShell})
+    # get ip average values
+    ipvals = [ state_values(elem.cmodel, ip.state) for ip in elem.ips ]
+    merger(x,y) = abs(x) > abs(y) ? x : y
+    merged  = merge(merger, ipvals... )
+    vals = OrderedDict( k=>v for (k,v) in merged)
 
-#     for ip in elem.ips
-#         N = elem.shape.func(ip.R)
-#         dNdR = elem.shape.deriv(ip.R) # 3xn
-
-#         J2D = C'*dNdR
-#         set_rot_x_xp(elem, J2D, L)
-#         J′ = [ L*J2D [ 0,0,th/2]  ]
-#         invJ′ = inv(J′)
-
-#         dNdR = [ dNdR zeros(nnodes) ]
-#         dNdX′ = dNdR*invJ′
-
-#         setB(elem, ip, N, L, dNdX′, Rθ, Bil, Bi, B)
-#         Δε = B*dU
-#         Δσ, status = update_state(elem.cmodel, ip.state, Δε, is_shell=true)
-#         failed(status) && return dF, map, failure("MechShell: Error at integration point $(ip.id)")
-
-#         detJ′ = det(J′)
-#         coef  = detJ′*ip.w
-#         dF   += coef*B'*Δσ
-
-#     end
-
-#      return dF, map, success()
-# end
+    vals = OrderedDict( shell_keys_d[k] => vals[k] for k in keys(shell_keys_d) )
+    
+    return vals
+end

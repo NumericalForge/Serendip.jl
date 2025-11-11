@@ -87,7 +87,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{MohrCoulombContact}, ::Type{MechContact}, ctx::Context) = MohrCoulombContactState
+compat_state_type(::Type{MohrCoulombContact}, ::Type{MechContact}) = MohrCoulombContactState
 
 
 function yield_func(mat::MohrCoulombContact, state::MohrCoulombContactState, σ::Vector{Float64})
@@ -301,6 +301,7 @@ end
 function update_state(mat::MohrCoulombContact, state::MohrCoulombContactState, Δw::Vector{Float64})
     ndim = state.ctx.ndim
     σini = copy(state.σ)
+    ks, kn = mat.ks, mat.kn
 
     De = calc_De(mat, state)
     σmax = calc_σmax(mat, state.up)  
@@ -327,7 +328,7 @@ function update_state(mat::MohrCoulombContact, state::MohrCoulombContactState, �
         end
 
         state.up += state.Δλ
-        state.σ = σtr - state.Δλ*De*r     
+        state.σ = σtr - state.Δλ*De*r
 
     elseif Ftr <= 0.0
         # Pure elastic increment

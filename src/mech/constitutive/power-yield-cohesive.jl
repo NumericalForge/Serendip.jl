@@ -120,7 +120,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{PowerYieldCohesive}, ::Type{MechCohesive}, ctx::Context) = PowerYieldCohesiveState
+compat_state_type(::Type{PowerYieldCohesive}, ::Type{MechCohesive}) = PowerYieldCohesiveState
 
 
 function paramsdict(mat::PowerYieldCohesive)
@@ -131,7 +131,7 @@ function paramsdict(mat::PowerYieldCohesive)
 end
 
 
-function beta(mat::PowerYieldCohesive, σmax::Float64)
+function calc_β(mat::PowerYieldCohesive, σmax::Float64)
     βini = mat.βini
     βres = mat.γ*βini
     return βres + (βini-βres)*(σmax/mat.ft)^mat.θ
@@ -140,7 +140,7 @@ end
 
 function yield_func(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σ::Vector{Float64}, σmax::Float64)
     α  = mat.α
-    β = beta(mat, σmax)
+    β  = calc_β(mat, σmax)
     ft = mat.ft
     if state.ctx.ndim == 3
         return β*(σ[1] - σmax) + ((σ[2]^2 + σ[3]^2)/ft^2)^α
@@ -150,9 +150,18 @@ function yield_func(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σ:
 end
 
 
+function strength_utilization(mat::PowerYieldCohesive, σ::Vector{Float64})
+    σmax = calc_σmax(mat, 0.0)
+    β    = calc_β(mat, σmax)
+    τ    = norm(σ[2:end])
+    τmax = β*(σmax - σ[1])
+    return max(σ[1]/σmax, τ/τmax)
+end
+
+
 function yield_derivs(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σ::Vector{Float64}, σmax::Float64)
     α = mat.α
-    β = beta(mat, σmax)
+    β = calc_β(mat, σmax)
     ft = mat.ft
 
     if state.ctx.ndim == 3
@@ -239,7 +248,7 @@ function calcD(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
         ft = mat.ft
         βini = mat.βini
         βres = mat.γ*βini
-        β = beta(mat, σmax)
+        β = calc_β(mat, σmax)
         dfdσmax = (βini-βres)/ft*(state.σ[1]-σmax)*θ*(σmax/ft)^(θ-1) - β
 
         r = potential_derivs(mat, state, state.σ)
@@ -305,7 +314,7 @@ function calc_σ_up_Δλ(mat::PowerYieldCohesive, state::PowerYieldCohesiveState
         norm_r = norm(r)
         up    = state.up + Δλ*norm_r
         σmax   = calc_σmax(mat, up)
-        β      = beta(mat, σmax)
+        β      = calc_β(mat, σmax)
 
         f    = yield_func(mat, state, σ, σmax)
         dfdσ = yield_derivs(mat, state, σ, σmax)

@@ -92,8 +92,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{MohrCoulombCohesive}, ::Type{MechCohesive}, ctx::Context) = MohrCoulombCohesiveState
-
+compat_state_type(::Type{MohrCoulombCohesive}, ::Type{MechCohesive}) = MohrCoulombCohesiveState
 
 
 function yield_func(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, σ::Vector{Float64})
@@ -109,9 +108,9 @@ end
 
 function strength_utilization(mat::MohrCoulombCohesive, σ::Vector{Float64})
     σmax = calc_σmax(mat, 0.0)
-    σn   = σ[1]
     τ    = norm(σ[2:end])
-    return clamp( (τ + σn*mat.μ) / (σmax*mat.μ), 0.0, 1.0)
+    return clamp( (τ + σ[1]*mat.μ) / (σmax*mat.μ), 0.0, 1.0)
+    # return clamp( τ/((σmax - σ[1])*mat.μ), 0.0, 1.0)
 end
 
 
@@ -335,7 +334,6 @@ function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState,
     # σ trial and F trial
     σtr = state.σ + De*Δw
     Ftr = yield_func(mat, state, σtr)
-
     # Elastic and EP integration
     if σmax == 0.0 && state.w[1] >= 0.0
         # Return to apex:
@@ -348,10 +346,10 @@ function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState,
             r = r1/norm(r1)
             state.Δλ = norm(r1)  
         end
-
+        
         state.up += state.Δλ
         state.σ = σtr - state.Δλ*De*r     
-
+        
     elseif Ftr <= 0.0
         # Pure elastic increment
         state.Δλ = 0.0

@@ -48,7 +48,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{LinearElasticThermo}, ::Type{TMSolid}, ctx::Context) = LinearElasticThermoState
+compat_state_type(::Type{LinearElasticThermo}, ::Type{TMSolid}) = LinearElasticThermoState
 
 
 function calcD(mat::LinearElasticThermo, state::LinearElasticThermoState)

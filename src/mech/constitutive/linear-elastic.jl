@@ -3,58 +3,44 @@
 export LinearElastic
 
 """
-    LinearElastic(; E=1.0, nu=0.0, alpha_s=5/6)
+    LinearElastic(; E=1.0, nu=0.0)
 
 Linear elastic isotropic material model.
 This model can be used with bulk elements (e.g. solids), beams, bars, and shells.
 It assumes small deformations and linear stress-strain response.
 
 # Parameters
-- `E`: *Young's modulus*. Must be positive.
-- `nu = 0.0`: *Poisson's ratio*. Must satisfy `0 ≤ ν < 0.5`.
-- `alpha_s = 5/6`: *Shear correction factor*, used in beam/shell formulations. Must be positive.
+- `E`: Young's modulus. Must be positive.
+- `nu`: Poisson's ratio. Must satisfy `0 ≤ ν < 0.5`.
+
+The shear correction factor `alpha_s` (defaulting to 5/6 for some formulations) is not a direct parameter of this constitutive model but is handled by the element formulations (e.g., `MechBeam`, `MechShell`) that use it.
 """
 mutable struct LinearElastic<:Constitutive
     E ::Float64
     ν::Float64
-    αs::Float64
 
     function LinearElastic(;
         E::Float64=NaN,
         nu::Float64=0.0,
-        alpha_s::Float64=5/6
         )
         @check E > 0.0
         @check nu >= 0.0 && nu < 0.5
-        @check alpha_s > 0.0
-        return new(E, nu, alpha_s)
+        return new(E, nu)
     end
 end
 
 
-mutable struct ElasticSolidState<:IpState
+mutable struct LinearElasticState<:IpState
     ctx::Context
     σ::Vec6
     ε::Vec6
+    αs::Float64
 
-    function ElasticSolidState(ctx::Context)
+    function LinearElasticState(ctx::Context)
         this = new(ctx)
         this.σ = zeros(Vec6)
         this.ε = zeros(Vec6)
-        return this
-    end
-end
-
-
-mutable struct ElasticPlaneStressState<:IpState
-    ctx::Context
-    σ::Vec6
-    ε::Vec6
-
-    function ElasticPlaneStressState(ctx::Context)
-        this = new(ctx)
-        this.σ = zeros(Vec6)
-        this.ε = zeros(Vec6)
+        this.αs = 1.0 # Shear correction factor: to be set from shell element
         return this
     end
 end
@@ -64,14 +50,17 @@ mutable struct ElasticBeamState<:IpState
     ctx::Context
     σ::Vec3
     ε::Vec3
+    αs::Float64
 
     function ElasticBeamState(ctx::Context)
         this = new(ctx)
         this.σ = zeros(Vec3)
         this.ε = zeros(Vec3)
+        this.αs = 1.0 # Shear correction factor: to be set from beam element
         return this
     end
 end
+
 
 mutable struct ElasticBarState<:IpState
     ctx::Context
@@ -84,6 +73,7 @@ mutable struct ElasticBarState<:IpState
         return this
     end
 end
+
 
 mutable struct ElasticFrameState<:IpState
     ctx::Context
@@ -100,15 +90,15 @@ mutable struct ElasticFrameState<:IpState
 end
 
 
-compat_state_type(::Type{LinearElastic}, ::Type{MechBulk}, ctx::Context)  = ctx.stress_state==:plane_stress ? ElasticPlaneStressState : ElasticSolidState
-compat_state_type(::Type{LinearElastic}, ::Type{MechShell}, ctx::Context)  = ElasticPlaneStressState
-compat_state_type(::Type{LinearElastic}, ::Type{MechBeam}, ctx::Context)   = ElasticBeamState
-compat_state_type(::Type{LinearElastic}, ::Type{MechBar}, ctx::Context)    = ElasticBarState
-compat_state_type(::Type{LinearElastic}, ::Type{MechEmbBar}, ctx::Context) = ElasticBarState
-compat_state_type(::Type{LinearElastic}, ::Type{MechFrame}, ctx::Context) = ElasticFrameState
+compat_state_type(::Type{LinearElastic}, ::Type{MechBulk})   = LinearElasticState
+compat_state_type(::Type{LinearElastic}, ::Type{MechShell})  = LinearElasticState
+compat_state_type(::Type{LinearElastic}, ::Type{MechBeam})   = ElasticBeamState
+compat_state_type(::Type{LinearElastic}, ::Type{MechBar})    = ElasticBarState
+compat_state_type(::Type{LinearElastic}, ::Type{MechEmbBar}) = ElasticBarState
+compat_state_type(::Type{LinearElastic}, ::Type{MechFrame})  = ElasticFrameState
 
 
-function calcDe(E::Real, ν::Real, stress_state::Symbol=:d3, αs::Float64=1.0)
+function calcDe(E::Real, ν::Real, stress_state::Symbol=:auto, αs::Float64=1.0)
     if stress_state==:plane_stress
         c = E/(1-ν^2)
         return @SArray [
@@ -132,17 +122,17 @@ function calcDe(E::Real, ν::Real, stress_state::Symbol=:d3, αs::Float64=1.0)
 end
 
 
-# LinearElastic model for 3D and 2D bulk elements under plain-strain state
+# ❱❱❱ LinearElastic model for 3D and 2D bulk elements under plain-strain state
 
 
-function calcD(mat::LinearElastic, state::ElasticSolidState)
-    return calcDe(mat.E, mat.ν)
+function calcD(mat::LinearElastic, state::LinearElasticState)
+    stress_state = state.αs==1.0 ? state.ctx.stress_state : :plane_stress
+    return calcDe(mat.E, mat.ν, stress_state, state.αs)
 end
 
 
-function update_state(mat::LinearElastic, state::ElasticSolidState, dε::AbstractArray)
-    De = calcDe(mat.E, mat.ν)
-
+function update_state(mat::LinearElastic, state::LinearElasticState, dε::AbstractArray, αs::Float64=1.0)
+    De = calcD(mat, state)
     dσ = De*dε
     state.ε += dε
     state.σ += dσ
@@ -150,53 +140,23 @@ function update_state(mat::LinearElastic, state::ElasticSolidState, dε::Abstrac
 end
 
 
-function state_values(mat::LinearElastic, state::ElasticSolidState)
-    return stress_strain_dict(state.σ, state.ε, state.ctx.stress_state)
+function state_values(mat::LinearElastic, state::LinearElasticState)
+    stress_state = state.αs==1.0 ? state.ctx.stress_state : :plane_stress
+    return stress_strain_dict(state.σ, state.ε, stress_state)
 end
 
 
-# LinearElastic model for 2D bulk elements under plane-stress state and shell elements
-
-
-function calcD(mat::LinearElastic, state::ElasticPlaneStressState; is_shell::Bool=false)
-    αs = is_shell ? mat.αs : 1.0
-    return calcDe(mat.E, mat.ν, :plane_stress, αs)
-end
-
-
-function update_state(mat::LinearElastic, state::ElasticPlaneStressState, dε::AbstractArray; is_shell::Bool=false)
-    αs = is_shell ? mat.αs : 1.0
-    De = calcDe(mat.E, mat.ν, :plane_stress, αs)
-    dσ = De*dε
-    state.ε += dε
-    state.σ += dσ
-    return dσ, success()
-end
-
-
-function state_values(mat::LinearElastic, state::ElasticPlaneStressState)
-    return stress_strain_dict(state.σ, state.ε, :plane_stress)
-end
-
-
-# LinearElastic for beam elements
-
+# ❱❱❱ LinearElastic for beam elements
 
 
 function calcD(mat::LinearElastic, state::ElasticBeamState)
     E, ν = mat.E, mat.ν
-
-    αs   = mat.αs
-    De = @SMatrix [ E    0.0         0.0
-                    0.0  αs*E/(1+ν)  0.0
-                    0.0  0.0         αs*E/(1+ν) ]
+    G    = state.αs*E/2/(1+ν)
+    De = @SMatrix [ E    0.0  0.0
+                    0.0  2*G  0.0
+                    0.0  0.0  2*G ]
     return De
 
-    # return @SMatrix [
-        # E  0.0  0.0
-        # 0.0  E/(1+ν)  0.0
-        # 0.0  0.0  E/(1+ν)
-    # ]
 end
 
 
@@ -243,7 +203,8 @@ function state_values(mat::LinearElastic, state::ElasticBeamState)
 end
 
 
-# LinearElastic model for bar elements
+# ❱❱❱ LinearElastic model for bar elements
+
 
 function calcD(mat::LinearElastic, ips::ElasticBarState)
     return mat.E
@@ -265,7 +226,7 @@ function state_values(mat::LinearElastic, state::ElasticBarState)
       )
 end
 
-# LinearElastic model for frame elements
+# ❱❱❱ LinearElastic model for frame elements
 
 function calcD(mat::LinearElastic, ips::ElasticFrameState)
     return mat.E
