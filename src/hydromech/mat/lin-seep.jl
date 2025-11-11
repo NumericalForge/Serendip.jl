@@ -42,7 +42,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{ConstPermeability}, ::Type{SeepSolid}, ctx::Context) = ConstPermeabilityState
+compat_state_type(::Type{ConstPermeability}, ::Type{SeepSolid}) = ConstPermeabilityState
 
 # Element types that work with this material
 # compat_elem_types(::Type{ConstPermeability}) = (SeepSolid,)

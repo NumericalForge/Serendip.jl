@@ -92,7 +92,7 @@ end
 
 
 # Get internal forces and update data at integration points
-function update_state(elems::Array{<:Element,1}, ΔUt::Vect, t::Float64)
+function update_state(elems::Vector{<:Element}, ΔUt::Vector{Float64}, t::Float64)
     ndofs = length(ΔUt)
     @withthreads begin
         ΔFin     = zeros(ndofs)
@@ -141,21 +141,27 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     ftol      = tol
 
     stress_state = ctx.stress_state
-    ctx.ndim==3 && @check stress_state==:auto
-
+    ctx.ndim==3 && @assert(stress_state==:auto)
+    
+    
     # Get active elements
     for elem in stage.activate
         elem.active = true
     end
     active_elems = filter(elem -> elem.active, model.elems)
+    
+    # Check for cohesive elements
+    has_cohesive_elems = any( elem -> elem isa Element{MechCohesive}, active_elems )
+    cohesive_schemes = (:heun, :ralston)
+    has_cohesive_elems && !(tangent_scheme in cohesive_schemes) && alert("Using cohesive elements requires an implicit tangent scheme for stability $(repr(cohesive_schemes)). Current scheme: $(repr(tangent_scheme))")
 
     # Get dofs organized according to boundary conditions
     dofs, nu = configure_dofs(model, bcs) # unknown dofs first
     ndofs = length(dofs)
     umap  = 1:nu         # map for unknown displacements
     pmap  = nu+1:ndofs   # map for prescribed displacements
+    data.nu  = nu
 
-    # println(data.info,"unknown dofs: $nu")
     println(data.log, "unknown dofs: $nu")
 
     quiet || nu==ndofs && println(data.alerts, "No essential boundary conditions")
@@ -184,7 +190,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     ΔT = 1.0/nincs       # initial ΔT value
     autoinc && (ΔT=min(ΔT, ΔTmax, ΔTcheck, ΔT0))
 
-    inc  = 0             # increment counter
+    inc  = 1             # counter for the processing increment
     F    = zeros(ndofs)  # total internal force for current stage
     U    = zeros(ndofs)  # total displacements for current stage
     R    = zeros(ndofs)  # vector for residuals of natural values
@@ -226,9 +232,9 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         data.ΔT = ΔT
 
         # Update counters
-        inc += 1
-        data.inc = inc
-        data.nu  = nu
+        # inc += 1
+        
+        
 
         println(data.log, "  inc $inc")
 
@@ -308,7 +314,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
         data.residue = res
         q = 0.0 # increment size factor for autoinc
-
+        
         if syserror
             println(data.alerts, sysstatus.message)
             println(data.log, sysstatus.message)
@@ -316,6 +322,13 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         end
 
         if converged
+            inc += 1
+            data.inc = inc
+            
+            # data.residue = res
+            # data.ΔT = ΔT
+            # data.inc = inc
+            # data.nu  = nu
             
             # Update forces and displacement for the current stage
             U .+= ΔUa
@@ -336,7 +349,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             data.T = T
 
             # Check for saving output file
-            checkpoint = T>Tcheck-ΔTmin
+            checkpoint = T > Tcheck - ΔTmin
             # && saveouts
             if checkpoint
                 data.out += 1
@@ -351,20 +364,23 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             end
 
             if autoinc
-                if ΔTbk>0.0
+                if ΔTbk > 0.0
                     ΔT = min(ΔTbk, Tcheck-T)
+                    if linear_domain
+                        ΔT = min(1.5*ΔT, ΔTmax, Tcheck-T)
+                    end
                     ΔTbk = 0.0
                 else
                     q = 1+tanh(log10(ftol/(res1+eps())))
                     q = max(q, 1.1)
 
                     if linear_domain
-                        ΔTtr = min(q*ΔT, ΔTmax, 1-T)
-                    else
-                        ΔTtr = min(q*ΔT, ΔTmax, 1-T)
+                        q = 1.5
                     end
-
-                    if T+ΔTtr>Tcheck-ΔTmin
+                    
+                    ΔTtr = min(q*ΔT, ΔTmax, 1.0 - T)
+                    
+                    if T + ΔTtr > Tcheck - ΔTmin
                         ΔTbk = ΔT
                         ΔT = Tcheck-T
                         @assert ΔT>=0.0
@@ -372,32 +388,40 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                         ΔT = ΔTtr
                         ΔTbk = 0.0
                     end
+                    # println()
+                    # @show ΔTmax
+                    # @show q
+                    # @show ΔTtr
+                    
                 end
+                # @show ΔT
             end
 
-            # # hook for cohesive elements
-            # added, map1, map2, _nu = update_cohesive_elems(model, dofs)
-            # if added
-            #     # @show "hiii"
-            #     nu = _nu
-            #     ndofs = length(dofs)
-            #     umap  = 1:nu         # map for unknown displacements
-            #     pmap  = nu+1:ndofs   # map for prescribed displacements
+            # hook for cohesive elements
+            added, map1, map2, _nu = update_model_cohesive_elems(model, dofs)
+            if added
+                # @show "SPLI"
+                nu = _nu
+                data.nu  = nu
+                ndofs = length(dofs)
+                umap  = 1:nu         # map for unknown displacements
+                pmap  = nu+1:ndofs   # map for prescribed displacements
 
-            #     # update displacement vectors
-            #     U   = U[map1]
-            #     ΔUa = ΔUa[map1]
-            #     ΔUi = ΔUi[map1]
-            #     Uex = Uex[map1]
+                # update displacement vectors
+                U   = U[map1]
+                ΔUa = ΔUa[map1]
+                ΔUi = ΔUi[map1]
+                Uex = Uex[map1]
 
-            #     # update force vectors
-            #     F    = get.(Ref(F), map2, 0.0)
-            #     ΔFin = get.(Ref(ΔFin), map2, 0.0)
-            #     R    = get.(Ref(R), map2, 0.0)
-            #     Rc   = get.(Ref(Rc), map2, 0.0)
-            #     Fex  = get.(Ref(Fex), map2, 0.0)
+                # update force vectors
+                F    = get.(Ref(F), map2, 0.0)
+                ΔFin = get.(Ref(ΔFin), map2, 0.0)
+                R    = get.(Ref(R), map2, 0.0)
+                Rc   = get.(Ref(Rc), map2, 0.0)
+                Fex  = get.(Ref(Fex), map2, 0.0)
 
-            # end
+                copyto!.(StateBk, State)
+            end
 
         else
             # Restore counters

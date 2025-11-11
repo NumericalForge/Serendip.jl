@@ -88,7 +88,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{MCJointSeep}, ::Type{HMJoint}, ctx::Context) = MCJointSeepState
+compat_state_type(::Type{MCJointSeep}, ::Type{HMJoint}) = MCJointSeepState
 
 
 function yield_func(mat::MCJointSeep, state::MCJointSeepState, σ::Vector{Float64})

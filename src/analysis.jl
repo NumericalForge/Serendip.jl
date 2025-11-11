@@ -138,7 +138,7 @@ function compute_bc_values(ana::Analysis, bc::BoundaryCondition, t::Float64, U::
                     dof = get_dof(node, key)
                     F[dof.eq_id] += evaluate(cond, x=x, y=y, z=z, t=t) # cummulative value
                 else
-                    @warn("compute_bc_values: Unknown key `$(key)` in boundary condition. Available keys: $(ess_keys ∪ nat_keys).")
+                    @warn("compute_bc_values: Unknown boundary condition key `$(repr(key))`. Available keys: $(ess_keys ∪ nat_keys).")
                 end
             end
         end

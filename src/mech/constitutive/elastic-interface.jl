@@ -80,7 +80,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{<:ElasticInterface}, ::Type{MechContact}, ::Context) = ElasticInterfaceState
+compat_state_type(::Type{<:ElasticInterface}, ::Type{MechContact}) = ElasticInterfaceState
 
 
 function elastic_interface_D(ndim::Int, kn::Float64, ks::Float64)

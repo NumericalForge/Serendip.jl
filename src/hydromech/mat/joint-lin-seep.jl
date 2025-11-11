@@ -59,7 +59,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{LeakoffJoint}, ::Type{HydroJoint}, ctx::Context) = LeakoffJointState
+compat_state_type(::Type{LeakoffJoint}, ::Type{HydroJoint}) = LeakoffJointState
 
 # Element types that work with this material
 # compat_elem_types(::Type{LeakoffJoint}) = (HydroJoint,)

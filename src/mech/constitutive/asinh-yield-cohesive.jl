@@ -137,7 +137,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{AsinhYieldCohesive}, ::Type{MechCohesive}, ctx::Context) = AsinhYieldCohesiveState
+compat_state_type(::Type{AsinhYieldCohesive}, ::Type{MechCohesive}) = AsinhYieldCohesiveState
 
 
 function paramsdict(mat::AsinhYieldCohesive)
@@ -170,12 +170,14 @@ function yield_func(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ:
 end
 
 
-function strength_utilization(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
-    σmax = calc_σmax(mat, state.up)
+function strength_utilization(mat::AsinhYieldCohesive, σ::Vector{Float64})
+    σmax = calc_σmax(mat, 0.0)
     β    = calc_β(mat, σmax)
     χ    = (σmax - σ[1])/mat.ft
-    τ    = norm(state.σ[2:end])
-    return clamp(τ/(β*asinh(mat.α*χ)), 0.0, 1.0)
+    τ    = norm(σ[2:end])
+    τmax = β*asinh(mat.α*χ)
+
+    return max(σ[1]/σmax, τ/τmax)
 end
 
 
@@ -383,6 +385,7 @@ function calc_σ_up(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σt
     return σ, up
 end
 
+
 function calc_σ_up_Δλ_bis(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Vector{Float64})
     ndim    = state.ctx.ndim
     kn, ks  = calc_kn_ks(mat, state)
@@ -392,7 +395,7 @@ function calc_σ_up_Δλ_bis(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveS
     ff(Δλ)  = begin
         # quantities at n+1
         σ, up = calc_σ_up(mat, state, σtr, Δλ)
-        σmax = deriv_σmax_upa(mat, up)
+        σmax = calc_σmax(mat, up)
         yield_func(mat, state, σ, σmax)
     end
 

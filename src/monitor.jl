@@ -187,7 +187,11 @@ function update_monitor!(ana::Analysis, monitor::Monitor)
             minmax_vals[var] = state[var]
         end
 
+        
         for expr in monitor.exprs
+            if expr isa Symbol && !(expr in keys(state))
+                error("Monitor: Value `$(expr)` not found at $(monitor.kind) $(monitor.target[1].id). Available values for monitoring are: $(join(keys(state), ", ")).")
+            end
             monitor.values[expr] = evaluate(expr; state...)
         end
 

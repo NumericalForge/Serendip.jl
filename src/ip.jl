@@ -79,7 +79,7 @@ end
 
 
 # Get node coordinates for a collection of nodes as a matrix
-function get_coords(ips::Vector{Ip}, ndim=3)
+function get_coords(ips::Vector{Ip}, ndim::Int=3)
     nips = length(ips)
     return [ ips[i].coord[j] for i in 1:nips, j=1:ndim]
 end

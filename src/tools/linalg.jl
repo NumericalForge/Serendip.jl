@@ -30,11 +30,11 @@ function Base.convert(::Type{Vec3}, A::Vector{Float64})
 end
 
 
-
 eye(n) = Array{Float64,2}(I, n, n)
 
 # Fancy matrix printing
-function print_matrix(M::Array{Float64,2})
+
+function print_matrix(M::AbstractMatrix{Float64})
     n, m = size(M)
     for i in 1:n
         for j in 1:m
@@ -43,6 +43,9 @@ function print_matrix(M::Array{Float64,2})
         println()
     end
 end
+
+# macro showm
+
 
 function extend!(V::AbstractVector{Float64}, n::Int)
     while length(V)<n

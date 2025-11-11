@@ -133,14 +133,20 @@ mutable struct GeoModel
     gpaths::Vector{GPath}
     fields::Vector{SizeField}
 
-    function GeoModel(; size=0.0,quiet::Bool=false)
+    function GeoModel(; size=0.0, min_size=0.0, max_size=0.0, quiet::Bool=false)
         quiet || printstyled("Geometry model:\n", bold=true, color=:cyan)
         quiet || println("  gmsh-occ, blocks")
 
         gmsh.isInitialized()==1 && gmsh.finalize()
         gmsh.initialize()
         gmsh.option.setNumber("General.Terminal", 0)
-        size>0.0 && gmsh.option.setNumber("Mesh.CharacteristicLengthMax", size)
+        if size>0.0
+            max_size = 1.2*size
+            min_size = 0.83*size
+        end
+
+        max_size>0.0 && gmsh.option.setNumber("Mesh.CharacteristicLengthMax", max_size)
+        min_size>0.0 && gmsh.option.setNumber("Mesh.CharacteristicLengthMin", min_size)
 
         return new(
             OrderedDict{Tuple{Int,Int},GeoEntity}(),
@@ -166,13 +172,66 @@ function save(geometry::GeoModel, filename::String, quiet=false)
     return nothing
 end
 
+"""
+    add_block(geometry, X1, X2;
+        nx=0, ny=0, nz=0, n=0,
+        rx=1.0, ry=1.0, rz=1.0, r=0.0,
+        shape=nothing, tag="")
 
-function add_block(geometry::GeoModel, X1, X2;
+Adds a 1D, 2D or 3D block (`Block`) to the geometric model using two opposite corner points.
+
+# Arguments
+- `geometry::GeoModel`: Target geometric model to which the block is appended.
+- `X1::Vector{<:Real}`: Coordinates of the first corner (lower vertex).
+- `X2::Vector{<:Real}`: Coordinates of the opposite corner (upper vertex).
+- `nx::Int=1, ny::Int=0, nz::Int=0`: Number of mesh divisions along x, y, and z.
+- `n::Int=0`: Number of mesh divisions for 1D blocks (overrides `nx`).
+- `rx::Real=1.0, ry::Real=1.0, rz::Real=1.0`: Element size grading ratios along x, y, and z.
+- `r::Real=0.0`: Element size grading ratio for 1D blocks (overrides `rx`).
+- `shape`: Optional finite element cell type (`HEX8`, `HEX20`, `QUAD4`, `LIN2`, etc.).  
+  If omitted, it is inferred from the number of points and dimension.
+- `tag::String=""`: Optional tag identifier for the block.
+
+# Behavior
+- The block dimension (`ndim`) is inferred from the number of nonzero coordinate components:
+  - 1D → line block (`LIN2`, `LIN3`)
+  - 2D → surface block (`QUAD4`, `QUAD8`)
+  - 3D → volume block (`HEX8`, `HEX20`)
+- The `shape` argument must match the inferred dimension.
+
+# Returns
+- `Block`: The block object appended to `geometry.blocks`.
+
+# Example
+```julia
+geo = GeoModel()
+
+# Define opposite corners of a 3D domain
+X1 = [0.0, 0.0, 0.0]
+X2 = [2.0, 1.0, 1.0]
+
+# Add a hexahedral block with graded mesh along z
+blk = add_block(geo, X1, X2;
+    nx=8, ny=4, nz=4, rz=1.3,
+    shape=HEX8,
+    tag="foundation")
+"""
+# function add_block(geometry::GeoModel, X1, X2;
+#     nx::Int=0, ny::Int=0, nz::Int=0, n::Int=0,
+#     rx::Real=1.0, ry::Real=1.0, rz::Real=1.0, r::Real=0.0,
+#     shape=nothing, tag="")
+    
+function add_block(geometry::GeoModel, 
+    X, dx::Real, dy::Real, dz::Real;
     nx::Int=0, ny::Int=0, nz::Int=0, n::Int=0,
-    rx::Real=1.0, ry::Real=1.0, rz::Real=1.0, r::Real=0.0,
+    rx::Real=1.0, ry::Real=1.0, rz::Real=1.0, r::Real=0.0, 
     shape=nothing, tag="")
 
-    bl = Block(X1, X2; nx=nx, ny=ny, nz=nz, n=n, rx=rx, ry=ry, rz=rz, r=r, shape=shape, tag=tag)
+    bl = Block(X, float(dx), float(dy), float(dz); 
+        nx=nx, ny=ny, nz=nz, n=n,
+        rx=rx, ry=ry, rz=rz, r=r,
+        shape=shape, tag=tag)
+    # bl = Block(X1, X2; nx=nx, ny=ny, nz=nz, n=n, rx=rx, ry=ry, rz=rz, r=r, shape=shape, tag=tag)
     push!(geometry.blocks, bl)
     return bl
 end
@@ -422,6 +481,11 @@ function set_refinement(geo::GeoModel, X::Vector{<:Real}, rx::Real, ry::Real, rz
     @check size2>0 "set_refinement: 'size2' must be positive"
     @check gradient>0 "set_refinement: 'gradient' must be positive"
     @check 0.0<=roundness<=1.0 "set_refinement: 'roundness' must be in [0, 1]"
+
+    min_size = min(size1, gmsh.option.getNumber("Mesh.CharacteristicLengthMin"))
+    max_size = max(size2, gmsh.option.getNumber("Mesh.CharacteristicLengthMax"))
+    gmsh.option.setNumber("Mesh.CharacteristicLengthMin", min_size)
+    gmsh.option.setNumber("Mesh.CharacteristicLengthMax", max_size)
 
     push!(geo.fields, SizeField(X, rx, ry, rz, size1, size2, roundness, gradient))
 

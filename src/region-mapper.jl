@@ -62,6 +62,8 @@ function add_mapping(mapper::RegionMapper, selector, etype::Type{S}, cmodel::Typ
     push!(mapper.mappings, mapping)
 end
 
+const add_map = add_mapping  # alias
+
 
 """
     RegionModel(etype, cmodel; params...)

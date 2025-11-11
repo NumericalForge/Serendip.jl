@@ -130,10 +130,9 @@ function LinearAlgebra.inv(T::Vec6)
 end
 
 
-# TODO: do we need this?
-LinearAlgebra.norm(T::Vec6) = √dot(T,T)
-
-function LinearAlgebra.dot(T::Vec6, V::Vec3)
+function dott(T::AbstractVector{Float64}, V::AbstractVector{Float64})
+    @assert length(T) == 6
+    @assert length(V) == 3
     t11, t22, t33, t23, t13, t12 = T[1], T[2], T[3], T[4]/SR2, T[5]/SR2, T[6]/SR2
     v1, v2, v3 = V 
     return Vec3( 

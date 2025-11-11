@@ -70,7 +70,7 @@ module Serendip
     export add_series, addlegend!, addannotation!
 
     include("region-mapper.jl")
-    export RegionMapper, RegionModel, add_mapping
+    export RegionMapper, RegionModel, add_mapping, add_map
 
     abstract type Analysis end
 

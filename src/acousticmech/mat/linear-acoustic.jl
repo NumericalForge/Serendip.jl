@@ -26,7 +26,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{LinearAcousticFluid}, ::Type{AcousticFluid}, ctx::Context) = LinearAcousticFluidState
+compat_state_type(::Type{LinearAcousticFluid}, ::Type{AcousticFluid}) = LinearAcousticFluidState
 
 
 function update_state(mat::LinearAcousticFluid, state::LinearAcousticFluidState, Δup::Float64, G::Vector{Float64}, Δt::Float64)

@@ -51,7 +51,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{LinearElasticSeep}, ::Type{HMSolid}, ctx::Context) = LinearElasticSeepState
+compat_state_type(::Type{LinearElasticSeep}, ::Type{HMSolid}) = LinearElasticSeepState
 
 # Element types that work with this material
 # compat_elem_types(::Type{LinearElasticSeep}) = (HMSolid,)

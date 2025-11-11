@@ -1,7 +1,7 @@
 
 # show the content of an array variable or expression including calling file
 macro showm(M)
-    filename = @__FILE__
+    # filename = @__FILE__
     return quote
         printstyled($(string(M)), " = \n", color=:light_magenta)
         #Base.showarray(STDOUT, $(esc(M)), false)

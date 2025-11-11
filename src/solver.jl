@@ -351,8 +351,8 @@ end
 
 
 function progress_bar(T::Float64)
-    dwidth  = displaysize(stdout)[2]-2
-    width   = max(2, min(20, dwidth-35))
+    dwidth  = displaysize(stdout)[2]
+    width   = max(2, min(20, dwidth-21))
     ch_done = T*width
     frac    = ch_done - floor(ch_done)
 
@@ -458,22 +458,24 @@ end
 
 
 function print_summary(ana::Analysis, sw::StopWatch)
-    data = ana.data
+    # display_width  = displaysize(stdout)[2]-2
+    data = ana.data 
     nlines = 3
 
     # line 1:
     T  = data.T
     ΔT = data.ΔT
-    println("  unknown dofs: ", data.nu, "\e[K")
-    printstyled("  inc $(data.inc) output $(data.out)", bold=true, color=:light_blue)
+    # println("  unknown dofs: ", data.nu, "\e[K")
+    printstyled("  inc $(data.inc)  output $(data.out)  udofs $(data.nu)\e[K\n", bold=true, color=:light_blue)
+    # printstyled("  udofs $(data.nu)", bold=true, color=:light_blue)
     if data.transient
         t = round(data.t, sigdigits=3)
-        printstyled(" t=$t", bold=true, color=:light_blue)
+        printstyled("  t=$t", bold=true, color=:light_blue)
     end
     dT  = round(ΔT,sigdigits=4)
     res = round(data.residue,sigdigits=4)
 
-    printstyled(" dT=$dT res=$res\e[K\n", bold=true, color=:light_blue)
+    printstyled("  dT=$dT  res=$res\e[K\n", bold=true, color=:light_blue)
 
     # line 2:
     bar = progress_bar(T)

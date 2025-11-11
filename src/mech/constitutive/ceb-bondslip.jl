@@ -89,7 +89,7 @@ mutable struct CebBondSlip<:Constitutive
 end
 
 
-compat_state_type(::Type{CebBondSlip}, ::Type{MechBondSlip}, ctx::Context) = CebBondSlipState
+compat_state_type(::Type{CebBondSlip}, ::Type{MechBondSlip}) = CebBondSlipState
 
 # Type of corresponding state structure
 compat_state_type(::Type{CebBondSlip}) = CebBondSlipState

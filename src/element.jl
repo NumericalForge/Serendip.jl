@@ -8,7 +8,7 @@ abstract type ElementCache end
 mutable struct  Element{T}<:AbstractCell where T<:ElementFormulation
     id    ::Int
     shape ::CellShape
-    role  ::Symbol # :vertex, :line, :bulk, :surface, :interface, :line_interface, :tip
+    role  ::Symbol # :vertex, :line, :bulk, :surface, :contact, :cohesive, :line_interface, :tip
     etype ::T       # ElementFormulation
     tag   ::String
     active::Bool
@@ -79,16 +79,6 @@ function elem_recover_nodal_values(elem::Element)
 end
 
 
-# """
-#     post_process(elem)
-
-# Computes secondary values at the end of each successful increment.
-# Few special elements need to specialize this function.
-# """
-# function post_process(elem::Element)
-#     return nothing
-# end
-
 
 # Auxiliary functions for elements
 # ================================
@@ -102,7 +92,7 @@ end
 
 # Set the quadrature points for an element
 # Default implementation of bulk line and interface elements
-# Other elements such as beams, shells and line_interfaces specialize this function
+# Other elements such as beams, shells and line_interfaces should specialize this function
 function set_quadrature(elem::Element, n::Int=0; state::NamedTuple=NamedTuple())
 
     if !(n in keys(elem.shape.quadrature))
@@ -121,7 +111,7 @@ function set_quadrature(elem::Element, n::Int=0; state::NamedTuple=NamedTuple())
         w = ipc[i].w
         elem.ips[i] = Ip(R, w)
         elem.ips[i].id = i
-        elem.ips[i].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype), elem.ctx)(elem.ctx; state...)
+        elem.ips[i].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype))(elem.ctx; state...)
         elem.ips[i].owner = elem
     end
 
@@ -129,7 +119,7 @@ function set_quadrature(elem::Element, n::Int=0; state::NamedTuple=NamedTuple())
     C = get_coords(elem)
 
     # fix for interface elements
-    if elem.role == :interface
+    if elem.role in (:cohesive, :contact)
         C = C[1:shape.npoints, : ]
     end
 
@@ -142,17 +132,8 @@ end
 
 
 function set_quadrature(elems::Array{<:Element,1}, n::Int=0)
-    # shapes = CellShape[]
-
     for elem in elems
         set_quadrature(elem, n)
-        # if n in keys(elem.shape.quadrature)
-        # else
-        #     if !(elem.shape in shapes)
-        #         alert("setquadrature: cannot set $n integration points for shape $(elem.shape.name)")
-        #         push!(shapes, elem.shape)
-        #     end
-        # end
     end
 end
 
@@ -192,7 +173,7 @@ function set_state(model, filter; args...)
     length(elems)==0 && notify("set_state: Setting state to an empty array of elements.")
 
     for elem in elems
-        fields = fieldnames(compat_state_type(typeof(elem.cmodel), typeof(elem.etype), elem.ctx))
+        fields = fieldnames(compat_state_type(typeof(elem.cmodel), typeof(elem.etype)))
         for ip in elem.ips
             for (k,v) in args
                 if k in fields

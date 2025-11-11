@@ -33,7 +33,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{Joint1DConstPermeability}, ::Type{SeepJoint1D}, ctx::Context) = Joint1DConstPermeabilityState
+compat_state_type(::Type{Joint1DConstPermeability}, ::Type{SeepJoint1D}) = Joint1DConstPermeabilityState
 
 # Element types that work with this material
 # compat_elem_types(::Type{Joint1DConstPermeability}) = (SeepJoint1D,)

@@ -54,7 +54,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{ElasticJointSeep}, ::Type{HMJoint}, ctx::Context) = ElasticJointSeepState
+compat_state_type(::Type{ElasticJointSeep}, ::Type{HMJoint}) = ElasticJointSeepState
 
 # Element types that work with this material
 # compat_elem_types(::Type{ElasticJointSeep}) = (HMJoint,)

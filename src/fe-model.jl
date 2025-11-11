@@ -77,6 +77,9 @@ function FEModel(
         T0           = T0,
     )
 
+    thickness <= 0.0 && throw(SerendipException("FEModel: thickness must be positive."))
+    ctx.ndim==3 && stress_state!=:auto && throw(SerendipException("FEModel: Invalid stress state. Got $(repr(stress_state)) with ndim=3."))
+
     # FEModel and environment data
     model  = FEModel()
     model.ctx = ctx
@@ -95,7 +98,7 @@ function FEModel(
         selector = mapping.selector
         etype    = mapping.etype
         cmodel   = mapping.cmodel
-        cstate   = compat_state_type(cmodel, etype, ctx)
+        cstate   = compat_state_type(cmodel, etype)
         kwargs   = mapping.params
 
         cells = select(mesh, :element, selector)
@@ -263,11 +266,6 @@ function FEModel(
         @printf "  %5d materials\n" length(mapper.mappings)
     end
 
-    # Setting data
-    model.node_data["node-id"] = copy(mesh.node_data["node-id"])
-    model.elem_data["elem-id"] = copy(mesh.elem_data["elem-id"])
-    model.elem_data["cell-type"] = copy(mesh.elem_data["cell-type"])
-
     return model
 end
 
@@ -360,11 +358,6 @@ function update_output_data!(model::FEModel)
     # Updates data arrays in the model
     model.node_data = OrderedDict()
     model.elem_data = OrderedDict()
-
-    # Ids and cell type
-    model.node_data["node-id"] = collect(1:length(model.nodes))
-    model.elem_data["elem-id"]  = collect(1:length(model.elems))
-    model.elem_data["cell-type"] = [ elem.role in (:interface, :line_interface) ? Int32(VTK_POLY_VERTEX) : Int32(elem.shape.vtk_type) for elem in model.elems ]
 
     # Nodal values
     nnodes = length(model.nodes)
@@ -654,7 +647,8 @@ function nodal_patch_recovery(model::FEModel)
                         # there were problems when using 10 terms
                         nterms = m>=7 ? 7 : m>=4 ? 4 : 1
                     else
-                        nterms = m>=6 ? 6 : m>=4 ? 4 : m>=3 ? 3 : 1
+                        # nterms = m>=6 ? 6 : m>=4 ? 4 : m>=3 ? 3 : 1
+                        nterms = m>=4 ? 4 : m>=3 ? 3 : 1
                     end
 
                     # matrix M for regression

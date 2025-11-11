@@ -113,7 +113,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{CyclicBondSlip}, ::Type{MechBondSlip}, ctx::Context) = CyclicBondSlipState
+compat_state_type(::Type{CyclicBondSlip}, ::Type{MechBondSlip}) = CyclicBondSlipState
 
 
 function tau(mat::CyclicBondSlip, ips::CyclicBondSlipState, s::Float64)

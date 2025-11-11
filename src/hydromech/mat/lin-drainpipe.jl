@@ -34,7 +34,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{LinDrainPipe}, ::Type{DrainPipe}, ctx::Context) = LinDrainPipeState
+compat_state_type(::Type{LinDrainPipe}, ::Type{DrainPipe}) = LinDrainPipeState
 
 # Element types that work with this material
 # compat_elem_types(::Type{LinDrainPipe}) = (DrainPipe,)
