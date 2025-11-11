@@ -2,7 +2,7 @@ using Serendip
 
 # Finite element entities
 geo = GeoModel()
-add_block(geo, [0,0], [1,1], nx=4, ny=4, shape=QUAD9, tag="solids")
+add_block(geo, [0,0,0], 1,1,0, nx=4, ny=4, shape=QUAD9, tag="solids")
 mesh = Mesh(geo)
 
 mapper = RegionMapper()

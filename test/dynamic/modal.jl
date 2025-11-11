@@ -1,7 +1,7 @@
 using Serendip
 
 geo = GeoModel()
-add_block(geo, [0.0, 0.0], [1.0, 10.0], nx=1, ny=10, tag="bulks")
+add_block(geo, [0.0, 0.0, 0.0], [1.0, 10.0], nx=1, ny=10, tag="bulks")
 
 mesh = Mesh(geo)
 select(mesh, :element, tag="bulks")

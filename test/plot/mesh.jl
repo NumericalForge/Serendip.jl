@@ -1,7 +1,7 @@
 using Serendip
 
 geo = GeoModel()
-add_block(geo, [0,0,0], [1,1,1], nx=2, ny=2, nz=4, tag="solids")
+add_block(geo, [0,0,0], 1,1,1, nx=2, ny=2, nz=4, tag="solids")
 mesh = Mesh(geo, quiet=true)
 
 mapper = RegionMapper()

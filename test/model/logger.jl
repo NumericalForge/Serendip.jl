@@ -2,7 +2,7 @@ using Serendip
 using Test
 
 geo = GeoModel()
-add_block(geo, [0,0,0], [1,1,1], nx=2, ny=2, nz=2, tag="solids")
+add_block(geo, [0,0,0], 1,1,1, nx=2, ny=2, nz=2, tag="solids")
 mesh = Mesh(geo)
 
 mapper = RegionMapper()

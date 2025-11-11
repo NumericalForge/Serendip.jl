@@ -44,11 +44,12 @@ bz  = add_bezier(geo, [p1, p2, p3])
 set_transfinite_curve(geo, bz, 3)
 
 # add_arc(geo,
-# add_block(geo, [0 0 0; 1 0 0], [0.5 0 0.5]; nx=2, shape=LIN3, tag="beam")
-mesh = Mesh(geo, ndim=3, quadratic=true)
+# add_block(geo, [0 0 0; 1 0 0], 0.5, 0, 0.5; nx=2, shape=LIN3, tag="beam")
+mesh = Mesh(geo, ndim=3, quadratic=false)
 # mesh = Mesh(geo, ndim=3)
 
-mapper = RegionModel(MechBeam, LinearElastic, E=1e4, nu=0.0, thy=0.1, thz=0.1)
+mapper = RegionModel(MechBeam, LinearElastic, E=1e4, nu=0.0, b=0.1, h=0.1)
+# mapper = RegionModel(MechBeam, LinearElastic, E=1e4, nu=0.0, A=0.01)
 
 # mats  = [ "beam" => MechBeam => LinearElastic => (E=1e4, nu=0, thy=0.1, thz=0.1) ]
 # mats  = [ "beam" => MechBeam => ElasticBeam => (E=1e4, nu=0, A=0.01) ]

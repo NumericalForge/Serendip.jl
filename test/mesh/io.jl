@@ -4,7 +4,7 @@ using Test
 printstyled("\nWriting and loading vtk format\n", color=:blue, bold=true)
 
 geo = GeoModel()
-add_block(geo, [0.0, 0.0, 0.0], [1.0, 1.0, 1.0], nx=10, ny=10, nz=10, shape=HEX8)
+add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 1.0, nx=10, ny=10, nz=10, shape=HEX8)
 m1 = Mesh(geo)
 
 save(m1, "out.vtk")

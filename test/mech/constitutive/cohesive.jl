@@ -4,8 +4,8 @@ using Test
 # ❱❱❱ Geometry and mesh
 
 geo = GeoModel()
-bl1  = add_block(geo, [0, 0], [0.1, 0.1]; nx=1, ny=1, shape=QUAD4, tag="bulk")
-bl2  = add_block(geo, [0.1, 0], [0.2, 0.1]; nx=1, ny=1, shape=QUAD4, tag="bulk")
+bl1  = add_block(geo, [0, 0], 0.1, 0.1, 0.0; nx=1, ny=1, shape=QUAD4, tag="bulk")
+bl2  = add_block(geo, [0.1, 0], 0.1, 0.1, 0.0; nx=1, ny=1, shape=QUAD4, tag="bulk")
 mesh = Mesh(geo)
 add_cohesive_elements(mesh, tag="interface")
 
@@ -27,30 +27,30 @@ ks = 5.6e8
 # ❱❱❱ Finite element analyses
 
 models_props_d = Dict(
-    LinearCohesive => (E=E, nu=nu, zeta=zeta),
-    MohrCoulombCohesive => (E=E, nu=nu, ft=ft, mu=1.4, zeta=zeta, wc=wc),
-    PowerYieldCohesive => (E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=1.5, gamma=0.05, theta=1.5),
+    # LinearCohesive => (E=E, nu=nu, zeta=zeta),
+
+    MohrCoulombCohesive => (E=E, nu=nu, ft=ft, mu=0.9, zeta=zeta, wc=wc),
     AsinhYieldCohesive => (E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=0.6, gamma=0.05, theta=1.5),
-    MohrCoulombContact => (ks=ks, kn=kn, ft=ft, wc=wc, mu=1.4)
+    PowerYieldCohesive => (E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=1.5, gamma=0.05, theta=1.5),
 )
 
 model_elem_d = Dict(
-    LinearCohesive => MechCohesive,
+    # LinearCohesive => MechCohesive, # does not make sense 
     MohrCoulombCohesive => MechCohesive,
-    PowerYieldCohesive => MechCohesive,
     AsinhYieldCohesive => MechCohesive,
-    MohrCoulombContact => MechContact
+    PowerYieldCohesive => MechCohesive,
 )
 
 # ❱❱❱ Finite element analysis using LinearCohesive
+chart = Chart(legend=:top_left)
 
-for (model, props) in models_props_d
-    printstyled("\n$(string(model)):\n\n", color=:yellow, bold=true)
-    elem = model_elem_d[model]
+for (cmodel, props) in models_props_d
+    printstyled("\n$(string(cmodel)):\n\n", color=:yellow, bold=true)
+    elem_type = model_elem_d[cmodel]
     
     mapper = RegionMapper()
     add_mapping(mapper, "bulk", MechBulk, LinearElastic, E=E, nu=nu)
-    add_mapping(mapper, "interface", elem, model; props...)
+    add_mapping(mapper, "interface", elem_type, cmodel; props...)
     
     model = FEModel(mesh, mapper, stress_state=:plane_stress, thickness=1.0)
     ana = MechAnalysis(model)
@@ -61,9 +61,15 @@ for (model, props) in models_props_d
     add_monitor(ana, :ip, "jips", (:σn, :τ))
     
     stage = add_stage(ana, nincs=80, nouts=20)
-    add_bc(stage, :node, "left", ux=0, uy=0)
-    add_bc(stage, :node, "right", ux=1e-9, uy=8e-5)
+    # add_bc(stage, :node, "left", ux=0, uy=0)
+    # add_bc(stage, :node, "right", ux=1e-9, uy=8e-5)
+    add_bc(stage, :node, x==0, ux=0, uy=0)
+    add_bc(stage, :node, x==0.2, ux=0.0001)
     
-    status = run(ana, autoinc=true, maxits=3, tol=0.001, rspan=0.01, dTmax=0.1, tangent_scheme=:ralston)
+    status = run(ana, autoinc=true, maxits=3, tol=0.05, rspan=0.02, dTmax=0.01, tangent_scheme=:ralston, quiet=false)
+    add_series(chart, log1.table["σn"], log1.table["τ"], label=string(cmodel), mark=:circle)
+
     @test status.successful
 end
+
+save(chart, "cohesive-models-comparison.pdf")

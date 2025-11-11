@@ -9,7 +9,7 @@ H  = 0
 nu = 0.3
 
 geo = GeoModel()
-add_block(geo, [0, 0, -th], [th, 1.0, th], nx=1, ny=15, nz=2, shape=HEX20, tag="beam")
+add_block(geo, [0, 0, -th], th, 1.0, 2*th, nx=1, ny=15, nz=2, shape=HEX20, tag="beam")
 mesh = Mesh(geo)
 
 

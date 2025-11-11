@@ -8,7 +8,7 @@ using Test
 # Mesh generation
 
 geo = GeoModel()
-add_block(geo, [0, 0], [1, 1], nx=1, ny=1, shape=QUAD4)
+add_block(geo, [0, 0], 1, 1, 0, nx=1, ny=1, shape=QUAD4)
 mesh = Mesh(geo, quiet=true)
 
 mapper = RegionModel(MechBulk, LinearElastic, E=1.0, nu=0.25)

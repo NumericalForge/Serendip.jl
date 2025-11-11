@@ -18,20 +18,20 @@ using Serendip
     "elements/rod/pprod.jl",
 
     # beam
-    "elements/beam/beam.jl",
+    "elements/beam/cantilever.jl",
 
     # shell
     "elements/shell/shell.jl",
 
     # joint
-    "elements/joint/joint1d.jl",
+    "elements/line_interface/joint1d.jl",
 
     # embeddeed and semi-embedded
-    "elements/inset/embedded.jl",
-    "elements/inset/ceb.jl",
-    "elements/inset/tip.jl",
-
+    "elements/bar/embedded.jl",
+    "elements/tip/tip.jl",
+    
     # Constitutive models
+    "constitutive/ceb.jl",
     "constitutive/dp.jl",
     "constitutive/vm-2d.jl",
     "constitutive/vm-3d.jl",
@@ -40,6 +40,7 @@ using Serendip
     "constitutive/vm-beam-3d.jl",
 
     # "elements/joint/joint2d.jl",
-    "constitutive/interfaces.jl",
+    "constitutive/cohesive.jl",
+    "constitutive/contact.jl",
 ]
 

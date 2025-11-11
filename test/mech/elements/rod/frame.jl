@@ -1,7 +1,7 @@
 using Serendip
 
 geo = GeoModel()
-add_block(geo, [0.0, 0.0], [2.0, 1.0]; n=2, shape=LIN2, tag="frame")
+add_block(geo, [0.0, 0.0], 2.0, 1.0, 0.0; n=2, shape=LIN2, tag="frame")
 
 mesh = Mesh(geo, ndim=2)
 

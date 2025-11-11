@@ -11,7 +11,7 @@ using Test
 
 printstyled("\nExtrude Mesh\n", color=:blue, bold=true)
 geo = GeoModel()
-add_block(geo, [0, 0], [1, 1]; nx=3, ny=3, shape=QUAD4)
+add_block(geo, [0, 0, 0], 1, 1, 0; nx=3, ny=3, shape=QUAD4)
 mesh = Mesh(geo)
 
 # bl = Block( [0 0; 1 1], nx=3, ny=3, shape=QUAD4)
@@ -22,7 +22,7 @@ println(TR)
 
 printstyled("\nExtrude normal to Mesh\n", color=:blue, bold=true)
 geo = GeoModel()
-add_block(geo, [0,0,0], [1,1,0]; n=6, shape=LIN3)
+add_block(geo, [0,0,0], 1, 1, 0; n=6, shape=LIN3)
 mesh = Mesh(geo)
 
 # bl  = Block( [1 0 0; 1 1 0], n=6, shape=LIN3, tag="shell")

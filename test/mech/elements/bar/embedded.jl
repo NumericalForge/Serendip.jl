@@ -5,11 +5,9 @@ using Test
 b = 0.5
 h = 0.6
 ℓ = 4.0
-bl  = Block( [0 0 0; b ℓ h], nx=1, ny=25, nz=3, tag="solid")
 
-# mesh = Mesh(bls)
 geo = GeoModel()
-add_block(geo, [0,0,0], [b, ℓ, h]; nx=1, ny=25, nz=3, tag="solid")
+add_block(geo, [0,0,0], b, ℓ, h; nx=1, ny=25, nz=3, tag="solid")
 
 p1 = add_point(geo, [0.2, 0.1, 0.1])
 p2 = add_point(geo, [0.2, 3.6, 0.1])

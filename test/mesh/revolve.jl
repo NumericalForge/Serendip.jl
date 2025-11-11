@@ -9,7 +9,7 @@ for i in eachindex(shapes)
     shape = shapes[i]
     println("\nrevolving $(shape.name)")
     geo = GeoModel()
-    add_block(geo, [0, 0], [1, 1]; n=4, shape=shape, tag="solids")
+    add_block(geo, [0, 0, 0], 1, 1, 0; n=4, shape=shape, tag="solids")
     mesh = Mesh(geo)
     mesh = revolve(mesh, base=[0,0,0], axis=[0,1,0], n=12)
     TR = @test (length(mesh.elems), length(mesh.nodes)) == data[i]
@@ -22,7 +22,7 @@ for i in eachindex(shapes)
     shape = shapes[i]
     println("\nrevolving $(shape.name)")
     geo = GeoModel()
-    add_block(geo, [0, 0], [1, 1]; nx=4, ny=4, shape=shape, tag="solids")
+    add_block(geo, [0, 0, 0], 1, 1, 0; nx=4, ny=4, shape=shape, tag="solids")
     mesh = Mesh(geo)
     # bl = Block( [0 0; 1 1], nx=4, ny=4, shape=shape, tag="solids")
     # mesh = Mesh(bl)

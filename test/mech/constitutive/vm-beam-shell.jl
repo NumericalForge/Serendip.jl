@@ -10,7 +10,7 @@ H  = 0.0
 nu = 0.3
 
 geo = GeoModel()
-add_block(geo, [0.0, 0.0], [L, h], nx=25, ny=2, shape=QUAD8, tag="beam")
+add_block(geo, [0.0, 0.0], L, h, 0, nx=25, ny=2, shape=QUAD8, tag="beam")
 mesh = Mesh(geo, ndim=3)
 
 mapper = RegionMapper()
@@ -27,4 +27,7 @@ add_bc(stage, :node, (x==0, y==h/2), uy=0)
 add_bc(stage, :node, (x==1, y==h/2), uy = -0.03)
 
 run(ana, autoinc=true)
+save(model, "vm-beam-shell.vtu")
 @test log.table["fy"][end]≈-30 atol=0.7
+
+

@@ -7,7 +7,7 @@ h = 0.2
 
 geo = GeoModel()
 
-add_block(geo, [0,0,0], [ℓ,ℓ,h], shape=HEX8, nx=2, ny=2, nz=4)
+add_block(geo, [0,0,0], ℓ,ℓ,h, shape=HEX8, nx=2, ny=2, nz=4)
 # box = add_box(geo, [0,0,0], ℓ, ℓ, h)
 # set_size(geo, box, 0.05)
 

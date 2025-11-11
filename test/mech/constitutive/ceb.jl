@@ -2,7 +2,7 @@ using Serendip
 using Test
 
 geo = GeoModel()
-add_block(geo, [0.0, 0.0, 0.0], [1.0, 6.0, 1.0], nx=1, ny=10, nz=1, tag="solids")
+add_block(geo, [0.0, 0.0, 0.0], 1.0, 6.0, 1.0, nx=1, ny=5, nz=1, tag="solids")
 p1 = add_point(geo, [0.5, 3.0, 0.5])
 p2 = add_point(geo, [0.5, 6.0, 0.5])
 edge = add_line(geo, p1, p2)
@@ -15,7 +15,7 @@ save(mesh, "mesh.vtk")
 
 bar_points = get_nodes(select(mesh, :element, "bars"))
 select(bar_points, (y==6), tag="tip")
-select(get_nodes(select(mesh, :element, "solids")), tag="fixed_points")
+select(get_nodes(select(mesh, :element, "solids")), tag="fixed")
 
 # Finite elements:
 mapper = RegionMapper()
@@ -26,38 +26,38 @@ add_mapping(mapper, "joints", MechBondSlip, CebBondSlip,
             ks=(12/0.001)*5, kn=5e3, p=0.25)
 
 model = FEModel(mesh, mapper)
-# settings = SolverSettings(autoinc=true, tol=0.01, maxits=3, tangent_scheme=:ralston)
 ana = MechAnalysis(model)
 
 select(get_ips(select(model, :element, "joints")), tag="joint_ips")
 
-add_logger(ana, :node, "tip")
-add_logger(ana, :ipgroup, "joint_ips")
-logg = add_logger(ana, :ip, "joint_ips")
+# add_logger(ana, :node, "tip")
+# add_logger(ana, :ipgroup, "joint_ips")
+# logg = add_logger(ana, :ip, "joint_ips")
+add_monitor(ana, :node, "tip", :uy)
+add_monitor(ana, :node, "tip", :fy)
 
-nincs = 20
-stage = add_stage(ana, nincs=nincs)
+stage = add_stage(ana)
 
-add_bc(stage, :node, "fixed_points", ux=0, uy=0, uz=0)
+add_bc(stage, :node, "fixed", ux=0, uy=0, uz=0)
 add_bc(stage, :node, "tip", uy=0.0003)
 
-stage = add_stage(ana, nincs=nincs)
-add_bc(stage, :node, "fixed_points", ux=0, uy=0, uz=0)
+stage = add_stage(ana)
+add_bc(stage, :node, "fixed", ux=0, uy=0, uz=0)
 add_bc(stage, :node, "tip", uy=-0.0001)
 
-stage = add_stage(ana, nincs=nincs)
-add_bc(stage, :node, "fixed_points", ux=0, uy=0, uz=0)
+stage = add_stage(ana)
+add_bc(stage, :node, "fixed", ux=0, uy=0, uz=0)
 add_bc(stage, :node, "tip", uy=+0.0006)
 
-stage = add_stage(ana, nincs=nincs)
-add_bc(stage, :node, "fixed_points", ux=0, uy=0, uz=0)
+stage = add_stage(ana)
+add_bc(stage, :node, "fixed", ux=0, uy=0, uz=0)
 add_bc(stage, :node, "tip", uy=-0.0005)
 
-stage = add_stage(ana, nincs=nincs)
-add_bc(stage, :node, "fixed_points", ux=0, uy=0, uz=0)
+stage = add_stage(ana)
+add_bc(stage, :node, "fixed", ux=0, uy=0, uz=0)
 add_bc(stage, :node, "tip", uy=+0.005)
 
-run(ana, autoinc=true, tol=0.01, maxits=3, tangent_scheme=:ralston)
+run(ana, autoinc=true, tol=0.01, maxits=3)
 
 # makeplots = true
 # if @isdefined(makeplots) && makeplots

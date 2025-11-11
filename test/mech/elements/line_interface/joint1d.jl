@@ -2,7 +2,7 @@ using Serendip
 using Test
 
 geo = GeoModel()
-add_block(geo, [0.0, 0.0, 0.0], [1.0, 6.0, 1.0], nx=4, ny=6, nz=2, tag="solids")
+add_block(geo, [0.0, 0.0, 0.0], 1.0, 6.0, 1.0, nx=4, ny=6, nz=2, tag="solids")
 p1 = add_point(geo, [0.2, 0.2, 0.2])
 p2 = add_point(geo, [0.2, 5.8, 0.2])
 edge = add_line(geo, p1, p2)

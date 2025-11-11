@@ -8,7 +8,7 @@ top_node = nothing
 for shape in (TRI3, TRI6, QUAD4, QUAD8, QUAD9)
     printstyled(shape.name, color=:cyan); println()
     geo = GeoModel()
-    add_block(geo, [0, 0], [1, 1], nx=2, ny=2, shape=shape)
+    add_block(geo, [0, 0], 1, 1, 0, nx=2, ny=2, shape=shape)
     mesh = Mesh(geo)
     select(mesh, :face, y==0, tag="bottom") # bottom face
     select(mesh, :face, y==1, tag="top") # top face
@@ -36,7 +36,7 @@ end
 for shape in (TET4, TET10, HEX8, HEX20, HEX27)
     printstyled(shape.name, color=:cyan); println()
     geo = GeoModel()
-    add_block(geo, [0, 0, 0], [1, 1, 1], nx=2, ny=2, nz=2, shape=shape)
+    add_block(geo, [0, 0, 0], 1, 1, 1, nx=2, ny=2, nz=2, shape=shape)
     mesh = Mesh(geo)
 
     select(mesh, :face, z==0, tag="bottom") # bottom face

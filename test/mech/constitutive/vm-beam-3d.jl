@@ -10,11 +10,11 @@ H  = 0.0
 nu = 0.3
 
 geo = GeoModel()
-add_block(geo, [0, 0, 0], [L, 0, 0], nx=50, shape=LIN3, tag="beam")
+add_block(geo, [0, 0, 0], L, 0, 0, nx=50, shape=LIN3, tag="beam")
 mesh = Mesh(geo, ndim=3)
 
 mapper = RegionMapper()
-add_mapping(mapper, "beam", MechBeam, VonMises, E=E, nu=nu, fy=fy, H=H, thy=th, thz=h)
+add_mapping(mapper, "beam", MechBeam, VonMises, E=E, nu=nu, fy=fy, H=H, b=th, h=h)
 model = FEModel(mesh, mapper)
 
 ana = MechAnalysis(model)

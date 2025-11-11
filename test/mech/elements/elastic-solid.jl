@@ -1,7 +1,7 @@
 using Serendip
 
 # Geometry
-geo = GeoModel()
+geo = GeoModel(size=1.0)
 
 r = add_rectangle(geo, [0, 0, 0], 1, 1, tag="base" )
 c = add_disk(geo, [0.5, 0.5, 0], [0, 0, 1], 0.2, tag="base" )
@@ -9,13 +9,13 @@ holed = cut(geo, r, c)
 
 extrude(geo, holed, [0, 0, 0.5])
 cir = get_curve(geo, [0.5,0.5,0.5])
-set_transfinite_curve(geo, cir, 20)
+set_transfinite_curve(geo, cir, 10)
 cir = get_curve(geo, [0.5,0.5,0])
-set_transfinite_curve(geo, cir, 20)
-save(geo, "test.step")
+set_transfinite_curve(geo, cir, 10)
+# save(geo, "test.step")
 
 mesh = Mesh(geo, quiet=true)
-save(mesh, "test.vtu")
+# save(mesh, "test.vtu")
 
 # Finite elements
 mapper = RegionMapper()
