@@ -189,7 +189,7 @@ function Mesh(geo::GeoModel;
         mesh = Mesh(max(gmsh_ndim, ndim))
         mesh.nodes = nodes
         mesh.elems = cells
-        synchronize!(mesh, sort=sort)
+        synchronize(mesh, sort=sort)
 
     else
         error("Mesh: No blocks or surfaces/volumes found")
@@ -208,7 +208,7 @@ function Mesh(geo::GeoModel;
 
     if length(geo.gpaths)>0
         gen_insets!(mesh, geo.gpaths)
-        synchronize!(mesh, sort=sort)
+        synchronize(mesh, sort=sort)
     end
 
     if !quiet

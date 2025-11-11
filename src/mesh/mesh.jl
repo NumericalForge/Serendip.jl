@@ -236,7 +236,6 @@ function sort_mesh(mesh::Mesh; reverse::Bool=true)
     for (i, node) in enumerate(mesh.nodes)
         node.id = i
     end
-    mesh.node_data["node-id"]   = collect(1:length(mesh.nodes))
 
     # Sorting elements
     keys = [ minimum(getfield.(cell.nodes, :id)) for cell in mesh.elems]
@@ -258,7 +257,6 @@ function sort_mesh(mesh::Mesh; reverse::Bool=true)
     for (i, elem) in enumerate(mesh.elems)
         elem.id = i
     end
-    mesh.elem_data["elem-id"]   = collect(1:length(mesh.elems))
 
     return mesh
 end
@@ -289,7 +287,7 @@ end
 
 
 # Syncs the mesh data
-function synchronize!(mesh::Mesh; sort=false, cleandata=false)
+function synchronize(mesh::Mesh; sort=false, cleandata=false)
 
     ndim = mesh.ctx.ndim
     if ndim!=3
@@ -334,38 +332,23 @@ function synchronize!(mesh::Mesh; sort=false, cleandata=false)
         unique!(node.elems)
     end
 
-    # Quality
+    # update data
+    if cleandata
+        empty!(mesh.node_data)
+        empty!(mesh.elem_data)
+    end
+
+    # cell quality
     Q = Float64[]
     for c in mesh.elems
         c.quality = cell_quality(c)
         push!(Q, c.quality)
     end
     
-    # update data
-    if cleandata
-        empty!(mesh.node_data)
-        empty!(mesh.elem_data)
-    end
-    
-    mesh.node_data["node-id"]   = collect(1:length(mesh.nodes))
-    mesh.elem_data["quality"]   = Q
-    mesh.elem_data["elem-id"]   = collect(1:length(mesh.elems))
-    mesh.elem_data["cell-type"] = [ cell.role in (:interface, :line_interface) ? Int32(VTK_POLY_VERTEX) : Int32(cell.shape.vtk_type) for cell in mesh.elems ]
+    mesh.elem_data["quality"] = Q
 
     # Ordering
     sort && sort_mesh(mesh)
-end
-
-
-
-# Mesh quality
-function quality!(mesh::Mesh)
-    for c in mesh.elems
-        c.quality = cell_quality(c)
-    end
-    Q = Float64[ c.quality for c in mesh.elems]
-    mesh.elem_data["quality"] = Q
-    return nothing
 end
 
 
@@ -394,7 +377,7 @@ function join_mesh!(mesh::Mesh, m2::Mesh)
     mesh.elems = elems
     mesh._pointdict = pointdict
 
-    synchronize!(mesh, sort=false)
+    synchronize(mesh, sort=false)
 
     return nothing
 end
@@ -529,7 +512,7 @@ function Mesh(
     mesh.ctx.ndim = ndim
     mesh.nodes = nodes
     mesh.elems = cells
-    synchronize!(mesh, sort=false) # no node ordering
+    synchronize(mesh, sort=false) # no node ordering
 
     return mesh
 end
@@ -537,6 +520,7 @@ end
 
 
 export stats
+# TODO
 function stats(mesh::Mesh)
     printstyled("Mesh stats:\n", bold=true, color=:cyan)
 
@@ -597,11 +581,12 @@ function Mesh(elems::Vector{Cell})
     newmesh.nodes = newnodes
     newmesh.elems = newelems
 
-    synchronize!(newmesh, sort=true)
+    synchronize(newmesh, sort=true)
     return newmesh
 end
 
 
+# TODO
 function threshold(mesh::Mesh, field::Union{Symbol,String}, minval::Float64, maxval::Float64)
     field = string(field)
 
@@ -646,7 +631,7 @@ function threshold(mesh::Mesh, field::Union{Symbol,String}, minval::Float64, max
     end
 
     # update node numbering, facets and edges
-    synchronize!(new_mesh, sort=false)
+    synchronize(new_mesh, sort=false)
 
     return new_mesh
 
@@ -684,28 +669,63 @@ function get_segment_data(msh::AbstractDomain, X1::Array{<:Real,1}, X2::Array{<:
     return table
 end
 
+
+"""
+    remove_elements(mesh, selectors...)
+
+Remove elements from the finite element mesh `mesh` that match the given `selectors`.  
+Updates the node list to include only those still connected to remaining elements.
+
+# Arguments
+- `mesh::Mesh`: Mesh object to modify.
+- `selectors`: One or more selection criteria, which may include symbols, expressions, symbolic identifiers, strings, or integer vectors.
+
+# Returns
+- `Mesh`: The updated mesh with selected elements removed.
+"""
+function remove_elements(mesh::Mesh, selectors::Union{Symbol,Expr,Symbolic,String,Vector{Int},NTuple{N, Symbolic} where N}...;)
+    selected = select(mesh.elems, selectors...)
+    mesh.elems = setdiff(mesh.elems, selected)
+
+    nodes = [ node for elem in mesh.elems for node in elem.nodes ]
+    mesh.nodes = unique!( n -> n.id, nodes )
+
+    synchronize(mesh, sort=false)
+    return mesh
+end
+
+
 export randmesh
-function randmesh(n::Int...; shape=nothing)
+"""
+    rand_mesh(n...; shape=nothing)
+
+Generate a random structured mesh of unit size in 2D or 3D.
+
+# Arguments
+- `n::Int...`: Number of elements in each spatial direction.  
+  - For 2D: `(nx, ny)`  
+  - For 3D: `(nx, ny, nz)`
+- `shape`: Optional element type.  
+  If not provided, a random element shape is chosen among  
+  `(TRI3, TRI6, QUAD4, QUAD8)` for 2D, or  
+  `(TET4, TET10, HEX8, HEX20)` for 3D.
+
+# Returns
+- `Mesh`: A randomly generated finite element mesh.
+"""
+function rand_mesh(n::Int...; shape=nothing)
     ndim = length(n)
-    geo = GeoModel()
+    geo = GeoModel(quiet=true)
     if ndim==2
         lx, ly = (1.0, 1.0)
         nx, ny = n
         isnothing(shape) && (shape=rand((TRI3, TRI6, QUAD4, QUAD8)))
-        add_block(geo, [0.0, 0.0], [lx, ly], nx=nx, ny=ny, shape=shape)
-        # return Mesh(geo; quiet=true)
-        # m = Mesh(Block([0.0 0.0; lx ly], nx=nx, ny=ny, shape=shape), quiet=true)
+        add_block(geo, [0.0, 0.0, 0.0], lx, ly, 0.0, nx=nx, ny=ny, shape=shape)
     else
         lx, ly, lz = (1.0, 1.0, 1.0)
         nx, ny, nz = n
         isnothing(shape) && (shape=rand((TET4, TET10, HEX8, HEX20)))
-        add_block(geo, [0.0, 0.0, 0.0], [lx, ly, lz], nx=nx, ny=ny, nz=nz, shape=shape)
-        # m = Mesh(Block([0.0 0.0 0.0; lx ly lz], nx=nx, ny=ny, nz=nz, shape=shape), quiet=true)
+        add_block(geo, [0.0, 0.0, 0.0], lx, ly, lz, nx=nx, ny=ny, nz=nz, shape=shape)
     end
     return Mesh(geo; quiet=true)
 end
-
-
-
-
-

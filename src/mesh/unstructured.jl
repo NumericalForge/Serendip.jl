@@ -208,7 +208,7 @@ function mesh_unstructured(geo::GeoModel; kwargs...)
         node.tag = tag
     end
 
-    synchronize!(mesh, sort=true)
+    synchronize(mesh, sort=true)
 
     return mesh
 

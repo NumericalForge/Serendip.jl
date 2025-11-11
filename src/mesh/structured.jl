@@ -36,7 +36,7 @@ function mesh_structured(mesh::Mesh, block_or_arr...)
         split_block!(mesh, b)
     end
 
-    synchronize!(mesh)
+    synchronize(mesh)
 
     return mesh
 end

@@ -298,40 +298,6 @@ function slice(
     end
 
     # interpolate node data
-    # nnodes = length(new_nodes)
-    # node_data = OrderedDict{String,Array}()
-    # for (key,data) in mesh.node_data
-    #     key in ("node-id",) && continue
-
-    #     count = zeros(Int, nnodes)
-    #     sz    = size(data)
-    #     dim   = length(sz)
-    #     if dim==1
-    #         newdata = zeros(eltype(data), nnodes)
-    #     else
-    #         newdata = zeros(eltype(data), nnodes, sz[2])
-    #     end
-
-    #     for cell in bulk_elems
-    #         ocell = cell.owner
-    #         ids = [ node.id for node in ocell.nodes ]
-    #         V = data[ids,:]
-    #         coords = get_coords(ocell)
-    #         for node in cell.nodes
-    #             Ξ = inverse_map(ocell.shape, coords, node.coord)
-    #             N = ocell.shape.func(Ξ)
-    #             val = V'*N
-    #             newdata[node.id, :] .+= val
-    #             count[node.id] += 1
-    #         end
-    #     end
-
-    #     # @show count
-
-    #     node_data[key] = newdata./count
-    # end
-
-    # interpolate node data
     labels = [ key for key in keys(mesh.node_data) if key != "node-id" ]
     nnodes = length(new_nodes)
     node_data = OrderedDict{String,Array}()
@@ -364,7 +330,6 @@ function slice(
                 V = mesh.node_data[key][ids,:]
                 val = V'*N
                 node_data[key][node.id, :] .= val
-                # node_data[key][node.id, :] .+= val
             end
         end
     end
@@ -428,7 +393,7 @@ function slice(
     newmesh.elems = [ bulk_elems; other_elems ]
     newmesh.node_data = node_data
     newmesh.elem_data = elem_data
-    synchronize!(newmesh, sort=false)
+    synchronize(newmesh, sort=false)
 
     return newmesh
 end

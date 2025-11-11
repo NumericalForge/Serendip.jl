@@ -5,7 +5,7 @@
 mutable struct Cell<:AbstractCell
     id     ::Integer
     shape  ::CellShape
-    role::Symbol  # :vertex, :line, :bulk, :surface, :interface, :line_interface, :tip
+    role::Symbol  # :vertex, :line, :bulk, :surface, :contact, :cohesive, :line_interface, :tip
     nodes  ::Vector{Node}
     tag    ::String
     active ::Bool
@@ -88,7 +88,7 @@ Filters a list of finite element cells (`elems`) based on one or more `selectors
 
 Selectors can be:
 - `:all`             → select all elements (no filtering)
-- `:bulk`, `:line`, `:interface`, `:line_interface`, `:tip` → select by element role
+- `:bulk`, `:line`, `:contact`, `:cohesive`, `:line_interface`, `:tip` → select by element role
 - `:active`          → select only active elements
 - `:embedded`        → select embedded line elements (with couplings)
 - `String`           → match element tag
@@ -118,7 +118,7 @@ function select(
         if isa(selector, Symbol)
             if selector == :all
                 # do nothing (don't filter)
-            elseif selector in (:bulk, :line, :interface, :line_interface, :tip)
+            elseif selector in (:bulk, :line, :cohesive, :contact, :line_interface, :tip)
                 selected = Int[ i for i in selected if elems[i].role==selector ]
             elseif selector == :active
                 selected = Int[ i for i in selected if elems[i].active ]
@@ -175,7 +175,7 @@ Filters entities from a finite element domain (`domain`) by type and selection c
 
 Selectors can be:
 - `:all`             → select all elements (no filtering)
-- `:bulk`, `:line`, `:interface`, `:line_interface`, `:tip` → select by element role
+- `:bulk`, `:line`, `:contact`, `:cohesive`, `:line_interface`, `:tip` → select by element role
 - `:active`          → select only active elements
 - `:embedded`        → select embedded line elements (with couplings)
 - `String`           → match element tag

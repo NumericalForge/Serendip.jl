@@ -188,7 +188,7 @@ function mirror(mesh::Mesh; axis=[0.0, 0, 1], base=[0.0, 0, 0])
         isinverted(elem) && flip!(elem)
     end
 
-    synchronize!(newmesh, sort=false)
+    synchronize(newmesh, sort=false)
     return newmesh
 end
 

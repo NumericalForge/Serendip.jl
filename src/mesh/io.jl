@@ -82,12 +82,12 @@ function save_vtk(mesh::AbstractDomain, filename::String; desc::String="")
     # Write cell data
 
     if has_elem_data
-        any( contains(field, "tag-") for field in keys(mesh.elem_data) ) && warn("save: Skipping tag string while saving mesh in .vtk legacy format")
+        # any( contains(field, "tag-") for field in keys(mesh.elem_data) ) && warn("save: Skipping tag string while saving mesh in .vtk legacy format")
 
         println(f, "CELL_DATA ", ncells)
         for (field,D) in mesh.elem_data
             isempty(D) && continue
-            contains(field, "tag-") && continue
+            contains(field, "tag-") && continue # skip encoded tags
 
             isfloat = eltype(D)<:AbstractFloat
 
@@ -209,10 +209,9 @@ function save_vtu(mesh::AbstractDomain, filename::String; desc::String="", compr
     # Write cell types
     types = Int32[]
     for cell in mesh.elems
-        if cell.role in (:interface, :line_interface)
+        if cell.role in (:contact, :cohesive, :line_interface, :tip)
             push!(types, Int32(VTK_POLY_VERTEX))
         else
-            # @show cell.role
             push!(types, Int32(cell.shape.vtk_type))
         end
     end
@@ -257,47 +256,60 @@ function save_vtu(mesh::AbstractDomain, filename::String; desc::String="", compr
 end
 
 
-function add_extra_fields!(mesh::AbstractDomain)
+function add_extra_fields(mesh::AbstractDomain)
     ncells = length(mesh.elems)
 
-    # Add field for joints
-    if any( c.role==:interface for c in mesh.elems )
-        interface_data = zeros(Int, ncells, 4) # vtk_type, npoints, first linked cell, second linked cell
+    # Add one-based node-id, elem-id and cell type
+    mesh.node_data["node-id"]   = Int[ node.id for node in mesh.nodes ]
+    mesh.elem_data["elem-id"]   = Int[ elem.id for elem in mesh.elems ]
+    mesh.elem_data["cell-type"] = [ cell.role in (:contact, :cohesive, :line_interface) ? Int32(VTK_POLY_VERTEX) : Int32(cell.shape.vtk_type) for cell in mesh.elems ]
+
+    
+    # Add field for interface elements
+    interface_types = Set( c.role for c in mesh.elems if c.role in (:contact, :cohesive, :line_interface) )
+    if length(interface_types)>0
+        interface_data = zeros(Int, ncells, 5) # role, vtk_type, npoints, first linked cell, second linked cell
         mesh.elem_data["interface-data"] = interface_data
 
-        for i in 1:ncells
-            cell = mesh.elems[i]
-            nlayers = 2 # Todo: Fix for 3 layers
-            if cell.role==:interface
-                interface_data[i,1] = Int(cell.shape.vtk_type)
-                interface_data[i,2] = length(cell.nodes)
-                interface_data[i,3] = cell.couplings[1].id
+        for (i,cell) in enumerate(mesh.elems)
+            if cell.role in (:contact, :cohesive)
+                nlayers = 2 # Todo: Fix for 3 layers
+                interface_data[i,1] = cell.role==:contact ? 1 : 2
+                interface_data[i,2] = Int(cell.shape.vtk_type)
+                interface_data[i,3] = length(cell.nodes)
+                interface_data[i,4] = cell.couplings[1].id
                 if length(cell.couplings)==2 # only for cohesive elements (boundary joints have only one linked cell)
-                    interface_data[i,4] = cell.couplings[2].id
+                    interface_data[i,5] = cell.couplings[2].id
                 end
+            elseif cell.role==:line_interface
+                interface_data[i,1] = 3
+                interface_data[i,2] = Int(cell.shape.vtk_type)
+                interface_data[i,3] = cell.shape.npoints
+                interface_data[i,4] = cell.couplings[1].id
+                interface_data[i,5] = cell.couplings[2].id
+            elseif cell.role==:tip
+                interface_data[i,1] = 4
+                interface_data[i,2] = Int(cell.shape.vtk_type)
+                interface_data[i,3] = cell.shape.npoints
+                interface_data[i,4] = cell.couplings[1].id
+                interface_data[i,5] = cell.couplings[2].id
             end
         end
     end
 
     # Add field for inset nodes
-    if any( c.role==:line_interface for c in mesh.elems )
-        if haskey(mesh.elem_data, "interface-data")
-            interface_data = mesh.elem_data["interface-data"]
-        else
-            interface_data = zeros(Int, ncells, 4) # vtk_type, npoints, first linked cell, second linked cell
-            mesh.elem_data["interface-data"] = interface_data 
-        end
-
-        for i in 1:ncells
-            cell = mesh.elems[i]
-            if cell.role==:line_interface
-                interface_data[i,1] = Int(cell.shape.vtk_type)
-                interface_data[i,2] = cell.shape.npoints
-                interface_data[i,3] = cell.couplings[1].id
-                interface_data[i,4] = cell.couplings[2].id
-            end
-        end
-    end
+    # if :line_interface in interface_types
+    #     for i in 1:ncells
+    #         cell = mesh.elems[i]
+    #         if cell.role==:line_interface
+    #             interface_data[i,1] = 3
+    #             interface_data[i,2] = Int(cell.shape.vtk_type)
+    #             interface_data[i,3] = cell.shape.npoints
+    #             interface_data[i,4] = cell.couplings[1].id
+    #             interface_data[i,5] = cell.couplings[2].id
+    #         end
+    #     end
+    # end
 
     # Add field for embedded elements
     if any( c.role==:line && length(c.couplings)>0 for c in mesh.elems )
@@ -349,7 +361,7 @@ function save(mesh::AbstractDomain, filename::String; compress=true, quiet=false
     _, format = splitext(filename)
     format in formats || error("save: Cannot save $(typeof(mesh)) to $filename. Available formats are $formats.")
 
-    add_extra_fields!(mesh)
+    add_extra_fields(mesh)
     desc = "File generated by Serendip Finite Element Code"
 
     if format==".vtk"
@@ -558,6 +570,7 @@ function read_vtu(filename::String)
     if xpointdata!==nothing
         for array_data in xpointdata.children
             label = array_data.attributes["Name"]
+            # label in ("node-id",) && continue # skip extra fields
             node_data[label] = get_array(array_data)
         end
     end
@@ -566,6 +579,7 @@ function read_vtu(filename::String)
     if xcelldata!==nothing
         for array_data in xcelldata.children
             label = array_data.attributes["Name"]
+            # label in ("elem-id", "tag", "tag-s1", "tag-s2", "cell-type", "interface-data", "embedded-data") && continue # skip extra fields
             elem_data[label] = get_array(array_data)
         end
     end
@@ -667,19 +681,29 @@ function Mesh(coords, connects, vtk_types, node_data, elem_data)
         # Fix information for 1d and 2d/3d interface elements
         for (i,cell) in enumerate(mesh.elems)
             if cell.shape==POLYVERTEX && interface_data[i,1]>0
-                vtk_shape = VTKCellType(interface_data[i,1])
+                # @show interface_data[i,1]
+                idx = interface_data[i,1]
+                cell.role  = idx==1 ? :contact : idx==2 ? :cohesive : idx==2 ? :line_interface : :tip
+                vtk_shape  = VTKCellType(interface_data[i,2])
                 cell.shape = Vtk2CellShape_dict[vtk_shape]
 
-                if interface_data[i,4]>0 && mesh.elems[interface_data[i,4]].role==:line # :line interface
-                    cell.role = :line_interface
-                    cell.couplings = mesh.elems[interface_data[i, 3:4]]
+                if cell.role == :line_interface
+                    cell.couplings = mesh.elems[interface_data[i, 4:5]]
                     cell.couplings[1].crossed = true # host cell is crossed
-                else # 2d/3d interface
-                    cell.role = :interface
-                    rng = interface_data[i,4]>0 ? (3:4) : (3:3)  # boundary joint has only one linked cell
+                elseif cell.role == :tip
+                    cell.couplings = mesh.elems[interface_data[i, 4:5]]
+                else
+                    rng = interface_data[i,5]>0 ? (4:5) : (4:4)  # boundary contact has only one linked cell
                     cell.couplings = mesh.elems[interface_data[i, rng]]
                 end
             end
+        end
+    end
+
+    # check for remaining elements with role :undefined
+    for cell in mesh.elems
+        if cell.role==:undefined
+            throw(SerendipException("Mesh: found element with undefined role (id: $(cell.id) vtk_shape: $(cell.shape.vtk_type))"))
         end
     end
 
@@ -708,7 +732,7 @@ function Mesh(coords, connects, vtk_types, node_data, elem_data)
         end
     end
 
-    synchronize!(mesh)
+    synchronize(mesh)
 
     return mesh
 
