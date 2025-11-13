@@ -176,8 +176,8 @@ end
 
 
 function complete_ut_T(model::FEModel)
-    haskey(model.node_data, "ut") || return
-    Ut = model.node_data["ut"]
+    haskey(model.node_fields, "ut") || return
+    Ut = model.node_fields["ut"]
     T0 = model.ctx.T0
 
     for elem in model.elems
@@ -196,7 +196,7 @@ function complete_ut_T(model::FEModel)
         end
     end
 
-    model.node_data["ut"] = Ut .+ T0
+    model.node_fields["ut"] = Ut .+ T0
 end
 
 

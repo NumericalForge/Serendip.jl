@@ -150,7 +150,7 @@ function update_logger!(logger::Logger, ana::Analysis)
 
         # get data from recovered nodal values
         ids = [ node.id for node in logger.target ]
-        for (key,V) in ana.model.node_data
+        for (key,V) in ana.model.node_fields
             table[key] = V[ids]
         end
 

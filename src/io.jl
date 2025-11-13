@@ -102,7 +102,7 @@ function save_xml(model::FEModel, filename::String)
 
     # NodeData
     xnodedata = XmlElement("NodeData")
-    for (field,D) in model.node_data
+    for (field,D) in model.node_fields
         isempty(D) && continue
         isfloat = eltype(D)<:AbstractFloat
         dtype = isfloat ? "Float64" : "Int32"
@@ -124,7 +124,7 @@ function save_xml(model::FEModel, filename::String)
 
     # ElemData
     xelemdata = XmlElement("ElemData")
-    for (field,D) in model.elem_data
+    for (field,D) in model.elem_fields
         isempty(D) && continue
         isfloat = eltype(D)<:AbstractFloat
         dtype = isfloat ? "Float64" : "Int32"
@@ -320,9 +320,9 @@ function FEModel(filename::String; quiet=false)
         dtype = TYPES[arr.attributes["type"]]
         label = arr.attributes["name"]
         if ncomps==1
-            domain.node_data[label] = parse.(dtype, split(arr.content))
+            domain.node_fields[label] = parse.(dtype, split(arr.content))
         else
-            domain.node_data[label] = transpose(reshape(parse.(dtype, split(arr.content)), ncomps, nnodes))
+            domain.node_fields[label] = transpose(reshape(parse.(dtype, split(arr.content)), ncomps, nnodes))
         end
     end
 
@@ -333,9 +333,9 @@ function FEModel(filename::String; quiet=false)
             dtype = TYPES[arr.attributes["type"]]
             label = arr.attributes["name"]
             if ncomps==1
-                domain.elem_data[label] = parse.(dtype, split(arr.content))
+                domain.elem_fields[label] = parse.(dtype, split(arr.content))
             else
-                domain.elem_data[label] = transpose(reshape(parse.(dtype, split(arr.content)), ncomps, nelems))
+                domain.elem_fields[label] = transpose(reshape(parse.(dtype, split(arr.content)), ncomps, nelems))
             end
         end
     end
@@ -348,7 +348,7 @@ end
 
 
 function get_segment_data(model::FEModel, X1::Array{<:Real,1}, X2::Array{<:Real,1}, filename::String=""; npoints=50)
-    data = model.node_data
+    data = model.node_fields
     table = DataTable(["s"; collect(keys(data))])
     X1 = [X1; 0.0][1:3]
     X2 = [X2; 0.0][1:3]

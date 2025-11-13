@@ -455,7 +455,7 @@ function stage_solver(ana::DynamicAnalysis, stage::Stage, solver_settings::Solve
             checkpoint = T>Tcheck-ΔTmin
             if checkpoint
                 data.out += 1
-                # update_embedded_disps!(active_elems, model.node_data["U"])
+                # update_embedded_disps!(active_elems, model.node_fields["U"])
                 Tcheck += ΔTcheck # find the next output time
             end
 
@@ -467,7 +467,7 @@ function stage_solver(ana::DynamicAnalysis, stage::Stage, solver_settings::Solve
             #     rm.(glob("*conflicted*.dat", "$outdir/"), force=true)
 
             #     update_output_data!(model)
-            #     update_embedded_disps!(active_elems, model.node_data["U"])
+            #     update_embedded_disps!(active_elems, model.node_fields["U"])
 
             #     update_multiloggers!(model)
             #     save(model, "$outdir/$outkey-$iout.vtu", quiet=true) #!

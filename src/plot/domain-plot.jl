@@ -286,7 +286,7 @@ function configure!(mplot::DomainPlot)
 
     # Change coords if warping
     if mplot.warp>0.0
-        U = get(mesh.node_data, "U", nothing)
+        U = get(mesh.node_fields, "U", nothing)
         if U === nothing
             alert("DomainPlot: Vector field U not found for warping.")
         else
@@ -322,8 +322,8 @@ function configure!(mplot::DomainPlot)
         nodes = unique( n -> n.id, [ node for elem in elems for node in elem.nodes ] )
     end
 
-    node_data = mesh.node_data
-    elem_data = mesh.elem_data
+    node_fields = mesh.node_fields
+    elem_fields = mesh.elem_fields
 
     # populate feature_edges_d
     for edge in feature_edges
@@ -380,27 +380,27 @@ function configure!(mplot::DomainPlot)
         mplot.label == ""  && (mplot.label = field)
 
         # available fields
-        fields = [ string(field) for field in Iterators.flatten([keys(node_data), keys(elem_data)]) ]
+        fields = [ string(field) for field in Iterators.flatten([keys(node_fields), keys(elem_fields)]) ]
         field in fields || error("mplot: field $field not found. Available fields are: $(join(fields, ", ", " and "))")
 
         if mplot.field_kind == :auto
-            if haskey(node_data, field)
+            if haskey(node_fields, field)
                 mplot.field_kind = :node
-            elseif haskey(elem_data, field)
+            elseif haskey(elem_fields, field)
                 mplot.field_kind = :element
             else
-                # fields = [ string(field) for field in Iterators.flatten([keys(node_data), keys(elem_data)]) ]
-                fields = string.([ collect(keys(node_data)); collect(keys(elem_data)) ])
+                # fields = [ string(field) for field in Iterators.flatten([keys(node_fields), keys(elem_fields)]) ]
+                fields = string.([ collect(keys(node_fields)); collect(keys(elem_fields)) ])
                 error("mplot: field $field not found. Available fields are: $(join(fields, ", ", " and "))")
             end
         end
 
         if mplot.field_kind == :element
-            fvals = elem_data[field].*mplot.field_mult
+            fvals = elem_fields[field].*mplot.field_mult
             fmax = maximum(fvals)
             fmin = minimum(fvals)
         else
-            fvals = node_data[field].*mplot.field_mult
+            fvals = node_fields[field].*mplot.field_mult
             fmax = maximum(fvals[node.id] for node in nodes)
             fmin = minimum(fvals[node.id] for node in nodes)
         end
@@ -515,7 +515,7 @@ function draw!(mplot::DomainPlot, ctx::CairoContext)
     set_font_size(ctx, mplot.font_size)
 
     # has_field = mplot.field != ""
-    # is_nodal_field = has_field && haskey(mplot.mesh.node_data, mplot.field)
+    # is_nodal_field = has_field && haskey(mplot.mesh.node_fields, mplot.field)
 
     Xmin, Ymin, Xmax, Ymax = mplot.canvas.box
     xmin, ymin, xmax, ymax = mplot.canvas.limits

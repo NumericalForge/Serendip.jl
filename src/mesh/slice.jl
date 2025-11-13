@@ -298,13 +298,13 @@ function slice(
     end
 
     # interpolate node data
-    labels = [ key for key in keys(mesh.node_data) if key != "node-id" ]
+    labels = [ key for key in keys(mesh.node_fields) if key != "node-id" ]
     nnodes = length(new_nodes)
-    node_data = OrderedDict{String,Array}()
+    node_fields = OrderedDict{String,Array}()
 
 
     for key in labels
-        data = mesh.node_data[key]
+        data = mesh.node_fields[key]
         sz   = size(data)
         dim  = length(sz)
         if dim==1
@@ -312,7 +312,7 @@ function slice(
         else
             newdata = zeros(eltype(data), nnodes, sz[2])
         end
-        node_data[key] = newdata
+        node_fields[key] = newdata
     end
 
     count = zeros(Int, nnodes)
@@ -327,9 +327,9 @@ function slice(
             Ξ = inverse_map(ocell.shape, coords, node.coord)
             N = ocell.shape.func(Ξ)
             for key in labels
-                V = mesh.node_data[key][ids,:]
+                V = mesh.node_fields[key][ids,:]
                 val = V'*N
-                node_data[key][node.id, :] .= val
+                node_fields[key][node.id, :] .= val
             end
         end
     end
@@ -338,16 +338,16 @@ function slice(
     for key in labels
         for cell in other_elems
             for node in cell.nodes
-                node_data[key][node.id, :] .= mesh.node_data[key][node.id, :]
+                node_fields[key][node.id, :] .= mesh.node_fields[key][node.id, :]
             end
         end
     end
 
 
     # update cell data
-    elem_data=OrderedDict{String,Array}()
+    elem_fields=OrderedDict{String,Array}()
     nelems = length(bulk_elems)
-    for (key,data) in mesh.elem_data
+    for (key,data) in mesh.elem_fields
         key in ("elem-id", "quality", "cell-type") && continue
         contains(key, "tag") && continue
 
@@ -365,7 +365,7 @@ function slice(
             newdata[cell.id, :] .= val
         end
 
-        elem_data[key] = newdata
+        elem_fields[key] = newdata
     end
 
     if project
@@ -377,8 +377,8 @@ function slice(
         end
 
         # update U so the slice can be plotted using warp
-        if haskey(node_data, "U")
-            U = node_data["U"]
+        if haskey(node_fields, "U")
+            U = node_fields["U"]
             R = [ Vx´ Vy´ zeros(3) ]'
             for i in 1:size(U, 1)
                 U[i, :] = R*U[i, :]
@@ -391,8 +391,8 @@ function slice(
 
     newmesh.nodes = new_nodes
     newmesh.elems = [ bulk_elems; other_elems ]
-    newmesh.node_data = node_data
-    newmesh.elem_data = elem_data
+    newmesh.node_fields = node_fields
+    newmesh.elem_fields = elem_fields
     synchronize(newmesh, sort=false)
 
     return newmesh

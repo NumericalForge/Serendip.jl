@@ -6,8 +6,8 @@ mutable struct Mesh<:AbstractDomain
     elems::Vector{Cell}
     faces::Vector{Cell}
     edges::Vector{Cell}
-    node_data::OrderedDict{String,Array}
-    elem_data ::OrderedDict{String,Array}
+    node_fields::OrderedDict{String,Array}
+    elem_fields ::OrderedDict{String,Array}
     ctx::MeshContext
 
     _pointdict::Dict{UInt64,Node}
@@ -19,8 +19,8 @@ mutable struct Mesh<:AbstractDomain
         this.elems  = []
         this.faces  = []
         this.edges  = []
-        this.node_data = OrderedDict()
-        this.elem_data = OrderedDict()
+        this.node_fields = OrderedDict()
+        this.elem_fields = OrderedDict()
         this.ctx = MeshContext(ndim)
         this._pointdict = Dict{UInt64, Node}()
         this._elempartition = ElemPartition()
@@ -50,8 +50,8 @@ function Base.copy(mesh::AbstractDomain)
     compute_facets(newmesh)
 
     newmesh._pointdict = Dict( hash(node) => node for node in newmesh.nodes )
-    newmesh.node_data = copy(mesh.node_data)
-    newmesh.elem_data = copy(mesh.elem_data)
+    newmesh.node_fields = copy(mesh.node_fields)
+    newmesh.elem_fields = copy(mesh.elem_fields)
 
     # fixing references for linked elements #todo check
     for elem in newmesh.elems
@@ -222,13 +222,13 @@ function sort_mesh(mesh::Mesh; reverse::Bool=true)
     mesh.nodes = mesh.nodes[perm]
 
     # Update nodal fields
-    for (key, data) in mesh.node_data
+    for (key, data) in mesh.node_fields
         key == "node-id" && continue
         sz = size(data)
         if length(sz)==1
-            mesh.node_data[key] = data[perm]
+            mesh.node_fields[key] = data[perm]
         else
-            mesh.node_data[key] = data[perm,:]
+            mesh.node_fields[key] = data[perm,:]
         end
     end
 
@@ -243,13 +243,13 @@ function sort_mesh(mesh::Mesh; reverse::Bool=true)
     mesh.elems = mesh.elems[perm]
 
     # Update cell fields
-    for (key, data) in mesh.elem_data
+    for (key, data) in mesh.elem_fields
         key == "elem-id" && continue
         sz = size(data)
         if length(sz)==1
-            mesh.elem_data[key] = data[perm]
+            mesh.elem_fields[key] = data[perm]
         else
-            mesh.elem_data[key] = data[perm,:]
+            mesh.elem_fields[key] = data[perm,:]
         end
     end
 
@@ -334,8 +334,8 @@ function synchronize(mesh::Mesh; sort=false, cleandata=false)
 
     # update data
     if cleandata
-        empty!(mesh.node_data)
-        empty!(mesh.elem_data)
+        empty!(mesh.node_fields)
+        empty!(mesh.elem_fields)
     end
 
     # cell quality
@@ -345,7 +345,7 @@ function synchronize(mesh::Mesh; sort=false, cleandata=false)
         push!(Q, c.quality)
     end
     
-    mesh.elem_data["quality"] = Q
+    mesh.elem_fields["quality"] = Q
 
     # Ordering
     sort && sort_mesh(mesh)
@@ -427,9 +427,9 @@ Mesh
     2: Cell  id=-1  tag="triangle"
     3: Cell  id=-1  tag="triangle"
     4: Cell  id=-1  tag="triangle"
-  node_data: OrderedDict{String, Array} with 1 entry
+  node_fields: OrderedDict{String, Array} with 1 entry
     "node-id" => [1, 2, 3, 4]
-  elem_data: OrderedDict{String, Array} with 3 entries
+  elem_fields: OrderedDict{String, Array} with 3 entries
     "quality" => [0.8915188114208271, 0.8915188114208271]
     "elem-id" => [1, 2]
     "cell-type" => [5, 5]
@@ -591,13 +591,13 @@ function threshold(mesh::Mesh, field::Union{Symbol,String}, minval::Float64, max
     field = string(field)
 
     # check if field exists
-    found = haskey(mesh.elem_data, field)
+    found = haskey(mesh.elem_fields, field)
     if found
-        vals = mesh.elem_data[field]
+        vals = mesh.elem_fields[field]
     else
-        found = haskey(mesh.node_data, field)
+        found = haskey(mesh.node_fields, field)
         found || error("threshold: field $field not found")
-        data  = mesh.node_data[field]
+        data  = mesh.node_fields[field]
         vals = [ mean(data[i]) for i in 1:ncells ]
     end
 
@@ -622,12 +622,12 @@ function threshold(mesh::Mesh, field::Union{Symbol,String}, minval::Float64, max
     new_mesh.elems = cells
 
     # select relevant data
-    for (key,vals) in mesh.node_data
-        new_mesh.node_data[key] = vals[pids,:]
+    for (key,vals) in mesh.node_fields
+        new_mesh.node_fields[key] = vals[pids,:]
     end
 
-    for (key,vals) in mesh.elem_data
-        new_mesh.elem_data[key] = vals[cids]
+    for (key,vals) in mesh.elem_fields
+        new_mesh.elem_fields[key] = vals[cids]
     end
 
     # update node numbering, facets and edges
@@ -640,7 +640,7 @@ end
 
 export get_segment_data
 function get_segment_data(msh::AbstractDomain, X1::Array{<:Real,1}, X2::Array{<:Real,1}, filename::String=""; n=200)
-    data = msh.node_data
+    data = msh.node_fields
     table = DataTable(["s"; collect(keys(data))])
     X1 = [X1; 0.0][1:3]
     X2 = [X2; 0.0][1:3]
@@ -695,7 +695,7 @@ function remove_elements(mesh::Mesh, selectors::Union{Symbol,Expr,Symbolic,Strin
 end
 
 
-export randmesh
+export rand_mesh
 """
     rand_mesh(n...; shape=nothing)
 

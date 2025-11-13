@@ -8,8 +8,8 @@ mutable struct FEModel<:AbstractDomain
     ctx     ::Context
 
     # Data
-    node_data::OrderedDict{String,Array}
-    elem_data::OrderedDict{String,Array}
+    node_fields::OrderedDict{String,Array}
+    elem_fields::OrderedDict{String,Array}
 
     # Auxiliary data
     _elempartition::ElemPartition
@@ -23,8 +23,8 @@ mutable struct FEModel<:AbstractDomain
         this.edges = []
 
         this._elempartition = ElemPartition()
-        this.node_data      = OrderedDict()
-        this.elem_data      = OrderedDict()
+        this.node_fields      = OrderedDict()
+        this.elem_fields      = OrderedDict()
         return this
     end
 end
@@ -356,8 +356,8 @@ end
 
 function update_output_data!(model::FEModel)
     # Updates data arrays in the model
-    model.node_data = OrderedDict()
-    model.elem_data = OrderedDict()
+    model.node_fields = OrderedDict()
+    model.elem_fields = OrderedDict()
 
     # Nodal values
     nnodes = length(model.nodes)
@@ -373,14 +373,14 @@ function update_output_data!(model::FEModel)
 
     # Generate empty lists
     for field in node_fields
-        model.node_data[string(field)] = zeros(nnodes)
+        model.node_fields[string(field)] = zeros(nnodes)
     end
 
     # Fill dof values
     for node in model.nodes
         for dof in node.dofs
             for (field,val) in dof.vals
-                model.node_data[string(field)][node.id] = val
+                model.node_fields[string(field)][node.id] = val
             end
         end
     end
@@ -388,35 +388,35 @@ function update_output_data!(model::FEModel)
     # add nodal values from patch recovery (solid elements) : regression + averaging
     V_rec, fields_rec = nodal_patch_recovery(model)
     for (i,field) in enumerate(fields_rec)
-        model.node_data[string(field)] = V_rec[:,i]
+        model.node_fields[string(field)] = V_rec[:,i]
     end
     append!(node_fields, fields_rec)
 
     # add nodal values from local recovery (interfaces) : extrapolation + averaging
     V_rec, fields_rec = nodal_local_recovery(model)
     for (i,field) in enumerate(fields_rec)
-        model.node_data[string(field)] = V_rec[:,i]
+        model.node_fields[string(field)] = V_rec[:,i]
     end
     append!(node_fields, fields_rec)
 
     # Nodal vector values
     if :ux in node_fields
         if :uz in node_fields
-            model.node_data["U"] = [ model.node_data["ux"] model.node_data["uy"] model.node_data["uz"] ]
+            model.node_fields["U"] = [ model.node_fields["ux"] model.node_fields["uy"] model.node_fields["uz"] ]
         elseif :uy in node_fields
-            model.node_data["U"] = [ model.node_data["ux"] model.node_data["uy"] zeros(nnodes) ]
+            model.node_fields["U"] = [ model.node_fields["ux"] model.node_fields["uy"] zeros(nnodes) ]
         else
-            model.node_data["U"] = [ model.node_data["ux"] zeros(nnodes) zeros(nnodes) ]
+            model.node_fields["U"] = [ model.node_fields["ux"] zeros(nnodes) zeros(nnodes) ]
         end
     end
 
     if :vx in node_fields
         if :vz in node_fields
-            model.node_data["V"] = [ model.node_data["vx"] model.node_data["vy"] model.node_data["vz"] ]
+            model.node_fields["V"] = [ model.node_fields["vx"] model.node_fields["vy"] model.node_fields["vz"] ]
         elseif :vy in node_fields
-            model.node_data["V"] = [ model.node_data["vx"] model.node_data["vy"] zeros(nnodes) ]
+            model.node_fields["V"] = [ model.node_fields["vx"] model.node_fields["vy"] zeros(nnodes) ]
         else
-            model.node_data["V"] = [ model.node_data["vx"] zeros(nnodes) zeros(nnodes) ]
+            model.node_fields["V"] = [ model.node_fields["vx"] zeros(nnodes) zeros(nnodes) ]
         end
     end
 
@@ -428,13 +428,13 @@ function update_output_data!(model::FEModel)
 
     # generate empty lists
     for field in elem_fields
-        model.elem_data[string(field)] = zeros(nelems)
+        model.elem_fields[string(field)] = zeros(nelems)
     end
 
     # fill elem values
     for elem in model.elems
         for (field,val) in all_elem_vals[elem.id]
-            model.elem_data[string(field)][elem.id] = val
+            model.elem_fields[string(field)][elem.id] = val
         end
     end
 

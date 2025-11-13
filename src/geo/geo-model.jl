@@ -172,6 +172,7 @@ function save(geometry::GeoModel, filename::String, quiet=false)
     return nothing
 end
 
+
 """
     add_block(geometry, X1, X2;
         nx=0, ny=0, nz=0, n=0,
@@ -216,11 +217,6 @@ blk = add_block(geo, X1, X2;
     shape=HEX8,
     tag="foundation")
 """
-# function add_block(geometry::GeoModel, X1, X2;
-#     nx::Int=0, ny::Int=0, nz::Int=0, n::Int=0,
-#     rx::Real=1.0, ry::Real=1.0, rz::Real=1.0, r::Real=0.0,
-#     shape=nothing, tag="")
-    
 function add_block(geometry::GeoModel, 
     X, dx::Real, dy::Real, dz::Real;
     nx::Int=0, ny::Int=0, nz::Int=0, n::Int=0,
@@ -332,25 +328,78 @@ end
 
 # ❱❱❱ Transfinite
 
-function set_transfinite_curve(geo::GeoModel, ent, num_nodes)
+"""
+    set_transfinite_curve(geo, curve, num_nodes)
+
+Define a transfinite discretization along a curve entity `curve` in the geometric model `geo`,  
+specifying the number of mesh nodes to distribute along it.
+
+# Arguments
+- `geo::GeoModel`: Geometry model containing the curve.
+- `curve`: Curve entity (typically an `Edge`) to be meshed with transfinite spacing.
+- `num_nodes::Int`: Number of nodes along the curve, including endpoints.
+
+# Returns
+- `Nothing`
+"""
+function set_transfinite_curve(geo::GeoModel, curve, num_nodes)
     gmsh.model.occ.synchronize()
-    gmsh.model.mesh.set_transfinite_curve(ent.id, num_nodes)
+    gmsh.model.mesh.set_transfinite_curve(curve.id, num_nodes)
 end
 
 
-function set_transfinite_surface(geo::GeoModel, ent)
+"""
+    set_transfinite_surface(geo, surface)
+
+Assign a transfinite mesh distribution to a surface entity `surface` in the geometric model `geo`.  
+Used to ensure structured meshing consistent with adjoining transfinite curves.
+
+# Arguments
+- `geo::GeoModel`: Geometry model containing the surface.
+- `surface`: Surface entity to be meshed transfinetely.
+
+# Returns
+- `Nothing`
+"""
+function set_transfinite_surface(geo::GeoModel, surface)
     gmsh.model.occ.synchronize()
-    gmsh.model.mesh.set_transfinite_surface(ent.id)
+    gmsh.model.mesh.set_transfinite_surface(surface.id)
 end
 
 
+"""
+    set_recombine(geo, ent)
+
+Enable element recombination for a surface entity `ent` in the geometric model `geo`.  
+This converts triangular subdivisions into quadrilateral elements during meshing.
+
+# Arguments
+- `geo::GeoModel`: Geometry model containing the surface.
+- `ent`: Surface entity where recombination is applied.
+
+# Returns
+- `Nothing`
+"""
 function set_recombine(geo::GeoModel, ent)
     gmsh.model.occ.synchronize()
     gmsh.model.mesh.set_recombine(2, ent.id)
 end
 
 
-function set_transfinite_volume(ent)
+"""
+    set_transfinite_volume(geo, ent)
+
+Assign a transfinite mesh distribution to a volume entity `ent`.  
+Ensures structured, block-like hexahedral meshing compatible with transfinite boundaries.
+
+# Arguments
+- `geo::GeoModel`: Geometry model containing the surface.
+- `ent`: Volume entity to be meshed using transfinite interpolation.
+
+# Returns
+- `Nothing`
+"""
+function set_transfinite_volume(geo::GeoModel, ent)
     gmsh.model.occ.synchronize()
     gmsh.model.mesh.set_transfinite_volume(ent.id)
 end

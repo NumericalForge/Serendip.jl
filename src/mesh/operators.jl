@@ -495,7 +495,7 @@ function changeaxes!(mesh::Mesh, order::String)
         isinverted(elem) && flip!(elem)
     end
 
-    if length(mesh.node_data)>0 || length(mesh.elem_data)>0
+    if length(mesh.node_fields)>0 || length(mesh.elem_fields)>0
         notify("changeaxes!: mesh associated data was not modified.")
     end
 end
@@ -509,7 +509,7 @@ function cyclecoords!(mesh::Mesh, n::Int=1)
         p.coord = p.coord[idxs]
     end
 
-    if length(mesh.node_data)>0 || length(mesh.elem_data)>0
+    if length(mesh.node_fields)>0 || length(mesh.elem_fields)>0
         notify("cyclecoords!: mesh associated data was not modified.")
     end
 end
@@ -524,9 +524,9 @@ end
 #     end
 #     mesh.ctx.ndim = 2
 
-#     if haskey(mesh.node_data, "U")
+#     if haskey(mesh.node_fields, "U")
 #         idxs = [dirs; setdiff([1,2,3], dirs)]
-#         mesh.node_data["U"] = mesh.node_data["U"][:, idxs]
+#         mesh.node_fields["U"] = mesh.node_fields["U"][:, idxs]
 #     end
 
 #     return mesh
@@ -537,7 +537,7 @@ export warp
 function warp(mesh::Mesh; scale=1.0)
     newmesh = copy(mesh)
 
-    U = get(newmesh.node_data, "U", nothing)
+    U = get(newmesh.node_fields, "U", nothing)
     if U === nothing
         alert("warp: Vector field U not found for warping.")
         return newmesh

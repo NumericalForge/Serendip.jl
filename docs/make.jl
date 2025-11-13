@@ -10,7 +10,7 @@ makedocs(
     modules  = [Serendip],
     sitename = "Serendip",
     pagesonly = true,    # only listed pages are included
-    checkdocs = :none,   # :missing, :all
+    checkdocs = :all,   # :missing, :all
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true",
         # assets = ["assets/luxor-docs.css"],
@@ -28,7 +28,7 @@ makedocs(
         ]
         # "Plotting" =>  "plotting/plotting.md",
     ],
-    doctest = false,
+    doctest = true,
     repo = "https://github.com/NumericalForge/Serendip.jl",
     # edit_branch = "main",
 

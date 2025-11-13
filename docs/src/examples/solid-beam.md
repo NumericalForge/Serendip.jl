@@ -19,50 +19,47 @@ geo = GeoModel()
 sz = 0.05 # mesh size
 
 # List of points
-p1 = addpoint!(geo, 0, 0, 0, size=sz)
-p2 = addpoint!(geo, L, 0, 0, size=sz)
-p3 = addpoint!(geo, L, 0, h/2, size=sz)
-p4 = addpoint!(geo, L, 0, h, size=sz)
-p5 = addpoint!(geo, 0, 0, h, size=sz)
+p1 = add_point(geo, [0, 0, 0], size=sz)
+p2 = add_point(geo, [L, 0, 0], size=sz)
+p3 = add_point(geo, [L, 0, h/2], size=sz)
+p4 = add_point(geo, [L, 0, h], size=sz)
+p5 = add_point(geo, [0, 0, h], size=sz)
 
 # Define a closed loop to create a surface
-addpath!(geo, :M, p1, :L, p2, :L, p3, :L, p4, :L, p5, :L, p1)
+l1 = add_line(geo, p1, p2)
+l2 = add_line(geo, p2, p3)
+l3 = add_line(geo, p3, p4)
+l4 = add_line(geo, p4, p5)
+l5 = add_line(geo, p5, p1)
+loop = add_loop(geo, [l1, l2, l3, l4, l5])
+surf = add_plane_surface(geo, loop)
 
-# Pull the surface to create a solid
-pull!(geo, geo.surfaces, axis=[0, 1, 0], length=th)
+# Extrude the surface to create a solid
+extrude(geo, surf, [0, 1, 0], heights=[th])
 
 # Finite element mesh
 mesh= Mesh(geo)
 
 # List of element types and constitutive model
-mat = [ :all => MechBulk => VonMises => (E=E, nu=nu, fy=fy, H=H) ]
+mapper = RegionModel(MechBulk, VonMises; E=E, nu=nu, fy=fy, H=H)
 
 # A mechanical analysis context
 ctx = Context()
 
 # A finite element model
-model = FEModel(mesh, mat, ctx)
+model = FEModel(mesh, mapper)
 
 # A finite element analysis object
 ana = MechAnalysis(model)
 
-# List of data loggers
-loggers = [
-    (x==L, z==h/2) => NodeSumLogger("file.dat")
-]
-addloggers!(ana, loggers)
+add_logger(ana, :nodalreduce, (x==L, z==h/2), "file.dat")
 
 # List of monitors
-monitors = [
-    (x==L, y==0, z==h/2) => NodeMonitor(:fz)
-]
-addmonitors!(ana, monitors)
+add_monitor(ana, :node, (x==L, y==0, z==h/2), :fz)
 
 # List of boundary conditions
-bcs = [
-    x==0 => NodeBC(ux=0, uy=0, uz=0),
-    (x==L, z==h/2) => NodeBC(uz=-0.08),
-]
+add_bc(ana.current_stage, :node, x==0, ux=0, uy=0, uz=0)
+add_bc(ana.current_stage, :node, (x==L, z==h/2), uz=-0.08)
 
 # Adds a load stage
 addstage!(ana, bcs, nincs=20, nouts=1)

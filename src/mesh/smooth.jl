@@ -761,7 +761,7 @@ function fast_smooth2!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Float
     quiet || println("  ", str_histogram(hist))
 
     #nits = 0
-    mesh.elem_data["quality"] = Q
+    mesh.elem_fields["quality"] = Q
     savesteps && save(mesh, "$filekey-0.vtk")
 
 
@@ -841,7 +841,7 @@ function fast_smooth2!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Float
         new_qmin = minimum(Q)
         new_qmin <= 0.0 && error("smooth!: got negative quality value (qmin=$new_qmin).")
 
-        mesh.elem_data["quality"] = Q
+        mesh.elem_fields["quality"] = Q
         savesteps && save(mesh, "$filekey-$i.vtk")
 
         Δq    = abs(q - new_q)
@@ -868,7 +868,7 @@ function fast_smooth2!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Float
         #nits = i
     end
     # Set forces to zero for the last step
-    #mesh.node_data["forces"] = zeros(length(mesh.nodes), 3)
+    #mesh.node_fields["forces"] = zeros(length(mesh.nodes), 3)
     #savesteps && save(mesh, "$filekey-$nits.vtk")
 
     savedata && save(stats, "$filekey-stats.dat")
@@ -942,7 +942,7 @@ function fast_smooth!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Float6
     quiet || println("  ", str_histogram(hist))
 
     #nits = 0
-    mesh.elem_data["quality"] = Q
+    mesh.elem_fields["quality"] = Q
     savesteps && save(mesh, "$filekey-0.vtk")
 
     for i in 1:maxit
@@ -1020,7 +1020,7 @@ function fast_smooth!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Float6
         new_qmin = minimum(Q)
         new_qmin <= 0.0 && error("smooth!: got negative quality value (qmin=$new_qmin).")
 
-        mesh.elem_data["quality"] = Q
+        mesh.elem_fields["quality"] = Q
         savesteps && save(mesh, "$filekey-$i.vtk")
 
         Δq    = abs(q - new_q)
@@ -1047,7 +1047,7 @@ function fast_smooth!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Float6
         #nits = i
     end
     # Set forces to zero for the last step
-    #mesh.node_data["forces"] = zeros(length(mesh.nodes), 3)
+    #mesh.node_fields["forces"] = zeros(length(mesh.nodes), 3)
     #savesteps && save(mesh, "$filekey-$nits.vtk")
 
     savedata && save(stats, "$filekey-stats.dat")
@@ -1118,9 +1118,9 @@ function fitting_smooth!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Flo
         F   = force_bc(mesh, E, nu, alpha, extended)
 
         if ndim==2
-            mesh.node_data["forces"] = [ reshape(F, ndim, nnodes)' zeros(nnodes)]
+            mesh.node_fields["forces"] = [ reshape(F, ndim, nnodes)' zeros(nnodes)]
         else
-            mesh.node_data["forces"] = reshape(F, ndim, nnodes)'
+            mesh.node_fields["forces"] = reshape(F, ndim, nnodes)'
         end
 
         # Save last step file with current forces
@@ -1193,7 +1193,7 @@ function fitting_smooth!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Flo
         Q = Float64[ c.quality for c in mesh.elems]
         new_q = mean(Q)
         new_qmin = minimum(Q)
-        mesh.elem_data["quality"] = Q
+        mesh.elem_fields["quality"] = Q
 
         Δq    = abs(q - new_q)
         Δqmin = new_qmin - qmin
@@ -1223,14 +1223,14 @@ function fitting_smooth!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Flo
     n_bad_cells>0 && warn("smooth!: $n_bad_cells invalid cells obtained")
 
     # Set forces to zero for the last step
-    mesh.node_data["forces"] = zeros(length(mesh.nodes), 3)
+    mesh.node_fields["forces"] = zeros(length(mesh.nodes), 3)
     savesteps && save(mesh, "$filekey-$nits.vtk")
 
     savedata && save(stats, "$filekey-stats.dat")
     savedata && save(hists, "$filekey-hists.dat")
 
     # update data at current mesh structure
-    #mesh.elem_data["quality"] = Q
+    #mesh.elem_fields["quality"] = Q
 
     return mesh
 end
@@ -1391,7 +1391,7 @@ function laplacian_smooth!(mesh::Mesh; maxit::Int64=20, quiet=true, fixed=false,
         new_quality = mean(Q)
         new_qmin    = minimum(Q)
 
-        mesh.elem_data["quality"] = Q
+        mesh.elem_fields["quality"] = Q
         savesteps && save(mesh, "$filekey-$i.vtk")
 
         #if any(Q .== 0.0)
@@ -1430,7 +1430,7 @@ function laplacian_smooth!(mesh::Mesh; maxit::Int64=20, quiet=true, fixed=false,
     savedata && save(hists, "$filekey-hists.dat")
 
     # update data at current mesh structure
-    mesh.elem_data["quality"] = Q
+    mesh.elem_fields["quality"] = Q
 
     return nothing
 

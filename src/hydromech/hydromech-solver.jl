@@ -134,9 +134,9 @@ end
 
 
 function complete_uw_h(model::FEModel)
-    haskey(model.node_data, "uw") || return
-    Uw = model.node_data["uw"]
-    H  = model.node_data["h"]
+    haskey(model.node_fields, "uw") || return
+    Uw = model.node_fields["uw"]
+    H  = model.node_fields["h"]
 
     for elem in model.elems
         elem.role==BULKCELL || continue

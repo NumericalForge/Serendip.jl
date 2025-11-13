@@ -353,7 +353,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             # && saveouts
             if checkpoint
                 data.out += 1
-                # update_embedded_disps!(active_elems, model.node_data["U"])
+                # update_embedded_disps!(active_elems, model.node_fields["U"])
                 Tcheck += ΔTcheck # find the next output time
             end
 

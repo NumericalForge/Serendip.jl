@@ -184,16 +184,16 @@ function mesh_unstructured(geo::GeoModel; kwargs...)
     if !isvolumemesh
         invtagsdict = Dict( i=>tag for (tag,i) in tagsdict )
         for elem in mesh.elems
-            elem.tag = invtagsdict[ mesh.elem_data["CellEntityIds"][elem.id] ]
+            elem.tag = invtagsdict[ mesh.elem_fields["CellEntityIds"][elem.id] ]
         end
     else
         invtagsdict = Dict( i=>tag for (tag,i) in tagsdict )
         for elem in mesh.elems
-            elem.tag = invtagsdict[ mesh.elem_data["CellEntityIds"][elem.id] ]
+            elem.tag = invtagsdict[ mesh.elem_fields["CellEntityIds"][elem.id] ]
         end
     end
 
-    delete!(mesh.elem_data, "CellEntityIds")
+    delete!(mesh.elem_fields, "CellEntityIds")
 
     # set tag for nodes
     ptagdict = Dict()

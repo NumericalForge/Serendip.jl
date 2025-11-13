@@ -12,8 +12,8 @@ sleep(0.1)
 m2 = Mesh("out.vtk")
 t = length(m1.nodes)==length(m2.nodes) &&
     length(m1.elems)==length(m2.elems) &&
-    keys(m1.node_data)==keys(m2.node_data) &&
-    keys(m1.elem_data)==keys(m2.elem_data)
+    keys(m1.node_fields)==keys(m2.node_fields) &&
+    keys(m1.elem_fields)==keys(m2.elem_fields)
 
 TR = @test t
 println(TR)
@@ -23,8 +23,8 @@ sleep(0.1)
 m2 = Mesh("out.vtu")
 t = length(m1.nodes)==length(m2.nodes) &&
     length(m1.elems)==length(m2.elems) &&
-    keys(m1.node_data)==keys(m2.node_data) &&
-    keys(m1.elem_data)==keys(m2.elem_data)
+    keys(m1.node_fields)==keys(m2.node_fields) &&
+    keys(m1.elem_fields)==keys(m2.elem_fields)
 
 TR = @test t
 println(TR)

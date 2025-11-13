@@ -47,13 +47,13 @@ function save_vtk(mesh::AbstractDomain, filename::String; desc::String="")
     end
     println(f)
 
-    has_node_data = !isempty(mesh.node_data)
-    has_elem_data = !isempty(mesh.elem_data)
+    has_node_data = !isempty(mesh.node_fields)
+    has_elem_data = !isempty(mesh.elem_fields)
 
     # Write node data
     if has_node_data
         println(f, "POINT_DATA ", npoints)
-        for (field,D) in mesh.node_data
+        for (field,D) in mesh.node_fields
             isempty(D) && continue
             isfloat = eltype(D)<:AbstractFloat
             dtype = isfloat ? "float64" : "int"
@@ -82,10 +82,10 @@ function save_vtk(mesh::AbstractDomain, filename::String; desc::String="")
     # Write cell data
 
     if has_elem_data
-        # any( contains(field, "tag-") for field in keys(mesh.elem_data) ) && warn("save: Skipping tag string while saving mesh in .vtk legacy format")
+        # any( contains(field, "tag-") for field in keys(mesh.elem_fields) ) && warn("save: Skipping tag string while saving mesh in .vtk legacy format")
 
         println(f, "CELL_DATA ", ncells)
-        for (field,D) in mesh.elem_data
+        for (field,D) in mesh.elem_fields
             isempty(D) && continue
             contains(field, "tag-") && continue # skip encoded tags
 
@@ -219,10 +219,10 @@ function save_vtu(mesh::AbstractDomain, filename::String; desc::String="", compr
     addchild!(piece, xcells)
 
     # Write node data
-    has_node_data = !isempty(mesh.node_data)
+    has_node_data = !isempty(mesh.node_fields)
     if has_node_data
         xpointdata = XmlElement("PointData")
-        for (field, D) in mesh.node_data
+        for (field, D) in mesh.node_fields
             isempty(D) && continue
             addchild!(xpointdata, get_array_node!(D, field, compress, buf))
         end
@@ -231,10 +231,10 @@ function save_vtu(mesh::AbstractDomain, filename::String; desc::String="", compr
     end
 
     # Write cell data
-    has_elem_data = !isempty(mesh.elem_data)
+    has_elem_data = !isempty(mesh.elem_fields)
     if has_elem_data
         xcelldata = XmlElement("CellData")
-        for (field, D) in mesh.elem_data
+        for (field, D) in mesh.elem_fields
             isempty(D) && continue
             addchild!(xcelldata, get_array_node!(D, field, compress, buf))
         end
@@ -256,20 +256,68 @@ function save_vtu(mesh::AbstractDomain, filename::String; desc::String="", compr
 end
 
 
+function save_json(mesh::AbstractDomain, filename::String; desc::String="")
+
+    # cells_obj = Vector{Dict{String,Any}}(undef, length(cells))
+
+    # for (i, cell) in enumerate(mesh.elems)
+    #     out[i] = Dict(
+    #         "type" => cell.shape.name,
+    #         "connectivity" => [n.id for n in cell.nodes]
+    #     )
+    # end
+
+    nodes_obj = [ node.coord for node in mesh.nodes ]
+
+    cells_obj = [
+        Dict(
+            "type" => cell.shape.name,
+            "conn" => [n.id for n in cell.nodes]
+        ) for cell in mesh.elems
+    ]
+
+    faces_obj = [
+        Dict(
+            "type" => cell.shape.name,
+            "conn" => [n.id for n in cell.nodes]
+        ) for cell in mesh.faces
+    ]
+
+    rounds = (V) -> eltype(V)<:AbstractFloat ? round.(V, sigdigits=4) : V
+
+    node_data_obj = Dict{String,Array}( k => rounds(V) for (k,V) in mesh.node_fields if size(V,2)==1 )
+    elem_data_obj = Dict{String,Array}( k => rounds(V) for (k,V) in mesh.elem_fields if size(V,2)==1 )
+
+    mesh_obj = Dict(
+        "mesh" => Dict(
+            "nodes"    => nodes_obj,
+            "elements" => cells_obj,
+            "faces"    => faces_obj
+        ),
+        "nodal_fields"   => node_data_obj,
+        "element_fields" => elem_data_obj
+    )
+
+    JSON.json(filename, mesh_obj, pretty=true)
+
+    return nothing
+end
+
+
 function add_extra_fields(mesh::AbstractDomain)
     ncells = length(mesh.elems)
 
     # Add one-based node-id, elem-id and cell type
-    mesh.node_data["node-id"]   = Int[ node.id for node in mesh.nodes ]
-    mesh.elem_data["elem-id"]   = Int[ elem.id for elem in mesh.elems ]
-    mesh.elem_data["cell-type"] = [ cell.role in (:contact, :cohesive, :line_interface) ? Int32(VTK_POLY_VERTEX) : Int32(cell.shape.vtk_type) for cell in mesh.elems ]
+    mesh.node_fields["node-id"]   = Int[ node.id for node in mesh.nodes ]
+    mesh.elem_fields["elem-id"]   = Int[ elem.id for elem in mesh.elems ]
+    mesh.elem_fields["cell-type"] = [ cell.role in (:contact, :cohesive, :line_interface) ? Int32(VTK_POLY_VERTEX) : Int32(cell.shape.vtk_type) for cell in mesh.elems ]
 
     
     # Add field for interface elements
     interface_types = Set( c.role for c in mesh.elems if c.role in (:contact, :cohesive, :line_interface) )
     if length(interface_types)>0
         interface_data = zeros(Int, ncells, 5) # role, vtk_type, npoints, first linked cell, second linked cell
-        mesh.elem_data["interface-data"] = interface_data
+        mesh.elem_fields["interface-data"] = interface_data
 
         for (i,cell) in enumerate(mesh.elems)
             if cell.role in (:contact, :cohesive)
@@ -320,7 +368,7 @@ function add_extra_fields(mesh::AbstractDomain)
                 embedded_data[i] = cell.couplings[1].id
             end
         end
-        mesh.elem_data["embedded-data"] = embedded_data
+        mesh.elem_fields["embedded-data"] = embedded_data
     end
 
     # Add two UInt64 fields to enconde the tag of maximum 16 UTF units
@@ -344,9 +392,9 @@ function add_extra_fields(mesh::AbstractDomain)
 
         T = Int[ tag_d[elem.tag]-1 for elem in mesh.elems ]
 
-        mesh.elem_data["tag-s1"] = Ts1
-        mesh.elem_data["tag-s2"] = Ts2
-        mesh.elem_data["tag"]    = T
+        mesh.elem_fields["tag-s1"] = Ts1
+        mesh.elem_fields["tag-s2"] = Ts2
+        mesh.elem_fields["tag"]    = T
     end
 end
 
@@ -357,7 +405,7 @@ end
 Saves a mesh object into a file. Available formats are vtu and vtk.
 """
 function save(mesh::AbstractDomain, filename::String; compress=true, quiet=false)
-    formats = (".vtk", ".vtu")
+    formats = (".vtk", ".vtu", ".json")
     _, format = splitext(filename)
     format in formats || error("save: Cannot save $(typeof(mesh)) to $filename. Available formats are $formats.")
 
@@ -368,6 +416,8 @@ function save(mesh::AbstractDomain, filename::String; compress=true, quiet=false
         save_vtk(mesh, filename, desc=desc)
     elseif format==".vtu"
         save_vtu(mesh, filename, desc=desc, compress=compress)
+    elseif format==".json"
+        save_json(mesh, filename, desc=desc)
     end
     quiet || printstyled( "  file $filename saved \e[K \n", color=:cyan)
     return nothing
@@ -385,8 +435,8 @@ function read_vtk(filename::String)
     connects = Vector{Int}[]
     cell_types = Int[]
 
-    node_data = OrderedDict{String,Array}()
-    elem_data = OrderedDict{String,Array}()
+    node_fields = OrderedDict{String,Array}()
+    elem_fields = OrderedDict{String,Array}()
 
     reading_node_data = false
     reading_elem_data  = false
@@ -468,7 +518,7 @@ function read_vtk(filename::String)
                 vectors[i,3] = parse(dtype, data[idx+3])
                 idx += 3
             end
-            node_data[label] = vectors
+            node_fields[label] = vectors
         end
 
         if data[idx] == "VECTORS" && reading_elem_data
@@ -483,7 +533,7 @@ function read_vtk(filename::String)
                 vectors[i,3] = parse(dtype, data[idx+3])
                 idx += 3
             end
-            elem_data[label] = vectors
+            elem_fields[label] = vectors
         end
 
         if data[idx] == "SCALARS" && reading_node_data
@@ -495,7 +545,7 @@ function read_vtk(filename::String)
                 idx += 1
                 scalars[i] = parse(TYPES[ty], data[idx])
             end
-            node_data[label] = scalars
+            node_fields[label] = scalars
         end
 
         if data[idx] == "SCALARS" && reading_elem_data
@@ -507,14 +557,14 @@ function read_vtk(filename::String)
                 idx += 1
                 scalars[i] = parse(TYPES[ty], data[idx])
             end
-            elem_data[label] = scalars
+            elem_fields[label] = scalars
         end
 
         idx += 1
 
     end
 
-    return Mesh(coords, connects, cell_types, node_data, elem_data)
+    return Mesh(coords, connects, cell_types, node_fields, elem_fields)
 end
 
 
@@ -563,15 +613,15 @@ function read_vtu(filename::String)
         pos = off+1
     end
 
-    node_data = OrderedDict{String,Array}()
-    elem_data = OrderedDict{String,Array}()
+    node_fields = OrderedDict{String,Array}()
+    elem_fields = OrderedDict{String,Array}()
 
     xpointdata = piece("PointData")
     if xpointdata!==nothing
         for array_data in xpointdata.children
             label = array_data.attributes["Name"]
             # label in ("node-id",) && continue # skip extra fields
-            node_data[label] = get_array(array_data)
+            node_fields[label] = get_array(array_data)
         end
     end
 
@@ -580,11 +630,11 @@ function read_vtu(filename::String)
         for array_data in xcelldata.children
             label = array_data.attributes["Name"]
             # label in ("elem-id", "tag", "tag-s1", "tag-s2", "cell-type", "interface-data", "embedded-data") && continue # skip extra fields
-            elem_data[label] = get_array(array_data)
+            elem_fields[label] = get_array(array_data)
         end
     end
 
-    return Mesh(coords, connects, cell_types, node_data, elem_data)
+    return Mesh(coords, connects, cell_types, node_fields, elem_fields)
 end
 
 
@@ -611,7 +661,7 @@ end
 
 
 # Setting a Mesh object
-function Mesh(coords, connects, vtk_types, node_data, elem_data)
+function Mesh(coords, connects, vtk_types, node_fields, elem_fields)
 
     npoints = size(coords,1)
     ncells  = length(connects)
@@ -629,7 +679,7 @@ function Mesh(coords, connects, vtk_types, node_data, elem_data)
     ndim = get_ndim(nodes)
 
     # check for exceptional 3d cases
-    if haskey(node_data, "rx") || haskey(node_data, "ry")
+    if haskey(node_fields, "rx") || haskey(node_fields, "ry")
         ndim = 3
     end
 
@@ -672,11 +722,11 @@ function Mesh(coords, connects, vtk_types, node_data, elem_data)
     compute_facets(mesh)
 
     # Setting data
-    mesh.node_data = node_data
-    mesh.elem_data  = elem_data
+    mesh.node_fields = node_fields
+    mesh.elem_fields  = elem_fields
 
-    if haskey(mesh.elem_data, "interface-data")
-        interface_data = mesh.elem_data["interface-data"]
+    if haskey(mesh.elem_fields, "interface-data")
+        interface_data = mesh.elem_fields["interface-data"]
         
         # Fix information for 1d and 2d/3d interface elements
         for (i,cell) in enumerate(mesh.elems)
@@ -708,8 +758,8 @@ function Mesh(coords, connects, vtk_types, node_data, elem_data)
     end
 
     # Fix information for embedded elements
-    if haskey(mesh.elem_data, "embedded-data")
-        embedded_data = mesh.elem_data["embedded-data"]
+    if haskey(mesh.elem_fields, "embedded-data")
+        embedded_data = mesh.elem_fields["embedded-data"]
         for (i,cell) in enumerate(mesh.elems)
             if cell.role==LINE_CELL && embedded_data[i]>0
                 cell.embedded = true
@@ -724,9 +774,9 @@ function Mesh(coords, connects, vtk_types, node_data, elem_data)
     end
 
     # Build tag if available
-    if haskey(mesh.elem_data, "tag-s1") && haskey(mesh.elem_data, "tag-s2")
-        Ts1 = mesh.elem_data["tag-s1"]
-        Ts2 = mesh.elem_data["tag-s2"]
+    if haskey(mesh.elem_fields, "tag-s1") && haskey(mesh.elem_fields, "tag-s2")
+        Ts1 = mesh.elem_fields["tag-s1"]
+        Ts2 = mesh.elem_fields["tag-s2"]
         for (i,cell) in enumerate(mesh.elems)
             cell.tag = decode_uint64_to_string(Ts1[i]) * decode_uint64_to_string(Ts2[i])
         end

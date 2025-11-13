@@ -2,26 +2,24 @@
 
 
 """
-    add_boundary_interface_elements(mesh, selector; tag="", nodes_tag="", quiet=false)
+    add_boundary_contact_elements(mesh, selector; tag="", nodes_tag="", quiet=false)
 
-Adds interface elements to the boundary of `mesh`, useful for simulating boundary interactions such as elastic supports in the Winkler foundation model.
-
-This function creates new interface elements at the faces selected by `selector`. Each face gets coupled with duplicated support nodes tagged by `nodes_tag`. The interface elements are assigned the specified `tag`.
+Add contact interface elements to the boundary of `mesh`, coupling the original boundary faces with duplicated support nodes.  
+Useful for modeling surface contact or elastic supports (e.g., Winkler foundation).
 
 # Arguments
-- `mesh::Mesh`: The mesh where interface elements will be added.
-- `selector::Union{Expr, Symbolic, String}`: Region selector for boundary faces where interface elements will be created.
-- `tag::String=""`: Tag to assign to the generated interface elements.
-- `nodes_tag::String`: Tag for the duplicated support nodes (required).
+- `mesh::Mesh`: The mesh where boundary contact elements will be added.
+- `selector::Union{Expr,Symbolic,Tuple,String,Nothing}`: Region selector that defines which boundary faces receive contact elements.
+- `tag::String=""`: Tag to assign to the created contact elements.
+- `nodes_tag::String=""`: Tag for the duplicated support nodes.
 - `quiet::Bool=false`: Suppress console output if `true`.
 
 # Returns
-- `Mesh`: The updated mesh including the new boundary interface elements.
+- `Mesh`: The updated mesh containing the new contact interface elements.
 
 # Example
-Use this to model elastic supports on the boundary:
 ```julia
-add_boundary_interface_elements(mesh, selector="boundary_faces", tag="spring", nodes_tag="foundation")
+add_boundary_contact_elements(mesh, selector="bottom_face", tag="foundation_contact", nodes_tag="support_nodes")
 ```
 """
 function add_boundary_contact_elements(
@@ -74,6 +72,27 @@ function add_boundary_contact_elements(
 end
 
 
+
+"""
+    add_boundary_shell_elements(mesh, selector; tag="", contact_tag="", quiet=false)
+
+Add shell (surface) elements to the boundary of `mesh`, optionally coupling them with contact interface elements.
+
+# Arguments
+- `mesh::Mesh`: The mesh where shell elements will be added.
+- `selector::Union{Expr,Symbolic,Tuple,String}`: Region selector defining which boundary faces are converted to shells.
+- `tag::String=""`: Tag assigned to the created shell elements.
+- `contact_tag::String=""`: If provided, also create contact elements linking original faces and new shell nodes, tagged with this value.
+- `quiet::Bool=false`: Suppress console output if `true`.
+
+# Returns
+- `Mesh`: The updated mesh including the new shell and, if applicable, contact elements.
+
+# Example
+```julia
+add_boundary_shell_elements(mesh, selector="outer_faces", tag="shell", contact_tag="shell_contact")
+```
+"""
 function add_boundary_shell_elements(
     mesh       :: Mesh,
     selector   :: Union{Expr,Symbolic,Tuple,String};
@@ -152,18 +171,24 @@ end
 """
     add_contact_elements(mesh, selectors...; tag="", quiet=false)
 
-Insert contact elements along coincident interfaces in `mesh`.
-Interfaces are identified between bulk regions with distinct tags
-within the selected subset of elements.
+Insert contact elements along coincident interfaces in `mesh`.  
+Interfaces are detected between bulk regions with distinct tags within the selected subset.
 
 # Arguments
-- `mesh::Mesh`: The input mesh, which will be modified.
-- `selectors::Union{Expr,Symbolic,Tuple,String}...`: Optional selectors defining which bulk regions to process. If not provided, all bulk elements are considered.
-- `tag::String`: Tag assigned to all generated contact elements. If empty, tags are automatically derived from the connected regions.
-- `quiet::Bool`: If `true`, suppresses console output.
+- `mesh::Mesh`: Mesh to modify.
+- `selectors::Union{Expr,Symbolic,Tuple,String}...`: Optional selectors to restrict the bulk regions considered. If omitted, all bulk elements are processed.
+- `tag::String=""`: Tag for generated contact elements. If empty, a tag is derived from the connected region tags (e.g., `"A-B"`).
+- `quiet::Bool=false`: Suppress console output if `true`.
 
-Returns
+# Returns
 - `Mesh`: The updated mesh including the generated contact elements.
+
+# Example
+```julia
+select(mesh, :element, x<=1, tag="A")
+select(mesh, :element, x>=1, tag="B")
+add_contact_elements(mesh; tag="A-B")
+```
 """
 function add_contact_elements(
     mesh         ::Mesh,
@@ -217,11 +242,7 @@ function add_contact_elements(
             end
         end
         
-        # get target outer cells
-        # tag_outer_cells = Set{Cell}( face.owner for face in tag_faces ) |> collect
-        
         # update outer faces
-        # tag_faces = get_outer_facets(tag_outer_cells)
         tag_faces = get_outer_facets(tag_bulks)
         append!(trial_faces, tag_faces)
     end
@@ -332,35 +353,56 @@ function add_contact_elements(
 end
 
 
+# """
+#     add_cohesive_elements(mesh, selector=nothing; layers=2, tag="",
+#                           midnodes_tag="", inter_regions=false,
+#                           auto_tag=false, quiet=true)
+
+# Inserts cohesive (joint) elements into `mesh` to connect bulk elements.
+
+# - By default, joits are added globally. If `selector` is specified (element tag or expression), joints are added only in the selected region and all receive the specified `tag`.
+# - When `inter_regions=true`, joints are created only between regions defined by bulk element tags. In this case, tags are automatically generated for joints based on the regions they connect.
+# - `layers=2` creates standard joint elements, while `layers=3` inserts additional mid-layer nodes (assigned `midnodes_tag`, if provided).
+# - If `auto_tag=true`, tags for joints are automatically generated based on the connected regions.
+# - Set `quiet=false` to print summary information.
+
+# # Arguments
+# - `mesh::Mesh`: The input mesh object.
+# - `selector::Union{Expr, Symbolic, String, Nothing}`: Region selector (optional).
+# - `layers::Int`: Number of layers in joint elements (2 or 3). Defaults to 2.
+# - `tag::String`: Tag assigned to generated joints. Defaults to `""`.
+# - `midnodes_tag::String`: Tag assigned to mid-layer nodes (only if `layers=3`).
+# - `inter_regions::Bool`: If `true`, creates joints only between distinct regions.
+# - `auto_tag::Bool`: Automatically generate joint tags based on connected regions.
+# - `quiet::Bool`: Suppress console output if `true`.
+
+# # Returns
+# - `Mesh`: The updated mesh including the new cohesive elements.
+# """
+
+
 """
-    add_cohesive_elements(mesh, selector=nothing; layers=2, tag="",
-                          midnodes_tag="", inter_regions=false,
-                          auto_tag=false, quiet=true)
+    add_cohesive_elements(mesh, selector=nothing; tag="", quiet=false)
 
-Inserts cohesive (joint) elements into `mesh` to connect bulk elements.
-
-- By default, joits are added globally. If `selector` is specified (element tag or expression), joints are added only in the selected region and all receive the specified `tag`.
-- When `inter_regions=true`, joints are created only between regions defined by bulk element tags. In this case, tags are automatically generated for joints based on the regions they connect.
-- `layers=2` creates standard joint elements, while `layers=3` inserts additional mid-layer nodes (assigned `midnodes_tag`, if provided).
-- If `auto_tag=true`, tags for joints are automatically generated based on the connected regions.
-- Set `quiet=false` to print summary information.
+Insert cohesive elements into `mesh` by pairing coincident faces.
 
 # Arguments
-- `mesh::Mesh`: The input mesh object.
-- `selector::Union{Expr, Symbolic, String, Nothing}`: Region selector (optional).
-- `layers::Int`: Number of layers in joint elements (2 or 3). Defaults to 2.
-- `tag::String`: Tag assigned to generated joints. Defaults to `""`.
-- `midnodes_tag::String`: Tag assigned to mid-layer nodes (only if `layers=3`).
-- `inter_regions::Bool`: If `true`, creates joints only between distinct regions.
-- `auto_tag::Bool`: Automatically generate joint tags based on connected regions.
-- `quiet::Bool`: Suppress console output if `true`.
+- `mesh::Mesh`: Mesh to modify.
+- `selector::Union{Expr,Symbol,Symbolic,Tuple,String,Nothing}=nothing`: Optional selector that restricts where cohesive elements are created. If `nothing`, all bulk elements are considered.
+- `tag::String=""`: Tag assigned to generated cohesive elements.
+- `quiet::Bool=false`: Suppress console output if `true`.
 
 # Returns
 - `Mesh`: The updated mesh including the new cohesive elements.
+
+# Example
+```julia
+add_cohesive_elements(mesh, y>=0; tag="brittle")
+```
 """
 function add_cohesive_elements(
     mesh         ::Mesh,
-    selector     ::Union{Expr,Symbolic,Tuple,String,Nothing}=nothing;
+    selector     ::Union{Expr,Symbol,Symbolic,Tuple,String,Nothing}=nothing;
     tag          ::String="",
     quiet        ::Bool=false,
 )
@@ -689,7 +731,7 @@ function cracksmesh(mesh::Mesh, opening::Real)
     end
 
     # Get normals and distances
-    U = mesh.node_data["U"]
+    U = mesh.node_fields["U"]
     crack_faces = Cell[]
     for pair in face_pairs
         face1, face2 = pair
@@ -729,9 +771,9 @@ function cracksmesh(mesh::Mesh, opening::Real)
 
     newsmesh = Mesh(crack_faces)
 
-    for (k,v) in mesh.node_data
+    for (k,v) in mesh.node_fields
         k=="id" && continue
-        newsmesh.node_data[k] = v[ids]
+        newsmesh.node_fields[k] = v[ids]
     end
 
     return newsmesh
