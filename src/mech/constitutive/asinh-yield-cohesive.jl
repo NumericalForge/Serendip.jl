@@ -158,7 +158,7 @@ end
 
 function yield_func(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ::Vector{Float64}, σmax::Float64)
     β = calc_β(mat, σmax)
-    χ = (σmax-σ[1])/mat.ft
+    χ = (σmax - σ[1])/mat.ft
 
     if state.ctx.ndim == 3
         τnorm = sqrt(σ[2]^2 + σ[3]^2)
@@ -170,13 +170,12 @@ function yield_func(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ:
 end
 
 
-function strength_utilization(mat::AsinhYieldCohesive, σ::Vector{Float64})
+function stress_strength_ratio(mat::AsinhYieldCohesive, σ::Vector{Float64})
     σmax = calc_σmax(mat, 0.0)
     β    = calc_β(mat, σmax)
     χ    = (σmax - σ[1])/mat.ft
-    τ    = norm(σ[2:end])
     τmax = β*asinh(mat.α*χ)
-
+    τ    = norm(@view(σ[2:end]))
     return max(σ[1]/σmax, τ/τmax)
 end
 
@@ -186,7 +185,7 @@ function yield_derivs(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, �
     α    = mat.α
     β    = calc_β(mat, σmax)
     βres = mat.γ*mat.β0
-    χ    = (σmax-σ[1])/ft
+    χ    = (σmax - σ[1])/ft
     
     dfdσn  = α*β/(ft*√(α^2*χ^2 + 1))
     

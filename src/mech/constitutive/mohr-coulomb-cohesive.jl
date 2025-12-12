@@ -106,11 +106,11 @@ function yield_func(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, �
 end
 
 
-function strength_utilization(mat::MohrCoulombCohesive, σ::Vector{Float64})
+function stress_strength_ratio(mat::MohrCoulombCohesive, σ::Vector{Float64})
     σmax = calc_σmax(mat, 0.0)
-    τ    = norm(σ[2:end])
-    return clamp( (τ + σ[1]*mat.μ) / (σmax*mat.μ), 0.0, 1.0)
-    # return clamp( τ/((σmax - σ[1])*mat.μ), 0.0, 1.0)
+    τmax = (σmax - σ[1])*mat.μ
+    τ    = norm(@view(σ[2:end]))
+    return max(σ[1]/σmax, τ/τmax)
 end
 
 
@@ -287,7 +287,7 @@ function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
 
     if state.Δλ == 0.0  # Elastic 
         return De
-    elseif σmax == 0.0 
+    elseif σmax == 0.0 && state.w[1] >= 0.0
         # Dep  = De*1e-10 
         # Dep  = De*1e-5
         # Dep  = De*1e-4

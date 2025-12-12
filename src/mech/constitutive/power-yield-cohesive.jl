@@ -150,11 +150,11 @@ function yield_func(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σ:
 end
 
 
-function strength_utilization(mat::PowerYieldCohesive, σ::Vector{Float64})
+function stress_strength_ratio(mat::PowerYieldCohesive, σ::Vector{Float64})
     σmax = calc_σmax(mat, 0.0)
     β    = calc_β(mat, σmax)
-    τ    = norm(σ[2:end])
-    τmax = β*(σmax - σ[1])
+    τmax = mat.ft*( β*abs(σmax - σ[1]) )^(1 / (2*mat.α))
+    τ    = norm(@view(σ[2:end]))
     return max(σ[1]/σmax, τ/τmax)
 end
 
