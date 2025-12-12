@@ -53,6 +53,7 @@ include("constitutive/elastic-tip.jl") # includes: LinearTip, LinearTipContact
 include("constitutive/integrator.jl")
 
 # Solvers
+include("topology_update.jl")
 include("mech-analysis.jl")
 include("dyn-analysis.jl")
 include("mech-modal-analysis.jl")

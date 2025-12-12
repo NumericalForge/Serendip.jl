@@ -45,7 +45,7 @@ function add_cell(cellpartition::ElemPartition, cell::AbstractCell) # TODO: unte
     end
 end
 
-# Grepares a group of cellpartition that contain given cells
+# Prepares a group of cellpartition that contain given cells
 function build_bins(cells::Array{<:AbstractCell,1}, cellpartition::ElemPartition)
     # Get all points
     cellpartition.bbox = bounding_box(cells)

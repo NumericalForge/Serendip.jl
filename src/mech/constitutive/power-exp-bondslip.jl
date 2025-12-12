@@ -29,6 +29,7 @@ mutable struct PowerExpBondSlip<:Constitutive
     speak:: Float64
     sc  :: Float64
     α   :: Float64
+    β   :: Float64
     ks  :: Float64
     kn  :: Float64
 
@@ -38,21 +39,23 @@ mutable struct PowerExpBondSlip<:Constitutive
         speak::Real,
         sc::Real=20*speak, # critical slip (bend point)
         alpha::Real=0.5,
+        beta::Real=20.0,
         ks::Real=NaN,
         kn::Real=NaN,
     )
         @check taumax > 0 "PowerExpBondSlip: τmax must be positive"
         @check taures >= 0 "PowerExpBondSlip: τres must be positive"
-        ks = isnan(ks) ? taumax/speak : ks
+        ks = isnan(ks) ? 10*taumax/speak : ks
         kn = isnan(kn) ? 100*ks : kn
 
         @check 0<alpha<=1 "PowerExpBondSlip: α must be in (0,1]"
+        @check 0<beta "PowerExpBondSlip: β must be non-negative"
         @check ks > 0 "PowerExpBondSlip: ks must be positive"
         @check kn > 0 "PowerExpBondSlip: kn must be positive"
         @check taumax >= taures "PowerExpBondSlip: τmax must be greater than τres"
 
 
-        this = new(taumax, taures, speak, sc, alpha, ks, kn)
+        this = new(taumax, taures, speak, sc, alpha, beta, ks, kn)
         return this
     end
 end
@@ -90,15 +93,22 @@ function Tau(mat::PowerExpBondSlip, s::Float64)
 
     if s<mat.speak
         # return mat.τmax*(s/mat.speak)^mat.α
-        # α = 0.5
         return mat.τmax*(1 - ((s-mat.speak)/mat.speak)^2)^0.5
-    else
-        β = 0.9 # controls the rate of decay
-        c = 0.11
-        speak, sc = mat.speak, mat.sc
-        τmax, τres = mat.τmax, mat.τres
-        return τmax - (τmax - τres) * exp(c - c / ((s - speak)/(sc - speak))^β )
+    elseif s<=mat.sc
+        β=mat.β
+
+        w = (s - mat.speak)/(mat.sc - mat.speak)
+        z = (2*(1-w)*(1 + β*w)) / (1 + (1 + β*w)^2)
+        return mat.τres + (mat.τmax - mat.τres)*z
+
+        # β = 0.9 # controls the rate of decay
+        # c = 0.11
+        # speak, sc = mat.speak, mat.sc
+        # τmax, τres = mat.τmax, mat.τres
+        # return τmax - (τmax - τres) * exp(c - c / ((s - speak)/(sc - speak))^β )
         # let f(x,β) = τmax - (τmax - τres)*exp(c)*exp(-c/pow((x - s1)/(sc - s1), β))
+    else
+        return mat.τres
     end
 end
 
@@ -111,13 +121,27 @@ function deriv(mat::PowerExpBondSlip, state::PowerExpBondSlipState, s::Float64)
     if s<=mat.speak
         τ = Tau(mat, s)
         return (mat.speak - s)/τ *(mat.τmax/mat.speak)^2
+    elseif s<=mat.sc
+        β=mat.β
+        w = (s - mat.speak)/(mat.sc - mat.speak)
+        # dzdw = - (β^3*w^2 + β^2*w^2 + 2*β^2*w + 4*β*w + 2)/(2*(1-w)^2*(1+β*w)^2)
+        # dzdw = ((β-1) - 2*β*w)/ ((1-w)*(1+β*w)) - (2*β*(1+β*w))/( 1 + (1+β*w)^2 )
+        # num = -2*(1 + β*w)^2 - 6*β*(1-w)*(1+β*w)
+        num = -2*( β^3*w^2 + β^2*w^2 + 2*β^2*w + 4*β*w + 2 )
+        den = (1 + (1+β*w)^2)^2
+        dzdw = num/den
+        return (mat.τmax - mat.τres)/(mat.sc - mat.speak)*dzdw
     else
-        τ = Tau(mat, s)
-        β = 0.9 # controls the rate of decay
-        c = 0.11
-        speak, sc = mat.speak, mat.sc
-        τmax, τres = mat.τmax, mat.τres
-        return  -(τmax - τ)*(c*β)/(sc - speak) / ( (s - speak)/(sc - speak) )^(β + 1)
+        return -mat.ks*1e-3
+
+        # τ = Tau(mat, s)
+        # β = 0.9 # controls the rate of decay
+        # c = 0.11
+        # speak, sc = mat.speak, mat.sc
+        # τmax, τres = mat.τmax, mat.τres
+        # return  -(τmax - τ)*(c*β)/(sc - speak) / ( (s - speak)/(sc - speak) )^(β + 1)
+
+
         # return β/(sc-speak) * (τmax - τ) * log(1.0 - τres/τmax) / ((s - speak)/(sc-speak))^(β + 1)
         # w = (s - mat.speak)/(mat.sc - mat.speak)
         # dwds = 1/(mat.sc - mat.speak)

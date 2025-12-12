@@ -37,6 +37,7 @@ include("smooth.jl")
 export smooth!, laplacian_smooth!, fast_smooth!
 
 include("gen-interface-elems.jl")
+include("gen-contact-elems.jl")
 export add_cohesive_elements, add_contact_elements, add_boundary_contact_elements, add_boundary_shell_elements
 
 include("embedded.jl")

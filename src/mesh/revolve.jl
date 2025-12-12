@@ -163,12 +163,15 @@ function revolve(
     end
 
     # Merge points
-    point_dict = Dict{UInt64,Node}( hash(n) => n for c in cells for n in c.nodes )
-
+    point_d = NodePosMap( n => n for c in cells for n in c.nodes )
+    
     for cell in cells
-        cell.nodes = Node[ point_dict[hash(n)] for n in cell.nodes ]
+        cell.nodes = Node[ point_d[n] for n in cell.nodes ]
     end
-    nodes = collect(values(point_dict))
+    nodes = collect(values(point_d))
+    
+    # point_d = Dict{UInt64,Node}( hash(n) => n for c in cells for n in c.nodes )
+    # cell.nodes = Node[ point_d[hash(n)] for n in cell.nodes ]
 
 
     if collapse
@@ -264,12 +267,12 @@ function revolve(node::Node;
     end
 
     # Merge points
-    point_dict = Dict{UInt64,Node}( hash(n) => n for c in cells for n in c.nodes )
+    point_d = NodePosMap( n => n for c in cells for n in c.nodes )
 
     for cell in cells
-        cell.nodes = Node[ point_dict[hash(n)] for n in cell.nodes ]
+        cell.nodes = Node[ point_d[n] for n in cell.nodes ]
     end
-    nodes = collect(values(point_dict))
+    nodes = collect(values(point_d))
 
     # New mesh
     newmesh = Mesh()

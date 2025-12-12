@@ -23,9 +23,9 @@ mutable struct CellShape
     npoints    ::Int
     base_shape::CellShape
     vtk_type   ::VTKCellType
-    facet_idxs ::AbstractArray
-    edge_idxs  ::AbstractArray
-    facet_shape::Union{CellShape, Tuple}
+    facet_idxs ::Tuple
+    edge_idxs  ::Tuple
+    facet_shape::Tuple
     nat_coords ::AbstractArray
     quadrature ::Dict{Int, Array}
     func       ::Function
@@ -49,7 +49,7 @@ function MakePOLYVERTEX()
     shape.ndim        = 0
     shape.npoints     = 0
     shape.vtk_type    = VTK_POLY_VERTEX
-    shape.facet_idxs  = []
+    shape.facet_idxs  = ()
     shape.facet_shape = ()
     shape.quadrature  = Dict( 0 => [], 1 => ALL_IP1 )
     return shape

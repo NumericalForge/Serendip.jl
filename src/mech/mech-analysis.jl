@@ -227,16 +227,14 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     end
 
     local K::SparseMatrixCSC{Float64,Int64}
+    data.ΔT = ΔT
 
     while T < 1.0-ΔTmin
-        data.ΔT = ΔT
 
         # Update counters
         # inc += 1
         
-        
-
-        println(data.log, "  inc $inc")
+        println(data.log, "  inc $(inc+1)")
 
         ΔUex, ΔFex = ΔT*Uex, ΔT*Fex     # increment of external vectors
 
@@ -271,7 +269,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             sysstatus = solve_system!(K, ΔUitr, Rtr, nu)   # Changes unknown positions in ΔUi and R
             failed(sysstatus) && (syserror=true; break)
             copyto!.(State, StateBk)
-            ΔUt   = ΔUa + ΔUitr
+            ΔUt   = ΔUa .+ ΔUitr
             ΔFin, sysstatus = update_state(active_elems, ΔUt, 0.0)
             failed(sysstatus) && (syserror=true; break)
 
@@ -296,12 +294,14 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             R .= ΔFex .- ΔFin
             R[pmap] .= 0.0  # zero at prescribed positions
             res = norm(R, Inf)
-
-            err = norm(ΔUi, Inf)/norm(ΔUa, Inf)
-
             @printf(data.log, "    it %d  residue: %-10.4e\n", it, res)
-
-            it==1 && (res1=res)
+            
+            err = norm(ΔUi, Inf)/norm(ΔUa, Inf)
+            if it==1
+                res1 = res
+                # res > 0.5*norm(ΔFin[umap], Inf) && (converged=false; break)
+                # res1>5*ftol && (converged=false; break)
+            end
             it>1  && (linear_domain=false)
             res<ftol && (converged=true; break)
             err<rtol && (converged=true; break)
@@ -324,11 +324,43 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         if converged
             inc += 1
             data.inc = inc
-            
-            # data.residue = res
-            # data.ΔT = ΔT
-            # data.inc = inc
-            # data.nu  = nu
+
+            # ❱❱❱ Hook: Topology update for cohesive elements
+            dof_map, new_free_idxs, affected_idxs, _nu = update_model_cohesive_elems(model, dofs)
+
+            if length(affected_idxs) > 0
+                nu      = _nu
+                data.nu = nu
+                ndofs   = length(dofs)
+                umap    = 1:nu
+                pmap    = nu+1:ndofs
+
+                # Update displacements
+                U   = U[dof_map]
+                ΔUa = ΔUa[dof_map] 
+                ΔUi = ΔUi[dof_map]
+                Uex = Uex[dof_map] 
+
+                # Re-evaluate boundary conditions
+                Uex = zeros(ndofs)
+                Fex = zeros(ndofs)
+                for bc in stage.bcs
+                    compute_bc_values(ana, bc, T, Uex, Fex)
+                end
+                
+                # Resize F
+                F = F[dof_map]
+                F[new_free_idxs] .= 0.0 # Only removes forces from not prescribed positions at new dofs. Does not perform redistribution!
+
+                ΔFin = ΔFin[dof_map]
+                ΔFin[affected_idxs] .= 0.0 # Assuming that those positions are in equilibrium
+
+                # Re-evaluate residuals
+                R  = ΔT.*Fex .- ΔFin
+
+                Rc = Rc[dof_map]
+                Rc[new_free_idxs] .= 0.0
+            end
             
             # Update forces and displacement for the current stage
             U .+= ΔUa
@@ -350,19 +382,19 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
             # Check for saving output file
             checkpoint = T > Tcheck - ΔTmin
-            # && saveouts
             if checkpoint
                 data.out += 1
-                # update_embedded_disps!(active_elems, model.node_fields["U"])
                 Tcheck += ΔTcheck # find the next output time
             end
 
+            # Update analysis records
             solstatus = update_records!(ana, checkpoint=checkpoint)
             if failed(solstatus)
                 println(data.alerts, solstatus.message)
                 break
             end
 
+            # Adjust increment size for next increment
             if autoinc
                 if ΔTbk > 0.0
                     ΔT = min(ΔTbk, Tcheck-T)
@@ -388,46 +420,11 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                         ΔT = ΔTtr
                         ΔTbk = 0.0
                     end
-                    # println()
-                    # @show ΔTmax
-                    # @show q
-                    # @show ΔTtr
                     
                 end
-                # @show ΔT
-            end
-
-            # hook for cohesive elements
-            added, map1, map2, _nu = update_model_cohesive_elems(model, dofs)
-            if added
-                # @show "SPLI"
-                nu = _nu
-                data.nu  = nu
-                ndofs = length(dofs)
-                umap  = 1:nu         # map for unknown displacements
-                pmap  = nu+1:ndofs   # map for prescribed displacements
-
-                # update displacement vectors
-                U   = U[map1]
-                ΔUa = ΔUa[map1]
-                ΔUi = ΔUi[map1]
-                Uex = Uex[map1]
-
-                # update force vectors
-                F    = get.(Ref(F), map2, 0.0)
-                ΔFin = get.(Ref(ΔFin), map2, 0.0)
-                R    = get.(Ref(R), map2, 0.0)
-                Rc   = get.(Ref(Rc), map2, 0.0)
-                Fex  = get.(Ref(Fex), map2, 0.0)
-
-                copyto!.(StateBk, State)
             end
 
         else
-            # Restore counters
-            inc -= 1
-            data.inc -= 1
-
             copyto!.(State, StateBk)
 
             if autoinc
@@ -447,6 +444,8 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                 break
             end
         end
+
+        data.ΔT = ΔT
     end
 
     failed(solstatus) && update_records!(ana, force=true)

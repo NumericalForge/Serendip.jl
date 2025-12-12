@@ -324,6 +324,7 @@ function Base.run(ana::Analysis;
         printstyled("FE analisys\n", bold=true, color=:cyan)
         println("  type: ", ana.name)
         ctx.stress_state != :auto && println("  stress model: ", ctx.stress_state)
+        println("  solver: Newton-Raphson")
         println("  tangent rule: ", tangent_scheme)
         print("  output dir: ")
         printstyled(ana.data.outdir, "\n", color=:cyan)

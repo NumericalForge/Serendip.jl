@@ -11,8 +11,8 @@ const Vec4 = SVector{4, Float64}
 const Vec6 = SVector{6, Float64}
 const Mat6x6 = SMatrix{6, 6, Float64, 36}
 
-const FVector = FixedSizeVector
-const FMatrix = FixedSizeMatrix
+const FVec = FixedSizeVector{Float64}
+const FMat = FixedSizeMatrix{Float64}
 @inline fzeros(n, m) = ( M = FixedSizeArray{Float64}(undef, n, m); M .= 0.0 )
 @inline fzeros(n)    = ( V = FixedSizeArray{Float64}(undef, n); V .= 0.0 )
 

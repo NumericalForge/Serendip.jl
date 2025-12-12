@@ -11,6 +11,35 @@ Returns min(x,0)
 neg(x) = (-abs(x)+x)/2.0
 
 
+"""
+    smooth_pos(x)
+
+Smooth approximation of max(0, x).
+Replaces the sharp kink at zero with a quadratic curve in [-ϵ, ϵ].
+"""
+@inline function smooth_pos(x::Float64, eps::Float64=1e-7)
+    if x > eps
+        return x
+    elseif x < -eps
+        return 0.0
+    else
+        # Quadratic bridge: y = (x+ε)^2 / 4ε
+        return 0.25 * (x + eps)^2 / eps
+    end
+end
+
+"""
+    smooth_neg(x)
+
+Smooth approximation of min(0, x).
+Derived from identity: min(0, x) = x - max(0, x)
+"""
+@inline function smooth_neg(x::Float64, eps::Float64=1e-7)
+    # This ensures consistency: smooth_min(x) + smooth_max(x) = x
+    return x - smooth_pos(x, eps)
+end
+
+
 @inline function norm_rms(V::Vector{Float64})
     return norm(V)/√length(V)
 end
@@ -129,7 +158,7 @@ Find the interval [x1, x2] where the function `f` changes sign.
 The interval [x1, x2] where the function `f` changes sign.
 
 """
-function findrootinterval(f::Function, x1, Δx)
+function findrootinterval(f::Function, x1, Δx; factor=1.6)
     x2 = x1 + Δx
     f1 = f(x1)
     f2 = f(x2)
@@ -149,6 +178,7 @@ function findrootinterval(f::Function, x1, Δx)
     return x1, x2, success()
 end
 
+
 function findroot(f::Function, a, b; tol=(b-a)*0.001, ftol=Inf, method=:default)
     if method==:default
         return findroot_default(f, a, b, tol, ftol)
@@ -158,6 +188,7 @@ function findroot(f::Function, a, b; tol=(b-a)*0.001, ftol=Inf, method=:default)
         return error("findroot: method $method not implemented")
     end
 end
+
 
 function findroot_bisection(f::Function, a, b, tol, ftol)
     fa = f(a)
@@ -190,7 +221,7 @@ end
 
 function findroot_default(f::Function, a, b, tol, ftol)
     # bracketed method that combines bissection, quadratic interpolation and regula falsi methods
-    # for points are used at each itearation
+    # four points are used at each itearation
     # x1 and x4 are the endpoints
     # each iteration starts with x1, x2 and x4 points
     # x3 is the newest approximation

@@ -8,32 +8,7 @@ export getheader
 # DataTable object
 const KeyType = Union{Symbol,AbstractString}
 
-# """
-#     DataTable(header::AbstractArray, columns::Vector{<:AbstractVector}=Vector{Any}[]; name="")
-#     DataTable(; pairs...)
-#     DataTable(header::AbstractArray, matrix::Array{T,2} where T; name="")
 
-# Construct a tabular data container with named columns.
-
-# # Arguments
-# - `header`: Array of column names (strings or convertible).
-# - `columns`: Vector of column vectors. Defaults to empty vectors of matching length.
-# - `name`: Optional table name (string).
-# - `pairs...`: Keyword arguments mapping names to column vectors.
-# - `matrix`: 2D array whose columns are converted into vectors.
-
-# # Behavior
-# - Enforces unique column names.
-# - Builds an index mapping names → column positions.
-# - Columns can be accessed as fields (`table.colname`) or by key.
-
-# # Examples
-# ```julia
-# DataTable(["x","y"], [ [1,2], [3,4] ])
-# DataTable(x=[1,2,3], y=[4,5,6])
-# DataTable(["a","b"], [1 2; 3 4; 5 6])
-# ```
-# """
 """
     DataTable(header, columns=Vector[]; name="")
     DataTable(; pairs...)

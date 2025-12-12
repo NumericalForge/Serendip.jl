@@ -22,44 +22,38 @@
 #
 
 # natural coordinates
-const coords_TRI3 =
-[ 0.0  0.0
-  1.0  0.0
-  0.0  1.0 ]
-
-const facet_idxs_TRI3 = [ [1, 2], [2, 3], [3, 1] ]
+const coords_TRI3 = @SArray [ 
+    0.0  0.0
+    1.0  0.0
+    0.0  1.0 ]
 
 function shape_func_TRI3(R::AbstractArray{<:Float64,1})
     r, s = R[1:2]
-    N = Array{Float64}(undef,3)
-    N[1] = 1.0-r-s
-    N[2] = r
-    N[3] = s
-    return N
-end
 
-const deriv_TRI3_mat =
-[  -1.0  -1.0
-    1.0   0.0
-    0.0   1.0 ]
+    return @SArray [ 1.0 - r - s,
+        r,
+        s ]
+end
 
 
 function shape_deriv_TRI3(R::AbstractArray{<:Float64,1})
-    return deriv_TRI3_mat
+    return @SArray [
+       -1.0  -1.0
+        1.0   0.0
+        0.0   1.0 ]
 end
 
 # constructor
 function MakeTRI3()
     shape             = CellShape()
     shape.name        = "TRI3"
-    # shape.family      = :bulk
     shape.ndim        = 2
     shape.npoints     = 3
     shape.base_shape = shape
     shape.vtk_type    = VTK_TRIANGLE
-    shape.facet_idxs  = facet_idxs_TRI3
-    shape.edge_idxs   = facet_idxs_TRI3
-    shape.facet_shape = LIN2
+    shape.facet_idxs  = ( [1, 2], [2, 3], [3, 1] )
+    shape.edge_idxs   = shape.facet_idxs
+    shape.facet_shape = ntuple(_->LIN2, 3)
     shape.nat_coords  = coords_TRI3
     shape.quadrature  = Dict( 0 => TRI_IP3,  1 => TRI_IP1,  3 => TRI_IP3,   6 => TRI_IP6 )
     shape.func        = shape_func_TRI3
@@ -96,20 +90,18 @@ export TRI3
 #
 
 # natural coordinates
-const coords_TRI6 =
-[ 0.0  0.0
-  1.0  0.0
-  0.0  1.0
-  0.5  0.0
-  0.5  0.5
-  0.0  0.5 ]
-
-const facet_idxs_TRI6 = [ [1, 2, 4], [2, 3, 5], [3, 1, 6] ]
+const coords_TRI6 = @SArray [
+    0.0  0.0
+    1.0  0.0
+    0.0  1.0
+    0.5  0.0
+    0.5  0.5
+    0.0  0.5 ]
 
 function shape_func_TRI6(R::AbstractArray{<:Float64,1})
     r, s = R
+    N = @MArray zeros(6)
 
-    N = Array{Float64}(undef,6)
     N[1] = 1.0-(r+s)*(3.0-2.0*(r+s))
     N[2] = r*(2.0*r-1.0)
     N[3] = s*(2.0*s-1.0)
@@ -117,14 +109,14 @@ function shape_func_TRI6(R::AbstractArray{<:Float64,1})
     N[5] = 4.0*r*s
     N[6] = 4.0*s*(1.0-(r+s))
 
-    return N
+    return SVector(N)
 end
 
 
 function shape_deriv_TRI6(R::AbstractArray{<:Float64,1})
     r, s = R
+    D = @MArray zeros(6,2)
 
-    D = Array{Float64}(undef,6,2)
     D[1,1] = -3.0 + 4.0 * (r + s);       D[1,2] = -3.0 + 4.0*(r + s)
     D[2,1] =  4.0 * r - 1.0;             D[2,2] =  0.0
     D[3,1] =  0.0;                       D[3,2] =  4.0 * s - 1.0
@@ -132,21 +124,20 @@ function shape_deriv_TRI6(R::AbstractArray{<:Float64,1})
     D[5,1] =  4.0 * s;                   D[5,2] =  4.0 * r
     D[6,1] = -4.0 * s;                   D[6,2] =  4.0 - 4.0 * r - 8.0*s
 
-    return D
+    return SMatrix(D)
 end
 
 # constructor
 function MakeTRI6()
     shape             = CellShape()
     shape.name        = "TRI6"
-    # shape.family      = :bulk
     shape.ndim        = 2
     shape.npoints     = 6
     shape.base_shape = TRI3
     shape.vtk_type    = VTK_QUADRATIC_TRIANGLE
-    shape.facet_idxs  = facet_idxs_TRI6
-    shape.edge_idxs   = facet_idxs_TRI6
-    shape.facet_shape = LIN3
+    shape.facet_idxs  = ( [1, 2, 4], [2, 3, 5], [3, 1, 6] )
+    shape.edge_idxs   = shape.facet_idxs
+    shape.facet_shape = ntuple(_->LIN3, 3)
     shape.nat_coords  = coords_TRI6
     shape.quadrature  = Dict( 0 => TRI_IP3,  3 => TRI_IP3,  6 => TRI_IP6 )
     shape.func        = shape_func_TRI6
@@ -160,22 +151,27 @@ const  TRI6 = MakeTRI6()
 export TRI6
 
 
-
 # TRI9 shape
 
 
-
 # natural coordinates
-const coords_TRI9 = []
-
-const facet_idxs_TRI9 = [ [1, 2, 4, 7], [2, 3, 5, 8], [3, 1, 6, 9] ]
+const coords_TRI9 = @SArray [
+    0.0  0.0
+    1.0  0.0
+    0.0  1.0
+    0.5  0.0
+    0.5  0.5
+    0.0  0.5
+    0.0  0.0
+    1.0  0.0
+    0.0  1.0 ]
 
 function shape_func_TRI9(R::AbstractArray{<:Float64,1})
     error("TRI9 shape not fully implemented")
     r, s = R
 
-    N = Array{Float64}(undef,9)
-    return N
+    N = @MArray zeros(9)
+    return SVector(N)
 end
 
 
@@ -183,22 +179,21 @@ function shape_deriv_TRI9(R::AbstractArray{<:Float64,1})
     error("TRI9 shape not fully implemented")
     r, s = R
 
-    D = Array{Float64}(undef,9,2)
-    return D
+    D = @MArray zeros(9,2)
+    return SMatrix(D)
 end
 
 # constructor
 function MakeTRI9()
     shape             = CellShape()
     shape.name        = "TRI9"
-    # shape.family      = :bulk
     shape.ndim        = 2
     shape.npoints     = 9
     shape.base_shape = TRI3
     shape.vtk_type    = VTK_POLY_VERTEX
-    shape.facet_idxs  = facet_idxs_TRI9
-    shape.edge_idxs   = facet_idxs_TRI9
-    shape.facet_shape = LIN4
+    shape.facet_idxs  = ( [1, 2, 4, 7], [2, 3, 5, 8], [3, 1, 6, 9] )
+    shape.edge_idxs   = shape.facet_idxs
+    shape.facet_shape = ntuple(_->LIN4, 3)
     shape.nat_coords  = coords_TRI9
     shape.quadrature  = Dict( 0 => TRI_IP6, 3 => TRI_IP3, 6 => TRI_IP6 )
     shape.func        = shape_func_TRI9
@@ -206,17 +201,12 @@ function MakeTRI9()
     return shape
 end
 
-
 # Registration
 const  TRI9 = MakeTRI9()
 export TRI9
 
 
-
-
 # TRI10 shape
-
-
 
 # natural coordinates
 const coords_TRI10 = []
@@ -227,8 +217,8 @@ function shape_func_TRI10(R::AbstractArray{<:Float64,1})
     error("TRI10 shape not fully implemented")
     r, s = R
 
-    N = Array{Float64}(undef,10)
-    return N
+    N = @MArray zeros(10)
+    return SVector(N)
 end
 
 
@@ -236,22 +226,21 @@ function shape_deriv_TRI10(R::AbstractArray{<:Float64,1})
     error("TRI10 shape not fully implemented")
     r, s = R
 
-    D = Array{Float64}(undef,10,2)
-    return D
+    D = @MArray zeros(10,2)
+    return SMatrix(D)
 end
 
 # constructor
 function MakeTRI10()
     shape             = CellShape()
     shape.name        = "TRI10"
-    # shape.family      = :bulk
     shape.ndim        = 2
     shape.npoints     = 10
     shape.base_shape = TRI3
     shape.vtk_type    = VTK_POLY_VERTEX
-    shape.facet_idxs  = facet_idxs_TRI10
-    shape.edge_idxs   = facet_idxs_TRI10
-    shape.facet_shape = LIN4
+    shape.facet_idxs  = ()
+    shape.edge_idxs   = ()
+    shape.facet_shape = ntuple(_->LIN4, 3)
     shape.nat_coords  = coords_TRI10
     shape.quadrature  = Dict( 0 => TRI_IP6, 3 => TRI_IP3, 6 => TRI_IP6 )
     shape.func        = shape_func_TRI10
@@ -290,8 +279,6 @@ const coords_QUAD4 =
            1.0  1.0
           -1.0  1.0  ]
 
-const facet_idxs_QUAD4 = [ [1, 2], [2, 3], [3, 4], [4, 1] ]
-
 function shape_func_QUAD4(R::AbstractArray{<:Float64,1})
     r, s = R[1:2]
     return @SArray [
@@ -315,14 +302,13 @@ end
 function MakeQUAD4()
     shape             = CellShape()
     shape.name        = "QUAD4"
-    # shape.family      = :bulk
     shape.ndim        = 2
     shape.npoints     = 4
     shape.base_shape = shape
     shape.vtk_type    = VTK_QUAD
-    shape.facet_idxs  = facet_idxs_QUAD4
-    shape.edge_idxs   = facet_idxs_QUAD4
-    shape.facet_shape = LIN2
+    shape.facet_idxs  = ( [1, 2], [2, 3], [3, 4], [4, 1] )
+    shape.edge_idxs   = shape.facet_idxs
+    shape.facet_shape = ntuple(_->LIN2, 4)
     shape.nat_coords  = coords_QUAD4
     shape.quadrature  = Dict( 0 => QUAD_IP4, 1 => QUAD_IP1, 4 => QUAD_IP4, 9 => QUAD_IP9, 16 => QUAD_IP16 )
     shape.func        = shape_func_QUAD4
@@ -334,7 +320,6 @@ end
 # Registration
 const QUAD4 = MakeQUAD4()
 export QUAD4
-
 
 
 # QUAD8 shape
@@ -356,21 +341,20 @@ export QUAD4
 #
 
 # natural coordinates
-const coords_QUAD8 =
-[ -1.0 -1.0
-   1.0 -1.0
-   1.0  1.0
-  -1.0  1.0
-   0.0 -1.0
-   1.0  0.0
-   0.0  1.0
-  -1.0  0.0 ]
-
-const facet_idxs_QUAD8 = [ [1, 2, 5], [2, 3, 6], [3, 4, 7], [4, 1, 8] ]
+const coords_QUAD8 = @SArray [
+    -1.0 -1.0
+     1.0 -1.0
+     1.0  1.0
+    -1.0  1.0
+     0.0 -1.0
+     1.0  0.0
+     0.0  1.0
+    -1.0  0.0 ]
 
 function shape_func_QUAD8(R::AbstractArray{<:Float64,1})
     r, s = R[1:2]
-    N = Array{Float64}(undef,8)
+    N = @MArray zeros(8)
+
     rp1=1.0+r; rm1=1.0-r;
     sp1=1.0+s; sm1=1.0-s;
     N[1] = 0.25*rm1*sm1*(rm1+sm1-3.0)
@@ -381,13 +365,14 @@ function shape_func_QUAD8(R::AbstractArray{<:Float64,1})
     N[6] = 0.50*rp1*(1.0-s*s)
     N[7] = 0.50*sp1*(1.0-r*r)
     N[8] = 0.50*rm1*(1.0-s*s)
-    return N
+    return SVector(N)
 end
 
 
 function shape_deriv_QUAD8(R::AbstractArray{<:Float64,1})
     r, s = R[1:2]
-    D = Array{Float64}(undef,8,2)
+    D = @MArray zeros(8,2)
+
     rp1=1.0+r; rm1=1.0-r
     sp1=1.0+s; sm1=1.0-s
 
@@ -408,7 +393,7 @@ function shape_deriv_QUAD8(R::AbstractArray{<:Float64,1})
     D[6,2] = -s * rp1
     D[7,2] =  0.50 * (1.0 - r * r)
     D[8,2] = -s * rm1
-    return D
+    return SMatrix(D)
 end
 
 # constructor
@@ -420,9 +405,9 @@ function MakeQUAD8()
     shape.npoints     = 8
     shape.base_shape = QUAD4
     shape.vtk_type    = VTK_QUADRATIC_QUAD
-    shape.facet_idxs  = facet_idxs_QUAD8
-    shape.edge_idxs   = facet_idxs_QUAD8
-    shape.facet_shape = LIN3
+    shape.facet_idxs  = ( [1, 2, 5], [2, 3, 6], [3, 4, 7], [4, 1, 8] )
+    shape.edge_idxs   = shape.facet_idxs
+    shape.facet_shape = ntuple(_->LIN3, 4)
     shape.nat_coords  = coords_QUAD8
     shape.quadrature  = Dict( 0 => QUAD_IP4, 1 => QUAD_IP1, 4 => QUAD_IP4, 9 => QUAD_IP9, 16 => QUAD_IP16 )
     shape.func        = shape_func_QUAD8
@@ -455,8 +440,8 @@ export QUAD8
 #
 
 # natural coordinates
-const coords_QUAD9 =
-[ -1.0 -1.0
+const coords_QUAD9 = @SArray [ 
+  -1.0 -1.0
    1.0 -1.0
    1.0  1.0
   -1.0  1.0
@@ -466,11 +451,10 @@ const coords_QUAD9 =
   -1.0  0.0
    0.0  0.0 ]
 
-const facet_idxs_QUAD9 = [ [1, 2, 5], [2, 3, 6], [3, 4, 7], [4, 1, 8] ]
-
 function shape_func_QUAD9(R::AbstractArray{<:Float64,1})
     r, s = R[1:2]
-    N = Array{Float64}(undef,9)
+    N = @MArray zeros(9)
+
     rp1=r+1.0; rm1=r-1.0
     sp1=s+1.0; sm1=s-1.0
 
@@ -483,13 +467,14 @@ function shape_func_QUAD9(R::AbstractArray{<:Float64,1})
     N[7] = -0.50*s*sp1*rp1*rm1
     N[8] = -0.50*r*sp1*sm1*rm1
     N[9] = sp1*sm1*rp1*rm1
-    return N
+    return SVector(N)
 end
 
 
 function shape_deriv_QUAD9(R::AbstractArray{<:Float64,1})
     r, s = R[1:2]
-    D = Array{Float64}(undef,9,2)
+    D = @MArray zeros(9,2)
+
     rp1=r+1.0; rm1=r-1.0
     sp1=s+1.0; sm1=s-1.0
 
@@ -513,7 +498,7 @@ function shape_deriv_QUAD9(R::AbstractArray{<:Float64,1})
     D[8,2] = -r*rm1*(s + s)/2.0
     D[9,2] = 2.0*s*(r*r - 1.0)
 
-    return D
+    return SMatrix(D)
 end
 
 # constructor
@@ -525,9 +510,9 @@ function MakeQUAD9()
     shape.npoints     = 9
     shape.base_shape = QUAD4
     shape.vtk_type    = VTK_BIQUADRATIC_QUAD
-    shape.facet_idxs  = facet_idxs_QUAD9
-    shape.edge_idxs   = facet_idxs_QUAD9
-    shape.facet_shape = LIN3
+    shape.facet_idxs  = ( [1, 2, 5], [2, 3, 6], [3, 4, 7], [4, 1, 8] )
+    shape.edge_idxs   = shape.facet_idxs
+    shape.facet_shape = ntuple(_->LIN3, 4)
     shape.nat_coords  = coords_QUAD9
     shape.quadrature  = Dict( 0 => QUAD_IP9, 4 => QUAD_IP4, 9 => QUAD_IP9, 16 => QUAD_IP16 )
     shape.func        = shape_func_QUAD9
@@ -561,8 +546,8 @@ export QUAD9
 #
 
 # natural coordinates
-const coords_QUAD12 =
-[  -1.0       -1.0
+const coords_QUAD12 = @SArray [  
+   -1.0       -1.0
     1.0       -1.0
     1.0        1.0
    -1.0        1.0
@@ -573,13 +558,12 @@ const coords_QUAD12 =
     1.0/3.0    1.0
    -1.0/3.0    1.0
    -1.0        1.0/3.0
-   -1         -1.0/3.0 ]
-
-const facet_idxs_QUAD12 = [ [1, 2, 5, 9], [2, 3, 6, 10], [3, 4, 7, 11], [4, 1, 8, 12] ]
+   -1.0       -1.0/3.0 ]
 
 function shape_func_QUAD12(R::AbstractArray{<:Float64,1})
     r, s = R[1:2]
-    N = Array{Float64}(undef,12)
+    N = @MArray zeros(12)
+    # N = @MArray zeros(12)
 
     RM = 1.0 - r
     RP = 1.0 + r
@@ -598,13 +582,13 @@ function shape_func_QUAD12(R::AbstractArray{<:Float64,1})
     N[11] = 9.0*(1.0 - s*s)*(1.0 + 3.0*s)*RM/32.0
     N[12] = 9.0*(1.0 - s*s)*(1.0 - 3.0*s)*RM/32.0
 
-    return N
+    return SVector(N)
 end
 
 
 function shape_deriv_QUAD12(R::AbstractArray{<:Float64,1})
     r, s = R[1:2]
-    D = Array{Float64}(undef,12,2)
+    D = @MArray zeros(12,2)
 
     RP = 1.0 + r
     RM = 1.0 - r
@@ -637,7 +621,7 @@ function shape_deriv_QUAD12(R::AbstractArray{<:Float64,1})
     D[11, 2] =  9.0*RM*(-9.0*s*s - 2.0*s + 3.0)/32.0
     D[12, 2] =  9.0*RM*(9.0*s*s - 2.0*s - 3.0)/32.0
 
-    return D
+    return SMatrix(D)
 end
 
 # constructor
@@ -649,9 +633,9 @@ function MakeQUAD12()
     shape.npoints     = 12
     shape.base_shape = QUAD4
     shape.vtk_type    = VTK_POLYGON
-    shape.facet_idxs  = facet_idxs_QUAD12
-    shape.edge_idxs   = facet_idxs_QUAD12
-    shape.facet_shape = LIN4
+    shape.facet_idxs  = ( [1, 2, 5, 9], [2, 3, 6, 10], [3, 4, 7, 11], [4, 1, 8, 12] )
+    shape.edge_idxs   = shape.facet_idxs
+    shape.facet_shape = ntuple(_->LIN4, 4)
     shape.nat_coords  = coords_QUAD12
     shape.quadrature  = Dict( 0 => QUAD_IP9, 4 => QUAD_IP4, 9 => QUAD_IP9, 16 => QUAD_IP16 )
     shape.func        = shape_func_QUAD12
@@ -668,27 +652,24 @@ export QUAD12
 # QUAD16 shape
 
 
-
 # natural coordinates
 const coords_QUAD16 = []
 
-const facet_idxs_QUAD16 = [ [1, 2, 5, 9], [2, 3, 6, 10], [3, 4, 7, 11], [4, 1, 8, 12] ]
-
 function shape_func_QUAD16(R::AbstractArray{<:Float64,1})
-    error("TRI9 shape not fully implemented")
+    error("QUAD16 shape not fully implemented")
     r, s = R[1:2]
-    N = Array{Float64}(undef,16)
+    N = @MArray zeros(16)
 
-    return N
+    return SVector(N)
 end
 
 
 function shape_deriv_QUAD16(R::AbstractArray{<:Float64,1})
-    error("TRI9 shape not fully implemented")
+    error("QUAD16 shape not fully implemented")
     r, s = R[1:2]
-    D = Array{Float64}(undef,16,2)
+    D = @MArray zeros(16,2)
 
-    return D
+    return SMatrix(D)
 end
 
 # constructor
@@ -700,9 +681,9 @@ function MakeQUAD16()
     shape.npoints     = 16
     shape.base_shape = QUAD4
     shape.vtk_type    = VTK_POLY_VERTEX
-    shape.facet_idxs  = facet_idxs_QUAD16
-    shape.edge_idxs   = facet_idxs_QUAD16
-    shape.facet_shape = LIN4
+    shape.facet_idxs  = ( [1, 2, 5, 9], [2, 3, 6, 10], [3, 4, 7, 11], [4, 1, 8, 12] )
+    shape.edge_idxs   = shape.facet_idxs
+    shape.facet_shape = ntuple(_->LIN4, 4)
     shape.nat_coords  = coords_QUAD16
     shape.quadrature  = Dict( 0 => QUAD_IP16, 4 => QUAD_IP4, 9 => QUAD_IP9, 16 => QUAD_IP16 )
     shape.func        = shape_func_QUAD16
@@ -713,5 +694,3 @@ end
 # Registration
 const QUAD16 = MakeQUAD16()
 export QUAD16
-
-

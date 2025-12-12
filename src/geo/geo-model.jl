@@ -213,9 +213,10 @@ X2 = [2.0, 1.0, 1.0]
 
 # Add a hexahedral block with graded mesh along z
 blk = add_block(geo, X1, X2;
-    nx=8, ny=4, nz=4, rz=1.3,
-    shape=HEX8,
-    tag="foundation")
+nx=8, ny=4, nz=4, rz=1.3,
+shape=HEX8,
+tag="foundation")
+```
 """
 function add_block(geometry::GeoModel, 
     X, dx::Real, dy::Real, dz::Real;
@@ -387,21 +388,21 @@ end
 
 
 """
-    set_transfinite_volume(geo, ent)
+    set_transfinite_volume(geo, volume)
 
-Assign a transfinite mesh distribution to a volume entity `ent`.  
+Assign a transfinite mesh distribution to a volume entity `volume` in the geometric model `geo`.  
 Ensures structured, block-like hexahedral meshing compatible with transfinite boundaries.
 
 # Arguments
-- `geo::GeoModel`: Geometry model containing the surface.
-- `ent`: Volume entity to be meshed using transfinite interpolation.
+- `geo::GeoModel`: Geometry model containing the volume.
+- `volume`: Volume entity to be meshed using transfinite interpolation.
 
 # Returns
 - `Nothing`
 """
-function set_transfinite_volume(geo::GeoModel, ent)
+function set_transfinite_volume(geo::GeoModel, volume)
     gmsh.model.occ.synchronize()
-    gmsh.model.mesh.set_transfinite_volume(ent.id)
+    gmsh.model.mesh.set_transfinite_volume(volume.id)
 end
 
 

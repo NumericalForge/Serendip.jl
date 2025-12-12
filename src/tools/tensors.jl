@@ -37,57 +37,154 @@ function J3(σ::Vec6)
 end
 
 
-"""
-This function is not precise enouugh...
-"""
-function eigvals2(T::Vec6)
-    @assert length(T) == 6
+# """
+# This function is not precise enouugh...
+# """
+# function eigvals2(T::Vec6)
+#     @assert length(T) == 6
 
-    t11, t22, t33, t12, t23, t13 = T[1], T[2], T[3], T[4]/SR2, T[5]/SR2, T[6]/SR2
+#     t11, t22, t33, t12, t23, t13 = T[1], T[2], T[3], T[4]/SR2, T[5]/SR2, T[6]/SR2
 
+#     i1 = t11 + t22 + t33
+#     i2 = t11*t22 + t22*t33 + t11*t33 - t12*t12 - t23*t23 - t13*t13
+
+#     i1==0.0 && i2==0.0 && return zeros(3)
+
+#     i3  = t11*(t22*t33 - t23*t23) - t12*(t12*t33 - t23*t13) + t13*(t12*t23 - t22*t13)
+#     val = (2*i1^3 - 9*i1*i2 + 27*i3 )/( 2*(i1^2 - 3*i2)^(3/2) )
+#     val = clamp(val, -1.0, 1.0) # to avoid 1.000000000000001
+
+#     θ = 1/3*acos( val )
+
+#     r = 2/3*√(i1^2-3*i2)
+
+#     s1 = i1/3 + r*cos(θ)
+#     s2 = i1/3 + r*cos(θ - 2*π/3)
+#     s3 = i1/3 + r*cos(θ - 4*π/3)
+
+#     # sorting
+#     if s1<s2; s1,s2 = s2,s1 end
+#     if s2<s3; s2,s3 = s3,s2 end
+#     if s1<s2; s1,s2 = s2,s1 end
+
+#     return Vec3(s1, s2, s3)
+# end
+
+
+
+# function eigvals(i1::Float64, j2::Float64, θ::Float64)
+#     # 1. Hydrostatic component (center of the Mohr circle)
+#     p = i1 * 0.3333333333333333  # 1/3
+
+#     # 2. Deviatoric Radius
+#     #    If j2 is effectively zero, the stress is purely hydrostatic
+#     if j2 <= 1e-16
+#         return Vec3(p, p, p)
+#     end
+    
+#     # r = 2/sqrt(3) * sqrt(J2)
+#     r = 1.1547005383792515 * sqrt(j2)
+
+#     # 3. Deviatoric Eigenvalues (based on Lode angle)
+#     #    Using the standard trigonometric solution
+#     #    Note: 2π/3 ≈ 2.0943951023931953
+#     s1 = r * cos(θ)
+#     s2 = r * cos(θ - 2.0943951023931953)
+#     s3 = r * cos(θ + 2.0943951023931953)
+
+#     # 4. Total Eigenvalues
+#     λ1 = p + s1
+#     λ2 = p + s2
+#     λ3 = p + s3
+
+#     # 5. Sort Descending (λ1 >= λ2 >= λ3)
+#     #    Manual sort is faster than allocating a vector for sort()
+#     if λ1 < λ2; λ1, λ2 = λ2, λ1; end
+#     if λ2 < λ3; λ2, λ3 = λ3, λ2; end
+#     if λ1 < λ2; λ1, λ2 = λ2, λ1; end
+
+#     return Vec3(λ1, λ2, λ3)
+# end
+
+
+
+# """
+# Computes the eigenvalues of a second order tensor written in Mandel notation.
+# The eigenvalues are sorted from highest to lowest
+# """
+# function eigvals(T::Vec6; sort=true)
+#     t11, t22, t33, t23, t13, t12 = T[1], T[2], T[3], T[4]/SR2, T[5]/SR2, T[6]/SR2
+
+#     # full notation
+#     F = @SArray[ t11  t12  t13
+#                  t12  t22  t23
+#                  t13  t23  t33 ]
+
+#     L, _ = eigen(F, permute=false, scale=false)
+
+#     # put biggest eigenvalue first
+#     sort && return Base.sort(L, rev=true)
+#     return L
+# end
+
+
+"""
+    eigenvalues(T::Vec6)
+
+Compute the eigenvalues of a symmetric tensor T (in Voigt notation) using 
+the analytical method. 
+Internally uses deviatoric invariants (J2, J3) for maximum numerical stability.
+"""
+function eigvals(T::Vec6)
+    # 1. Extract components (handle Mandel notation if necessary)
+    #    Assuming T = [11, 22, 33, 23, 13, 12] or similar.
+    #    Adjust the sqrt(2) factors if your Vec6 is Mandel.
+    t11, t22, t33 = T[1], T[2], T[3]
+    t23, t13, t12 = T[4]/SR2, T[5]/SR2, T[6]/SR2 
+
+    # 2. Compute I1 (Hydrostatic Part)
     i1 = t11 + t22 + t33
-    i2 = t11*t22 + t22*t33 + t11*t33 - t12*t12 - t23*t23 - t13*t13
+    p  = i1 * 0.3333333333333333 # Mean normal stress
 
-    i1==0.0 && i2==0.0 && return zeros(3)
+    # 3. Compute Deviatoric Stress (s = t - p*I)
+    s11, s22, s33 = t11 - p, t22 - p, t33 - p
+    
+    # 4. Compute J2 (Deviatoric Second Invariant)
+    #    Using s_ij is numerically safer than using I2
+    j2 = 0.5*(s11^2 + s22^2 + s33^2) + t12^2 + t23^2 + t13^2
 
-    i3  = t11*(t22*t33 - t23*t23) - t12*(t12*t33 - t23*t13) + t13*(t12*t23 - t22*t13)
-    val = (2*i1^3 - 9*i1*i2 + 27*i3 )/( 2*(i1^2 - 3*i2)^(3/2) )
-    val = clamp(val, -1.0, 1.0) # to avoid 1.000000000000001
+    # 5. Handle the Hydrostatic/Zero Case
+    if j2 <= 1e-16
+        # If deviatoric energy is zero, all eigenvalues = mean stress
+        return Vec3(p, p, p)
+    end
 
-    θ = 1/3*acos( val )
+    # 6. Compute J3 (Deviatoric Third Invariant) for Angle
+    j3 = s11*s22*s33 + 2.0*t12*t23*t13 - s11*t23^2 - s22*t13^2 - s33*t12^2
 
-    r = 2/3*√(i1^2-3*i2)
+    # 7. Calculate Lode Angle θ
+    #    Normalized J3 argument for acos
+    arg = (1.5 * sqrt(3.0)) * j3 / (j2 * sqrt(j2))
+    arg = clamp(arg, -1.0, 1.0)
+    θ   = acos(arg) * 0.3333333333333333
 
-    s1 = i1/3 + r*cos(θ)
-    s2 = i1/3 + r*cos(θ - 2*π/3)
-    s3 = i1/3 + r*cos(θ - 4*π/3)
+    # 8. Solve for Eigenvalues
+    r = 2.0 * sqrt(j2 * 0.3333333333333333)
+    # Precompute constants
+    c1 = cos(θ)
+    c2 = cos(θ - 2.0943951023931953) # 2π/3
+    c3 = cos(θ + 2.0943951023931953) # 4π/3
 
-    # sorting
-    if s1<s2; s1,s2 = s2,s1 end
-    if s2<s3; s2,s3 = s3,s2 end
-    if s1<s2; s1,s2 = s2,s1 end
+    λ1 = p + r * c1
+    λ2 = p + r * c2
+    λ3 = p + r * c3
 
-    return Vec3(s1, s2, s3)
-end
+    # 9. Sort Descending
+    if λ1 < λ2; λ1, λ2 = λ2, λ1; end
+    if λ2 < λ3; λ2, λ3 = λ3, λ2; end
+    if λ1 < λ2; λ1, λ2 = λ2, λ1; end
 
-
-"""
-Computes the eigenvalues of a second order tensor written in Mandel notation.
-The eigenvalues are sorted from highest to lowest
-"""
-function eigvals(T::Vec6; sort=true)
-    t11, t22, t33, t23, t13, t12 = T[1], T[2], T[3], T[4]/SR2, T[5]/SR2, T[6]/SR2
-
-    # full notation
-    F = @SArray[ t11  t12  t13
-                 t12  t22  t23
-                 t13  t23  t33 ]
-
-    L, _ = eigen(F, permute=false, scale=false)
-
-    # put biggest eigenvalue first
-    sort && return Base.sort(L, rev=true)
-    return L
+    return Vec3(λ1, λ2, λ3)
 end
 
 

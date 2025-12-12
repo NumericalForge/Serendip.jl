@@ -315,7 +315,6 @@ end
 function faces_normal(faces::Vector{Cell}, facetol)
     ndim = 1 + faces[1].shape.ndim
 
-    #normals = Set{Vector{Float64}}()
     normals = Vector{Float64}[]
 
     for f in faces

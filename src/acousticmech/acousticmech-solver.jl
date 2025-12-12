@@ -30,8 +30,6 @@ mutable struct AcousticContext<:Context
     end
 end
 
-const AcousticContext = AcousticContext
-
 
 AcousticMechAnalysis_params = [
     FunInfo(:AcousticMechAnalysis, "AcousticMechanical analysis."),

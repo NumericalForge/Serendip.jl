@@ -4,15 +4,18 @@
 
 
 # natural coordinates
-const coords_LIN2 = [ -1.0; 1.0;; ]
+const coords_LIN2 = @SArray [ -1.0; 1.0;; ]
 
 # shape functions
 function shape_func_LIN2(R::AbstractArray{<:Float64,1})
     r = R[1]
-    N = Array{Float64}(undef,2)
-    N[1] = 0.5*(1-r)
-    N[2] = 0.5*(1+r)
-    return N
+    return @SArray [
+        0.5*(1 - r),
+        0.5*(1 + r) ]
+    # N = Array{Float64}(undef,2)
+    # N[1] = 0.5*(1-r)
+    # N[2] = 0.5*(1+r)
+    # return N
 end
 
 # shape derivatives
@@ -22,10 +25,11 @@ end
 
 
 function shape_deriv2_LIN2(R::AbstractArray{<:Float64,1})
-    D = Array{Float64}(undef,2,1)
-    D[1,1] = 0.0
-    D[2,1] = 0.0
-    return D
+    return @SArray [ 0.0; 0.0;; ]
+    # D = Array{Float64}(undef,2,1)
+    # D[1,1] = 0.0
+    # D[2,1] = 0.0
+    # return D
 end
 
 
@@ -38,8 +42,8 @@ function MakeLIN2()
     shape.npoints     = 2
     shape.base_shape = shape
     shape.vtk_type    = VTK_LINE
-    shape.facet_idxs  = []
-    shape.edge_idxs   = []
+    shape.facet_idxs  = ()
+    shape.edge_idxs   = ()
     shape.facet_shape = ()
     shape.nat_coords  = coords_LIN2
     shape.quadrature  = Dict{Int, Array}(0=>LIN_IP2, 1=>LIN_IP1, 2=>LIN_IP2, 3=>LIN_IP3, 4=>LIN_IP4)
@@ -55,12 +59,11 @@ const LIN2 = MakeLIN2()
 export LIN2
 
 
-
 # LIN3 shape
 
 
 # natural coordinates
-const coords_LIN3 = [ -1.0; 1.0;  0.0;;]
+const coords_LIN3 = @SArray [ -1.0; 1.0;  0.0;;]
 
 # shape functions
 function shape_func_LIN3(R::AbstractArray{<:Float64,1})
@@ -79,11 +82,12 @@ end
 
 
 function shape_deriv2_LIN3(R::AbstractArray{<:Float64,1})
-    D = Array{Float64}(undef,3,1)
-    D[1,1] = 1.0
-    D[2,1] = 1.0
-    D[3,1] = -2.0
-    return D
+    return @SArray [ 1.0; 1.0; -2.0;; ]
+    # D = Array{Float64}(undef,3,1)
+    # D[1,1] = 1.0
+    # D[2,1] = 1.0
+    # D[3,1] = -2.0
+    # return D
 end
 
 # constructor
@@ -95,8 +99,8 @@ function MakeLIN3()
     shape.npoints     = 3
     shape.base_shape = LIN2
     shape.vtk_type    = VTK_QUADRATIC_EDGE
-    shape.facet_idxs  = []
-    shape.edge_idxs   = []
+    shape.facet_idxs  = ()
+    shape.edge_idxs   = ()
     shape.facet_shape = ()
     shape.nat_coords  = coords_LIN3
     shape.quadrature  = Dict( 0=>LIN_IP2, 1=>LIN_IP1, 2=>LIN_IP2, 3=>LIN_IP3, 4=>LIN_IP4 )
@@ -117,7 +121,7 @@ export LIN3
 
 
 # natural coordinates
-const coords_LIN4 = [ -1.0,  1.0,  -1.0/3.0,  1.0/3.0 ]
+const coords_LIN4 = @SArray [ -1.0;  1.0;  -1.0/3.0;  1.0/3.0;; ]
 
 # shape functions
 function shape_func_LIN4(R::AbstractArray{<:Float64,1})
@@ -126,34 +130,36 @@ function shape_func_LIN4(R::AbstractArray{<:Float64,1})
     #    1      3     4      2
 
     r = R[1]
-    N = Array{Float64}(undef,4)
+    N = @MVector zeros(4)
+
     N[1] = 1.0/16.0*( -9.0*r^3 + 9.0*r*r +     r - 1.0)
     N[2] = 1.0/16.0*(  9.0*r^3 + 9.0*r*r -     r - 1.0)
     N[3] = 1.0/16.0*( 27.0*r^3 - 9.0*r*r - 27.0*r + 9.0)
     N[4] = 1.0/16.0*(-27.0*r^3 - 9.0*r*r + 27.0*r + 9.0)
-    return N
+    return SVector(N)
 end
 
 # shape derivatives
 function shape_deriv_LIN4(R::AbstractArray{<:Float64,1})
     r = R[1]
-    D = Array{Float64}(undef,4,1)
+    D = @MMatrix zeros(4,1)
     D[1,1] = 1.0/16.0*( -27.0*r*r + 18.0*r + 1.0 )
     D[2,1] = 1.0/16.0*(  27.0*r*r + 18.0*r - 1.0 )
     D[3,1] = 1.0/16.0*(  81.0*r*r - 18.0*r - 27.0)
     D[4,1] = 1.0/16.0*( -81.0*r*r - 18.0*r + 27.0)
-    return D
+    return SMatrix(D)
 end
 
 
 function shape_deriv2_LIN4(R::AbstractArray{<:Float64,1})
     r = R[1]
-    D = Array{Float64}(undef,4,1)
+    D = @MMatrix zeros(4,1)
+    # D = Array{Float64}(undef,4,1)
     D[1,1] = 1.0/16.0*( -54.0*r  + 18.0 )
     D[2,1] = 1.0/16.0*(  54.0*r  + 18.0 )
     D[3,1] = 1.0/16.0*(  162.0*r - 18.0 )
     D[4,1] = 1.0/16.0*( -162.0*r - 18.0 )
-    return D
+    return SMatrix(D)
 end
 
 # constructor
@@ -165,8 +171,8 @@ function MakeLIN4()
     shape.npoints     = 4
     shape.base_shape = LIN2
     shape.vtk_type    = VTK_POLY_VERTEX
-    shape.facet_idxs  = []
-    shape.edge_idxs   = []
+    shape.facet_idxs  = ()
+    shape.edge_idxs   = ()
     shape.facet_shape = ()
     shape.nat_coords  = coords_LIN4
     shape.quadrature  = Dict( 0=>LIN_IP3, 1=>ALL_IP1, 2=>LIN_IP2, 3=>LIN_IP3, 4=>LIN_IP4 )

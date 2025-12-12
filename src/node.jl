@@ -47,12 +47,6 @@ const null_Node = Node(NaN, NaN, NaN)
 @inline null(::Type{Node}) = null_Node
 
 
-#Base.hash(n::Node) = hash( (round(n.coord.x, digits=8), round(n.coord.y, digits=8), round(n.coord.z, digits=8)) )
-# Base.hash(n::Node) = hash( (n.coord.x, n.coord.y, n.coord.z) )
-Base.hash(n::Node) = hash( (n.coord.x+1.0, n.coord.y+2.0, n.coord.z+3.0) ) # 1,2,3 aim to avoid clash in some arrays of nodes.
-Base.isequal(n1::Node, n2::Node) = hash(n1)==hash(n2)
-
-
 function Base.copy(node::Node)
     newnode = Node(node.coord, tag=node.tag, id=node.id)
     for dof in node.dofs
@@ -62,11 +56,64 @@ function Base.copy(node::Node)
     return newnode
 end
 
+# Base.hash(n::Node) = hash( (n.coord.x+1.0, n.coord.y+2.0, n.coord.z+3.0) ) # 1,2,3 aim to avoid clash in some arrays of nodes.
+# Base.isequal(n1::Node, n2::Node) = hash(n1)==hash(n2)
+
+"""
+    NodePosMap()
+
+A dictionary-like collection that maps `Node => Node`.
+Equality/Hashing is determined by spatial position (rounded coordinates) rather than object identity.
+Useful for finding canonical nodes, merging duplicates, or welding meshes.
+"""
+struct NodePosMap <: AbstractDict{Node, Node}
+    store::OrderedDict{Tuple{Float64, Float64, Float64}, Node}
+    NodePosMap() = new(OrderedDict{Tuple{Float64, Float64, Float64}, Node}())
+end
+
+# Internal helper: "Position/coordinate key"
+@inline function node_pos_key(n::Node)
+    # Rounding +0.0 handles -0.0 vs +0.0 equivalence
+    return (round(n.coord.x, digits=8)+0.0, 
+            round(n.coord.y, digits=8)+0.0, 
+            round(n.coord.z, digits=8)+0.0)
+end
+
+Base.setindex!(d::NodePosMap, v::Node, k::Node) = d.store[node_pos_key(k)] = v
+Base.getindex(d::NodePosMap, k::Node)           = d.store[node_pos_key(k)]
+Base.delete!(d::NodePosMap, k::Node)            = delete!(d.store, node_pos_key(k))
+Base.length(d::NodePosMap)                      = length(d.store)
+Base.empty!(d::NodePosMap)                      = empty!(d.store)
+Base.haskey(d::NodePosMap, k::Node)             = haskey(d.store, node_pos_key(k))
+Base.get(d::NodePosMap, k::Node, default)       = get(d.store, node_pos_key(k), default)
+Base.get!(d::NodePosMap, k::Node, default)      = get!(d.store, node_pos_key(k), default)
+
+function NodePosMap(pairs)
+    d = NodePosMap()
+    for (k, v) in pairs
+        d[k] = v
+    end
+    return d
+end
+
+function Base.iterate(d::NodePosMap, state...)
+    result = iterate(d.store, state...)
+    if result === nothing
+        return nothing
+    else
+        # Discard the tuple key, return (Node => Node) to the user
+        (pos_tuple, node), new_state = result
+        return (node => node), new_state
+    end
+end
+
+
+
 
 # The functions below can be used in conjuntion with sort
-get_x(node::Node) = node.coord[1]
-get_y(node::Node) = node.coord[2]
-get_z(node::Node) = node.coord[3]
+# get_x(node::Node) = node.coord[1]
+# get_y(node::Node) = node.coord[2]
+# get_z(node::Node) = node.coord[3]
 
 
 function add_dof(node::Node, name::Symbol, natname::Symbol)

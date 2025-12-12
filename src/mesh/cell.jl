@@ -3,35 +3,23 @@
 
 # Cell
 mutable struct Cell<:AbstractCell
-    id     ::Integer
-    shape  ::CellShape
-    role::Symbol  # :vertex, :line, :bulk, :surface, :contact, :cohesive, :line_interface, :tip
-    nodes  ::Vector{Node}
-    tag    ::String
-    active ::Bool
-    quality::Float64              # quality index: surf/(reg_surf)
-    embedded::Bool                # flag for embedded cells
-    crossed::Bool                 # flag if cell crossed by linear inclusion
-    owner  ::Union{AbstractCell,Nothing}  # owner cell if this cell is a face/edge
+    id       ::Integer
+    shape    ::CellShape
+    role     ::Symbol  # :vertex, :line, :bulk, :surface, :contact, :cohesive, :line_interface, :tip
+    nodes    ::Vector{Node}
+    tag      ::String
+    active   ::Bool
+    quality  ::Float64                # quality index: surf/(reg_surf)
+    embedded ::Bool                   # flag for embedded cells
+    crossed  ::Bool                   # flag if cell crossed by linear inclusion
+    owner    ::Union{AbstractCell,Nothing}  # owner cell if this cell is a face/edge
     couplings::Vector{AbstractCell}   # neighbor cells in case of interface cells
-    ctx::MeshContext                 # mesh environment variables
+    ctx      ::MeshContext            # mesh environment variables
 
 
     function Cell(shape::CellShape, role::Symbol, nodes::Vector{Node}; ctx::MeshContext=MeshContext(0), tag::String="", owner=nothing, id::Int=-1, active=true)
-        this = new()
-        this.id = id
-        this.shape = shape
-        this.role = role
-        this.nodes = copy(nodes)
-        this.tag = tag
-        this.active  = active
-        this.quality = 0.0
-        this.embedded= false
-        this.crossed = false
-        this.owner   = owner
-        this.couplings = []
-        this.ctx     = ctx
-        return this
+        # use a shallow copy of nodes
+        return new(id, shape, role, copy(nodes), tag, active, 0.0, false, false, owner, AbstractCell[], ctx)
     end
 end
 
@@ -61,18 +49,12 @@ function get_coords(c::AbstractCell, ndim=3)
 end
 
 
-# Return all nodes in cells
-# function get_nodes(cells::Array{<:AbstractCell,1})
-#     return collect(Set(node for cell in cells for node in cell.nodes))
-# end
-
-
-
 function get_nodes(elems::Vector{<:AbstractCell})
     # get all nodes using object id
     points_d = Dict{UInt64, Node}()
     for elem in elems
         for node in elem.nodes
+            # using object_id explicitly to avoid issues with hash collisions
             points_d[objectid(node)] = node
         end
     end
@@ -217,74 +199,18 @@ function select(
 end
 
 
-function cellnormal(cell::AbstractCell)
-    iscoplanar(cell) || return nothing
+# function nearest(cells::Vector{Cell}, coord)
+#     n = length(cells)
+#     D = zeros(n)
+#     X = vec(coord)
 
-    tol = 1e-8
-    ndim = cell.shape.ndim+1
-    C = get_coords(cell, ndim)
-    I = ones(size(C,1))
-    N = pinv(C.+tol/100)*I # best fit normal
-    normalize!(N)
-    return N
-end
+#     for (i,cell) in enumerate(cells)
+#         C = vec(mean(get_coords(cell), dims=1))
+#         D[i] = norm(X-C)
+#     end
 
-
-function isparallelto(A,B)
-    tol = 1e-8
-
-    dotAB = dot(A,B)
-    normAB = norm(A)*norm(B)
-    abs(dotAB-normAB) < tol && return true
-    abs(dotAB+normAB) < tol && return true
-    return false
-end
-
-
-function iscoplanar(cell::AbstractCell)
-    tol = 1e-8
-
-    coords = get_coords(cell, 3)
-
-    # find a plane
-    X1 = coords[1,:]
-    X2 = coords[2,:]
-    X1X2 = X2-X1
-
-    # look for a non-collinear point
-    local X, N
-    for i in 3:length(cell.nodes)
-        X = coords[i,:]
-        X1X = X-X1
-        N = cross(X1X2, X1X)
-        norm(N) > tol && break
-    end
-
-    # test the plane at each point
-    for i in 3:length(cell.nodes)
-        X = coords[i,:]
-
-        if dot(X-X1, N) > tol
-            return false
-        end
-    end
-
-    return true
-end
-
-
-function nearest(cells::Vector{Cell}, coord)
-    n = length(cells)
-    D = zeros(n)
-    X = vec(coord)
-
-    for (i,cell) in enumerate(cells)
-        C = vec(mean(get_coords(cell), dims=1))
-        D[i] = norm(X-C)
-    end
-
-    return cells[sortperm(D)[1]]
-end
+#     return cells[sortperm(D)[1]]
+# end
 
 
 
@@ -321,18 +247,18 @@ end
 function get_facets(cell::AbstractCell)
     faces  = Cell[]
     all_facets_idxs = cell.shape.facet_idxs
-    facet_shape    = cell.shape.facet_shape
+    facet_shape     = cell.shape.facet_shape # e.g. TRI3 for a tetrahedron or (TRI#, QUAD4) for a wedge element
 
     facet_shape==() && return faces
 
-    sameshape = typeof(facet_shape) == CellShape # check if all facets have the same shape
+    # sameshape = typeof(facet_shape) == CellShape # check if all facets have the same shape
     role = cell.shape.ndim ==3 ? :surface : :line # 2D cells have only lines as facets
 
     # Iteration for each facet
     for (i, face_idxs) in enumerate(all_facets_idxs)
-        nodes = cell.nodes[face_idxs]
-        shape  = sameshape ? facet_shape : facet_shape[i]
-        face   = Cell(shape, role, nodes, tag=cell.tag, owner=cell)
+        nodes      = cell.nodes[face_idxs]
+        shape      = facet_shape[i]
+        face       = Cell(shape, role, nodes, tag=cell.tag, owner=cell)
         face.nodes = nodes # update nodes since Cell creates a copy
         push!(faces, face)
     end
@@ -348,8 +274,8 @@ function get_edges(cell::AbstractCell)
 
     for edge_idx in all_edge_idxs
         nodes = cell.nodes[edge_idx]
-        shape  = (LIN2, LIN3, LIN4)[length(nodes)-1]
-        edge   = Cell(shape, :line, nodes, tag=cell.tag, owner=cell)
+        shape = (LIN2, LIN3, LIN4)[length(nodes)-1]
+        edge  = Cell(shape, :line, nodes, tag=cell.tag, owner=cell)
         push!(edges, edge)
     end
 
@@ -457,23 +383,6 @@ function regular_volume(metric::Float64, shape::CellShape)
 end
 
 
-
-# Returns the cell quality ratio as vol/reg_vol
-function cell_quality_2(c::AbstractCell)::Float64
-    # get faces
-    faces = get_facets(c)
-    length(faces)==0 && return 1.0
-
-    # cell surface
-    surf = sum( cell_extent(f) for f in faces )
-
-    # quality calculation
-    vol = cell_extent(c) # volume or area
-    rvol = regular_volume(surf, c.shape)
-    return min(vol/rvol, 1.0)
-end
-
-
 # Returns the cell quality ratio as reg_surf/surf
 function cell_quality(c::AbstractCell)::Float64
     # get faces
@@ -503,8 +412,9 @@ end
 
 function cell_aspect_ratio(c::AbstractCell)::Float64
     edges = get_edges(c)
-    L = [ cell_extent(e) for e in edges ]
-    return maximum(L)/minimum(L)
+    lengths_iter = (cell_extent(e) for e in edges)
+    min_l, max_l = extrema(lengths_iter)
+    return max_l / min_l
 end
 
 
@@ -549,6 +459,53 @@ function inverse_map(cell::AbstractCell, X::AbstractVector{Float64}, tol=1.0e-7)
 end
 
 
+"""
+    have_common_face(c1, c2)
+
+Returns true if the two elements share enough nodes to define a common face.
+Optimized for early exit and zero memory allocation.
+"""
+function have_common_face(c1::AbstractCell, c2::AbstractCell)
+
+    c1.role == c2.role == :bulk || return false
+
+    # 1. Determine threshold
+    # 2D requires 2 nodes (Shared Edge)
+    # 3D requires 3 nodes (Shared Face)
+    ndim = c1.ctx.ndim
+    threshold = (ndim == 2) ? 2 : 3
+    
+    count = 0
+
+    # 2. Count shared nodes
+    for n1 in c1.nodes
+        for n2 in c2.nodes
+            # Identity check (fastest) or ID check
+            if n1.id === n2.id
+                count += 1
+                count >= threshold && return true
+                break # test next n1
+            end
+        end
+    end
+
+    return false
+end
+
+
+"""
+    each_adjacent(current_elem, pivot_node)
+
+Returns an iterator over elements that share a face with `current_elem`,
+searching only within the cluster around `pivot_node`.
+"""
+function each_adjacent(current_elem, pivot_node)
+    # We iterate over the 'incident' elements (the pool)
+    # and keep only those that share a face with 'current_elem'.
+    return Iterators.filter( elem -> elem !== current_elem && have_common_face(current_elem, elem), pivot_node.elems )
+end
+
+
 # function get_point(s::Float64, coords::Array{Float64,2})
 #     #  Interpolates coordinates for s between 0 and 1
 #     #
@@ -568,3 +525,5 @@ end
 
 #     return coords[i,:]*(1-t) + coords[i+1,:]*t
 # end
+
+

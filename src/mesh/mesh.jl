@@ -10,7 +10,6 @@ mutable struct Mesh<:AbstractDomain
     elem_fields ::OrderedDict{String,Array}
     ctx::MeshContext
 
-    _pointdict::Dict{UInt64,Node}
     _elempartition::ElemPartition
 
     function Mesh(ndim::Integer=0)
@@ -22,16 +21,10 @@ mutable struct Mesh<:AbstractDomain
         this.node_fields = OrderedDict()
         this.elem_fields = OrderedDict()
         this.ctx = MeshContext(ndim)
-        this._pointdict = Dict{UInt64, Node}()
+        # this._pointdict = Dict{UInt64, Node}()
         this._elempartition = ElemPartition()
         return this
     end
-end
-
-
-function get_node(nodes::Dict{UInt64,Node}, C::AbstractArray{<:Real})
-    hs = hash(Node(C))
-    return get(nodes, hs, nothing)
 end
 
 
@@ -49,7 +42,7 @@ function Base.copy(mesh::AbstractDomain)
 
     compute_facets(newmesh)
 
-    newmesh._pointdict = Dict( hash(node) => node for node in newmesh.nodes )
+    # newmesh._pointdict = Dict( hash(node) => node for node in newmesh.nodes )
     newmesh.node_fields = copy(mesh.node_fields)
     newmesh.elem_fields = copy(mesh.elem_fields)
 
@@ -65,43 +58,160 @@ function Base.copy(mesh::AbstractDomain)
 end
 
 
-function get_outer_facets(cells::Array{<:AbstractCell,1})
-    face_d = OrderedDict{UInt64, Cell}()
+# function get_outer_facets(cells::Array{<:AbstractCell,1})
+#     face_d = OrderedDict{UInt64, Cell}()
 
-    # Get only unique faces. If dup, original and dup are deleted
-    for cell in cells
-        for face in get_facets(cell) 
-            hs = hash(face)
-            if haskey(face_d, hs)
-                delete!(face_d, hs)
-            else
-                face_d[hs] = face
+#     # Get only unique faces. If dup, original and dup are deleted
+#     for cell in cells
+#         for face in get_facets(cell) 
+#             hs = hash(face)
+#             if haskey(face_d, hs)
+#                 delete!(face_d, hs)
+#             else
+#                 face_d[hs] = face
+#             end
+#         end
+#     end
+
+#     return CellFace[ face for face in values(face_d) ]
+# end
+
+
+# function get_outer_facets_by_id(cells::Array{<:AbstractCell,1})
+#     face_d = Dict()
+#     hash1(facet) = sort([ n.id for n in facet.nodes ])
+
+#     # Get only unique faces. If dup, original and dup are deleted
+#     for cell in cells
+#         for facet in get_facets(cell)
+#             hs = hash1(facet)
+#             if haskey(face_d, hs)
+#                 delete!(face_d, hs)
+#             else
+#                 face_d[hs] = facet
+#             end
+#         end
+#     end
+
+#     return collect(values(face_d))
+# end
+
+# function get_outer_facets(cells::Vector{<:AbstractCell})
+#     # This function requires that cells' nodes are properly numbered.
+
+#     # Map: Canonical Key -> (Owner Cell, Face Index in Owner)
+#     # Storing the index allows us to reconstruct the geometry later without storing the full object.
+#     face_counts = Dict{Tuple, Tuple{AbstractCell, Int}}()
+
+#     for cell in cells
+#         # Access topology directly without creating Cell objects
+#         for (local_face_idx, node_indices) in enumerate(cell.shape.facet_idxs)
+            
+#             # We grab the IDs of the nodes forming this specific face
+#             face_node_ids = ntuple(i -> cell.nodes[node_indices[i]].id, length(node_indices))
+            
+#             # Sort to handle connectivity invariance (1-2-3 vs 3-2-1)
+#             key = sort(face_node_ids)
+
+#             # If it exists, it's an internal face (shared). Delete it.
+#             # If it doesn't exist, it's a potential boundary. Add it.
+#             if haskey(face_counts, key)
+#                 delete!(face_counts, key)
+#             else
+#                 face_counts[key] = (cell, local_face_idx)
+#             end
+#         end
+#     end
+
+#     # Construct outter facets
+#     outer_facets = Cell[]
+#     sizehint!(outer_facets, length(face_counts))
+
+#     # Iterate over the values of face_counts
+#     for (cell, local_face_idx) in values(face_counts)
+#         # Reconstruct the specific face logic here
+#         face_idxs = cell.shape.facet_idxs[local_face_idx]
+#         # @show face_idxs
+#         nodes     = cell.nodes[face_idxs]
+        
+#         # Handle shape determination (Uniform vs Mixed)
+#         shape = cell.shape.facet_shape[local_face_idx]
+        
+#         role = cell.shape.ndim == 3 ? :surface : :line
+        
+#         # Create the actual Cell object now
+#         face = Cell(shape, role, nodes, tag=cell.tag, owner=cell)
+#         push!(outer_facets, face)
+#     end
+
+#     return outer_facets
+# end
+
+
+function get_outer_facets(cells::Vector{<:AbstractCell})
+    # This function assumes two facets are the same if their nodes
+    # occupy the same position in space, regardless of node IDs.
+
+    # Build the map: Position Key -> Unique Node ID
+    # It generates local ids
+    pos_to_id = Dict{Tuple{Float64,Float64,Float64}, Int}()
+    next_id = 1
+
+    for c in cells
+        for node in c.nodes
+            k = node_pos_key(node)
+            if !haskey(pos_to_id, k)
+                pos_to_id[k] = next_id
+                next_id += 1
             end
         end
     end
 
-    return CellFace[ face for face in values(face_d) ]
-end
+    # Map: Sorted Canonical IDs -> (Owner Cell, Face Index)
+    # Key is a Tuple{Int...}, which hashes instantly and lives on the Stack.
+    face_counts = Dict{Tuple, Tuple{AbstractCell, Int}}()
 
-
-function get_outer_facets_by_id(cells::Array{<:AbstractCell,1})
-    # face_d = OrderedDict{UInt64, Cell}()
-    face_d = Dict()
-    hash1(edge) = sort([ n.id for n in edge.nodes ])
-
-    # Get only unique faces. If dup, original and dup are deleted
     for cell in cells
-        for face in get_facets(cell)
-            hs = hash1(face)
-            if haskey(face_d, hs)
-                delete!(face_d, hs)
+        for (local_face_idx, facet_idxs) in enumerate(cell.shape.facet_idxs)
+            
+            # We use the map to translate Node -> Unique Geo ID
+            face_geo_ids = ntuple(length(facet_idxs)) do i
+                n = cell.nodes[facet_idxs[i]]
+                return pos_to_id[node_pos_key(n)]
+            end
+
+            # Sorting to get a unique key
+            key = sort(face_geo_ids)
+
+            # Toggle Logic (XOR)
+            if haskey(face_counts, key)
+                delete!(face_counts, key)
             else
-                face_d[hs] = face
+                face_counts[key] = (cell, local_face_idx)
             end
         end
     end
 
-    return collect(values(face_d))
+    # Construct outer facets
+    outer_facets = Cell[]
+    sizehint!(outer_facets, length(face_counts))
+
+    # Iterate over the values of face_counts
+    for (cell, local_face_idx) in values(face_counts)
+        face_idxs = cell.shape.facet_idxs[local_face_idx]
+        nodes     = cell.nodes[face_idxs]
+        
+        # Handle shape determination (Uniform vs Mixed)
+        shape = cell.shape.facet_shape[local_face_idx]
+        
+        role = cell.shape.ndim == 3 ? :surface : :line
+        
+        # Create the actual Cell object now
+        face = Cell(shape, role, nodes, tag=cell.tag, owner=cell)
+        push!(outer_facets, face)
+    end
+
+    return outer_facets
 end
 
 
@@ -375,7 +485,7 @@ function join_mesh!(mesh::Mesh, m2::Mesh)
 
     mesh.nodes = nodes
     mesh.elems = elems
-    mesh._pointdict = pointdict
+    # mesh._pointdict = pointdict
 
     synchronize(mesh, sort=false)
 
