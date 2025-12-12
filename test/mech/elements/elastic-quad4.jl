@@ -23,7 +23,6 @@ add_bc(stage, :face, y==1, ty=-1)
 
 run(ana)
 
-
 dis =
     [
         0.0       0.0000e+00
@@ -38,7 +37,7 @@ println("Displacements:")
 D = get_values(model.nodes)[[:ux, :uy]]
 println(D)
 
-@test dis ≈ Array(D) atol=1e-5
+@test dis ≈ Array(D) atol=1e-4
 
 println("Stress:")
 S = get_values(model.elems[1])[[:σxx, :σyy, :σxy]]

@@ -24,7 +24,7 @@ for shape in ALL_ISO_SHAPES
     RR = [ Q[i].coord for i in 1:nip ]
     NN = shape.func.(RR)
     TR = @test sum(sum(NN)) ≈ nip atol=1e-10
-    println(TR)
+    println(" ", TR)
 end
 
 printstyled("\nShape functions derivatives\n", color=:blue, bold=true)
@@ -55,5 +55,5 @@ for shape in ALL_ISO_SHAPES
         tr = @test D ≈ shape.deriv(R) atol=1e-6
         tr isa Test.Pass || (TR = tr)
     end
-    println(TR)
+    println(" ", TR)
 end

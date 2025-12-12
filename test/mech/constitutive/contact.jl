@@ -11,14 +11,14 @@ select(mesh, :element, x<=0.1, tag="left")
 
 add_contact_elements(mesh, tag="interface")
 
-E = 27.e6
-nu = 0.2
-ft = 2.4e3
-fc = -24e3
+E    = 27.e6
+nu   = 0.2
+ft   = 2.4e3
+fc   = -24e3
 zeta = 5.0
-wc = 1.7e-4
-kn = 2e10
-ks = 1.8e8
+wc   = 1.7e-4
+kn   = 2e10
+ks   = 1.8e8
 
 # ❱❱❱ Finite element analyses
 
