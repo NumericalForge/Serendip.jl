@@ -136,7 +136,6 @@ function draw_text(cc::CairoContext, x, y, str::LaTeXString; halign="center", va
     Cairo.translate(cc, -rw*width, rh*height + minh*fsize)
     move_to(cc, 0, 0)
 
-
     for elem in texelems
         x0, y0 = elem[2]
 

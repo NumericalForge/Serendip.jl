@@ -8,7 +8,7 @@
         line_element_width=0.6,
         field="", limits=[0.0,0.0], field_kind=:auto, field_mult=1.0,
         label="", colormap=:coolwarm, diverging=false,
-        colorbar=:right, colorbar_length_factor=0.9, bins=6,
+        colorbar=:right, colorbar_ratio=0.9, bins=6,
         font="NewComputerModern", font_size=7.0,
         interpolation=:linear,
         azimuth=30, elevation=30, distance=0.0,
@@ -39,7 +39,7 @@ Create a customizable domain plot for meshes and FE models.
 - `colormap::Union{Symbol,Colormap}`: e.g. `:viridis`, `:coolwarm`, or a `Colormap`.
 - `diverging::Bool`: center colormap at zero.
 - `colorbar::Symbol`: `:none | :right | :bottom`.
-- `colorbar_length_factor::Real`: colorbar length scale (> 0).
+- `colorbar_ratio::Real`: colorbar length scale (> 0).
 - `bins::Int`: number of colorbar bins.
 - `font::AbstractString`: font family.
 - `font_size::Real`: font size (> 0).
@@ -102,7 +102,7 @@ mutable struct DomainPlot<:Figure
     colormap::Colormap
     diverging::Bool
     colorbar_location::Symbol
-    colorbar_length_factor::Float64
+    colorbar_ratio::Float64
     bins::Int
     font::String
     font_size::Float64
@@ -119,7 +119,7 @@ mutable struct DomainPlot<:Figure
         warp::Real=0.0,
         edge_width::Real=0.3,
         edge_color::Symbol=:auto,
-        outline_width::Real=0.4,
+        outline_width::Real=0.3,
         line_elem_width::Real=0.6,
         field::AbstractString="",
         field_kind::Symbol=:auto,
@@ -129,7 +129,7 @@ mutable struct DomainPlot<:Figure
         colormap::Union{Symbol,Colormap}=:coolwarm,
         diverging::Bool=false,
         colorbar::Symbol=:right,
-        colorbar_length_factor::Real=0.9,
+        colorbar_ratio::Real=0.9,
         bins::Int=6,
         font::AbstractString="NewComputerModern",
         font_size::Real=7.0,
@@ -176,7 +176,7 @@ mutable struct DomainPlot<:Figure
         colormap = colormap isa Symbol ? Colormap(colormap) : colormap
 
         colorbar_location   = colorbar
-        colorbar_length_factor = colorbar_length_factor
+        colorbar_ratio = colorbar_ratio
 
         font               = font
         font_size          = font_size
@@ -201,7 +201,7 @@ mutable struct DomainPlot<:Figure
             line_elem_width, face_color,
             field, field_kind, limits, field_mult,
             warp, label, colormap, diverging,
-            colorbar_location, colorbar_length_factor,
+            colorbar_location, colorbar_ratio,
             bins, font, font_size,
             show_feature_edges, view_mode,
             node_labels, axes_loc, axis_labels,
@@ -436,7 +436,7 @@ function configure!(mplot::DomainPlot)
         mplot.colorbar = Colorbar(;
             location      = mplot.colorbar_location,
             label         = mplot.label,
-            length_factor = mplot.colorbar_length_factor,
+            length_factor = mplot.colorbar_ratio,
             colormap      = mplot.colormap,
             limits        = mplot.limits,
             font_size     = mplot.font_size,

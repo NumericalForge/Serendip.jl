@@ -25,19 +25,19 @@ mutable struct Annotation <: FigureComponent
     color::Symbol
     function Annotation(text::AbstractString, x::Real, y::Real;
         text_alignment::Symbol=:auto,
-        target::AbstractArray{<:Real,1}=[0.0,0.0],
+        target::AbstractArray{<:Real,1}=[0.0, 0.0],
         line_width::Real=0.4,
         font::AbstractString="NewComputerModern",
         fontsize::Real=6.0,
         color::Symbol=:black
     )
 
-        @check 0<=x<=1 "x must be in the range [0,1]"
-        @check 0<=y<=1 "y must be in the range [0,1]"
+        @check 0 <= x <= 1 "x must be in the range [0,1]"
+        @check 0 <= y <= 1 "y must be in the range [0,1]"
         @check text_alignment in (:auto, :left, :right, :top, :bottom) "Invalid text_alignment: $(repr(text_alignment))"
-        @check length(target)==2 "target must be a 2D point"
-        @check line_width>0 "line_width must be positive"
-        @check fontsize>0 "fontsize must be positive"
+        @check length(target) == 2 "target must be a 2D point"
+        @check line_width > 0 "line_width must be positive"
+        @check fontsize > 0 "fontsize must be positive"
 
         # args = checkargs([text, x, y], kwargs, Annotation_params)
         target = float.(target)
@@ -47,7 +47,7 @@ mutable struct Annotation <: FigureComponent
 end
 
 
-function addannotation!(c::Figure, a::Annotation)
+function add_annotation(c::Figure, a::Annotation)
     push!(c.annotations, a)
 end
 
@@ -56,19 +56,19 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
 
     set_font_size(cc, a.fontsize)
     font = get_font(a.font)
-    select_font_face(cc, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL )
+    select_font_face(cc, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
 
     set_matrix(cc, CairoMatrix([1, 0, 0, 1, 0, 0]...))
 
     # convert from axes to Cairo coordinates
-    x = c.canvas.box[1] + a.x*c.canvas.width
-    y = c.canvas.box[2] + (1-a.y)*c.canvas.height
-    halign = a.text_alignment==:right ? "right" : "left"
-    valign = a.text_alignment==:top ? "top" : "bottom"
+    x = c.canvas.box[1] + a.x * c.canvas.width
+    y = c.canvas.box[2] + (1 - a.y) * c.canvas.height
+    halign = a.text_alignment == :right ? "right" : "left"
+    valign = a.text_alignment == :top ? "top" : "bottom"
     set_source_rgb(cc, 0, 0, 0)
     draw_text(cc, x, y, a.text, halign=halign, valign=valign, angle=0)
 
-    if a.text_alignment==:auto
+    if a.text_alignment == :auto
         a.text_alignment = :left
     end
 
@@ -77,18 +77,18 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
 
         # compute text size
         w, h = getsize(cc, a.text, a.fontsize)
-        text_outerpad = 0.1*min(w, h)
+        text_outerpad = 0.1 * min(w, h)
 
-        if halign=="left"
-            x += w/2
+        if halign == "left"
+            x += w / 2
         else
-            x -= w/2
+            x -= w / 2
         end
 
-        if valign=="top"
-            y += 0.5*h
+        if valign == "top"
+            y += 0.5 * h
         else
-            y -= 0.5*h
+            y -= 0.5 * h
         end
 
         w += text_outerpad
@@ -102,36 +102,36 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
         dy = ya - y
 
         # compute lines
-        if abs(dx)>abs(dy)
-            if abs(dy)<h/2
+        if abs(dx) > abs(dy)
+            if abs(dy) < h / 2
                 lines = "-|"
-                if dx>0
-                    x += w/2 # right
+                if dx > 0
+                    x += w / 2 # right
                 else
-                    x -= w/2 # left
+                    x -= w / 2 # left
                 end
             else # two lines
                 lines = "|-"
-                if dy>0 # top
-                    y += h/2
+                if dy > 0 # top
+                    y += h / 2
                 else # bottom
-                    y -= h/2
+                    y -= h / 2
                 end
             end
         else
-            if abs(dx)<w/2
+            if abs(dx) < w / 2
                 lines = "|-"
-                if dy>0
-                    y += h/2 # top
+                if dy > 0
+                    y += h / 2 # top
                 else
-                    y -= h/2 # bottom
+                    y -= h / 2 # bottom
                 end
             else # two lines
                 lines = "-|"
-                if dx>0 # right
-                    x += w/2
+                if dx > 0 # right
+                    x += w / 2
                 else # left
-                    x -= w/2
+                    x -= w / 2
                 end
             end
         end
@@ -147,7 +147,7 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
 
         # Draw line 1
         move_to(cc, x, y)
-        if lines[1]=='|'
+        if lines[1] == '|'
             rel_line_to(cc, 0, dy)
             y += dy
         else
@@ -156,9 +156,9 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
         end
 
         # Draw line 2
-        dx += sign(dx)*a.line_width
+        dx += sign(dx) * a.line_width
         move_to(cc, x, y)
-        if lines[2]=='|'
+        if lines[2] == '|'
             rel_line_to(cc, 0, dy)
             y += dy
         else
