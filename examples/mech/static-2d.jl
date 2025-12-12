@@ -1,8 +1,10 @@
+#❱❱❱ 2D static analysis example ❰❰❰#
+
 using Serendip
 
 # ❱❱❱ Geometry and mesh generation
 
-geo = GeoModel()
+geo = GeoModel(size=0.1)
 add_rectangle(geo, [0.0, 0.0], 3.0, 0.4) # geo, corner, width, height
 
 mesh = Mesh(geo)
@@ -14,7 +16,7 @@ mapper = RegionMapper()
 add_mapping(mapper, "solids", MechBulk, LinearElastic, E=200e6, nu=0.2)
 
 model = FEModel(mesh, mapper, stress_state=:plane_stress)
-ana = MechAnalysis(model)
+ana = MechAnalysis(model, outkey="static-2d")
 
 add_logger(ana, :node, (x==0, y==0), "one-node.dat") # analysis, kind, filter, filename
 add_logger(ana, :ip, (y<0.025), "ip-list.dat")
@@ -36,4 +38,4 @@ plot = DomainPlot(model,
     label = L"\sigma_x",
     warp = 20
 )
-save(plot, "2d-static.pdf")
+save(plot, "static-2d.pdf")
