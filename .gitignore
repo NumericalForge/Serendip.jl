@@ -20,3 +20,4 @@ sandbox
 **/output
 **/.vscode
 docs/build/
+Manifest.toml
