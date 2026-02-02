@@ -221,7 +221,7 @@ function configure!(ax::Axis)
     else
         tk_lbs_width = maximum( getsize(lbl, ax.font_size)[1] for lbl in ax.tick_labels )
         label_height = getsize(ax.label, ax.font_size)[2]
-        ax.width = label_height + ax.inner_sep + tk_lbs_width + ax.tick_length
+        ax.width = label_height + ax.inner_sep + tk_lbs_width + ax.inner_sep + ax.tick_length
     end
 
     return ax
