@@ -105,8 +105,10 @@ mutable struct UCP<:Constitutive
         if fc_law isa AbstractSpline
             fc_fun = fc_law
             fc_law = :custom
-            fc     = fc_law(0.0)
+            fc     = fc_law(0.0) # TODO: get the maximun value
         end
+
+        @check abs(epsc)>abs(fc)/E "UCP: epsc should be greater than fc/E."
 
         α = alpha
         β = beta
