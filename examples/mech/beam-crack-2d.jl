@@ -33,7 +33,7 @@ add_mapping(mapper, "bar", MechBar, LinearElastic, E=2e5, A=0.005)
 add_mapping(mapper, "bar-interface", MechBondSlip, LinearBondSlip, ks=1e10, kn=1e9, p=0.01*3) 
 
 model = FEModel(mesh, mapper, stress_state=:plane_stress, thickness=b)
-ana   = MechAnalysis(model, outkey="crack-2d")
+ana   = MechAnalysis(model, outkey="crack-2d", outdir="crack-2d")
 
 log1 = add_logger(ana, :nodalreduce, x==ℓ)
 add_monitor(ana, :node, (x==ℓ, y==0), :uy)
@@ -61,7 +61,7 @@ save(plot, "beam-crack-2d.pdf")
 
 chart = Chart(
     xlabel = L"$u_y$ [mm]",
-    ylabel = L"$σ_{yy}$ [kN]",
+    ylabel = L"$f_y$ [kN]",
 )
 add_line(chart, -log1.table[:uy]*1e3, -log1.table[:fy], mark=:circle)
 save(chart, "beam-crack-2d-chart.pdf")

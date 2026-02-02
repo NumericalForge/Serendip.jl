@@ -59,7 +59,7 @@ bez  = add_bezier(geo, [pa, pb, pc])
 path = add_path(geo, [bez], tag="rebar", interface_tag="rebar-interface")
 
 # Array copies along Y (Width) instead of X
-add_array(geo, path; ny=5, dy=0.05) 
+add_array(geo, path; ny=5, dy=0.05)
 
 # stud paths
 # Position changed: [Length_pos, Width_pos, Z]
@@ -80,7 +80,7 @@ set_size(geo, :surface, "surf", sz*0.8)
 
 save(geo, "test.step")
 
-mesh = Mesh(geo)
+mesh = Mesh(geo, quadratic=true)
 save(mesh, "medium-mesh.vtu")
 
 # applying tags to regions
@@ -107,7 +107,7 @@ add_mapping(mapper, "stud-tip", MechBondTip, LinearTip, k=1e10)
 
 model = FEModel(mesh, mapper)
 
-ana = MechAnalysis(model, outkey="composite")
+ana = MechAnalysis(model, outkey="composite", outdir="composite")
 stage = add_stage(ana, nouts=50)
 
 # Boundary Conditions adjusted for X-axis length
@@ -132,4 +132,4 @@ plot = DomainPlot(model,
     label = L"\sigma_{x'}",
     warp = 20,
 )
-save(plot, "reinforced-beam.pdf")
+save(plot, "composite-beam.pdf")

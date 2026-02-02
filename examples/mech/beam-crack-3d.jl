@@ -39,7 +39,7 @@ add_mapping(mapper, "bar", MechBar, LinearElastic, E=2e5, A=0.005)
 add_mapping(mapper, "bar-interface", MechBondSlip, LinearBondSlip, ks=1e10, kn=1e9, p=0.01) 
 
 model = FEModel(mesh, mapper)
-ana   = MechAnalysis(model, outkey="crack-3d")
+ana   = MechAnalysis(model, outkey="crack-3d", outdir="crack-3d")
 
 log1 = add_logger(ana, :nodalreduce, x==ℓ)
 add_monitor(ana, :node, (x==ℓ, y==0, z==0), :uz)

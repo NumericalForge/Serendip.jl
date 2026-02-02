@@ -4,7 +4,6 @@ using Serendip
 
 # ❱❱❱ Mesh generation
 
-# geo = GeoModel(size=0.08)
 geo = GeoModel(size=0.15)
 
 ℓ = 6.0   # x direction
@@ -12,19 +11,21 @@ b = 0.3   # y direction
 h = 0.6   # z direction
 box = add_box(geo, [0.0, 0.0, 0.0], ℓ, b, h)
 
+# loading edge
 p1 = add_point(geo, [ℓ/2, 0, h])
 p2 = add_point(geo, [ℓ/2, b, h])
 l1 = add_line(geo, p1, p2)
 fragment(geo, l1, box)
 
+# lower reinforcement
 c     = 0.05 # cover
 pa    = add_point(geo, [c, c, c])
 pb    = add_point(geo, [ℓ-c, c, c])
 lin   = add_line(geo, pa, pb)
-path1 = add_path(geo, [lin], tag="bottom-steel")
-# add_array(geo, path1; nx=1, ny=5, nz=2, dx=0.0, dy=0.05, dz=0.05)
+path1 = add_path(geo, [lin], tag="bars", interface_tag="bond")
 add_array(geo, path1; ny=3, dy=0.1)
 
+# upper reinforcement
 p3 = add_point(geo, [c, c, h-c])
 p4 = add_point(geo, [ℓ-c, c, h-c])
 l2 = add_line(geo, p3, p4)
@@ -46,6 +47,7 @@ select(mesh, :element, :line_interface, tag="bond")
 
 # ❱❱❱ Finite element modeling
 
+E  = 24e6 # kPa
 Ec = 24e6 # kPa
 fc = -30.00e3
 ft = 3.0e3
@@ -67,8 +69,8 @@ add_mapping(mapper, "bond", MechBondSlip, LinearBondSlip, ks=1e7, kn=1e9, p=p)
 model = FEModel(mesh, mapper)
 
 # Mechanical analysis
-ana   = MechAnalysis(model, outkey="reinforced")
-stage = add_stage(ana, nouts=50)
+ana   = MechAnalysis(model, outdir="reinforced", outkey="reinforced")
+stage = add_stage(ana, nouts=10)
 
 add_bc(stage, :node, (x==0, z==0), ux=0, uy=0, uz=0) # fixed support
 add_bc(stage, :node, (x==ℓ, z==0), uy=0, uz=0) # roller support
@@ -79,5 +81,10 @@ run(ana, tol=1.0, rspan=0.05, autoinc=true)
 
 # ❱❱❱ Post-processing
 
-mplot = DomainPlot(model, field="σx´", colormap=:spectral, view_mode=:wireframe)
+# mplot = DomainPlot(model, field="σx´", colormap=:spectral, view_mode=:wireframe)
+
+mplot = DomainPlot(model, 
+            field="σxx", 
+            # view_mode=:wireframe,
+            colormap=:spectral)
 save(mplot, "reinforced-beam.pdf")
