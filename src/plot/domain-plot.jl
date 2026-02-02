@@ -5,7 +5,7 @@
     DomainPlot(mesh; 
         size=(220,150), face_color=:aliceblue, warp=0.0,
         edge_width=0.3, edge_color=:auto, outline_width=0.4,
-        line_element_width=0.6,
+        line_elem_width=0.6,
         field="", limits=[0.0,0.0], field_kind=:auto, field_mult=1.0,
         label="", colormap=:coolwarm, diverging=false,
         colorbar=:right, colorbar_ratio=0.9, bins=6,
@@ -30,7 +30,7 @@ Create a customizable domain plot for meshes and FE models.
 - `edge_width::Real`: internal edge width for area/surface cells.
 - `edge_color::Union{Tuple,Symbol}`: edge color; `:auto` darkens face color.
 - `outline_width::Real`: boundary outline width.
-- `line_element_width::Real`: stroke width for line elements (bars/beams).
+- `line_elem_width::Real`: stroke width for line elements (bars/beams).
 - `field::AbstractString`: scalar field name for coloring; empty disables.
 - `limits::Vector{<:Real}`: field range `[min,max]`; `[0,0]` → auto.
 - `field_kind::Symbol`: `:auto | :none | :node | :element`.
@@ -143,6 +143,7 @@ mutable struct DomainPlot<:Figure
         node_labels::Bool=false,
         axes::Symbol=:none,
         axis_labels::Vector{<:AbstractString}=String[],
+        outerpad = 0.0,
         quiet::Bool=false,
     )
 
@@ -163,7 +164,6 @@ mutable struct DomainPlot<:Figure
         feature_edges_d = Dict()
         values = []
         shades = []
-        outerpad = 0.0
 
         face_color   = _colors_dict[face_color]
         field        = string(field)
@@ -426,7 +426,7 @@ function configure!(mplot::DomainPlot)
     # Canvas
     # mplot.canvas = Canvas()
     width, height = mplot.width, mplot.height
-    mplot.outerpad = 0.01*min(width, height)
+    mplot.outerpad = max(0.01*min(width, height), mplot.outerpad)
 
     rpane = 0.0
     bpane = 0.0
@@ -561,6 +561,7 @@ function draw!(mplot::DomainPlot, ctx::CairoContext)
         if mplot.node_labels
             for node in elem.nodes
                 x, y = data2user(mplot.canvas, node.coord[1], node.coord[2])
+                y += mplot.font_size
                 set_source_rgb(ctx, _colors_dict[:blue]...)
                 draw_text(ctx, x, y, string(node.id), halign="center", valign="center", angle=0)
             end
