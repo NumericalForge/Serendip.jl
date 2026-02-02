@@ -474,9 +474,9 @@ function print_summary(ana::Analysis, sw::StopWatch)
         printstyled("  t=$t", bold=true, color=:light_blue)
     end
     dT  = round(ΔT,sigdigits=4)
-    res = round(data.residue,sigdigits=4)
+    res_str = data.residue>=0 ? string(round(data.residue,sigdigits=4)) : "…" #"⋯"
 
-    printstyled("  dT=$dT  res=$res\e[K\n", bold=true, color=:light_blue)
+    printstyled("  dT=$dT  res=$res_str\e[K\n", bold=true, color=:light_blue)
 
     # line 2:
     bar = progress_bar(T)

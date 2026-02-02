@@ -85,6 +85,7 @@ function elem_stiffness(elem::Element{MechBondTip})
     return K, map, map
 end
 
+
 function elem_internal_forces(elem::Element{MechBondTip}, ΔUg::Vector{Float64}=Float64[], Δt::Float64=0.0)
     ndim   = elem.ctx.ndim
     host   = elem.couplings[1]

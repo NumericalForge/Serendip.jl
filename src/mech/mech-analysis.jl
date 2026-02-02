@@ -231,15 +231,12 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
     while T < 1.0-ΔTmin
 
-        # Update counters
-        # inc += 1
-        
         println(data.log, "  inc $(inc+1)")
 
         ΔUex, ΔFex = ΔT*Uex, ΔT*Fex     # increment of external vectors
 
-        ΔTcr = min(rspan, 1-T)    # time span to apply cumulated residues
-        αcr  = min(ΔT/ΔTcr, 1.0)  # fraction of cumulated residues to apply
+        ΔTcr = min(rspan, 1.0-T)    # time span to apply cumulated residues
+        αcr  = min(ΔT/ΔTcr, 1.0)    # fraction of cumulated residues to apply
         T<1-rspan && (ΔFex .+= αcr.*Rc) # addition of residuals
 
         R   .= ΔFex
@@ -312,7 +309,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             it>1 && res>lastres && break
         end
 
-        data.residue = res
         q = 0.0 # increment size factor for autoinc
         
         if syserror
@@ -322,6 +318,8 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         end
 
         if converged
+            data.residue = res
+
             inc += 1
             data.inc = inc
 
@@ -357,9 +355,11 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
                 # Re-evaluate residuals
                 R  = ΔT.*Fex .- ΔFin
+                R[pmap] .= 0.0  # zero at prescribed positions
 
                 Rc = Rc[dof_map]
-                Rc[new_free_idxs] .= 0.0
+                # Rc[new_free_idxs] .= 0.0
+                # Rc[affected_idxs] .= 0.0
             end
             
             # Update forces and displacement for the current stage
@@ -397,7 +397,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             # Adjust increment size for next increment
             if autoinc
                 if ΔTbk > 0.0
-                    ΔT = min(ΔTbk, Tcheck-T)
+                    ΔT = min(ΔTbk/2, Tcheck-T)
                     if linear_domain
                         ΔT = min(1.5*ΔT, ΔTmax, Tcheck-T)
                     end
@@ -420,11 +420,12 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                         ΔT = ΔTtr
                         ΔTbk = 0.0
                     end
-                    
                 end
             end
 
         else
+            data.residue = -1.0
+
             copyto!.(State, StateBk)
 
             if autoinc

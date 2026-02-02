@@ -273,7 +273,7 @@ function update_model_cohesive_elems(model::FEModel, dofs::Vector{Dof})
         dof.eq_id = i
     end
     
-    # Collect indices of New DOFs
+    # Collect indices of New (not prescribed) DOFs
     new_free_idxs = Int[]
     
     for dof in new_dofs
