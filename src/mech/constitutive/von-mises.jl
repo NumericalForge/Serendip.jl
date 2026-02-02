@@ -335,15 +335,15 @@ end
 # ❱❱❱ VonMises model for beam elements
 
 function yield_func(mat::VonMises, state::VonMisesBeamState, σ::Vec3, εpa::Float64)
-    # f = 1/2 σ*Psd*σ - 1/3 (fy + H εp)^2
-    # f = J2D - 1/3 (fy + H εp)^2
+    # Using Mendel's notation
+    # f = √(3 J2) - fy - H εp
+    # σ = [ σ1, √2*σ2, √2*σ3 ]
     # s = [ 2/3*σ1, -1/3*σ1, -1/3*σ1, 0.0, √2*σ2, √2*σ3 ]
+    # σvm = √(σ1^2 + 3/2 (σ2^2 + σ3^2))
 
-    # σ is already in Mandel's notation
+    σvm = √(σ[1]^2 + 3/2*(σ[2]^2 + σ[3]^2) )
 
-    # j2d = 1/3*σ[1]^2 + 1/2*σ[2]^2 + 1/2*σ[3]^2
-    j2d = 1/3*σ[1]^2 + 1/2*σ[2]^2 + 1/2*σ[3]^2
-    return j2d - 1/3*(mat.σy + mat.H*εpa)^2
+    return σvm - mat.σy - mat.H*εpa
 end
 
 
@@ -356,16 +356,17 @@ function calcD(mat::VonMises, state::VonMisesBeamState)
 
     state.Δλ==0.0 && return De
 
-    σ = state.σ
-    dfdεp = -2/3*mat.H*(mat.σy + mat.H*state.εpa)
+    σ   = state.σ
+    σvm = √(σ[1]^2 + 3/2*(σ[2]^2 + σ[3]^2) )
+    σvm < 1e-14 && return De
 
-    norm_s = √(2/3*σ[1]^2 + σ[2]^2 + σ[3]^2)
+    Q       = Vec3( 1, 3/2, 3/2 )
+    dfdσ    = 1/σvm * (Q .* σ)
+    De_vec  = Vec3(E, 2G, 2G)
+    De_dfdσ = De_vec .* dfdσ
 
-    De_dfdσ          = Vec3( 2/3*E*σ[1], 2*G*σ[2], 2*G*σ[3] ) # De_s reduced vector
-    De_dfdσ_dfdσ′_De = De_dfdσ*De_dfdσ'
-    dfdσ′_De_dfdσ    = 4/9*E*σ[1]^2 + 2*G*σ[2]^2 + 2*G*σ[3]^2 # s'*De*s
 
-    return De - De_dfdσ_dfdσ′_De / (dfdσ′_De_dfdσ - norm_s*dfdεp)
+    return De - (De_dfdσ*De_dfdσ') / (dot(dfdσ, De_dfdσ) + mat.H)
 
 end
 
@@ -375,11 +376,9 @@ function update_state(mat::VonMises, state::VonMisesBeamState, Δε::Vector{Floa
 
     E, ν = mat.E, mat.ν
     G    = state.αs*E/2/(1+ν)
-    De = @SMatrix [ E    0.0  0.0
-                    0.0  2*G  0.0
-                    0.0  0.0  2*G ]
+    De   = Vec3(E, 2*G, 2*G)
 
-    σtr = state.σ + De*Δε
+    σtr = state.σ + De.*Δε
     ftr = yield_func(mat, state, σtr, state.εpa)
     tol = 1e-8
 
@@ -404,77 +403,37 @@ end
 function calc_σ_εpa_Δλ(mat::VonMises, state::VonMisesBeamState, σtr::Vec3)
     # Δλ estimative
     E, ν = mat.E, mat.ν
-    G    = state.αs*E/2/(1+ν)
+    G  = state.αs*E/2/(1+ν)
+    De = Vec3(E, 2*G, 2*G)
+    Q  = Vec3( 1, 1.5, 1.5 )
 
-    De_dfdσ = Vec3( 2/3*E*σtr[1], 2*G*σtr[2], 2*G*σtr[3] ) # De_s reduced vector
-    Δλ0     = norm(σtr-state.σ)/norm(De_dfdσ)
-
-    # find initial interval
-    a = 0.0
-    b = Δλ0
-
-    σ, εpa = calc_σ_εpa(mat, state, σtr, a)
-    fa     = yield_func(mat, state, σ, εpa)
-    σ, εpb = calc_σ_εpa(mat, state, σtr, b)
-    fb     = yield_func(mat, state, σ, εpb)
-
-    # search for a valid interval
-    if fa*fb>0
-        maxits = 50
-        for i in 1:maxits
-            b  += Δλ0*(1.6)^i
-            σ, εpa = calc_σ_εpa(mat, state, σtr, b)
-            fb     = yield_func(mat, state, σ, εpa)
-            fa*fb<0.0 && break
-
-            i==maxits && return state.σ, 0.0, 0.0, failure("VonMises: Could not find interval for Δλ")
-        end
+    σ      = σtr
+    σvm_tr = √(σ[1]^2 + 1.5*(σ[2]^2 + σ[3]^2) )
+    n_tr   = (Q.*σtr)/σvm_tr # freezing the plastic direction
+    
+    Δλ     = 0.0
+    maxits = 20
+    tol    = 1e-6*mat.σy
+    for _ in 1:maxits
+        σvm = √(σ[1]^2 + 1.5*(σ[2]^2 + σ[3]^2) )
+        g = (Q.*σ)/σvm
+        εpa = state.εpa + Δλ
+        
+        R = yield_func(mat, state, σ, εpa)
+        abs(R) <= tol && return σ, εpa, Δλ, success()
+        
+        Rp = -dot(g, De.*n_tr) - mat.H
+        Δλ = max(Δλ - R/Rp, 0.0)
+        σ  = σtr - Δλ*(De.*n_tr)
     end
 
-    ff(Δλ) = begin
-        σ, εpa = calc_σ_εpa(mat, state, σtr, Δλ)
-        yield_func(mat, state, σ, εpa)
-    end
-
-    # ftol = (mat.σy*1e-3)^2
-    ftol = (mat.σy*1e-6)^2
-    # @show ftol
-
-    # findroot
-    # Δλ, status = findroot(ff, a, b, ftol=ftol, method=:bisection)
-    Δλ, status = findroot(ff, a, b, ftol=ftol, method=:default)
-    status.successful || return state.σ, 0.0, 0.0, failure("VonMises: could not find Δλ")
-    # failed(status) && return state.σ, 0.0, 0.0, status
-
-    σ, εpa = calc_σ_εpa(mat, state, σtr, Δλ)
-    # @show yield_func(mat, state, σ, εpa)
-
-
-    return σ, εpa, Δλ, success()
-end
-
-
-function calc_σ_εpa(mat::VonMises, state::VonMisesBeamState, σtr::Vec3, Δλ::Float64)
-    E, ν = mat.E, mat.ν
-    G    = state.αs*E/2/(1+ν)
-
-    # σ at n+1
-    σ = SVector(
-        3*σtr[1]/(2*E*Δλ + 3),
-        σtr[2]/(2*G*Δλ + 1),
-        σtr[3]/(2*G*Δλ + 1)
-    )
-
-    norm_s = √(2/3*σ[1]^2 + σ[2]^2 + σ[3]^2)
-    εpa  = state.εpa + Δλ*norm_s
-
-    return σ, εpa
+    return state.σ, 0.0, 0.0, failure("VonMises: Could not find Δλ")
 end
 
 
 function state_values(mat::VonMises, state::VonMisesBeamState)
-    σ´ = Vec6( state.σ[1], 0.0, 0.0, 0.0, state.σ[2], state.σ[3] )
-    σvm = √(3*J2(σ´))
+    σ = state.σ
+    σvm = √(σ[1]^2 + 1.5*(σ[2]^2 + σ[3]^2) )
 
     vals = OrderedDict{Symbol,Float64}(
         :σx´   => state.σ[1],

@@ -294,8 +294,8 @@ function setB(elem::Element{MechBeam}, ip::Ip, L::Matx, N::Vect, dNdX::Matx, Rθ
             Ni = nnodes>2 ? N[i] : 0.5 # MITC projectrion to reduce shear locking in two-node beams
             dNdx = dNdX[i]
 
-            Bil[1,1] = dNdx;                              Bil[1,3] = -dNdx*η*r_y
-                                 Bil[3,2] = dNdx/SR2;     Bil[3,3] = -1/SR2*Ni
+            Bil[1,1] = dNdx;                           Bil[1,3] = -dNdx*η*r_y
+                              Bil[3,2] = SR2/2*dNdx;   Bil[3,3] = -SR2/2*Ni
 
             c = (i-1)*ndof
             @mul Bi = Bil*Rθ
@@ -313,9 +313,9 @@ function setB(elem::Element{MechBeam}, ip::Ip, L::Matx, N::Vect, dNdX::Matx, Rθ
 
             dNdx = dNdX[i]
 
-            Bil[1,1] = dNdx;                                                                          Bil[1,5] = dNdx*ζ*r_z;  Bil[1,6] = -dNdx*η*r_y
-                                                   Bil[2,3] = dNdx/SR2;  Bil[2,4] = 1/SR2*dNdx*η*r_y;  Bil[2,5] = 1/SR2*Ni
-                             Bil[3,2] = dNdx/SR2;                        Bil[3,4] = -1/SR2*dNdx*ζ*r_z;                        Bil[3,6] = -1/SR2*Ni
+            Bil[1,1] = dNdx;                                                                             Bil[1,5] = dNdx*ζ*r_z;  Bil[1,6] = -dNdx*η*r_y
+                                                   Bil[2,3] = SR2/2*dNdx;  Bil[2,4] = SR2/2*dNdx*η*r_y;  Bil[2,5] = SR2/2*Ni
+                            Bil[3,2] = SR2/2*dNdx;                         Bil[3,4] = -SR2/2*dNdx*ζ*r_z;                        Bil[3,6] = -SR2/2*Ni
 
             c = (i-1)*ndof
             @mul Bi = Bil*Rθ
