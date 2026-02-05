@@ -197,7 +197,7 @@ function Base.length(path::Path, cmd::PathCmd)
             deriv3(t) = 2*(1 - t)*(X2 - X1) + 2*t*(X3 - X2)
             # Approximate the arc length
             return sum([weights[i] * norm(deriv3(ipoints[i])) for i in 1:3])
-        elseif length(cmd.idxs) == 3 # quadratic Bezier
+        elseif length(cmd.idxs) == 4 # cubic Bezier
             X1, X2, X3, X4 = [ p.coord for p in points[cmd.idxs] ]
             deriv4(t) = 3*(1 - t)^2*(X2 - X1) + 6*(1 - t)*t*(X3 - X2) + 3*t^2*(X4 - X3)
             return sum([weights[i]*norm(deriv4(ipoints[i])) for i in 1:3])
