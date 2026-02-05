@@ -2,7 +2,7 @@
 
 export LinearCohesive
 
-mutable struct LinearCohesiveState<:IpState
+mutable struct LinearCohesiveState<:ConstState
     ctx::Context
     σ  ::Vector{Float64}
     w  ::Vector{Float64}

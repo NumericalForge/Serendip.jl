@@ -2,7 +2,7 @@
 
 export CebBondSlip, CebBondSlip
 
-mutable struct CebBondSlipState<:IpState
+mutable struct CebBondSlipState<:ConstState
     ctx::Context
     σ  ::Vector{Float64}
     u  ::Vector{Float64}

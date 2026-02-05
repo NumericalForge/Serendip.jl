@@ -10,10 +10,9 @@ compat_role(::Type{MechBondTip}) = :tip
 
 
 function set_quadrature(elem::Element{MechBondTip}, n::Int=1; state::NamedTuple=NamedTuple())
-    ip = Ip([0.0, 0.0, 0.0], 0.0)
+    ipstate = compat_state_type(typeof(elem.cmodel), MechBondTip)(elem.ctx; state...)
+    ip = Ip([0.0, 0.0, 0.0], 0.0, elem, ipstate)
     ip.id = 1
-    ip.state = compat_state_type(typeof(elem.cmodel), MechBondTip)(elem.ctx; state...)
-    ip.owner = elem
     ip.coord = elem.nodes[end].coord
 
     elem.ips = [ ip ]
@@ -22,7 +21,6 @@ end
 
 function mountB(elem::Element{MechBondTip}, Ch, Cm)
     # Calculates the matrix that relates nodal displacements with relative displacements
-
 
     # B = T* [-MM'  I]      ndim x ndim*(m+n)
 

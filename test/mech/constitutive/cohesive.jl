@@ -28,8 +28,8 @@ ks = 5.6e8
 
 models_props_d = Dict(
     MohrCoulombCohesive => (E=E, nu=nu, ft=ft, mu=1.0, zeta=zeta, wc=wc),
-    AsinhYieldCohesive => (E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=0.6, gamma=0.05, theta=1.5),
-    PowerYieldCohesive => (E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=1.5, gamma=0.05, theta=1.5),
+    # AsinhYieldCohesive => (E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=0.6, gamma=0.05, theta=1.5),
+    # PowerYieldCohesive => (E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=1.5, gamma=0.05, theta=1.5),
 )
 
 model_elem_d = Dict(

@@ -2,7 +2,7 @@
 
 export LeakoffJoint
 
-mutable struct LeakoffJointState<:IpState
+mutable struct LeakoffJointState<:ConstState
     ctx::Context
     V    ::Vector{Float64} # fluid velocity
     #D    ::Vector{Float64} # distance traveled by the fluid

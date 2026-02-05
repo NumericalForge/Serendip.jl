@@ -100,7 +100,7 @@ mutable struct WillamWarnke<:Constitutive
 end
 
 
-mutable struct WillamWarnkeState<:IpState
+mutable struct WillamWarnkeState<:ConstState
     ctx::Context
     σ  ::Vec6
     ε  ::Vec6

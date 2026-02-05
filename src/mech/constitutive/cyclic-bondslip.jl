@@ -2,7 +2,7 @@
 
 export CyclicRSJoint, CyclicBondSlip
 
-mutable struct CyclicBondSlipState<:IpState
+mutable struct CyclicBondSlipState<:ConstState
     ctx::Context
     σ      ::Vector{Float64}
     u      ::Vector{Float64}

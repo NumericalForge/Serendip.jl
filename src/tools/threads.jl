@@ -1,9 +1,176 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
+"""
+    @withthreads block
 
+A macro for parallelizing `for` loops with support for thread-local accumulators 
+and a fail-fast mechanism.
 
+# Arguments
+The macro expects a `begin ... end` block containing:
+1. **Initializers**: One or more assignments (e.g., `R = Int[]`) defining variables 
+   to be accumulated.
+2. **For Loop**: A standard Julia `for` loop.
 
+# Behavior
+- **Parallelization**: Splits the loop iterations across available `Threads.nthreads()`.
+- **Accumulation**: Each thread works on a private copy of the initializers. 
+  - If the initial variable is empty (length 0), results are combined using `append!`.
+  - Otherwise, results are combined using in-place addition `.+=`.
+- **Fail-Fast**: 
+  - Monitors a shared `Threads.Atomic{Bool}` stop signal.
+  - If any task encounters an exception or executes a `break` statement, all other 
+    tasks will terminate at the start of their next iteration.
+- **Exception Handling**: Re-throws any exception encountered during execution to 
+  the main thread.
+
+# Example: Finite Element Assembly
+```
+@withthreads begin
+    R, C, V = Int[], Int[], Float64[]
+    for elem in elements
+        ke, rmap, cmap = compute_stiffness(elem)
+        # If an error occurs here and you 'break', all threads stop.
+        if is_invalid(ke)
+            break
+        end
+        append!(R, rmap); append!(C, cmap); append!(V, ke)
+    end
+end
+```
+"""
 macro withthreads(ex)
+    exbk = copy(ex)
+    ex = Base.remove_linenums!(ex)
+
+    # Recursive helper to replace symbols and expressions
+    function walk(f, x)
+        if x isa Expr
+            return f(Expr(x.head, map(arg -> walk(f, arg), x.args)...))
+        else
+            return f(x)
+        end
+    end
+
+    if ex.head === :block # the macro expectas a block with initializers and a for loop
+        initializers = Expr[]
+        for arg in ex.args[1:end-1]
+            if arg.head != :(=)
+                throw(ArgumentError("@withthreads in a block requires initializers"))
+            end
+            if isa(arg.args[1], Symbol)
+                push!(initializers, arg)
+            elseif arg.args[1].head == :tuple
+                vars, vals = arg.args[1].args, arg.args[2].args
+                for (var, val) in zip(vars, vals)
+                    push!(initializers, :($var = $val))
+                end
+            end
+        end
+        loop = ex.args[end] # the loop code
+        
+        init_exp         = Expr(:block)
+        reduce_exp       = Expr(:block)
+        locals_exp       = Expr(:local)
+        fetchvar         = Symbol("#_res")
+        stop_signal      = Symbol("#_stop_signal")
+        inner_init_exp   = Expr(:block)
+        inner_return_exp = Expr(:return, Expr(:tuple))
+
+        for (i, ini) in enumerate(initializers)
+            var    = ini.args[1]
+            newvar = Symbol("#_$var")
+            
+            # Replace variable with thread-local version
+            loop = walk(x -> x === var ? newvar : x, loop)
+
+            push!(locals_exp.args, var)
+            ini_len_var = Symbol("#_$(var)_ini")
+            push!(init_exp.args, ini)
+            push!(init_exp.args, :($ini_len_var = length($var)))
+            push!(reduce_exp.args, 
+                :(if $ini_len_var == 0
+                    append!($var, $fetchvar[$i])
+                  else
+                    $var .+= $fetchvar[$i]
+                  end)
+            ) # accumulation/reduction
+            push!(inner_init_exp.args, :($newvar = $(ini.args[2])))
+            push!(inner_return_exp.args[1].args, newvar)
+        end
+        
+        body = loop.args[2] # loop body
+        itr  = loop.args[1].args[1] # iterator
+        list = loop.args[1].args[2] # list of elements
+    else
+        throw(ArgumentError("@withthreads requires a block with initializers"))
+    end
+
+    # Replace 'break' with 'signal + break'
+    body = walk(body) do x
+        if x isa Expr && x.head === :break
+            return quote
+                $stop_signal[] = true
+                break
+            end
+        end
+        return x
+    end
+
+    return quote
+        nt = Threads.nthreads()
+        n  = length($(esc(list)))
+        n < nt && (nt = n)
+        
+        if nt == 1
+            $(esc(exbk))
+        else
+            tasks = Vector{Task}(undef, nt)
+            $(esc(stop_signal)) = Threads.Atomic{Bool}(false)
+
+            for tid in 1:nt
+                function fun()
+                    nmin = (tid - 1) * div(n, nt) + 1
+                    nmax = tid == nt ? n : tid * div(n, nt)
+                    $(esc(inner_init_exp))
+                    
+                    for $(esc(itr)) in $(esc(list))[nmin:nmax]
+                        if $(esc(stop_signal))[]
+                            break
+                        end
+                        try
+                            $(esc(body))
+                        catch e
+                            $(esc(stop_signal))[] = true
+                            rethrow(e)
+                        end
+                    end
+                    return $(esc(inner_return_exp))
+                end
+
+                t = Task(fun)
+                t.sticky = true
+                tasks[tid] = t
+                schedule(t)
+            end
+
+            $(esc(locals_exp))
+            try
+                $(esc(init_exp))
+                for tid in 1:nt
+                    $(esc(fetchvar)) = fetch(tasks[tid])
+                    $(esc(reduce_exp))
+                end
+            catch err
+                $(esc(stop_signal))[] = true
+                rethrow(err)
+            end
+        end
+    end
+end
+
+
+macro withthreads_0(ex)
     exbk = copy(ex)
     ex = Base.remove_linenums!(ex)
 

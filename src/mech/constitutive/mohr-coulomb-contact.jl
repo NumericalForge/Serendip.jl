@@ -68,7 +68,7 @@ mutable struct MohrCoulombContact<:Constitutive
 end
 
 
-mutable struct MohrCoulombContactState<:IpState
+mutable struct MohrCoulombContactState<:ConstState
     ctx::Context
     σ  ::Vector{Float64} # stress
     w  ::Vector{Float64} # relative displacements

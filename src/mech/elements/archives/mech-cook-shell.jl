@@ -65,7 +65,6 @@ function set_quadrature(elem::CookShell, n::Int=0)
             w = ip2d[i,4]*ip1d[k,4]
             j = (k-1)*n + i
             elem.ips[j] = Ip(R, w)
-            elem.ips[j].id = j
             elem.ips[j].state = compat_state_type(elem.cmodel)(elem.ctx)
             elem.ips[j].owner = elem
         end

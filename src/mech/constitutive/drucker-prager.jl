@@ -48,7 +48,7 @@ mutable struct DruckerPrager<:Constitutive
     end
 end
 
-mutable struct DruckerPragerState<:IpState
+mutable struct DruckerPragerState<:ConstState
     ctx::Context
     σ::Vec6
     ε::Vec6

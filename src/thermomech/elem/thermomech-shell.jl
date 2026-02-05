@@ -93,7 +93,6 @@ function set_quadrature(elem::TMShell, n::Int=0)
             w = ip2d[i].w*ip1d[k].w
             j = (k-1)*n + i
             elem.ips[j] = Ip(R, w)
-            elem.ips[j].id = j
             elem.ips[j].state = compat_state_type(typeof(elem.cmodel), typeof(elem), elem.ctx)(elem.ctx)
             elem.ips[j].owner = elem
         end

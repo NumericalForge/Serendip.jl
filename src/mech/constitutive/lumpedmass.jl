@@ -2,7 +2,7 @@
 
 export LumpedMass
 
-mutable struct LumpedMassState<:IpState
+mutable struct LumpedMassState<:ConstState
     ctx::Context
     function LumpedMassState(ctx::Context)
         return new(ctx)

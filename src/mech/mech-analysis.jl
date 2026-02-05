@@ -167,6 +167,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     quiet || nu==ndofs && println(data.alerts, "No essential boundary conditions")
 
     if stage.id == 1
+        commit_state(active_elems) # commits changes to states from elem_init
         # Setup quantities at dofs
         for dof in dofs
             dof.vals[dof.name]    = 0.0
@@ -177,9 +178,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     end
 
     # Get the domain current state and backup
-    State = [ ip.state for elem in active_elems for ip in elem.ips ]
-
-    StateBk = copy.(State)
 
     # Incremental analysis
     ΔTbk    = 0.0
@@ -209,7 +207,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         compute_bc_values(ana, bc, 0.0, Uex, Fex)
     end
 
-
     # Add unbalanced forces from all active elements
     for elem in active_elems
         Fe, map, status = elem_internal_forces(elem)
@@ -231,7 +228,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
     while T < 1.0-ΔTmin
 
-        println(data.log, "  inc $(inc+1)")
+        println(data.log, "inc $(inc+1)  ΔT=$ΔT")
 
         ΔUex, ΔFex = ΔT*Uex, ΔT*Fex     # increment of external vectors
 
@@ -265,7 +262,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             Rtr   = q11*R
             sysstatus = solve_system!(K, ΔUitr, Rtr, nu)   # Changes unknown positions in ΔUi and R
             failed(sysstatus) && (syserror=true; break)
-            copyto!.(State, StateBk)
+            reset_state(active_elems)
             ΔUt   = ΔUa .+ ΔUitr
             ΔFin, sysstatus = update_state(active_elems, ΔUt, 0.0)
             failed(sysstatus) && (syserror=true; break)
@@ -278,7 +275,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                 K = a1*K + a2*K2
                 sysstatus = solve_system!(K, ΔUi, R, nu)   # Changes unknown positions in ΔUi and R
                 failed(sysstatus) && (syserror=true; break)
-                copyto!.(State, StateBk)
+                reset_state(active_elems)
                 ΔUt   = ΔUa + ΔUi
                 ΔFin, sysstatus = update_state(active_elems, ΔUt, 0.0)
                 failed(sysstatus) && (syserror=true; break)
@@ -368,7 +365,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             Rc .= (1.0-αcr).*Rc .+ R  # update cumulated residue
 
             # Backup converged state at ips
-            copyto!.(StateBk, State)
+            commit_state(active_elems)
 
             # Update nodal variables at dofs
             for (i,dof) in enumerate(dofs)
@@ -426,7 +423,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         else
             data.residue = -1.0
 
-            copyto!.(State, StateBk)
+            reset_state(active_elems)
 
             if autoinc
                 println(data.log, "      increment failed")

@@ -144,7 +144,7 @@ mutable struct UCP<:Constitutive
 end
 
 
-mutable struct UCPState<:IpState
+mutable struct UCPState<:ConstState
     ctx::Context
     σ  ::Vec6
     ε  ::Vec6

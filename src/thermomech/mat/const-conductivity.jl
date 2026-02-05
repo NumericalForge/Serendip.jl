@@ -3,7 +3,7 @@
 export ConstConductivity
 
 
-mutable struct ConstConductivityState<:IpState
+mutable struct ConstConductivityState<:ConstState
     ctx::Context
     ut::Float64
     Q::Vector{Float64}

@@ -90,6 +90,7 @@ function get_coords(elem::Element)
     return [ elem.nodes[i].coord[j] for i in 1:nnodes, j=1:ndim]
 end
 
+
 # Set the quadrature points for an element
 # Default implementation of bulk line and interface elements
 # Other elements such as beams, shells and line_interfaces should specialize this function
@@ -109,10 +110,8 @@ function set_quadrature(elem::Element, n::Int=0; state::NamedTuple=NamedTuple())
     for i in 1:n
         R = ipc[i].coord
         w = ipc[i].w
-        elem.ips[i] = Ip(R, w)
-        elem.ips[i].id = i
-        elem.ips[i].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype))(elem.ctx; state...)
-        elem.ips[i].owner = elem
+        ipstate = compat_state_type(typeof(elem.cmodel), typeof(elem.etype))(elem.ctx; state...)
+        elem.ips[i] = Ip(R, w, elem, ipstate)
     end
 
     # finding ips global coordinates
@@ -138,96 +137,53 @@ function set_quadrature(elems::Array{<:Element,1}, n::Int=0)
 end
 
 
-function changequadrature!(elems::Array{<:Element,1}, n::Int=0)
+function change_quadrature(elems::Array{<:Element,1}, n::Int=0)
     set_quadrature(elems, n)
     foreach(elem_init, elems)
 end
 
 
-function update_material!(elem::Element, mat::Constitutive)
-    typeof(elem.cmodel) == typeof(mat) || error("update_material!: The same material type should be used.")
-    elem.cmodel = mat
-end
-
-"""
-`changemat(elems, mat)`
-
-Especifies the material model `mat` to be used to represent the behavior of a set of `Element` objects `elems`.
-"""
-function update_material!(elems::Array{<:Element,1}, mat::Constitutive)
-    length(elems)==0 && notify("update_material!: Defining material model $(typeof(mat)) for an empty array of elements.")
-
+function reset_state(elems::Array{<:Element,1})
     for elem in elems
-        update_material!(elem, mat)
-    end
-end
-
-
-# Define the state at all integration points in a collection of elements
-# function set_state(elems::Array{<:Element,1}; args...)
-function set_state(model, filter; args...)
-    found = Set{Symbol}()
-    notfound = Set{Symbol}()
-
-    elems = select(model, :element, filter)
-    length(elems)==0 && notify("set_state: Setting state to an empty array of elements.")
-
-    for elem in elems
-        fields = fieldnames(compat_state_type(typeof(elem.cmodel), typeof(elem.etype)))
         for ip in elem.ips
-            for (k,v) in args
-                if k in fields
-                    setfield!(ip.state, k, v)
-                    push!(found, k)
-                else
-                    push!(notfound, k)
-                end
-            end
-        end
-    end
-
-    for k in notfound
-        if k in found
-            alert("set_state: field '$k' was not found at some elements while setting state values")
-        else
-            error("set_state: field '$k' was not found at selected elements while setting state values")
+            reset_state(ip.state, ip.cstate)
         end
     end
 end
 
 
-# Get all nodes from a collection of elements
-# function get_nodes(elems::Array{<:Element,1})
-#     nodes = Set{Node}()
-#     for elem in elems
-#         for node in elem.nodes
-#             push!(nodes, node)
-#         end
-#     end
-#     return [node for node in nodes]
+function commit_state(elems::Array{<:Element,1})
+    for elem in elems
+        for ip in elem.ips
+            commit_state(ip.cstate, ip.state)
+        end
+    end
+end
+
+
+# function update_material!(elem::Element, mat::Constitutive)
+#     typeof(elem.cmodel) == typeof(mat) || error("update_material!: The same material type should be used.")
+#     elem.cmodel = mat
 # end
 
-# Get all dofs from an element
-function get_dofs(elem::Element)
-    return Dof[ dof for node in elem.nodes for dof in node.dofs ]
-end
+# """
+# `update_material!(elems, mat)`
 
+# Especifies the material model `mat` to be used to represent the behavior of a set of `Element` objects `elems`.
+# """
+# function update_material!(elems::Array{<:Element,1}, mat::Constitutive)
+#     length(elems)==0 && notify("update_material!: Defining material model $(typeof(mat)) for an empty array of elements.")
 
-function get_dofs(elem::Element, dofname::Symbol)
-    return Dof[ dof for node in elem.nodes for dof in node.dofs if dof.name==dofname ]
-end
+#     for elem in elems
+#         update_material!(elem, mat)
+#     end
+# end
 
 
 # Get all ips from a collection of elements
 function get_ips(elems::Array{<:Element,1})
     return Ip[ ip for elem in elems for ip in elem.ips ]
 end
-
-
-# function Base.getproperty(elems::Array{<:Element,1}, s::Symbol)
-#     s == :ips   && return get_ips(elems)
-#     return invoke(getproperty, Tuple{Array{<:AbstractCell,1}, Symbol}, elems, s)
-# end
 
 
 # General element sorting

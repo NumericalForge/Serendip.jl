@@ -54,7 +54,7 @@ export getcoords
 include("context.jl")
 export Context
 
-abstract type Constitutive end
+include("constitutive.jl")
 export Constitutive
 
 include("ip.jl")
@@ -62,7 +62,7 @@ export Ip, ip_vals, maximum, minimum, sort
 
 include("element.jl")
 export Element
-export get_nodes, changequadrature!, get_ips, elems_ip_vals, update_material!, set_state
+export get_nodes, change_quadrature, get_ips, elems_ip_vals, update_material!, set_state
 
 # Plotting
 include("plot/include.jl")
@@ -138,7 +138,7 @@ Base.show(io::IO, obj::Dof) = _show(io, obj, 2, "")
 Base.show(io::IO, obj::Node) = _show(io, obj, 2, "")
 Base.show(io::IO, obj::Ip) = _show(io, obj, 2, "")
 Base.show(io::IO, obj::Facet) = _show(io, obj, 2, "")
-Base.show(io::IO, obj::IpState) = _show(io, obj, 2, "")
+Base.show(io::IO, obj::ConstState) = _show(io, obj, 2, "")
 Base.show(io::IO, obj::Element) = _show(io, obj, 2, "")
 Base.show(io::IO, obj::Constitutive) = _show(io, obj, 2, "")
 Base.show(io::IO, obj::Logger) = _show(io, obj, 2, "")

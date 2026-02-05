@@ -115,7 +115,7 @@ mutable struct AsinhYieldCohesive<:Constitutive
 end
 
 
-mutable struct AsinhYieldCohesiveState<:IpState
+mutable struct AsinhYieldCohesiveState<:ConstState
     ctx::Context
     σ  ::Vector{Float64} # stress
     w  ::Vector{Float64} # relative displacements

@@ -100,7 +100,7 @@ mutable struct PowerYieldCohesive<:Constitutive
 end
 
 
-mutable struct PowerYieldCohesiveState<:IpState
+mutable struct PowerYieldCohesiveState<:ConstState
     ctx::Context
     σ  ::Vector{Float64} # stress
     w  ::Vector{Float64} # relative displacements

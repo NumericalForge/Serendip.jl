@@ -100,6 +100,8 @@ function select(
         if isa(selector, Symbol)
             if selector == :all
                 # do nothing (don't filter)
+            elseif selector == :none
+                selected = Int[]
             elseif selector in (:bulk, :line, :cohesive, :contact, :line_interface, :tip)
                 selected = Int[ i for i in selected if elems[i].role==selector ]
             elseif selector == :active

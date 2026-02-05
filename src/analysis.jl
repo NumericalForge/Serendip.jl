@@ -99,6 +99,32 @@ mutable struct AnalysisData
 end
 
 
+"""
+    add_stage(ana::Analysis; name="", nincs=1, nouts=0, tspan=0.0, activate=:all, deactivate=:none)
+
+Append a new numerical analysis stage to the `AnalysisData` container.
+
+A stage defines a phase of the simulation with specific load increments, output frequencies, 
+and topological changes (activating or deactivating elements).
+
+# Arguments
+- `ana::Analysis`: The parent analysis object containing the model and data.
+
+# Keywords
+- `name::String`: User-defined label for the stage (default = `""`).
+- `nincs::Int`: Number of increments to reach the end of the stage (default = `1`).
+- `nouts::Int`: Number of output steps during the stage (default = `0`).
+- `tspan::Float64`: Physical time span for transient analysis (default = `0.0`).
+- `activate::Any`: Selector or filter to enable specific elements at the start of the stage (default = `:all`).
+- `deactivate::Any`: Selector or filter to disable specific elements at the start of the stage (default = `:all`).
+
+# Returns
+- `Stage`: The newly created and initialized stage object.
+
+# Notes
+- The function automatically assigns a stage ID based on the current number of stages in `ana.data.stages`.
+- Elements are selected via the `select` function using the provided `activate` and `deactivate` filters.
+"""
 function add_stage(
     ana::Analysis;
     name::String="",
@@ -106,7 +132,7 @@ function add_stage(
     nouts::Int=0,
     tspan::Float64=0.0,
     activate::Any=:all,  # filtert to activate
-    deactivate::Any=:all # filtert to deactivate
+    deactivate::Any=:none # filtert to deactivate
     )
 
     _activate   = select(ana.model, :element, activate)

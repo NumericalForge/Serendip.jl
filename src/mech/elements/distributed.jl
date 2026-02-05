@@ -218,7 +218,6 @@ function mech_solid_body_forces(elem::Element, key::Symbol, val::Union{Real,Symb
 end
 
 
-
 function mech_shell_body_forces(elem::Element, t::Float64, key::Symbol, val::Union{Real,Symbol,Expr})
     suitable_keys = (:wx, :wy, :wz)
 

@@ -29,7 +29,7 @@ mats = [
 ana = HydromechAnalysis(gammaw=10)
 model = FEModel(mesh, mats, ana)
 
-changequadrature!(model.elems.lines, 3)
+change_quadrature(model.elems.lines, 3)
 
 # Stage 1: pore-pressure stabilization
 bcs = [

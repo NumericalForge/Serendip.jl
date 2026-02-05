@@ -9,7 +9,7 @@ mesh = Mesh(coord, conn)
 mapper = RegionModel(MechBar, VonMises, E=210e6, fy=500e3, A=0.01)
 
 model = FEModel(mesh, mapper)
-ana = MechAnalysis(model)
+ana   = MechAnalysis(model)
 stage = add_stage(ana)
 
 add_bc(stage, :node, (x==0, y==0), ux=0, uy=0)

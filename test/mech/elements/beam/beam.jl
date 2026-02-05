@@ -57,7 +57,7 @@ mapper = RegionModel(MechBeam, LinearElastic, E=1e4, nu=0.0, b=0.1, h=0.1)
 model = FEModel(mesh, mapper)
 ana = MechAnalysis(model)
 
-# changequadrature!(model.elems, 3)
+# change_quadrature(model.elems, 3)
 
 add_monitor(ana, :node, x==0, :my)
 add_monitor(ana, :node, x==0, :fx)

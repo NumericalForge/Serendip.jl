@@ -18,7 +18,7 @@ mutable struct LinearElasticFluid<:Constitutive
 end
 
 
-mutable struct ElasticFluidState<:IpState
+mutable struct ElasticFluidState<:ConstState
     ctx::Context
     p::Float64   # hydrostatic pressure
     εv::Float64  # volumetric strain

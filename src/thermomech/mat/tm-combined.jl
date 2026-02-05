@@ -1,7 +1,7 @@
 
 export TMCombined
 
-mutable struct TMCombinedState{S1,S2}<:IpState
+mutable struct TMCombinedState{S1,S2}<:ConstState
     ctx::Context
     tstate::S1 # thermo
     mstate::S2 # mech

@@ -48,10 +48,8 @@ function set_quadrature(elem::Element{MechBondSlip}, n::Int=0; state::NamedTuple
     for i in 1:n
         R = ipc[i].coord
         w = ipc[i].w
-        elem.ips[i] = Ip(R, w)
-        elem.ips[i].id = i
-        elem.ips[i].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype))(elem.ctx; state...)
-        elem.ips[i].owner = elem
+        ipstate = compat_state_type(typeof(elem.cmodel), typeof(elem.etype))(elem.ctx; state...)
+        elem.ips[i] = Ip(R, w, elem, ipstate)
     end
 
     # finding ips global coordinates

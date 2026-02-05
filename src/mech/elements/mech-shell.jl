@@ -65,10 +65,8 @@ function set_quadrature(elem::Element{MechShell}, n::Int=0; state::NamedTuple=Na
             R = [ ip2d[i].coord[1:2]; ip1d[k].coord[1] ]
             w = ip2d[i].w*ip1d[k].w
             j = (k-1)*n + i
-            elem.ips[j] = Ip(R, w)
-            elem.ips[j].id = j
-            elem.ips[j].state = compat_state_type(typeof(elem.cmodel), MechShell)(elem.ctx; state...)
-            elem.ips[j].owner = elem
+            ipstate = compat_state_type(typeof(elem.cmodel), MechShell)(elem.ctx; state...)
+            elem.ips[j] = Ip(R, w, elem, ipstate)
         end
     end
 

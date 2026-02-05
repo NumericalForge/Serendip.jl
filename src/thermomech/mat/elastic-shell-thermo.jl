@@ -2,7 +2,7 @@
 
 export ElasticShellThermo
 
-mutable struct ElasticShellThermoState<:IpState
+mutable struct ElasticShellThermoState<:ConstState
     ctx::Context
     σ::Vec6 # stress
     ε::Vec6 # strain

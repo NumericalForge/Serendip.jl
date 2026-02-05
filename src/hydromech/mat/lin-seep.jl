@@ -2,7 +2,7 @@
 
 export ConstPermeability
 
-mutable struct ConstPermeabilityState<:IpState
+mutable struct ConstPermeabilityState<:ConstState
     ctx::Context
     V::Vector{Float64} # fluid velocity
     D::Vector{Float64} # distance traveled by the fluid

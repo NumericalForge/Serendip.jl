@@ -26,5 +26,9 @@ stage = add_stage(ana, nincs=30, nouts=1)
 add_bc(stage, :node, (x==0), ux=0, uy=0, rz=0)
 add_bc(stage, :node, (x==L), uy = -0.03)
 
-run(ana, autoinc=true)
+run(ana, autoinc=true, quiet=false, tol=1e-2)
 @test log.table["fy"][end]≈-30 atol=5.0
+
+# chart = Chart(xlabel="uy", ylabel="fy")
+# add_series(chart, log.table["uy"], log.table["fy"])
+# save(chart, "vm-beam-2d.pdf")

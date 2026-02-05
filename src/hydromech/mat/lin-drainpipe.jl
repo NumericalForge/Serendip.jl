@@ -2,7 +2,7 @@
 
 export LinDrainPipe
 
-mutable struct LinDrainPipeState<:IpState
+mutable struct LinDrainPipeState<:ConstState
     ctx::Context
     V::Float64       # fluid velocity
     D::Float64       # distance traveled by the fluid

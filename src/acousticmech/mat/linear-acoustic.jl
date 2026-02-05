@@ -2,7 +2,7 @@
 
 export LinearAcousticFluid
 
-mutable struct LinearAcousticFluidState<:IpState
+mutable struct LinearAcousticFluidState<:ConstState
     ctx::Context
     up ::Float64          # pressure
     # V  ::Vector{Float64} # fluid velocity?

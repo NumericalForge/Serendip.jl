@@ -2,7 +2,7 @@
 
 export LinearTip
 
-mutable struct LinearTipState<:IpState
+mutable struct LinearTipState<:ConstState
     ctx::Context
     f ::Float64
     w ::Float64

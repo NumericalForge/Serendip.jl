@@ -36,7 +36,7 @@ end
 Returns the force increment vector dF given a displecement increment vector `dU`
 for `elem` according to material `mat`.
 This function also updates strains, stresses and internal variables of all
-`IpState` objects at integration points.
+`ConstState` objects at integration points.
 This function must be redefined by concrete types.
 """
 function update_elem!(elem::ThermoMech, dU::Vector{Float64})

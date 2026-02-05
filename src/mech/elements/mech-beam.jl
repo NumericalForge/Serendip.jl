@@ -111,10 +111,8 @@ function set_quadrature(elem::Element{MechBeam}, n::Int=0; state::NamedTuple=Nam
                 w = ipL[i].w*ipT[j].w
                 m = (i-1)*nt + j
 
-                elem.ips[m] = Ip(R, w)
-                elem.ips[m].id = m
-                elem.ips[m].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype))(elem.ctx; state...)
-                elem.ips[m].owner = elem
+                ipstate = compat_state_type(typeof(elem.cmodel), typeof(elem.etype))(elem.ctx; state...)
+                elem.ips[m] = Ip(R, w, elem, ipstate)
             end
         end
 
@@ -160,16 +158,13 @@ function set_quadrature(elem::Element{MechBeam}, n::Int=0; state::NamedTuple=Nam
                         w = ipL[i].w*ipT[j].w*ipT[k].w
                     end
                     m = (i-1)*nj*nk + (j-1)*nk + k
-                    elem.ips[m] = Ip(R, w)
-                    elem.ips[m].id = m
-                    elem.ips[m].state = compat_state_type(typeof(elem.cmodel), typeof(elem.etype))(elem.ctx; state...)
-                    elem.ips[m].owner = elem
+                    ipstate = compat_state_type(typeof(elem.cmodel), typeof(elem.etype))(elem.ctx; state...)
+                    elem.ips[m] = Ip(R, w, elem, ipstate)
                 end
             end
         end
 
     end
-    
 
     # finding ips global coordinates
     C     = get_coords(elem)
@@ -188,7 +183,6 @@ function set_quadrature(elem::Element{MechBeam}, n::Int=0; state::NamedTuple=Nam
         N = shape.func(R)
         ip.coord = C'*N
     end
-
 
 end
 
@@ -280,6 +274,7 @@ function setB(elem::Element{MechBeam}, ip::Ip, L::Matx, N::Vect, dNdX::Matx, Rθ
     ndim = elem.ctx.ndim
     ndof = ndim==2 ? 3 : 6
     nnodes = size(dNdX,1)
+    Bil .= 0.0
 
     r_y, r_z = get_ry_rz(elem)
 

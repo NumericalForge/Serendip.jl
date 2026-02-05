@@ -2,7 +2,7 @@
 
 export LinearElasticThermo
 
-mutable struct LinearElasticThermoState<:IpState
+mutable struct LinearElasticThermoState<:ConstState
     ctx::Context
     σ::Vec6 # stress
     ε::Vec6 # strain

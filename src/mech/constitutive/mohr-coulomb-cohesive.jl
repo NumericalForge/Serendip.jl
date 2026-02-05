@@ -71,7 +71,7 @@ mutable struct MohrCoulombCohesive<:Constitutive
 end
 
 
-mutable struct MohrCoulombCohesiveState<:IpState
+mutable struct MohrCoulombCohesiveState<:ConstState
     ctx::Context
     σ  ::Vector{Float64}  # stress
     w  ::Vector{Float64}  # relative displacements
@@ -288,7 +288,7 @@ function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
     if state.Δλ == 0.0  # Elastic 
         return De
     elseif σmax == 0.0 && state.w[1] >= 0.0
-        # Dep  = De*1e-10 
+        # Dep  = De*1e-10
         # Dep  = De*1e-5
         # Dep  = De*1e-4
         Dep  = De*1e-3

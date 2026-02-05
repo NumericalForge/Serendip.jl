@@ -60,7 +60,7 @@ mutable struct PowerExpBondSlip<:Constitutive
     end
 end
 
-mutable struct PowerExpBondSlipState<:IpState
+mutable struct PowerExpBondSlipState<:ConstState
     ctx::Context
     σ  ::Vector{Float64}
     u  ::Vector{Float64}

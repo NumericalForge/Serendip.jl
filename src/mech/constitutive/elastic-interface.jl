@@ -2,7 +2,7 @@
 
 export LinearInterface, LinearContact
 
-mutable struct ElasticInterfaceState<:IpState
+mutable struct ElasticInterfaceState<:ConstState
     ctx::Context
     σ   ::Vector{Float64}
     w   ::Vector{Float64}

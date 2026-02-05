@@ -2,7 +2,7 @@
 
 export ElasticSpring
 
-mutable struct ElasticSpringState<:IpState
+mutable struct ElasticSpringState<:ConstState
     ctx::Context
     function ElasticSpringState(ctx::Context)
         return new(ctx)

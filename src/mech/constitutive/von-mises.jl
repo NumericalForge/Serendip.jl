@@ -47,7 +47,7 @@ mutable struct VonMises<:Constitutive
 end
 
 
-mutable struct VonMisesState<:IpState
+mutable struct VonMisesState<:ConstState
     ctx::Context
     σ::Vec6
     ε::Vec6
@@ -66,10 +66,11 @@ mutable struct VonMisesState<:IpState
 end
 
 
-mutable struct VonMisesBeamState<:IpState
+mutable struct VonMisesBeamState<:ConstState
     ctx::Context
     σ::Vec3
     ε::Vec3
+    n::Vec3
     εpa::Float64
     Δλ::Float64
     αs::Float64
@@ -84,16 +85,17 @@ mutable struct VonMisesBeamState<:IpState
     end
 end
 
-mutable struct VonMisesBarState<:IpState
+
+mutable struct VonMisesBarState<:ConstState
     ctx::Context
     σ::Float64
     ε::Float64
     εpa::Float64
     Δλ::Float64
-    function VonMisesBarState(ctx::Context; σ=0.0, ε=0.0)
+    function VonMisesBarState(ctx::Context)
         this = new(ctx)
-        this.σ   = σ
-        this.ε   = ε
+        this.σ   = 0.0
+        this.ε   = 0.0
         this.εpa = 0.0
         this.Δλ  = 0.0
         this
@@ -332,7 +334,7 @@ function calc_σ_εpa_plane_stress(mat::VonMises, state::VonMisesState, σtr::Ve
 end
 
 
-# ❱❱❱ VonMises model for beam elements
+# ❱❱❱ VonMises model for beam elements ❱❱❱
 
 function yield_func(mat::VonMises, state::VonMisesBeamState, σ::Vec3, εpa::Float64)
     # Using Mendel's notation
@@ -353,44 +355,63 @@ function calcD(mat::VonMises, state::VonMisesBeamState)
     De = @SMatrix [ E    0.0  0.0
                     0.0  2*G  0.0
                     0.0  0.0  2*G ]
-
-    state.Δλ==0.0 && return De
-
+                    
+    Δλ = state.Δλ
+    Δλ == 0.0 && return De
+    
     σ   = state.σ
     σvm = √(σ[1]^2 + 3/2*(σ[2]^2 + σ[3]^2) )
-    σvm < 1e-14 && return De
+    η   = 1.0 + 1e-3 # tangent regularization factor to avoid zero eigenvalues
+    
+    # if Δλ==0.0
+    # # if true
+    #     # @show "zero"
+    #     De_vec = Vec3(E, 2*G, 2*G)
+    #     Q_vec  = Vec3( 1, 1.5, 1.5 )
+    #     n      = 1/σvm * (Q_vec .* σ) # dfdσ
+    #     De_n   = De_vec .* n
+    #     return De.*η - (De_n*De_n') / (dot(n, De_n) + mat.H)
+    # else
+        # @show "nonzero"
+        Δλ = state.Δλ
 
-    Q       = Vec3( 1, 3/2, 3/2 )
-    dfdσ    = 1/σvm * (Q .* σ)
-    De_vec  = Vec3(E, 2G, 2G)
-    De_dfdσ = De_vec .* dfdσ
+        n  = state.n
+        Q  = @SMatrix [ 1.0  0.0  0.0
+                       0.0  1.5  0.0
+                       0.0  0.0  1.5 ]
 
+        # Flow direction derivative: ∂n/∂σ = 1/σvm * (Q - n ⊗ n)
+        dndσ = (1/σvm)*(Q - n*n')
 
-    return De - (De_dfdσ*De_dfdσ') / (dot(dfdσ, De_dfdσ) + mat.H)
+        M    = I + Δλ*(De*dndσ)
+        R    = inv(M)*De # intermediate "softened" elastic tensor
+        R_n  = R*n
+        return R.*η - (R_n*R_n') / (dot(n, R_n) + mat.H)
+    # end
 
 end
 
 
 function update_state(mat::VonMises, state::VonMisesBeamState, Δε::Vector{Float64})
     σini = state.σ
-
+    
     E, ν = mat.E, mat.ν
     G    = state.αs*E/2/(1+ν)
     De   = Vec3(E, 2*G, 2*G)
-
+    
     σtr = state.σ + De.*Δε
     ftr = yield_func(mat, state, σtr, state.εpa)
     tol = 1e-8
-
+    
     if ftr<tol
         # elastic
+        # state.yielding = false
         state.Δλ = 0.0
         state.σ  = σtr
     else
-        σ, εpa, Δλ, status = calc_σ_εpa_Δλ(mat, state, σtr)
+        # @show Δε
+        status = nonlinear_update(mat, state, σtr)
         failed(status) && return state.σ, status
-
-        state.σ, state.εpa, state.Δλ = σ, εpa, Δλ
     end
 
     state.ε += Δε
@@ -400,8 +421,7 @@ function update_state(mat::VonMises, state::VonMisesBeamState, Δε::Vector{Floa
 end
 
 
-function calc_σ_εpa_Δλ(mat::VonMises, state::VonMisesBeamState, σtr::Vec3)
-    # Δλ estimative
+function nonlinear_update(mat::VonMises, state::VonMisesBeamState, σtr::Vec3)
     E, ν = mat.E, mat.ν
     G  = state.αs*E/2/(1+ν)
     De = Vec3(E, 2*G, 2*G)
@@ -412,22 +432,29 @@ function calc_σ_εpa_Δλ(mat::VonMises, state::VonMisesBeamState, σtr::Vec3)
     n_tr   = (Q.*σtr)/σvm_tr # freezing the plastic direction
     
     Δλ     = 0.0
-    maxits = 20
+    maxits = 30
     tol    = 1e-6*mat.σy
-    for _ in 1:maxits
+    for i in 1:maxits
         σvm = √(σ[1]^2 + 1.5*(σ[2]^2 + σ[3]^2) )
-        g = (Q.*σ)/σvm
+        n   = (Q.*σ)/σvm
         εpa = state.εpa + Δλ
         
         R = yield_func(mat, state, σ, εpa)
-        abs(R) <= tol && return σ, εpa, Δλ, success()
+        if abs(R) <= tol
+            state.σ   = σ
+            state.εpa = εpa
+            state.Δλ  = Δλ
+            state.n   = n_tr
+            # state.yielding = true
+            return success()
+        end
         
-        Rp = -dot(g, De.*n_tr) - mat.H
+        Rp = -dot(n, De.*n_tr) - mat.H
         Δλ = max(Δλ - R/Rp, 0.0)
         σ  = σtr - Δλ*(De.*n_tr)
     end
 
-    return state.σ, 0.0, 0.0, failure("VonMises: Could not find Δλ")
+    return failure("VonMises: Could not find Δλ")
 end
 
 
@@ -448,7 +475,7 @@ function state_values(mat::VonMises, state::VonMisesBeamState)
 end
 
 
-# ❱❱❱ Von Mises for bar elements
+# ❱❱❱ Von Mises for bar elements ❱❱❱
 
 function yield_func(mat::VonMises, state::VonMisesBarState, σ::Float64, εpa::Float64)
     return abs(σ) - (mat.σy + mat.H*εpa)
@@ -466,10 +493,10 @@ end
 
 
 function update_state(mat::VonMises, state::VonMisesBarState, Δε::Float64)
-    E, H    = mat.E, mat.H
-    σini    = state.σ
-    σtr     = σini + E*Δε
-    ftr     = yield_func(mat, state, σtr, state.εpa)
+    E, H = mat.E, mat.H
+    σini = state.σ
+    σtr  = σini + E*Δε
+    ftr  = yield_func(mat, state, σtr, state.εpa)
 
     if ftr<0
         state.Δλ = 0.0

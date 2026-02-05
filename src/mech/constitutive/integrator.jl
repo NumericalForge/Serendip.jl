@@ -2,7 +2,7 @@ export MechIntegrator
 export update_state
 
 mutable struct MechIntegrator
-    state::IpState
+    state::ConstState
     mat::Constitutive
     table::DataTable
     function MechIntegrator(mat::Constitutive)

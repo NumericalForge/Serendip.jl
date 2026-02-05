@@ -2,7 +2,7 @@
 
 export LinearElasticSeep
 
-mutable struct LinearElasticSeepState<:IpState
+mutable struct LinearElasticSeepState<:ConstState
     ctx::Context
     σ::Vec6 # stress
     ε::Vec6 # strain

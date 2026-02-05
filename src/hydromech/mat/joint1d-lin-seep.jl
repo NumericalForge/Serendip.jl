@@ -2,7 +2,7 @@
 
 export Joint1DConstPermeability
 
-mutable struct Joint1DConstPermeabilityState<:IpState
+mutable struct Joint1DConstPermeabilityState<:ConstState
     ctx::Context
     ndim::Int
     V::Float64     # fluid velocity

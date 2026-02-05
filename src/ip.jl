@@ -4,53 +4,6 @@ import Base.maximum
 import Base.minimum
 import Base.sort
 
-"""
-`IpState`
-
-Abstract type for objects to store the state at integration points.
-"""
-abstract type IpState
-    #ctx::Context
-    #other data
-end
-
-
-function init_state(::Constitutive, ::IpState; args...)
-end
-
-
-function Base.copy(src::IpState)
-    T = typeof(src)
-    dst = ccall(:jl_new_struct_uninit, Any, (Any,), T)
-    names = fieldnames(T)
-    for name in names
-        val = getfield(src, name)
-        if hasmethod(copy, (typeof(val),))
-            setfield!(dst, name, copy(val))
-        else
-            setfield!(dst, name, val)
-        end
-    end
-    return dst
-end
-
-
-function Base.copyto!(dst::IpState, src::IpState)
-    names = fieldnames(typeof(src))
-    for name in names
-        val = getfield(src, name)
-        if isbits(val)
-            setfield!(dst, name, val)
-        elseif typeof(val)<:AbstractArray
-            copyto!(getfield(dst,name), val)
-        else
-            setfield!(dst, name, val)
-            #error("copyto!(::IpState, ::IpState): unsupported field type: $(typeof(val))")
-        end
-    end
-    return dst
-end
-
 
 """
 `Ip(R, w)`
@@ -65,14 +18,31 @@ mutable struct Ip
     id   ::Int
     tag  ::String
     owner::AbstractCell  # Element
-    state::IpState  # Ip current state
+    state::ConstState    # Trial state
+    cstate::ConstState   # Converged state
 
-    function Ip(R::AbstractArray{<:Float64}, w::Float64)
-        this     = new(Vec3(R), w)
-        this.coord = zeros(SVector{3})
-        # this.coord = Vec3()
-        this.tag = ""
-        # this.owner = nothing
+    # function Ip(R::AbstractArray{<:Float64}, w::Float64)
+    #     this     = new(Vec3(R), w)
+    #     this.coord = zeros(SVector{3})
+    #     this.tag = ""
+    #     # this.owner = nothing
+    #     return this
+    # end
+
+    function Ip(
+        R::AbstractArray{<:Float64}, 
+        w::Float64,
+        owner::AbstractCell,
+        state::ConstState,
+    )
+        this       = new(Vec3(R), w)
+        this.coord = Vec3(NaN, NaN, NaN)
+        this.id    = -1
+        this.tag   = ""
+        this.owner = owner
+        this.state = state
+        this.cstate = copy(state)
+        # commit_state(this.cstate, this.state) # copy state
         return this
     end
 end

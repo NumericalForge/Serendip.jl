@@ -2,7 +2,7 @@
 
 export TCJointSeep
 
-mutable struct TCJointSeepState<:IpState
+mutable struct TCJointSeepState<:ConstState
     ctx::Context
     σ  ::Vector{Float64} # stress
     w  ::Vector{Float64} # relative displacements
@@ -107,13 +107,13 @@ function calcD(mat::TCJointSeep, state::TCJointSeepState)
         # mat.fracture = false
     end 
 
-    invoke(calcD, Tuple{Constitutive, IpState}, mat, state)
+    invoke(calcD, Tuple{Constitutive, ConstState}, mat, state)
 end
 
 
 function update_state(mat::TCJointSeep, state::TCJointSeepState, Δw::Vector{Float64}, Δuw::Vector{Float64},  G::Vector{Float64}, BfUw::Vector{Float64}, Δt::Float64)
     
-    Δσ, status = invoke(update_state, Tuple{Constitutive, IpState, Vector{Float64}}, mat, state, Δw)
+    Δσ, status = invoke(update_state, Tuple{Constitutive, ConstState, Vector{Float64}}, mat, state, Δw)
 
     state.uw += Δuw
     state.Vt  = -mat.kt*G

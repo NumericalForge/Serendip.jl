@@ -2,7 +2,7 @@
 
 export ElasticJointSeep
 
-mutable struct ElasticJointSeepState<:IpState
+mutable struct ElasticJointSeepState<:ConstState
     ctx::Context
     σ    ::Vector{Float64} # stress
     w    ::Vector{Float64} # relative displacements

@@ -28,7 +28,7 @@ mutable struct CompressiveConcrete<:Constitutive
 end
 
 
-mutable struct CompressiveConcreteState<:IpState
+mutable struct CompressiveConcreteState<:ConstState
     ctx::Context
     σ          ::Vector{Float64}  # current stress
     ε          ::Vector{Float64}  # current strain

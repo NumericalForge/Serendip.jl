@@ -2,7 +2,7 @@
 
 export MCJointSeep
 
-mutable struct MCJointSeepState<:IpState
+mutable struct MCJointSeepState<:ConstState
     ctx::Context
     σ  ::Vector{Float64}  # stress
     w  ::Vector{Float64}  # relative displacements

@@ -2,7 +2,7 @@
 
 export TCFJoint
 
-mutable struct TCFJointState<:IpState
+mutable struct TCFJointState<:ConstState
     ctx::Context
     σ  ::Vector{Float64} # stress
     w  ::Vector{Float64} # relative displacements

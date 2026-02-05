@@ -2,7 +2,7 @@
 
 export LinearBondSlip, ElasticRSJoint, ElasticBondSlip
 
-mutable struct LinearBondSlipState<:IpState
+mutable struct LinearBondSlipState<:ConstState
     ctx::Context
     σ ::Vector{Float64}
     u ::Vector{Float64}

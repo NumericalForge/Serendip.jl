@@ -1,7 +1,7 @@
 
 export HMCombined
 
-mutable struct HMCombinedState{S1,S2}<:IpState
+mutable struct HMCombinedState{S1,S2}<:ConstState
     ctx::Context
     hstate::S1 # hydro
     mstate::S2 # mech

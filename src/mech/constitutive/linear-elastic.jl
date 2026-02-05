@@ -30,7 +30,7 @@ mutable struct LinearElastic<:Constitutive
 end
 
 
-mutable struct LinearElasticState<:IpState
+mutable struct LinearElasticState<:ConstState
     ctx::Context
     σ::Vec6
     ε::Vec6
@@ -46,7 +46,7 @@ mutable struct LinearElasticState<:IpState
 end
 
 
-mutable struct ElasticBeamState<:IpState
+mutable struct ElasticBeamState<:ConstState
     ctx::Context
     σ::Vec3
     ε::Vec3
@@ -62,7 +62,7 @@ mutable struct ElasticBeamState<:IpState
 end
 
 
-mutable struct ElasticBarState<:IpState
+mutable struct ElasticBarState<:ConstState
     ctx::Context
     σ::Float64
     ε::Float64
@@ -75,7 +75,7 @@ mutable struct ElasticBarState<:IpState
 end
 
 
-mutable struct ElasticFrameState<:IpState
+mutable struct ElasticFrameState<:ConstState
     ctx::Context
     σ::Float64
     τ::Float64

@@ -2,7 +2,7 @@
 
 export NLConductivity
 
-mutable struct NLConductivityState<:IpState
+mutable struct NLConductivityState<:ConstState
     ctx::Context
     ut::Float64
     Q::Vector{Float64} # thermal flow
