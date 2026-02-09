@@ -69,7 +69,7 @@ nothing # hide
 
 Blocks can be combined to define a complex geometry.
 To manipulate blocks, Serendip provides several operators as
-`copy`, `move!`, `scale!`, `rotate`, `mirror`, `array`, `polar`, `extrude`, etc.
+`copy`, `move`, `scale`, `rotate`, `mirror`, `array`, `polar`, `extrude`, etc.
 
 For example, let's generate a square mesh with a central hole.
 We start with a quadratic quadrilateral block. Note that 
@@ -109,9 +109,9 @@ nothing # hide
 ![](./blocks.svg)
 
 The center of the circle that contains the arc is located at the coordinates (1,1).
-To place the center at the origin (0,0) we perform a `move!` operation.
+To place the center at the origin (0,0) we perform a `move` operation.
 ```@example 2
-move!(blocks, dx=-1.0, dy=-1.0)
+move(blocks, dx=-1.0, dy=-1.0)
 mplot(blocks, "moved.svg", markers=true, axis=true)
 nothing # hide
 ```
@@ -245,8 +245,8 @@ nothing # hide
 ### 3D mesh obtained revolving the last example
 ```@example x
 mesh = revolve(mesh, minangle=0, maxangle=90, base=[0,0,0], axis=[0,1,0])
-changeaxes!(mesh, "xzy")
-rotate!(mesh, axis=[0,0,1], angle=90)
+permute_coordinates(mesh, "xzy")
+rotate(mesh, axis=[0,0,1], angle=90)
 mplot(mesh, "mesh-rev.svg", azim=-45)
 nothing # hide
 ```

@@ -8,7 +8,7 @@ abstract type ElementCache end
 mutable struct  Element{T}<:AbstractCell where T<:ElementFormulation
     id    ::Int
     shape ::CellShape
-    role  ::Symbol # :vertex, :line, :bulk, :surface, :contact, :cohesive, :line_interface, :tip
+    role  ::Symbol # :vertex, :line, :bulk, :cont, :continuum, :surface, :contact, :cohesive, :line_interface, :tip
     etype ::T       # ElementFormulation
     tag   ::String
     active::Bool

@@ -18,23 +18,13 @@ function get_facet_normal(face::AbstractCell)
 end
 
 
-mutable struct EdgeFaces
-    edge::CellEdge
-    faces::Vector{CellFace}
-    function EdgeFaces()
-    end
-end
-
-export get_feature_edges, get_feature_mesh
-
-
 function get_feature_edges(cells::Vector{<:AbstractCell}; angle=150)
 
     faces_dict = Dict{UInt64, Cell}()
 
     # Get faces
     for cell in cells
-        cell.role in (:bulk, :surface) || continue # only bulk cells
+        cell.role in (:cont, :surface) || continue # only bulk cells
         if cell.shape.ndim==2
             hs = hash(cell)
             faces_dict[hs] = cell

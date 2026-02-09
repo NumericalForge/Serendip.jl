@@ -162,14 +162,13 @@ function calcD(mat::VonMises, state::VonMisesState)
 end
 
 
-function update_state(mat::VonMises, state::VonMisesState, Δε::Vector{Float64})
+function update_state(mat::VonMises, state::VonMisesState, cstate::VonMisesState, Δε::Vector{Float64})
     if state.ctx.stress_state==:plane_stress || state.αs!=1.0
-        σini = state.σ
 
         αs   = state.αs
         De   = calcDe(mat.E, mat.ν, :plane_stress, αs)
-        σtr  = state.σ + De*Δε
-        ftr  = yield_func(mat, state, σtr, state.εpa)
+        σtr  = cstate.σ + De*Δε
+        ftr  = yield_func(mat, state, σtr, cstate.εpa)
         tol  = 1e-8
 
         if ftr<tol
@@ -178,21 +177,20 @@ function update_state(mat::VonMises, state::VonMisesState, Δε::Vector{Float64}
             state.σ  = σtr
         else
             # plastic
-            σ, εpa, Δλ, status = calc_σ_εpa_Δλ_plane_stress(mat, state, σtr)
+            σ, εpa, Δλ, status = calc_σ_εpa_Δλ_plane_stress(mat, state, cstate, σtr)
             failed(status) && return state.σ, status
 
             state.σ, state.εpa, state.Δλ = σ, εpa, Δλ
         end
 
-        state.ε += Δε
-        Δσ     = state.σ - σini
-
+        state.ε = cstate.ε + Δε
+        Δσ      = state.σ - cstate.σ
         return Δσ, success()
     else
         σini = state.σ
         De   = calcDe(mat.E, mat.ν)
-        σtr  = state.σ + De*Δε
-        ftr  = yield_func(mat, state, σtr, state.εpa)
+        σtr  = cstate.σ + De*Δε
+        ftr  = yield_func(mat, state, σtr, cstate.εpa)
         tol  = 1e-8
 
         if ftr<tol
@@ -205,16 +203,17 @@ function update_state(mat::VonMises, state::VonMisesState, Δε::Vector{Float64}
             G     = E/(2*(1+ν))
             j2dtr = J2(σtr)
 
-            state.Δλ = ftr/(3*G + √1.5*mat.H)
-            √j2dtr - state.Δλ*√3*G >= 0.0 || return state.σ, failure("VonMisses: Negative value for √J2D")
+            Δλ = ftr/(3*G + √1.5*mat.H)
+            √j2dtr - Δλ*√3*G >= 0.0 || return state.σ, failure("VonMisses: Negative value for √J2D")
 
-            s = (1 - √3*G*state.Δλ/√j2dtr)*dev(σtr)
-            state.σ = σtr - √6*G*state.Δλ*s/norm(s)
-            state.εpa += state.Δλ
+            s         = (1 - √3*G*Δλ/√j2dtr)*dev(σtr)
+            state.σ   = σtr - √6*G*Δλ*s/norm(s)
+            state.εpa = cstate.εpa + Δλ
+            state.Δλ  = Δλ
         end
 
-        state.ε += Δε
-        Δσ     = state.σ - σini
+        state.ε = cstate.ε + Δε
+        Δσ      = state.σ - cstate.σ
         return Δσ, success()
     end
 end
@@ -233,7 +232,7 @@ function state_values(mat::VonMises, state::VonMisesState)
 end
 
 
-function calc_σ_εpa_Δλ_plane_stress(mat::VonMises, state::VonMisesState, σtr::Vec6)
+function calc_σ_εpa_Δλ_plane_stress(mat::VonMises, state::VonMisesState, cstate::VonMisesState, σtr::Vec6)
     # Δλ estimative
     # De   = calcDe(mat.E, mat.ν, :plane_stress)
     # dfdσ = SVector( 2/3*σtr[1] - 1/3*σtr[2], 2/3*σtr[2] - 1/3*σtr[1], 0.0, σtr[4], σtr[5], σtr[6] )
@@ -246,9 +245,9 @@ function calc_σ_εpa_Δλ_plane_stress(mat::VonMises, state::VonMisesState, σt
     a = 0.0
     b = Δλ0
 
-    σ, εpa = calc_σ_εpa_plane_stress(mat, state, σtr, a)
+    σ, εpa = calc_σ_εpa_plane_stress(mat, state, cstate, σtr, a)
     fa     = yield_func(mat, state, σ, εpa)
-    σ, εpa = calc_σ_εpa_plane_stress(mat, state, σtr, b)
+    σ, εpa = calc_σ_εpa_plane_stress(mat, state, cstate, σtr, b)
     fb     = yield_func(mat, state, σ, εpa)
 
     # search for a valid interval
@@ -256,7 +255,7 @@ function calc_σ_εpa_Δλ_plane_stress(mat::VonMises, state::VonMisesState, σt
         maxits = 50
         for i in 1:maxits
             b  += Δλ0*(1.6)^i
-            σ, εpa = calc_σ_εpa_plane_stress(mat, state, σtr, b)
+            σ, εpa = calc_σ_εpa_plane_stress(mat, state, cstate, σtr, b)
             fb     = yield_func(mat, state, σ, εpa)
             fa*fb<0.0 && break
 
@@ -265,7 +264,7 @@ function calc_σ_εpa_Δλ_plane_stress(mat::VonMises, state::VonMisesState, σt
     end
 
     ff(Δλ) = begin
-        σ, εpa = calc_σ_εpa_plane_stress(mat, state, σtr, Δλ)
+        σ, εpa = calc_σ_εpa_plane_stress(mat, state, cstate, σtr, Δλ)
         yield_func(mat, state, σ, εpa)
     end
 
@@ -287,7 +286,7 @@ function calc_σ_εpa_Δλ_plane_stress(mat::VonMises, state::VonMisesState, σt
 
     for i in 1:maxits
         Δλ = (a+b)/2
-        σ, εpa = calc_σ_εpa_plane_stress(mat, state, σtr, Δλ)
+        σ, εpa = calc_σ_εpa_plane_stress(mat, state, cstate, σtr, Δλ)
         f = yield_func(mat, state, σ, εpa)
 
         if fa*f<0
@@ -307,7 +306,7 @@ function calc_σ_εpa_Δλ_plane_stress(mat::VonMises, state::VonMisesState, σt
 end
 
 
-function calc_σ_εpa_plane_stress(mat::VonMises, state::VonMisesState, σtr::Vec6, Δλ::Float64)
+function calc_σ_εpa_plane_stress(mat::VonMises, state::VonMisesState, cstate::VonMisesState, σtr::Vec6, Δλ::Float64)
     E, ν = mat.E, mat.ν
     G    = state.αs*E/2/(1+ν)
 
@@ -328,7 +327,7 @@ function calc_σ_εpa_plane_stress(mat::VonMises, state::VonMisesState, σtr::Ve
 
     dfdσ = SVector( 2/3*σ[1] - 1/3*σ[2], 2/3*σ[2] - 1/3*σ[1], -1/3*σ[1]-1/3*σ[2], σ[4], σ[5], σ[6] )
 
-    εpa  = state.εpa + Δλ*norm(dfdσ)
+    εpa  = cstate.εpa + Δλ*norm(dfdσ)
 
     return σ, εpa
 end
@@ -392,36 +391,31 @@ function calcD(mat::VonMises, state::VonMisesBeamState)
 end
 
 
-function update_state(mat::VonMises, state::VonMisesBeamState, Δε::Vector{Float64})
-    σini = state.σ
-    
+function update_state(mat::VonMises, state::VonMisesBeamState, cstate::VonMisesBeamState, Δε::Vector{Float64})
     E, ν = mat.E, mat.ν
     G    = state.αs*E/2/(1+ν)
     De   = Vec3(E, 2*G, 2*G)
     
-    σtr = state.σ + De.*Δε
-    ftr = yield_func(mat, state, σtr, state.εpa)
+    σtr = cstate.σ + De.*Δε
+    ftr = yield_func(mat, state, σtr, cstate.εpa)
     tol = 1e-8
     
     if ftr<tol
-        # elastic
-        # state.yielding = false
         state.Δλ = 0.0
         state.σ  = σtr
     else
-        # @show Δε
-        status = nonlinear_update(mat, state, σtr)
+        status = nonlinear_update(mat, state, cstate, σtr)
         failed(status) && return state.σ, status
     end
 
-    state.ε += Δε
-    Δσ     = state.σ - σini
+    state.ε = cstate.ε + Δε
+    Δσ      = state.σ - cstate.σ
 
     return Δσ, success()
 end
 
 
-function nonlinear_update(mat::VonMises, state::VonMisesBeamState, σtr::Vec3)
+function nonlinear_update(mat::VonMises, state::VonMisesBeamState, cstate::VonMisesBeamState, σtr::Vec3)
     E, ν = mat.E, mat.ν
     G  = state.αs*E/2/(1+ν)
     De = Vec3(E, 2*G, 2*G)
@@ -437,7 +431,7 @@ function nonlinear_update(mat::VonMises, state::VonMisesBeamState, σtr::Vec3)
     for i in 1:maxits
         σvm = √(σ[1]^2 + 1.5*(σ[2]^2 + σ[3]^2) )
         n   = (Q.*σ)/σvm
-        εpa = state.εpa + Δλ
+        εpa = cstate.εpa + Δλ
         
         R = yield_func(mat, state, σ, εpa)
         if abs(R) <= tol
@@ -445,7 +439,6 @@ function nonlinear_update(mat::VonMises, state::VonMisesBeamState, σtr::Vec3)
             state.εpa = εpa
             state.Δλ  = Δλ
             state.n   = n_tr
-            # state.yielding = true
             return success()
         end
         
@@ -492,11 +485,10 @@ function calcD(mat::VonMises, state::VonMisesBarState)
 end
 
 
-function update_state(mat::VonMises, state::VonMisesBarState, Δε::Float64)
+function update_state(mat::VonMises, state::VonMisesBarState, cstate::VonMisesBarState, Δε::Float64)
     E, H = mat.E, mat.H
-    σini = state.σ
-    σtr  = σini + E*Δε
-    ftr  = yield_func(mat, state, σtr, state.εpa)
+    σtr  = cstate.σ + E*Δε
+    ftr  = yield_func(mat, state, σtr, cstate.εpa)
 
     if ftr<0
         state.Δλ = 0.0
@@ -504,12 +496,12 @@ function update_state(mat::VonMises, state::VonMisesBarState, Δε::Float64)
     else
         state.Δλ  = ftr/(E+H)
         Δεp       = state.Δλ*sign(σtr)
-        state.εpa += state.Δλ
+        state.εpa = cstate.εpa + state.Δλ
         state.σ   = σtr - E*Δεp
     end
 
-    Δσ        = state.σ - σini
-    state.ε  += Δε
+    Δσ       = state.σ - cstate.σ
+    state.ε  = cstate.ε + Δε
     return Δσ, success()
 end
 

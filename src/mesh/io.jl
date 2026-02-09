@@ -706,7 +706,7 @@ function Mesh(coords, connects, vtk_types, node_fields, elem_fields)
             if shape.ndim==1
                 role = :line
             else
-                role = :bulk
+                role = :cont
             end
 
             if shape.ndim==2 && ndim==3
@@ -770,7 +770,7 @@ function Mesh(coords, connects, vtk_types, node_fields, elem_fields)
 
     # Flip cells
     for cell in mesh.elems
-        isinverted(cell) && flip!(cell)
+        isinverted(cell) && flip(cell)
     end
 
     # Build tag if available

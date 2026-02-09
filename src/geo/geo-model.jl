@@ -86,7 +86,7 @@ function Base.copy(p::GPath)
     return GPath(path; embedded=p.embedded, shape=p.shape, tag=p.tag, interface_tag=p.interface_tag, tip_tag=p.tip_tag, tips=p.tips)
 end
 
-function move!(gpath::GPath; dx::Real=0.0, dy::Real=0.0, dz::Real=0.0)
+function move(gpath::GPath; dx::Real=0.0, dy::Real=0.0, dz::Real=0.0)
     for p in gpath.path.points
         p.coord = p.coord + Vec3(dx, dy, dz)
     end
@@ -159,7 +159,7 @@ end
 
 
 # Save gmsh geometry as step
-function save(geometry::GeoModel, filename::String, quiet=false)
+function save(geo::GeoModel, filename::String, quiet=false)
     gmsh.model.occ.synchronize()
 
     # Supress output
@@ -318,7 +318,7 @@ function add_array(geometry::GeoModel, gpath::GPath; nx::Int=1, ny::Int=1, nz::I
             for i in 0:nx-1
                 i==j==k==0 && continue
                 cp = copy(gpath)
-                move!(cp, dx=i*dx, dy=j*dy, dz=k*dz)
+                move(cp, dx=i*dx, dy=j*dy, dz=k*dz)
                 push!(geometry.gpaths, cp)
             end
         end

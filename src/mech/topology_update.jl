@@ -32,7 +32,9 @@ function fast_calc_cohesive_stress(elem::Element{MechCohesive})
     dNdR = elem.shape.deriv(R)
     J = C'*dNdR
     T = fzeros(ndim, ndim)
-    set_interface_rotation(J, T)
+    calc_interface_rotation(J, T)
+
+    @show T
 
     # compute normal and shear stresses
     n1 = T[:,1]
@@ -128,12 +130,16 @@ function calc_cohesive_stress(elem::Element{MechCohesive})
     end
 
     projected_stress = Vector{Float64}[]
-    T = fzeros(ndim, ndim)
+    # T = fzeros(ndim, ndim)
     for (i,ip) in enumerate(elem.ips)
         # compute Jacobian and rotation matrix at element center
         dNdR = elem.shape.deriv(ip.R)
         J = C'*dNdR
-        set_interface_rotation(J, T)
+        # calc_interface_rotation(J, T)
+        T = calc_interface_rotation(J)
+        # @show J
+        # @show T
+
         
         # compute normal and shear stresses
         n1 = T[:,1]
@@ -152,7 +158,7 @@ function calc_cohesive_stress(elem::Element{MechCohesive})
             t1 = dott(σ, n1)
             σn = dot(t1, n1)
             τ  = dot(t1, n2)
-            push!(projected_stress, [ σn, τ ])
+            push!(projected_stress, [ σn, τ, 0.0 ])
         end
     end
 

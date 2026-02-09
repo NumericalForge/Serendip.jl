@@ -542,7 +542,7 @@ function nodal_patch_recovery(model::FEModel)
     patches     = [ Element[] for i in 1:nnodes ] # internal patches
     bry_patches = [ Element[] for i in 1:nnodes ] # boundary patches
     for elem in model.elems
-        elem.role != :bulk && continue
+        elem.role != :cont && continue
         for node in elem.nodes[1:elem.shape.base_shape.npoints] # only at corners
             if at_bound[node.id]
                 push!(bry_patches[node.id], elem)
@@ -591,7 +591,7 @@ function nodal_patch_recovery(model::FEModel)
     all_ips_vals   = Array{Array{OrderedDict{Symbol,Float64}},1}()
     all_fields_set = OrderedSet{Symbol}()
     for elem in model.elems
-        if elem.role==:bulk
+        if elem.role==:cont
             ips_vals = [ state_values(elem.cmodel, ip.state) for ip in elem.ips ]
             push!(all_ips_vals, ips_vals)
             union!(all_fields_set, keys(ips_vals[1]))
@@ -716,7 +716,7 @@ function nodal_local_recovery(model::FEModel)
     rec_elements   = Array{Element, 1}()
 
     for elem in model.elems
-        elem.role == :bulk && continue
+        elem.role == :cont && continue
         node_vals = elem_recover_nodal_values(elem)
         length(node_vals) == 0 && continue
 

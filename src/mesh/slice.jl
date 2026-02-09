@@ -124,19 +124,19 @@ function makecells(nodes::Vector{Node}; quadratic=false)
 
         # nodes = getpolygon(nodes)
     if nnodes==3
-        cell = Cell(TRI3, :bulk, nodes)
+        cell = Cell(TRI3, :cont, nodes)
         push!(cells, cell)
     elseif nnodes==4
-        cell = Cell(QUAD4, :bulk, nodes)
+        cell = Cell(QUAD4, :cont, nodes)
         push!(cells, cell)
     elseif nnodes==6
-        cell1 = Cell(QUAD4, :bulk, nodes[1:4])
-        cell2 = Cell(QUAD4, :bulk, nodes[[4,5,6,1]])
+        cell1 = Cell(QUAD4, :cont, nodes[1:4])
+        cell2 = Cell(QUAD4, :cont, nodes[[4,5,6,1]])
         push!(cells, cell1)
         push!(cells, cell2)
     elseif nnodes==5
-        cell1 = Cell(TRI3, :bulk, nodes[1:3])
-        cell2 = Cell(QUAD4, :bulk, nodes[[3,4,5,1]])
+        cell1 = Cell(TRI3, :cont, nodes[1:3])
+        cell2 = Cell(QUAD4, :cont, nodes[[3,4,5,1]])
         push!(cells, cell1)
         push!(cells, cell2)
     end
@@ -186,7 +186,7 @@ function slice(
     # get all mesh edges
     edgedict = Dict{UInt, CellEdge}()
     for cell in mesh.elems
-        cell.role == :bulk || continue
+        cell.role == :cont || continue
         for edge in get_edges(cell)
             hs = hash(edge)
             edgedict[hs] = edge
@@ -254,7 +254,7 @@ function slice(
     # mount slice elements
     bulk_elems = Cell[]
     for cell in mesh.elems
-        cell.role == :bulk || continue
+        cell.role == :cont || continue
 
         nodedict = Dict{UInt,Node}()
         for edge in get_edges(cell)

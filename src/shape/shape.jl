@@ -11,10 +11,6 @@
 #     TIP_CELL      = 6,
 # )
 
-# # Export
-# for s in instances(CellFamily)
-#     @eval export $(Symbol(s))
-# end
 
 mutable struct CellShape
     name       ::String

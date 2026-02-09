@@ -262,7 +262,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             Rtr   = q11*R
             sysstatus = solve_system!(K, ΔUitr, Rtr, nu)   # Changes unknown positions in ΔUi and R
             failed(sysstatus) && (syserror=true; break)
-            reset_state(active_elems)
+            # reset_state(active_elems)
             ΔUt   = ΔUa .+ ΔUitr
             ΔFin, sysstatus = update_state(active_elems, ΔUt, 0.0)
             failed(sysstatus) && (syserror=true; break)
@@ -275,7 +275,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                 K = a1*K + a2*K2
                 sysstatus = solve_system!(K, ΔUi, R, nu)   # Changes unknown positions in ΔUi and R
                 failed(sysstatus) && (syserror=true; break)
-                reset_state(active_elems)
+                # reset_state(active_elems)
                 ΔUt   = ΔUa + ΔUi
                 ΔFin, sysstatus = update_state(active_elems, ΔUt, 0.0)
                 failed(sysstatus) && (syserror=true; break)
@@ -404,7 +404,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                     q = max(q, 1.1)
 
                     if linear_domain
-                        q = 1.5
+                        q = 2
                     end
                     
                     ΔTtr = min(q*ΔT, ΔTmax, 1.0 - T)

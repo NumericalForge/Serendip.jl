@@ -39,7 +39,7 @@ meshes = [ mesh1, mesh2 ]
 
 # FE analysis
 mats = [
-    :bulks => MechBulk => LinearElastic => (E=1e2, nu=0.499)
+    :conts => MechBulk => LinearElastic => (E=1e2, nu=0.499)
 ]
 
 results = []

@@ -2,7 +2,7 @@
 
 
 """
-    move!
+    move
 
 Moves a `block` position by updating its coordinates according
 to `dx`, `dy` and `dz`.
@@ -12,7 +12,7 @@ to `dx`, `dy` and `dz`.
 ```julia
 julia> block = Block([ 0 0 0; 1 1 1], nx=1, ny=2, nz=3)
 
-julia> move!(block, dx=0.5, dy=1.0)
+julia> move(block, dx=0.5, dy=1.0)
 
 julia> block
 Block
@@ -35,24 +35,24 @@ Block
     rz: 1.0
     tag: ""
 ```
-
 """
-function move!(block::Block; dx=0.0, dy=0.0, dz=0.0)
+function move(block::Block; dx=0.0, dy=0.0, dz=0.0)
     for p in block.points
         p.coord = round.( p.coord .+ (dx, dy, dz), digits=8)
     end
+    
     return block
 end
 
 
-function move!(blocks::AbstractArray; dx=0.0, dy=0.0, dz=0.0)
-    move!.(blocks, dx=dx, dy=dy, dz=dz)
+function move(blocks::AbstractArray; dx=0.0, dy=0.0, dz=0.0)
+    move.(blocks, dx=dx, dy=dy, dz=dz)
     return blocks
 end
 
 
 """
-    scale!
+    scale
 
 Scales a `block` from the point `base` using the given `factor`.
 If `axis` is provided, the scaling is performent only in the
@@ -70,7 +70,7 @@ julia> get_coords(block)
  1.0  1.0  0.0
  0.0  1.0  0.0
 
-julia> scale!(block, factor=0.5, base=[ 0, 0 ], axis=[ 1, 0 ]);
+julia> scale(block, factor=0.5, base=[ 0, 0 ], axis=[ 1, 0 ]);
 
 julia> get_coords(block)
 4×3 Matrix{Float64}:
@@ -80,7 +80,7 @@ julia> get_coords(block)
  0.0  0.0  0.0
 ```
 """
-function scale!(block::Block; factor=1.0, base=[0,0,0], axis=nothing)
+function scale(block::Block; factor=1.0, base=[0,0,0], axis=nothing)
     coords = get_coords(block)
     base = Vec3(base)
 
@@ -101,9 +101,9 @@ function scale!(block::Block; factor=1.0, base=[0,0,0], axis=nothing)
 end
 
 
-function scale!(blocks::Vector{Block}; factor=1.0, base=[0.0,0,0], axis=nothing)
+function scale(blocks::Vector{Block}; factor=1.0, base=[0.0,0,0], axis=nothing)
     for bl in blocks
-        scale!(bl, factor=factor, base=base, axis=axis)
+        scale(bl, factor=factor, base=base, axis=axis)
     end
     return blocks
 end
@@ -155,7 +155,7 @@ function mirror(block::Block;  axis=[0.0, 0, 1], base=[0.0, 0, 0] )
     end
 
     #! Inversion is required to generate valid cells (det>0)
-    isinverted(newblock) && flip!(newblock)
+    isinverted(newblock) && flip(newblock)
 
    return newblock
 end
@@ -185,7 +185,7 @@ function mirror(mesh::Mesh; axis=[0.0, 0, 1], base=[0.0, 0, 0])
     end
 
     for elem in mesh.elems
-        isinverted(elem) && flip!(elem)
+        isinverted(elem) && flip(elem)
     end
 
     synchronize(newmesh, sort=false)
@@ -209,7 +209,7 @@ julia> blocks = array(block, nx=2, ny=2, dx=1, dy=1);
 
 julia> length(blocks)
 4
-    ```
+```
 """
 function array(block::Block; nx=1, ny=1, nz=1, dx=0.0, dy=0.0, dz=0.0)
     blocks = [ block ]
@@ -218,7 +218,7 @@ function array(block::Block; nx=1, ny=1, nz=1, dx=0.0, dy=0.0, dz=0.0)
             for i in 0:nx-1
                 i==j==k==0 && continue
                 cp = copy(block)
-                move!(cp, dx=i*dx, dy=j*dy, dz=k*dz)
+                move(cp, dx=i*dx, dy=j*dy, dz=k*dz)
                 push!(blocks, cp)
             end
         end
@@ -244,7 +244,7 @@ julia> get_coords(block)
  1.0  1.0  0.0
  0.0  1.0  0.0
 
-julia> rotate!(block, base=[ 0, 0, 0 ], axis=[ 0, 0, 1], angle=45);
+julia> rotate(block, base=[ 0, 0, 0 ], axis=[ 0, 0, 1], angle=45);
 
 julia> get_coords(block)
 4×3 Matrix{Float64}:
@@ -254,7 +254,7 @@ julia> get_coords(block)
  0.0       0.707107  0.0
 ```
 """
-function LinearAlgebra.rotate!(bl::Block; base=[0.0,0,0], axis=[0.0,0,1], angle=90.0 )
+function rotate(bl::Block; base=[0.0,0,0], axis=[0.0,0,1], angle=90.0 )
     # see also: https://lucidar.me/en/quaternions/quaternions-rotations/
 
     axis = normalize(Vec3(axis))
@@ -269,7 +269,7 @@ function LinearAlgebra.rotate!(bl::Block; base=[0.0,0,0], axis=[0.0,0,1], angle=
         node.coord = round.(X, digits=digs)
     end
 
-    # isinverted(bl) && flip!(bl)
+    # isinverted(bl) && flip(bl)
 
     return bl
 
@@ -323,11 +323,11 @@ function LinearAlgebra.rotate!(bl::Block; base=[0.0,0,0], axis=[0.0,0,1], angle=
 end
 
 
-function LinearAlgebra.rotate!(blocks::AbstractArray; base=[0.0,0,0], axis=[0.0,0,1], angle=90.0 )
+function rotate(blocks::AbstractArray; base=[0.0,0,0], axis=[0.0,0,1], angle=90.0 )
     rotate!.(blocks, base=base, axis=axis, angle=angle)
     return blocks
     # for bl in blocks
-        # rotate!(bl, base=base, axis=axis, angle=angle)
+        # rotate(bl, base=base, axis=axis, angle=angle)
     # end
     # return blocks
 end
@@ -356,7 +356,7 @@ function polar(block::Block; base=[0.0,0,0], axis=[0.0,0,1], angle=360.0, n=2 )
     angle = angle/n
     for i in 1:n-1
         bli = copy(block)
-        rotate!(bli, base=base, axis=axis, angle=angle*i)
+        rotate(bli, base=base, axis=axis, angle=angle*i)
         push!(blocks, bli)
     end
     return blocks
@@ -382,7 +382,7 @@ end
 
 Moves a Mesh object `mesh`. Also returns a reference.
 """
-function move!(mesh::Mesh; dx=0.0, dy=0.0, dz=0.0)
+function move(mesh::Mesh; dx=0.0, dy=0.0, dz=0.0)
     for p in mesh.nodes
         p.coord.x += dx
         p.coord.y += dy
@@ -392,10 +392,9 @@ function move!(mesh::Mesh; dx=0.0, dy=0.0, dz=0.0)
 end
 
 
-function scale!(msh::Mesh; factor=1.0, base=[0.0,0,0])
+function scale(msh::Mesh; factor=1.0, base=[0.0,0,0])
     for p in msh.nodes
         p.coord = base + (p.coord - base)*factor
-        # p.coord.x, p.coord.y, p.coord.z = base + ([p.coord.x, p.coord.y, p.coord.z] - base)*factor
     end
     return msh
 end
@@ -406,7 +405,7 @@ end
 
 Rotates a Mesh object `mesh` according to a `base` point, an `axis` vector and an `angle`.
 """
-function LinearAlgebra.rotate!(mesh::Mesh; base=[0.0,0,0], axis=[0.0,0,1], angle=90.0 )
+function rotate(mesh::Mesh; base=[0.0,0,0], axis=[0.0,0,1], angle=90.0 )
 
     length(axis)==2 && ( axis=vcat(axis, 0.0) )
     length(base)==2 && ( base=vcat(base, 0.0) )
@@ -460,7 +459,7 @@ function LinearAlgebra.rotate!(mesh::Mesh; base=[0.0,0,0], axis=[0.0,0,1], angle
 end
 
 
-function changeaxes!(bl::Block, order::String)
+function permute_coordinates(bl::Block, order::String)
     @assert length(order)==3
     idxs = [ char-'w' for char in order ]
     for p in bl.points
@@ -468,22 +467,22 @@ function changeaxes!(bl::Block, order::String)
     end
 end
 
-changeaxes!(bls::Vector{Block}, order::String) = (changeaxes!.(bls, order); nothing)
+permute_coordinates(bls::Vector{Block}, order::String) = (permute_coordinates.(bls, order); nothing)
 
 
 """
-    changeaxes!(mesh, order)
+    permute_coordinates(mesh, order)
 
-Changes the coordinates axes of a `mesh` according to a new `order` given as a string.
+Changes the coordinate axes of a `mesh` according to a new `order` given as a string.
 
 # Example
 
 ```
-julia> mesh = Mesh(Block([0 0; 1 1], nx=2, ny=2));
-julia> changeaxes!(mesh, "zxy")
+    mesh = Mesh(Block([0 0; 1 1], nx=2, ny=2));
+    permute_coordinates(mesh, "zxy")
 ```
 """
-function changeaxes!(mesh::Mesh, order::String)
+function permute_coordinates(mesh::Mesh, order::String)
     @assert length(order)==3
 
     idxs = [ char-'w' for char in order ]
@@ -492,66 +491,17 @@ function changeaxes!(mesh::Mesh, order::String)
     end
 
     for elem in mesh.elems
-        isinverted(elem) && flip!(elem)
+        isinverted(elem) && flip(elem)
     end
 
-    if length(mesh.node_fields)>0 || length(mesh.elem_fields)>0
-        notify("changeaxes!: mesh associated data was not modified.")
+    if any( size(data,2)>1 for (_, data) in mesh.node_fields )
+        notify("permute_coordinates: mesh associated data was not updated.")
     end
-end
-
-export cyclecoords!
-
-function cyclecoords!(mesh::Mesh, n::Int=1)
-    idxs = [1,2,3]
-    circshift!(idxs, n)
-    for p in mesh.nodes
-        p.coord = p.coord[idxs]
-    end
-
-    if length(mesh.node_fields)>0 || length(mesh.elem_fields)>0
-        notify("cyclecoords!: mesh associated data was not modified.")
-    end
-end
-
-# export project_to_2d!
-
-# function project_to_2d!(mesh::Mesh, dirs::Vector{Int})
-#     for node in mesh.nodes
-#         coord = zeros(3)
-#         coord[[1,2]] = node.coord[dirs]
-#         node.coord = Vec3(coord)
-#     end
-#     mesh.ctx.ndim = 2
-
-#     if haskey(mesh.node_fields, "U")
-#         idxs = [dirs; setdiff([1,2,3], dirs)]
-#         mesh.node_fields["U"] = mesh.node_fields["U"][:, idxs]
-#     end
-
-#     return mesh
-# end
-
-export warp
-
-function warp(mesh::Mesh; scale=1.0)
-    newmesh = copy(mesh)
-
-    U = get(newmesh.node_fields, "U", nothing)
-    if U === nothing
-        alert("warp: Vector field U not found for warping.")
-        return newmesh
-    end
-
-    for (i,node) in enumerate(newmesh.nodes)
-        node.coord = node.coord + scale*U[i,:]
-    end
-    return newmesh
 end
 
 
 function isinverted(elem::AbstractCell)
-    elem.role==:bulk || return false
+    elem.role==:cont || return false
 
     if elem.shape.ndim==2
         coords = get_coords(elem)
@@ -593,7 +543,7 @@ function isinverted(elem::AbstractCell)
 end
 
 
-function flip!(elem::AbstractCell)
+function flip(elem::AbstractCell)
     elem.role==:line && return elem
 
     if elem.shape==TRI3
@@ -621,7 +571,7 @@ function flip!(elem::AbstractCell)
     elseif elem.shape==HEX20
         nidx = [1,4,3,2,5,8,7,6, 12,11,10,9, 16,15,14,13, 17,20,19,18]
     else
-        error("flip!: Cell shape $(elem.shape.name) is not supported")
+        error("flip: Cell shape $(elem.shape.name) is not supported")
     end
 
     elem.nodes = elem.nodes[nidx]

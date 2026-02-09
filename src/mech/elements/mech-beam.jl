@@ -393,7 +393,7 @@ function elem_internal_forces(elem::Element{MechBeam}, ΔUg::Vector{Float64}=Flo
         setB(elem, ip, L, N, dNdX′, Rθ, Bil, Bi, B)
         if update
             @mul Δε = B*ΔU
-            Δσ, status = update_state(elem.cmodel, ip.state, Δε)
+            Δσ, status = update_state(elem.cmodel, ip.state, ip.cstate, Δε)
             failed(status) && return ΔF, map, status
         else
             Δσ = ip.state.σ

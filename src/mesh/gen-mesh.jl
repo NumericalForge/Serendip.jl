@@ -174,7 +174,7 @@ function Mesh(geo::GeoModel;
         for (i,ty) in enumerate(elem_types)
             shape = shape_dict[ty]
             nenodes = nnodes_dict[ty]
-            role = ty in (1,8) ? :line : :bulk
+            role = ty in (1,8) ? :line : :cont
             for (j,id) in enumerate(elem_ids[i])
                 conn = elem_conns[i][ (j-1)*nenodes + 1 : j*nenodes ]
                 if shape == TET10 # Fix bug in Gmsh

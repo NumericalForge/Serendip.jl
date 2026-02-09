@@ -1,5 +1,4 @@
 
-
 include("mesh-context.jl")
 
 export Cell, select
@@ -22,7 +21,7 @@ include("refine.jl")
 export hrefine, prefine
 
 include("operators.jl")
-export move!, array, copy, mirror, rotate!, polar, scale!, rollaxes!, changeaxes!
+export move, array, copy, mirror, rotate!, polar, scale, permute_coordinates
 
 include("extrude.jl")
 export extrude
@@ -40,9 +39,7 @@ include("gen-cohesive-elems.jl")
 include("gen-contact-elems.jl")
 export add_cohesive_elements, add_contact_elements, add_boundary_contact_elements, add_boundary_shell_elements
 
-include("embedded.jl")
-export generate_embedded_cells!
-
 include("outline.jl")
+export get_feature_edges, get_feature_mesh
 
 

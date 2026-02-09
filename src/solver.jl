@@ -26,14 +26,9 @@ function solve_system!(
     F1  = F[1:nu]
     U2  = U[nu+1:end]
 
-    # @showm K11
-
     # Solve linear system
     F2 = K22*U2
     U1 = zeros(nu)
-    # @showm F1
-    # @showm F2
-    # @showm U2
     if nu>0
         RHS = F1 - K12*U2
 
@@ -290,7 +285,7 @@ function Base.run(ana::Analysis;
     autoinc ::Bool         = false,
     dT0     ::Real         = 0.01,
     dTmin   ::Real         = 1e-7,
-    dTmax   ::Real         = 0.1,
+    dTmax   ::Real         = 0.2,
     rspan   ::Real         = 0.01,
     scheme  ::Symbol       = :none,
     tangent_scheme::Symbol = :forward_euler,

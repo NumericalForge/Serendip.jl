@@ -3,8 +3,8 @@ using Serendip
 # Geometry
 geo = GeoModel(size=1.0)
 
-r = add_rectangle(geo, [0, 0, 0], 1, 1, tag="base" )
-c = add_disk(geo, [0.5, 0.5, 0], [0, 0, 1], 0.2, tag="base" )
+r = add_rectangle(geo, [0, 0, 0], 1, 1)
+c = add_disk(geo, [0.5, 0.5, 0], [0, 0, 1], 0.2)
 holed = cut(geo, r, c)
 
 extrude(geo, holed, [0, 0, 0.5])

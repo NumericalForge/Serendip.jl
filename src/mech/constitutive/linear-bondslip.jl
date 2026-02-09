@@ -54,12 +54,12 @@ function calcD(mat::LinearBondSlip, state::LinearBondSlipState)
 end
 
 
-function update_state(mat::LinearBondSlip, state::LinearBondSlipState, Δu::AbstractVector{Float64})
+function update_state(mat::LinearBondSlip, state::LinearBondSlipState, cstate::LinearBondSlipState, Δu::AbstractVector{Float64})
     D = calcD(mat, state)
     Δσ = D*Δu
 
-    state.u .+= Δu
-    state.σ .+= Δσ
+    state.u .= cstate.u + Δu
+    state.σ .= cstate.σ + Δσ
     return Δσ, success()
 end
 

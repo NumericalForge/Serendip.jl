@@ -12,8 +12,8 @@ add_array(geo, path; nx=3, dx=0.3)
 # Mesh generation
 # bl  = Block( [0 0 0; 1.0 6.0 1.0], nx=4, ny=6, nz=2, tag="solids")
 # bl1 = BlockInset( [0.2 0.2 0.2; 0.2 5.8 0.2], curvetype="polyline", tag="bars", jointtag="interface")
-# bl2 = move!( copy(bl1), dx=0.6)
-# bl3 = move!( copy(bl1), dx=0.3)
+# bl2 = move( copy(bl1), dx=0.6)
+# bl3 = move( copy(bl1), dx=0.3)
 # bls = [bl, bl1, bl2, bl3 ]
 
 mesh = Mesh(geo)

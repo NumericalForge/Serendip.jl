@@ -709,7 +709,7 @@ function fast_smooth2!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Float
 
     # check for not allowed cells
     for c in mesh.elems
-        if c.role != :bulk
+        if c.role != :cont
             error("smooth!: cells of family $(c.role) are not allowed for smoothing: $(c.shape.name)")
         end
     end
@@ -890,7 +890,7 @@ function fast_smooth!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Float6
 
     # check for not allowed cells
     for c in mesh.elems
-        if c.role != :bulk
+        if c.role != :cont
             error("smooth!: cells of family $(c.role) are not allowed for smoothing: $(c.shape.name)")
         end
     end
@@ -1068,7 +1068,7 @@ function fitting_smooth!(mesh::Mesh; quiet=true, alpha::Float64=1.0, target::Flo
 
     # check for not allowed cells
     for c in mesh.elems
-        if c.role != :bulk
+        if c.role != :cont
             error("smooth!: cells of family $(c.role) are not allowed for smoothing: $(c.shape.name)")
         end
     end

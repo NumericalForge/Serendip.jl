@@ -131,12 +131,12 @@ function calcD(mat::LinearElastic, state::LinearElasticState)
 end
 
 
-function update_state(mat::LinearElastic, state::LinearElasticState, dε::AbstractArray, αs::Float64=1.0)
+function update_state(mat::LinearElastic, state::LinearElasticState, cstate::LinearElasticState, Δε::AbstractArray, αs::Float64=1.0)
     De = calcD(mat, state)
-    dσ = De*dε
-    state.ε += dε
-    state.σ += dσ
-    return dσ, success()
+    Δσ = De*Δε
+    state.ε = cstate.ε + Δε
+    state.σ = cstate.σ + Δσ
+    return Δσ, success()
 end
 
 
@@ -160,12 +160,12 @@ function calcD(mat::LinearElastic, state::ElasticBeamState)
 end
 
 
-function update_state(mat::LinearElastic, state::ElasticBeamState, dε::Vector{Float64})
+function update_state(mat::LinearElastic, state::ElasticBeamState, cstate::ElasticBeamState, Δε::Vector{Float64})
     D = calcD(mat, state)
-    dσ = D*dε
-    state.ε += dε
-    state.σ += dσ
-    return dσ, success()
+    Δσ = D*Δε
+    state.ε = cstate.ε + Δε
+    state.σ = cstate.σ + Δσ
+    return Δσ, success()
 end
 
 
@@ -211,10 +211,10 @@ function calcD(mat::LinearElastic, ips::ElasticBarState)
 end
 
 
-function update_state(mat::LinearElastic, state::ElasticBarState, Δε::Float64)
+function update_state(mat::LinearElastic, state::ElasticBarState, cstate::ElasticBarState, Δε::Float64)
     Δσ = mat.E*Δε
-    state.ε += Δε
-    state.σ += Δσ
+    state.ε = cstate.ε + Δε
+    state.σ = cstate.σ + Δσ
     return Δσ, success()
 end
 
@@ -233,7 +233,7 @@ function calcD(mat::LinearElastic, ips::ElasticFrameState)
 end
 
 
-function update_state(mat::LinearElastic, state::ElasticFrameState)
+function update_state(mat::LinearElastic, state::ElasticFrameState, cstate::ElasticFrameState)
     return 0.0, success()
 end
 

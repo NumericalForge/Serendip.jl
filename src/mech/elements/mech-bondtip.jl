@@ -96,13 +96,14 @@ function elem_internal_forces(elem::Element{MechBondTip}, ΔUg::Vector{Float64}=
     map = [ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]
 
     update = !isempty(ΔUg)
+    ip = elem.ips[1]
 
     if update
         ΔU = ΔUg[map]
         Δw = dot(B, ΔU)
-        Δf, _ = update_state(elem.cmodel, elem.ips[1].state, Δw)
+        Δf, _ = update_state(elem.cmodel, ip.state, ip.cstate, Δw)
     else
-        Δf = elem.ips[1].state.f
+        Δf = ip.state.f
     end
 
     ΔF = Δf*B'

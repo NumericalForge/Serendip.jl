@@ -200,12 +200,12 @@
 
 #     # Target and locked cells: includes solids, lines, etc.
 #     if length(selectors)==0
-#         target_cells = select(mesh.elems, :bulk)
+#         target_cells = select(mesh.elems, :cont)
 #         locked_cells = setdiff(mesh.elems, target_cells)
 #     else
 #         target_cells = Cell[]
 #         for selector in selectors
-#             tc = select(mesh.elems, selector, :bulk)
+#             tc = select(mesh.elems, selector, :cont)
 #             append!(target_cells, tc)
 #         end
 
@@ -224,7 +224,7 @@
 #     # ❱❱❱ Iterate over tags
 #     for tag in tag_set
 #         tag_cells = select(target_cells, tag)
-#         tag_bulks = select(tag_cells, :bulk)
+#         tag_bulks = select(tag_cells, :cont)
 #         tag_faces = get_outer_facets(tag_bulks)
         
 #         # duplicate nodes
@@ -385,10 +385,10 @@ function add_cohesive_elements(
 
     # --- 1. Identify Target & Locked Cells ---
     if selector === nothing
-        target_cells = select(mesh.elems, :bulk)
+        target_cells = select(mesh.elems, :cont)
         locked_cells = setdiff(mesh.elems, target_cells)
     else
-        target_cells = select(mesh.elems, selector, :bulk)
+        target_cells = select(mesh.elems, selector, :cont)
         if isempty(target_cells)
             error("add_cohesive_elements: no target cells found for selector $selector")
         end
@@ -403,7 +403,7 @@ function add_cohesive_elements(
     
     contact_geo_keys = Set{Vector{Tuple{Float64,Float64,Float64}}}()
     
-    # We scan locked_cells because Contact elements (role :contact) are NOT :bulk,
+    # We scan locked_cells because Contact elements (role :contact) are NOT :cont,
     # so they are guaranteed to be in the locked_cells list.
     for cell in locked_cells
         if cell.role == :contact

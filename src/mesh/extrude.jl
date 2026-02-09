@@ -197,9 +197,9 @@ function extrude(mesh::Mesh; length::Real=1.0, n::Int=1, axis=nothing, quiet=tru
                 push!(nodes, Node(coord))
             end
 
-            role = newshape.ndim==2 ? :surface : :bulk
+            role = newshape.ndim==2 ? :surface : :cont
             newcell = Cell(newshape, role, nodes, tag=cell.tag)
-            isinverted(newcell) && flip!(newcell)
+            isinverted(newcell) && flip(newcell)
             push!(cells, newcell)
         end
     end

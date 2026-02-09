@@ -14,10 +14,10 @@ p2 = add_point(geo, [ℓ/2, b, h])
 l1 = add_line(geo, p1, p2)
 fragment(geo, l1, box)
 
-p1 = add_point(geo, [0.00*ℓ, 0.25*b, 0.95*h])
-p2 = add_point(geo, [0.95*ℓ, 0.25*b, 0.95*h])
+p1  = add_point(geo, [0.00*ℓ, 0.25*b, 0.95*h])
+p2  = add_point(geo, [0.95*ℓ, 0.25*b, 0.95*h])
 bar = add_line(geo, p1, p2)
-p = add_path(geo, [bar], tag="bar", interface_tag="bar-interface") 
+p   = add_path(geo, [bar], tag="bar", interface_tag="bar-interface")
 add_array(geo, p, ny=3, dy=0.25*b)
 
 mesh = Mesh(geo)

@@ -18,6 +18,8 @@ function save(figure::Figure, files::String...)
 
     for file in files
         width, height = figure.width, figure.height
+        dir = dirname(file)
+        ispath(dir) || mkpath(dir)
 
         fmt = splitext(file)[end]
         if fmt==".pdf"

@@ -155,7 +155,7 @@ function revolve(
                 error("revolve: Cell shape $(cell.shape.name) is not supported")
             end
 
-            role = cell.shape in (LIN2, LIN3, LIN4) ? :surface : :bulk
+            role = cell.shape in (LIN2, LIN3, LIN4) ? :surface : :cont
 
             newcell = Cell(newshape, role, nodes, tag=cell.tag)
             push!(cells, newcell)
@@ -197,7 +197,7 @@ function revolve(
     end
 
     for elem in cells
-        isinverted(elem) && flip!(elem)
+        isinverted(elem) && flip(elem)
     end
 
     # New mesh

@@ -21,7 +21,7 @@ Stored internally in `DruckerPragerState`:
 - `σ::Vec6`: Stress tensor (Mandel notation).
 - `ε::Vec6`: Strain tensor (Mandel notation).
 - `εpa::Float64`: Accumulated plastic strain.
-- `Δγ::Float64`: Plastic multiplier increment.
+- `Δλ::Float64`: Plastic multiplier increment.
 
 # Notes
 - `alpha` and `kappa` define the Drucker–Prager yield surface.
@@ -53,13 +53,13 @@ mutable struct DruckerPragerState<:ConstState
     σ::Vec6
     ε::Vec6
     εpa::Float64
-    Δγ::Float64
+    Δλ::Float64
     function DruckerPragerState(ctx::Context)
         this = new(ctx)
         this.σ   = zeros(Vec6)
         this.ε   = zeros(Vec6)
         this.εpa = 0.0
-        this.Δγ  = 0.0
+        this.Δλ  = 0.0
         this
     end
 end
@@ -69,12 +69,11 @@ end
 compat_state_type(::Type{DruckerPrager}, ::Type{MechBulk}) = DruckerPragerState
 
 
-function yield_func(mat::DruckerPrager, state::DruckerPragerState, σ::AbstractArray)
+function yield_func(mat::DruckerPrager, state::DruckerPragerState, σ::AbstractArray, εpa::Float64)
     j1  = tr(σ)
     j2d = J2(σ)
     α,κ = mat.α, mat.κ
     H   = mat.H
-    εpa = state.εpa
     return α*j1 + √j2d - κ - H*εpa
 end
 
@@ -84,7 +83,7 @@ function calcD(mat::DruckerPrager, state::DruckerPragerState)
     H   = mat.H
     De  = calcDe(mat.E, mat.ν, state.ctx.stress_state)
 
-    if state.Δγ==0.0
+    if state.Δλ==0.0
         return De
     end
 
@@ -105,15 +104,14 @@ function calcD(mat::DruckerPrager, state::DruckerPragerState)
 end
 
 
-function update_state(mat::DruckerPrager, state::DruckerPragerState, Δε::Vector{Float64})
-    σini = state.σ
+function update_state(mat::DruckerPrager, state::DruckerPragerState, cstate::DruckerPragerState, Δε::Vector{Float64})
     De   = calcDe(mat.E, mat.ν, state.ctx.stress_state)
-    σtr  = state.σ + De*Δε
-    ftr  = yield_func(mat, state, σtr)
+    σtr  = cstate.σ + De*Δε
+    ftr  = yield_func(mat, state, σtr, cstate.εpa)
 
     if ftr < 1.e-8
         # elastic
-        state.Δγ = 0.0
+        state.Δλ = 0.0
         state.σ  = σtr
     else
         # plastic
@@ -123,24 +121,23 @@ function update_state(mat::DruckerPrager, state::DruckerPragerState, Δε::Vecto
         j1tr  = tr(σtr)
         j2dtr = J2(σtr)
 
-        if √j2dtr - state.Δγ*n*G > 0.0 # conventional return # TODO: check this
-            state.Δγ = ftr/(9*α*α*n*K + n*G + H)
-            j1       = j1tr - 9*state.Δγ*α*n*K
-            m        = 1.0 - state.Δγ*n*G/√j2dtr
+        if √j2dtr - state.Δλ*n*G > 0.0 # conventional return # TODO: check this
+            state.Δλ = ftr/(9*α*α*n*K + n*G + H)
+            j1       = j1tr - 9*state.Δλ*α*n*K
+            m        = 1.0 - state.Δλ*n*G/√j2dtr
             state.σ  = m*dev(σtr) + j1/3.0*I2
         else # return to apex
             κ        = mat.κ
-            state.Δγ = (α*j1tr-κ-H*state.εpa)/(3*√3*α*K + H)
-            j1       = j1tr - 3*√3*state.Δγ*K
+            state.Δλ = (α*j1tr - κ - H*state.εpa)/(3*√3*α*K + H)
+            j1       = j1tr - 3*√3*state.Δλ*K
             state.σ  = j1/3.0*I2
         end
 
-        state.εpa += state.Δγ
-
+        state.εpa = cstate.εpa + state.Δλ
     end
 
-    state.ε += Δε
-    Δσ     = state.σ - σini
+    state.ε = cstate.ε + Δε
+    Δσ      = state.σ - cstate.σ
     return Δσ, success()
 end
 

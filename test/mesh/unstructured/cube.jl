@@ -44,7 +44,7 @@ println(@test length(geo.faces) ==17)
 
 # # FE analysis
 # mats = [
-#     :bulks => MechBulk => LinearElastic => (E=1e2, nu=0.499)
+#     :conts => MechBulk => LinearElastic => (E=1e2, nu=0.499)
 # ]
 
 # results = []

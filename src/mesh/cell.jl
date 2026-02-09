@@ -5,7 +5,7 @@
 mutable struct Cell<:AbstractCell
     id       ::Integer
     shape    ::CellShape
-    role     ::Symbol  # :vertex, :line, :bulk, :surface, :contact, :cohesive, :line_interface, :tip
+    role     ::Symbol  # :vertex, :line, :bulk, :cont, :surface, :contact, :cohesive, :line_interface, :tip
     nodes    ::Vector{Node}
     tag      ::String
     active   ::Bool
@@ -70,7 +70,7 @@ Filters a list of finite element cells (`elems`) based on one or more `selectors
 
 Selectors can be:
 - `:all`             → select all elements (no filtering)
-- `:bulk`, `:line`, `:contact`, `:cohesive`, `:line_interface`, `:tip` → select by element role
+- `:cont`, `:bulk`, `:line`, `:contact`, `:cohesive`, `:line_interface`, `:tip` → select by element role
 - `:active`          → select only active elements
 - `:embedded`        → select embedded line elements (with couplings)
 - `String`           → match element tag
@@ -96,13 +96,14 @@ function select(
     selected = collect(1:length(elems)) # selected indexes
 
     for (i,selector) in enumerate(selectors)
-
+        
         if isa(selector, Symbol)
             if selector == :all
                 # do nothing (don't filter)
             elseif selector == :none
                 selected = Int[]
-            elseif selector in (:bulk, :line, :cohesive, :contact, :line_interface, :tip)
+            elseif selector in (:bulk, :cont, :line, :cohesive, :contact, :line_interface, :tip)
+                selector = selector==:bulk ? :cont : selector # fix for :bulk => :cont
                 selected = Int[ i for i in selected if elems[i].role==selector ]
             elseif selector == :active
                 selected = Int[ i for i in selected if elems[i].active ]
@@ -387,9 +388,9 @@ end
 
 # Returns the cell quality ratio as reg_surf/surf
 function cell_quality(c::AbstractCell)::Float64
+    c.role in (:bulk, :cont) || return 1.0
+    
     # get faces
-    c.role != :bulk && return 1.0
-
     faces = get_facets(c)
     length(faces)==0 && return 1.0
 
@@ -468,8 +469,10 @@ Returns true if the two elements share enough nodes to define a common face.
 Optimized for early exit and zero memory allocation.
 """
 function have_common_face(c1::AbstractCell, c2::AbstractCell)
+    continuum = (:bulk, :cont)
 
-    c1.role == c2.role == :bulk || return false
+    c1.role in continuum || return false
+    c2.role in continuum || return false
 
     # 1. Determine threshold
     # 2D requires 2 nodes (Shared Edge)

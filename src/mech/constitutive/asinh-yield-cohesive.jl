@@ -58,7 +58,7 @@ mutable struct AsinhYieldCohesive<:Constitutive
     α::Float64
     γ::Float64
     θ::Float64
-    β0::Float64
+    βini::Float64
     ζ ::Float64
 
     function AsinhYieldCohesive(; 
@@ -98,39 +98,37 @@ mutable struct AsinhYieldCohesive<:Constitutive
             a = fc/2*(1-cos(t)) # negative value
             b = -fc/2*(sin(t))  # positive value
             χ = (ft-a)/ft
-            β0 = b/asinh(α*χ)
-            fc/2 - a + α*β0*b/(ft*√(α^2*χ^2 + 1))
+            βini = b/asinh(α*χ)
+            fc/2 - a + α*βini*b/(ft*√(α^2*χ^2 + 1))
         end
         
         t, _ = findroot(f, ta, tb, tol=1e-4, method=:default)
-        t>pi/2 && throw(SerendipException("Invalid value for β0 was found. Check fc and ft values"))
+        t>pi/2 && throw(SerendipException("Invalid value for βini was found. Check fc and ft values"))
         
         a  = fc/2*(1-cos(t)) # negative value
         b  = -fc/2*(sin(t))  # positive value
         χ  = (ft-a)/ft
-        β0 = b/asinh(α*χ)
+        βini = b/asinh(α*χ)
 
-        return new(E, nu, fc, ft, wc, ft_law, ft_fun, alpha, gamma, theta, β0, zeta)
+        return new(E, nu, fc, ft, wc, ft_law, ft_fun, alpha, gamma, theta, βini, zeta)
     end
 end
 
 
 mutable struct AsinhYieldCohesiveState<:ConstState
     ctx::Context
-    σ  ::Vector{Float64} # stress
-    w  ::Vector{Float64} # relative displacements
-    up ::Float64          # effective plastic relative displacement
-    Δλ ::Float64          # plastic multiplier
-    h  ::Float64          # characteristic length from bulk elements
-    w_rate::Float64       # w rate wrt T
+    σ  ::Vec3        # stress
+    w  ::Vec3        # relative displacements
+    up ::Float64     # effective plastic relative displacement
+    Δλ ::Float64     # plastic multiplier
+    h  ::Float64     # characteristic length from bulk elements
     function AsinhYieldCohesiveState(ctx::Context)
-        this = new(ctx)
-        ndim = ctx.ndim
-        this.σ   = zeros(ndim)
-        this.w   = zeros(ndim)
-        this.up  = 0.0
-        this.Δλ  = 0.0
-        this.h   = 0.0
+        this    = new(ctx)
+        this.σ  = zeros(Vec3)
+        this.w  = zeros(Vec3)
+        this.up = 0.0
+        this.Δλ = 0.0
+        this.h  = 0.0
         return this
     end
 end
@@ -138,63 +136,43 @@ end
 
 # Type of corresponding state structure
 compat_state_type(::Type{AsinhYieldCohesive}, ::Type{MechCohesive}) = AsinhYieldCohesiveState
-
-
-function paramsdict(mat::AsinhYieldCohesive)
-    mat = OrderedDict( string(field) => getfield(mat, field) for field in fieldnames(typeof(mat)) )
-
-    if mat.ft_law in (:hordijk, :soft)
-        mat["GF"] = 0.1943*mat.ft*mat.wc
-    elseif mat.ft_law == :bilinear
-        mat["GF"] = mat.ft*mat.wc/5
-    elseif mat.ft_law == :linear
-        mat["GF"] = mat.ft*mat.wc/2
-    else
-        mat["GF"] = NaN
-    end
-    return mat
+function calc_β(mat::AsinhYieldCohesive, σmax::Float64)
+    βini = mat.βini
+    βres = mat.γ*βini
+    return βres + (βini-βres)*(σmax/mat.ft)^mat.θ
 end
 
 
-function yield_func(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ::Vector{Float64}, σmax::Float64)
+function yield_func(mat::AsinhYieldCohesive, σ::Vec3, σmax::Float64)
     β = calc_β(mat, σmax)
     χ = (σmax - σ[1])/mat.ft
+    τ = sqrt(σ[2]^2 + σ[3]^2)
 
-    if state.ctx.ndim == 3
-        τnorm = sqrt(σ[2]^2 + σ[3]^2)
-    else
-        τnorm = abs(σ[2])
-    end
-
-    return τnorm - β*asinh(mat.α*χ)
+    return τ - β*asinh(mat.α*χ)
 end
 
 
-function stress_strength_ratio(mat::AsinhYieldCohesive, σ::Vector{Float64})
+function stress_strength_ratio(mat::AsinhYieldCohesive, σ::AbstractVector)
     σmax = calc_σmax(mat, 0.0)
     β    = calc_β(mat, σmax)
     χ    = (σmax - σ[1])/mat.ft
     τmax = β*asinh(mat.α*χ)
-    τ    = norm(@view(σ[2:end]))
+    τ    = sqrt(σ[2]^2 + σ[3]^2)
     return max(σ[1]/σmax, τ/τmax)
 end
 
 
-function yield_derivs(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ::Vector{Float64}, σmax::Float64)
+function yield_derivs(mat::AsinhYieldCohesive, σ::Vec3, σmax::Float64)
     ft   = mat.ft
     α    = mat.α
     β    = calc_β(mat, σmax)
-    βres = mat.γ*mat.β0
+    βres = mat.γ*mat.βini
     χ    = (σmax - σ[1])/ft
     
     dfdσn  = α*β/(ft*√(α^2*χ^2 + 1))
     
-    if state.ctx.ndim == 3
-        τnorm = sqrt(σ[2]^2 + σ[3]^2)
-        dfdσ = [ dfdσn, σ[2]/τnorm, σ[3]/τnorm]
-    else
-        dfdσ = [ dfdσn, sign(σ[2]) ]
-    end
+    τnorm = sqrt(σ[2]^2 + σ[3]^2)
+    dfdσ = [ dfdσn, σ[2]/τnorm, σ[3]/τnorm]
 
     if σmax>0
         θ = mat.θ
@@ -208,38 +186,20 @@ function yield_derivs(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, �
 end
 
 
-function potential_derivs(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σ::Vector{Float64})
-    ndim = state.ctx.ndim
-    if ndim == 3
-        if σ[1] > 0.0 
-            # G1:
-            r = Float64[ 2.0*σ[1], 2.0*σ[2], 2.0*σ[3]]
-        else
-            # G2:
-            r = Float64[ 0.0, 2.0*σ[2], 2.0*σ[3] ]
-        end
-        if r[1]==r[2]==r[3]==0.0
-            r = Float64[ 1.0, 0.0, 0.0 ] # important
-        end
+function potential_derivs(mat::AsinhYieldCohesive, σ::Vec3)
+    if σ[1] > 0.0 
+        # G1:
+        r = Vec3( 2*σ[1], 2*σ[2], 2*σ[3])
     else
-        if σ[1] > 0.0 
-            # G1:
-            r = Float64[ 2*σ[1], 2*σ[2]]
-        else
-            # G2:
-            r = Float64[ 0.0, 2*σ[2] ]
-        end
-        if r[1]==r[2]==0.0
-            r = Float64[ 1.0, 0.0 ] # important
-        end
+        # G2:
+        r = Vec3( 0.0, 2*σ[2], 2*σ[3] )
     end
+
+    if r[1]==r[2]==r[3]==0.0
+        r = Vec3( 1.0, 0.0, 0.0 ) # important
+    end
+    
     return r
-end
-
-
-function calc_β(mat::AsinhYieldCohesive, σmax::Float64)
-    βres  = mat.γ*mat.β0
-    return βres + (mat.β0-βres)*(σmax/mat.ft)^mat.θ
 end
 
 
@@ -256,218 +216,191 @@ end
 
 function calc_kn_ks(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
     kn = mat.E*mat.ζ/state.h
-    G  = mat.E/(2.0*(1.0+mat.ν))
+    G  = mat.E/(2*(1+mat.ν))
     ks = G*mat.ζ/state.h
     return kn, ks
 end
 
 
 function calcD(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
-
-    ndim = state.ctx.ndim
+    σmax   = calc_σmax(mat, state.up)
     kn, ks = calc_kn_ks(mat, state)
-    σmax = calc_σmax(mat, state.up)
 
-    De = diagm([kn, ks, ks][1:ndim])
+    De = @SMatrix [ kn   0.0  0.0
+                    0.0  ks   0.0
+                    0.0  0.0  ks ]
 
     if state.Δλ == 0.0  # Elastic 
         return De
     elseif σmax == 0.0 && state.w[1] >= 0.0
-        Dep = De*1e-4
-        # Dep = De*1e-3
+        Dep = De*1e-3
         return Dep
     else
-        r = potential_derivs(mat, state, state.σ) # ∂g/∂σ
-        dfdσ, dfdσmax = yield_derivs(mat, state, state.σ, σmax)
+        r = potential_derivs(mat, state.σ) # ∂g/∂σ
+        dfdσ, dfdσmax = yield_derivs(mat, state.σ, σmax)
         dσmaxdup = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
 
-        if ndim == 3
-            den = kn*r[1]*dfdσ[1] + ks*r[2]*dfdσ[2] + ks*r[3]*dfdσ[3] - dfdσmax*dσmaxdup*norm(r)
+        den = kn*r[1]*dfdσ[1] + ks*r[2]*dfdσ[2] + ks*r[3]*dfdσ[3] - dfdσmax*dσmaxdup*norm(r)
 
-            Dep = [   kn - kn^2*r[1]*dfdσ[1]/den    -kn*ks*r[1]*dfdσ[2]/den      -kn*ks*r[1]*dfdσ[3]/den
-                     -kn*ks*r[2]*dfdσ[1]/den         ks - ks^2*r[2]*dfdσ[2]/den  -ks^2*r[2]*dfdσ[3]/den
-                     -kn*ks*r[3]*dfdσ[1]/den        -ks^2*r[3]*dfdσ[2]/den        ks - ks^2*r[3]*dfdσ[3]/den ]
-        else
-            den = kn*r[1]*dfdσ[1] + ks*r[2]*dfdσ[2] - dfdσmax*dσmaxdup*norm(r)
-
-            Dep = [   kn - kn^2*r[1]*dfdσ[1]/den    -kn*ks*r[1]*dfdσ[2]/den      
-                     -kn*ks*r[2]*dfdσ[1]/den         ks - ks^2*r[2]*dfdσ[2]/den  ]
-        end
+        Dep = [   kn - kn^2*r[1]*dfdσ[1]/den    -kn*ks*r[1]*dfdσ[2]/den      -kn*ks*r[1]*dfdσ[3]/den
+                    -kn*ks*r[2]*dfdσ[1]/den         ks - ks^2*r[2]*dfdσ[2]/den  -ks^2*r[2]*dfdσ[3]/den
+                    -kn*ks*r[3]*dfdσ[1]/den        -ks^2*r[3]*dfdσ[2]/den        ks - ks^2*r[3]*dfdσ[3]/den ]
         return Dep
     end
 end
 
 
-function calc_σ_up_Δλ(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Vector{Float64})
-    ndim = state.ctx.ndim
-    Δλ   = 0.0
-    up   = 0.0
-    σ    = zeros(ndim)
-    σ0   = zeros(ndim)
-
-    tol    = 1e-6
+function nonlinear_update(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, cstate::AsinhYieldCohesiveState, σtr::Vec3)
     maxits = 50
+    Δλ     = 0.0
+    up     = 0.0
+    σ      = zeros(Vec3)
+    σ0     = zeros(Vec3)
+    tol    = 1e-6
+
+    kn, ks = calc_kn_ks(mat, state)
+
     for i in 1:maxits
-        kn, ks = calc_kn_ks(mat, state)
 
         # quantities at n+1
-        if ndim == 3
-            if σtr[1]>0
-                 σ     = [ σtr[1]/(1+2*Δλ*kn),  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) ]
-                 dσdΔλ = [ -2*kn*σtr[1]/(1+2*Δλ*kn)^2,  -2*ks*σtr[2]/(1+2*Δλ*ks)^2,  -2*ks*σtr[3]/(1+2*Δλ*ks)^2 ]
-            else
-                 σ     = [ σtr[1],  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) ]
-                 dσdΔλ = [ 0,  -2*ks*σtr[2]/(1+2*Δλ*ks)^2,  -2*ks*σtr[3]/(1+2*Δλ*ks)^2 ]
-            end
+        if σtr[1]>0
+            σ     = Vec3( σtr[1]/(1+2*Δλ*kn),  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) )
+            dσdΔλ = Vec3( -2*kn*σtr[1]/(1+2*Δλ*kn)^2,  -2*ks*σtr[2]/(1+2*Δλ*ks)^2,  -2*ks*σtr[3]/(1+2*Δλ*ks)^2 )
         else
-            if σtr[1]>0
-                 σ     = [ σtr[1]/(1+2*Δλ*kn),  σtr[2]/(1+2*Δλ*ks) ]
-                 dσdΔλ = [ -2*kn*σtr[1]/(1+2*Δλ*kn)^2,  -2*ks*σtr[2]/(1+2*Δλ*ks)^2 ]
-            else
-                 σ     = [ σtr[1],  σtr[2]/(1+2*Δλ*ks) ]
-                 dσdΔλ = [ 0,  -2*ks*σtr[2]/(1+2*Δλ*ks)^2 ]
-             end
+            σ     = Vec3( σtr[1],  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) )
+            dσdΔλ = Vec3( 0,  -2*ks*σtr[2]/(1+2*Δλ*ks)^2,  -2*ks*σtr[3]/(1+2*Δλ*ks)^2 )
         end
 
         drdΔλ = 2*dσdΔλ
                  
-        r      = potential_derivs(mat, state, σ)
+        r      = potential_derivs(mat, σ)
         norm_r = norm(r)
-        up     = state.up + Δλ*norm_r
+        up     = cstate.up + Δλ*norm_r
         σmax   = calc_σmax(mat, up)
-        f      = yield_func(mat, state, σ, σmax)
-        dfdσ, dfdσmax = yield_derivs(mat, state, σ, σmax)
+        f      = yield_func(mat, σ, σmax)
+        dfdσ, dfdσmax = yield_derivs(mat, σ, σmax)
 
         dσmaxdup = deriv_σmax_up(mat, up)
         dσmaxdΔλ = dσmaxdup*(norm_r + Δλ*dot(r/norm_r, drdΔλ))
-        dfdΔλ = dot(dfdσ, dσdΔλ) + dfdσmax*dσmaxdΔλ
-        Δλ = Δλ - f/dfdΔλ
+        dfdΔλ    = dot(dfdσ, dσdΔλ) + dfdσmax*dσmaxdΔλ
+        Δλ       = Δλ - f/dfdΔλ
         
         if Δλ<=0 || isnan(Δλ) || i==maxits
             # return 0.0, state.σ, 0.0, failure("AsinhYieldCohesive: failed to find Δλ")
             # switch to bissection method
-            # return calc_σ_up_Δλ_bis(mat, state, σtr)
-            σ, up, Δλ, status = calc_σ_up_Δλ_bis(mat, state, σtr)
-            failed(status) && return state.σ, 0.0, 0.0, failure("AsinhYieldCohesive: failed to find Δλ")
+            # Δλ, status = calc_Δλ_bis(mat, state, σtr)
+            # failed(status) && return failure("AsinhYieldCohesive: failed to find Δλ")
+            return failure("AsinhYieldCohesive: failed to find Δλ")
         end
 
         if maximum(abs, σ-σ0) <= tol
             break
         end
-        σ0 .= σ
+        σ0 = σ
     end
 
-    return σ, up, Δλ, success()
-end
-
-
-function calc_σ_up(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Vector{Float64}, Δλ::Float64)
-    ndim = state.ctx.ndim
-    kn, ks  = calc_kn_ks(mat, state)
-
-    if ndim == 3
-        if σtr[1]>0
-            σ = [ σtr[1]/(1+2*Δλ*kn),  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) ]
-        else
-            σ = [ σtr[1],  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) ]
-        end
+    if σtr[1]>0
+        σ = Vec3( σtr[1]/(1 + 2*Δλ*kn), σtr[2]/(1 + 2*Δλ*ks), σtr[3]/(1 + 2*Δλ*ks) )
     else
-        if σtr[1]>0
-            σ = [ σtr[1]/(1+2*Δλ*kn),  σtr[2]/(1+2*Δλ*ks) ]
-        else
-            σ = [ σtr[1],  σtr[2]/(1+2*Δλ*ks) ]
-        end
+        σ = Vec3( σtr[1], σtr[2]/(1 + 2*Δλ*ks), σtr[3]/(1 + 2*Δλ*ks) )
     end
 
-    r  = potential_derivs(mat, state, σ)
-    up = state.up + Δλ*norm(r)
-    return σ, up
+    state.Δλ = Δλ
+    state.σ  = σ
+    r        = potential_derivs(mat, σ)
+    state.up = cstate.up + state.Δλ*norm(r)
+    return success()
 end
 
+# function calc_σ_up(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Vec3, Δλ::Float64)
+#     kn, ks  = calc_kn_ks(mat, state)
 
-function calc_σ_up_Δλ_bis(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Vector{Float64})
-    ndim    = state.ctx.ndim
-    kn, ks  = calc_kn_ks(mat, state)
-    De      = diagm([kn, ks, ks][1:ndim])
-    r       = potential_derivs(mat, state, state.σ)
+#     if σtr[1]>0
+#         σ = [ σtr[1]/(1+2*Δλ*kn),  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) ]
+#     else
+#         σ = [ σtr[1],  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) ]
+#     end
 
-    ff(Δλ)  = begin
-        # quantities at n+1
-        σ, up = calc_σ_up(mat, state, σtr, Δλ)
-        σmax = calc_σmax(mat, up)
-        yield_func(mat, state, σ, σmax)
-    end
-
-    # find root interval from Δλ estimative
-    Δλ0 = norm(σtr-state.σ)/norm(De*r)
-    a, b, status = findrootinterval(ff, 0.0, Δλ0)
-    failed(status) && return state.σ, 0.0, 0.0, status
-
-    Δλ, status = findroot(ff, a, b, ftol=1e-5, method=:bisection)
-    failed(status) && return state.σ, 0.0, 0.0, status
-
-    σ, up = calc_σ_up(mat, state, σtr, Δλ)
-    return σ, up, Δλ, success()  
-
-end
+#     r  = potential_derivs(mat, state, σ)
+#     up = state.up + Δλ*norm(r)
+#     return σ, up
+# end
 
 
-function update_state(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, Δw::Vector{Float64})
+# function calc_Δλ_bis(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, σtr::Vec3)
+#     kn, ks  = calc_kn_ks(mat, state)
+#     De = @SMatrix [ kn   0.0  0.0
+#                     0.0  ks   0.0
+#                     0.0  0.0  ks ]
 
-    ndim = state.ctx.ndim
-    σini = copy(state.σ)
+#     r = potential_derivs(mat, state, state.σ)
+
+#     ff(Δλ) = begin
+#         # quantities at n+1
+#         σ, up = calc_σ_up(mat, state, σtr, Δλ)
+#         σmax  = calc_σmax(mat, up)
+#         yield_func(mat, state, σ, σmax)
+#     end
+
+#     # find root interval from Δλ estimative
+#     Δλ0 = norm(σtr - cstate.σ)/norm(De*r)
+#     a, b, status = findrootinterval(ff, 0.0, Δλ0)
+#     failed(status) && return state.σ, 0.0, 0.0, status
+
+#     Δλ, status = findroot(ff, a, b, ftol=1e-5, method=:bisection)
+#     failed(status) && return 0.0, status
+    
+#     return Δλ, success()
+# end
+
+
+function update_state(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, cstate::AsinhYieldCohesiveState, Δw::Vector{Float64})
 
     kn, ks = calc_kn_ks(mat, state)
-    De = diagm([kn, ks, ks][1:ndim])
-    σmax = calc_σmax(mat, state.up)
+    De = @SMatrix [ kn   0.0  0.0
+                    0.0  ks   0.0
+                    0.0  0.0  ks ]
 
+    σmax = calc_σmax(mat, cstate.up)
 
     if isnan(Δw[1]) || isnan(Δw[2])
         alert("AsinhYieldCohesive: Invalid value for joint displacement: Δw = $Δw")
     end
     
-
-    # σ trial and F trial
-    σtr  = state.σ + De*Δw
-
-    Ftr  = yield_func(mat, state, σtr, σmax)
+    # σ trial and f trial
+    σtr  = cstate.σ + De*Δw
+    ftr  = yield_func(mat, σtr, σmax)
 
     # Elastic and EP integration
-    if Ftr <= 0.0
+    if ftr <= 0.0
         state.Δλ  = 0.0
-        state.σ  .= σtr
+        state.σ   = σtr
     elseif state.up>=mat.wc && σtr[1]>0
-        if ndim==3
-            Δup = norm([ σtr[1]/kn, σtr[2]/ks, σtr[3]/ks ])
-        else
-            Δup = norm([ σtr[1]/kn, σtr[2]/ks ])
-        end
-        state.up += Δup
-        state.σ  .= 0.0
-        state.Δλ  = 1.0
+        Δup      = norm(Vec3( σtr[1]/kn, σtr[2]/ks, σtr[3]/ks ))
+        state.up = cstate.up + Δup
+        state.σ  = zeros(Vec3)
+        state.Δλ = 1.0
     else
         # Plastic increment
-        σ, up, Δλ, status = calc_σ_up_Δλ(mat, state, σtr)
+        status = nonlinear_update(mat, state, cstate, σtr)
         failed(status) && return state.σ, status
-
-        state.σ, state.up, state.Δλ = σ, up, Δλ
     end
-    state.w += Δw
-    Δσ = state.σ - σini
+
+    state.w = cstate.w + Δw
+    Δσ      = state.σ - cstate.σ
     return Δσ, success()
 end
 
 
 function state_values(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
-    ndim = state.ctx.ndim
     σmax = calc_σmax(mat, state.up)
-    τ = norm(state.σ[2:ndim])
+    τ    = sqrt(state.σ[2]^2 + state.σ[3]^2)
     
     return Dict(
-        :w => state.w[1],
-        :σn => state.σ[1],
-        :τ  => τ,
-        :up => state.up,
+        :w    => state.w[1],
+        :σn   => state.σ[1],
+        :τ    => τ,
+        :up   => state.up,
         :σmax => σmax
       )
 end

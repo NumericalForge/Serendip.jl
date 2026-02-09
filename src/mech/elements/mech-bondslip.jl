@@ -202,23 +202,17 @@ function elem_internal_forces(elem::Element{MechBondSlip}, ΔUg::Vector{Float64}
 
     ΔF = zeros(nnodes*ndim)
 
-
-    # host = elem.couplings[1]
-    # bar  = elem.couplings[2]
     for (i,ip) in enumerate(elem.ips)
         B    = elem.cacheM[i]
         detJ = elem.cacheV[1][i]
 
         if update
             @mul Δu = B*ΔU
-            Δσ, status = update_state(elem.cmodel, ip.state, Δu)
+            Δσ, status = update_state(elem.cmodel, ip.state, ip.cstate, Δu)
             failed(status) && return ΔF, map, status
         else
             Δσ = ip.state.σ
         end
-        # @mul Δu = B*ΔU
-        # Δσ, status = update_state(elem.cmodel, ip.state, Δu)
-        # failed(status) && return ΔF, map, status
         coef = p*detJ*ip.w
         @mul ΔF += coef*B'*Δσ
     end

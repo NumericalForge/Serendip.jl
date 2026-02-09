@@ -149,18 +149,18 @@ function calcD(mat::CebBondSlip, state::CebBondSlipState)
 end
 
 
-function yield_func(::CebBondSlip, state::CebBondSlipState, τ::Float64)
-    return abs(τ) - state.τy
+function yield_func(::CebBondSlip, state::CebBondSlipState, τ::Float64, τy::Float64)
+    return abs(τ) - τy
 end
 
-function update_state(mat::CebBondSlip, state::CebBondSlipState, Δu::Vect)
+function update_state(mat::CebBondSlip, state::CebBondSlipState, cstate::CebBondSlipState, Δu::Vect)
     ks = mat.ks
     kn = mat.kn
     Δs = Δu[1]      # relative displacement
-    τini = state.σ[1] # initial shear stress
+    τini = cstate.σ[1] # initial shear stress
     τtr  = τini + ks*Δs # elastic trial
 
-    ftr  = yield_func(mat, state, τtr)
+    ftr  = yield_func(mat, state, τtr, cstate.τy)
 
     if ftr<0.0
         τ = τtr
@@ -171,8 +171,8 @@ function update_state(mat::CebBondSlip, state::CebBondSlipState, Δu::Vect)
         # @s dτydsy
         # Δsy     = (abs(τtr)-state.τy)/(ks+dτydsy)
         # Δsy     = (abs(τtr)-state.τy)/abs(ks+dτydsy)
-        Δsy     = (abs(τtr)-state.τy)/ks
-        state.sy += Δsy
+        Δsy       = (abs(τtr) - cstate.τy)/ks
+        state.sy  = cstate.sy + Δsy
         state.τy  = Tau(mat, state.sy)
         τ  = state.τy*sign(τtr)
         Δτ = τ - τini
@@ -185,8 +185,8 @@ function update_state(mat::CebBondSlip, state::CebBondSlipState, Δu::Vect)
     Δσ[1] = Δτ
 
     # update u and σ
-    state.u .+= Δu
-    state.σ .+= Δσ
+    state.u .= cstate.u .+ Δu
+    state.σ .= cstate.σ .+ Δσ
 
     return Δσ, success()
 end

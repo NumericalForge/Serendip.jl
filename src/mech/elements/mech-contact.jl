@@ -54,15 +54,15 @@ function elem_stiffness(elem::Element{MechContact})
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
     hnodes = div(nnodes, 2) # half the number of total nodes
+    nstr   = 3
 
     C = get_coords(elem)[1:hnodes,:]
-    B = fzeros(ndim, nnodes*ndim)
+    B = fzeros(nstr, nnodes*ndim)
     K = fzeros(nnodes*ndim, nnodes*ndim)
 
-    DB = fzeros(ndim, nnodes*ndim)
+    DB = fzeros(nstr, nnodes*ndim)
     J  = fzeros(ndim, ndim-1)
-    T  = fzeros(ndim, ndim)
-    NN = fzeros(ndim, nnodes*ndim)
+    NN = fzeros(nstr, nnodes*ndim)
 
     for ip in elem.ips
         if elem.ctx.stress_state==:axisymmetric
@@ -78,18 +78,19 @@ function elem_stiffness(elem::Element{MechContact})
 
         # compute B matrix
         for i in 1:hnodes
-            for dof=1:ndim
+            for dof in 1:ndim
                 NN[dof, (i-1)*ndim + dof              ] = -N[i]
                 NN[dof, hnodes*ndim + (i-1)*ndim + dof] =  N[i]
             end
         end
         
-        set_interface_rotation(J, T)
+        T = calc_interface_rotation(J)
         @mul B = T'*NN
 
         # compute K
         coef = detJ*ip.w*th
         D    = calcD(elem.cmodel, ip.state)
+
         @mul DB = D*B
         @mul K += coef*B'*DB
     end
@@ -107,21 +108,20 @@ function elem_internal_forces(elem::Element{MechContact}, ΔUg::Vector{Float64}=
     hnodes = div(nnodes, 2) # half the number of total nodes
     keys   = (:ux, :uy, :uz)[1:ndim]
     map    = Int[ get_dof(node, key).eq_id for node in elem.nodes for key in keys ]
+    nstr   = 3
 
     update = !isempty(ΔUg)
     if update
         ΔU = ΔUg[map]
-        Δω = zeros(ndim)
+        Δω = zeros(nstr)
     end
 
     ΔF = fzeros(nnodes*ndim)
     C  = get_coords(elem)[1:hnodes,:]
-    B  = fzeros(ndim, nnodes*ndim)
+    B  = fzeros(nstr, nnodes*ndim)
 
     J  = fzeros(ndim, ndim-1)
-    T  = fzeros(ndim, ndim)
-    NN = fzeros(ndim, nnodes*ndim)
-
+    NN = fzeros(nstr, nnodes*ndim)
 
     for ip in elem.ips
         if elem.ctx.stress_state==:axisymmetric
@@ -136,18 +136,19 @@ function elem_internal_forces(elem::Element{MechContact}, ΔUg::Vector{Float64}=
 
         # compute B matrix
         for i in 1:hnodes
-            for dof=1:ndim
+            for dof in 1:ndim
                 NN[dof, (i-1)*ndim + dof              ] = -N[i]
                 NN[dof, hnodes*ndim + (i-1)*ndim + dof] =  N[i]
             end
         end
 
-        set_interface_rotation(J, T)
+        T = calc_interface_rotation(J)
         @mul B = T'*NN
 
         if update
             @mul Δω = B*ΔU
-            Δσ, status = update_state(elem.cmodel, ip.state, Δω)
+            
+            Δσ, status = update_state(elem.cmodel, ip.state, ip.cstate, Δω)
             failed(status) && return ΔF, map, status
         else
             Δσ = ip.state.σ

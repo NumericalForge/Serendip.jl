@@ -15,29 +15,30 @@ using Serendip
 
     # rod
     "elements/rod/truss.jl",
-    "elements/rod/pprod.jl",
-
+    
     # beam
     "elements/beam/cantilever.jl",
-
+    
     # shell
     "elements/shell/shell.jl",
-
+    
     # joint
+    "elements/line_interface/dowel.jl",
     "elements/line_interface/joint1d.jl",
-
+    
     # embeddeed and semi-embedded
     "elements/bar/embedded.jl",
     "elements/tip/tip.jl",
     
     # Constitutive models
-    "constitutive/ceb.jl",
-    "constitutive/dp.jl",
+    "constitutive/vm-bar.jl",
     "constitutive/vm-2d.jl",
     "constitutive/vm-3d.jl",
     "constitutive/vm-beam-shell.jl",
     "constitutive/vm-beam-2d.jl",
     "constitutive/vm-beam-3d.jl",
+    "constitutive/ceb.jl",
+    "constitutive/dp.jl",
 
     # "elements/joint/joint2d.jl",
     "constitutive/cohesive.jl",

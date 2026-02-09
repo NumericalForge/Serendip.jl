@@ -49,7 +49,7 @@ mesh2 = Mesh(bl_corners, bl_bu, bl_lr)
 meshes = [ mesh1, mesh2 ]
 
 mats = [
-    :bulks => MechBulk => LinearElastic => (E=1e2, nu=0.25)
+    :conts => MechBulk => LinearElastic => (E=1e2, nu=0.25)
 ]
 results = []
 for mesh in [mesh1, mesh2]

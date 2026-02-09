@@ -177,7 +177,7 @@ function mesh_unstructured(geo::GeoModel; kwargs...)
 
     # flip elements
     for elem in mesh.elems
-        isinverted(elem) && flip!(elem)
+        isinverted(elem) && flip(elem)
     end
 
     # set tags for elements

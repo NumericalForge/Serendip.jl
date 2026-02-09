@@ -10,7 +10,7 @@
 
 # # bl = Block( [0 0; 1 1], nx=10, ny=10, shape=TRI3)
 # # mesh = Mesh(bl)
-# move!(bl, dx=1)
+# move(bl, dx=1)
 # mesh = Mesh(mesh, bl)
 # save(mesh, "out.vtk")
 # TR = @test length(mesh.nodes) == 431
@@ -18,7 +18,7 @@
 
 # printstyled("\nMesh rotate\n", color=:blue, bold=true)
 # bl = Block( [0 0; 1 1], nx=4, ny=4, shape=QUAD4)
-# rotate!(bl, base = [0.5, 0.5, 0.0], axis=[1,1,0], angle=45)
+# rotate(bl, base = [0.5, 0.5, 0.0], axis=[1,1,0], angle=45)
 # mesh = Mesh(bl)
 # save(mesh, "out.vtk")
 # TR = @test length(mesh.elems) == 16

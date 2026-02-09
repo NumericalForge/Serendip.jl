@@ -153,17 +153,17 @@ function split_block!(cells::Vector{Cell}, nodes_d::NodePosMap, bl::Block)
                 p4 = p_arr[i  , j+1]
 
                 if shape==QUAD4
-                    cell = Cell(shape, :bulk, [p1, p2, p3, p4], tag=bl.tag)
+                    cell = Cell(shape, :cont, [p1, p2, p3, p4], tag=bl.tag)
                     push!(cells, cell)
                 else
                     C = (p1.coord+p2.coord+p3.coord+p4.coord)/4
                     p5 = Node(C)
                     nodes_d[p5] = p5
 
-                    cell1 = Cell(shape, :bulk, [p1, p2, p5], tag=bl.tag)
-                    cell2 = Cell(shape, :bulk, [p2, p3, p5], tag=bl.tag)
-                    cell3 = Cell(shape, :bulk, [p3, p4, p5], tag=bl.tag)
-                    cell4 = Cell(shape, :bulk, [p4, p1, p5], tag=bl.tag)
+                    cell1 = Cell(shape, :cont, [p1, p2, p5], tag=bl.tag)
+                    cell2 = Cell(shape, :cont, [p2, p3, p5], tag=bl.tag)
+                    cell3 = Cell(shape, :cont, [p3, p4, p5], tag=bl.tag)
+                    cell4 = Cell(shape, :cont, [p4, p1, p5], tag=bl.tag)
                     push!(cells, cell1)
                     push!(cells, cell2)
                     push!(cells, cell3)
@@ -212,10 +212,10 @@ function split_block!(cells::Vector{Cell}, nodes_d::NodePosMap, bl::Block)
                 p8 = p_arr[i  , j+1]
 
                 if shape==QUAD8
-                    cell = Cell(shape, :bulk, [p1, p2, p3, p4, p5, p6, p7, p8], tag=bl.tag)
+                    cell = Cell(shape, :cont, [p1, p2, p3, p4, p5, p6, p7, p8], tag=bl.tag)
                 else
                     p9   = p_arr[i+1, j+1]
-                    cell = Cell(shape, :bulk, [p1, p2, p3, p4, p5, p6, p7, p8, p9], tag=bl.tag)
+                    cell = Cell(shape, :cont, [p1, p2, p3, p4, p5, p6, p7, p8, p9], tag=bl.tag)
                 end
                 push!(cells, cell)
             end
@@ -265,7 +265,7 @@ function split_block!(cells::Vector{Cell}, nodes_d::NodePosMap, bl::Block)
                 p11 = p_arr[i  , j+2]
                 p12 = p_arr[i  , j+1]
 
-                cell = Cell(shape, :bulk, [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12], tag=bl.tag)
+                cell = Cell(shape, :cont, [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12], tag=bl.tag)
                 push!(cells, cell)
             end
         end
@@ -306,8 +306,8 @@ function split_block!(cells::Vector{Cell}, nodes_d::NodePosMap, bl::Block)
     #             p3 = p_arr[i+1, j+1]
     #             p4 = p_arr[i  , j+1]
 
-    #             cell1 = Cell(shape, :bulk, [p1, p2, p3], tag=bl.tag)
-    #             cell2 = Cell(shape, :bulk, [p4, p1, p3], tag=bl.tag)
+    #             cell1 = Cell(shape, :cont, [p1, p2, p3], tag=bl.tag)
+    #             cell2 = Cell(shape, :cont, [p4, p1, p3], tag=bl.tag)
     #             push!(cells, cell1)
     #             push!(cells, cell2)
     #         end
@@ -361,8 +361,8 @@ function split_block!(cells::Vector{Cell}, nodes_d::NodePosMap, bl::Block)
 
                 p9   = p_arr[i+1, j+1]
 
-                cell1 = Cell(shape, :bulk, [p1, p2, p3, p5, p6, p9], tag=bl.tag)
-                cell2 = Cell(shape, :bulk, [p4, p1, p3, p8, p9, p7], tag=bl.tag)
+                cell1 = Cell(shape, :cont, [p1, p2, p3, p5, p6, p9], tag=bl.tag)
+                cell2 = Cell(shape, :cont, [p4, p1, p3, p8, p9, p7], tag=bl.tag)
                 push!(cells, cell1)
                 push!(cells, cell2)
             end
@@ -410,16 +410,16 @@ function split_block!(cells::Vector{Cell}, nodes_d::NodePosMap, bl::Block)
                     p8 = p_arr[i  , j+1, k+1]
 
                     if shape==HEX8
-                        cell = Cell(shape, :bulk, [p1, p2, p3, p4, p5, p6, p7, p8], tag=bl.tag)
+                        cell = Cell(shape, :cont, [p1, p2, p3, p4, p5, p6, p7, p8], tag=bl.tag)
                         push!(cells, cell)
                     end
                     if shape==TET4
-                        push!( cells, Cell(shape, :bulk, [p2, p4, p1, p8], tag=bl.tag) )
-                        push!( cells, Cell(shape, :bulk, [p2, p1, p5, p8], tag=bl.tag) )
-                        push!( cells, Cell(shape, :bulk, [p2, p5, p6, p8], tag=bl.tag) )
-                        push!( cells, Cell(shape, :bulk, [p2, p6, p7, p8], tag=bl.tag) )
-                        push!( cells, Cell(shape, :bulk, [p2, p3, p4, p8], tag=bl.tag) )
-                        push!( cells, Cell(shape, :bulk, [p2, p7, p3, p8], tag=bl.tag) )
+                        push!( cells, Cell(shape, :cont, [p2, p4, p1, p8], tag=bl.tag) )
+                        push!( cells, Cell(shape, :cont, [p2, p1, p5, p8], tag=bl.tag) )
+                        push!( cells, Cell(shape, :cont, [p2, p5, p6, p8], tag=bl.tag) )
+                        push!( cells, Cell(shape, :cont, [p2, p6, p7, p8], tag=bl.tag) )
+                        push!( cells, Cell(shape, :cont, [p2, p3, p4, p8], tag=bl.tag) )
+                        push!( cells, Cell(shape, :cont, [p2, p7, p3, p8], tag=bl.tag) )
                     end
                     if shape==PYR5
                         C = (p1.coord+p2.coord+p3.coord+p4.coord+p5.coord+p6.coord+p7.coord+p8.coord)/8
@@ -428,12 +428,12 @@ function split_block!(cells::Vector{Cell}, nodes_d::NodePosMap, bl::Block)
                         p9 = Node(C)
                         nodes_d[p9] = p9
 
-                        cell1 = Cell(shape, :bulk, [p1, p2, p3, p4, p9], tag=bl.tag)
-                        cell2 = Cell(shape, :bulk, [p2, p6, p7, p3, p9], tag=bl.tag)
-                        cell3 = Cell(shape, :bulk, [p4, p3, p7, p8, p9], tag=bl.tag)
-                        cell4 = Cell(shape, :bulk, [p1, p4, p8, p5, p9], tag=bl.tag)
-                        cell5 = Cell(shape, :bulk, [p2, p1, p5, p6, p9], tag=bl.tag)
-                        cell6 = Cell(shape, :bulk, [p6, p5, p8, p7, p9], tag=bl.tag)
+                        cell1 = Cell(shape, :cont, [p1, p2, p3, p4, p9], tag=bl.tag)
+                        cell2 = Cell(shape, :cont, [p2, p6, p7, p3, p9], tag=bl.tag)
+                        cell3 = Cell(shape, :cont, [p4, p3, p7, p8, p9], tag=bl.tag)
+                        cell4 = Cell(shape, :cont, [p1, p4, p8, p5, p9], tag=bl.tag)
+                        cell5 = Cell(shape, :cont, [p2, p1, p5, p6, p9], tag=bl.tag)
+                        cell6 = Cell(shape, :cont, [p6, p5, p8, p7, p9], tag=bl.tag)
                         push!(cells, cell1)
                         push!(cells, cell2)
                         push!(cells, cell3)
@@ -507,7 +507,7 @@ function split_block!(cells::Vector{Cell}, nodes_d::NodePosMap, bl::Block)
                     p20 = p_arr[i  , j+2, k+1]
 
                     if shape == HEX20
-                        cell = Cell(shape, :bulk, [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20], tag=bl.tag)
+                        cell = Cell(shape, :cont, [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20], tag=bl.tag)
                         push!(cells, cell)
                     end
                     if shape in (TET10, HEX27)
@@ -521,14 +521,14 @@ function split_block!(cells::Vector{Cell}, nodes_d::NodePosMap, bl::Block)
                         p27 = p_arr[i+1, j+1, k+1]
 
                         if shape==TET10
-                            push!( cells, Cell(shape, :bulk, [p2, p4, p1, p8, p25, p12, p9,  p27, p20, p21], tag=bl.tag) )
-                            push!( cells, Cell(shape, :bulk, [p2, p1, p5, p8, p9,  p17, p23, p27, p21, p16], tag=bl.tag) )
-                            push!( cells, Cell(shape, :bulk, [p2, p5, p6, p8, p23, p13, p18, p27, p16, p26], tag=bl.tag) )
-                            push!( cells, Cell(shape, :bulk, [p2, p6, p7, p8, p18, p14, p22, p27, p26, p15], tag=bl.tag) )
-                            push!( cells, Cell(shape, :bulk, [p2, p3, p4, p8, p10, p11, p25, p27, p24, p20], tag=bl.tag) )
-                            push!( cells, Cell(shape, :bulk, [p2, p7, p3, p8, p22, p19, p10, p27, p15, p24], tag=bl.tag) )
+                            push!( cells, Cell(shape, :cont, [p2, p4, p1, p8, p25, p12, p9,  p27, p20, p21], tag=bl.tag) )
+                            push!( cells, Cell(shape, :cont, [p2, p1, p5, p8, p9,  p17, p23, p27, p21, p16], tag=bl.tag) )
+                            push!( cells, Cell(shape, :cont, [p2, p5, p6, p8, p23, p13, p18, p27, p16, p26], tag=bl.tag) )
+                            push!( cells, Cell(shape, :cont, [p2, p6, p7, p8, p18, p14, p22, p27, p26, p15], tag=bl.tag) )
+                            push!( cells, Cell(shape, :cont, [p2, p3, p4, p8, p10, p11, p25, p27, p24, p20], tag=bl.tag) )
+                            push!( cells, Cell(shape, :cont, [p2, p7, p3, p8, p22, p19, p10, p27, p15, p24], tag=bl.tag) )
                         else
-                            cell = Cell(shape, :bulk, [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p21, p22, p23, p24, p25, p26, p27], tag=bl.tag)
+                            cell = Cell(shape, :cont, [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p21, p22, p23, p24, p25, p26, p27], tag=bl.tag)
                             push!(cells, cell)
                         end
                     end

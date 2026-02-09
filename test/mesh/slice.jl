@@ -3,7 +3,7 @@ using Serendip
 bl = Block([0 0 0; 1 1 1], nx=15, ny=15, nz=15, shape=HEX8)
 mesh = Mesh(bl)
 
-mat = [ :bulks => ElasticSolid => (E=100, nu=0.2) ]
+mat = [ :conts => ElasticSolid => (E=100, nu=0.2) ]
 model = FEModel(mesh, mat)
 
 bcs = [

@@ -68,8 +68,8 @@ tag!(::Vector{Block}, ::String)
 array(::Block)
 mirror(::Block)
 polar(::Block)
-rotate!(::Block)
-scale!(::Block)
+rotate(::Block)
+scale(::Block)
 extrude(::Block)
 ```
 
