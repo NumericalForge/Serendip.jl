@@ -309,10 +309,10 @@ function Base.run(ana::Analysis;
     @check beta>=0 "run: solver paramter `beta` must be positive"
 
     if scheme != :none # for backward compatibility
-        alert("run: 'scheme' keyword is deprecated; use 'tangent_scheme' with options :forward_euler, :heun, :ralston")
+        alert("run: 'scheme' keyword is deprecated; use 'tangent_scheme' with options :forward_euler, :forward_euler, :heun, :ralston")
         tangent_scheme == scheme==:ME ? :heun : scheme == :FE ? :forward_euler : tangent_scheme
     end
-    @check tangent_scheme in (:forward_euler, :heun, :ralston) "run: unknown tangent_scheme $tangent_scheme"
+    @check tangent_scheme in (:forward_euler, :backward_euler, :heun, :ralston) "run: unknown tangent_scheme $tangent_scheme"
 
     if !quiet
         ctx = ana.model.ctx
@@ -334,7 +334,6 @@ function Base.run(ana::Analysis;
             printstyled(Threads.nthreads(), "\n", color=:green)
         end
     end
-
 
     solver_settings = SolverSettings(
         tol=tol, rtol=rtol, autoinc=autoinc, dT0=dT0, dTmin=dTmin, dTmax=dTmax,

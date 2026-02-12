@@ -152,7 +152,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     
     # Check for cohesive elements
     has_cohesive_elems = any( elem -> elem isa Element{MechCohesive}, active_elems )
-    cohesive_schemes = (:heun, :ralston)
+    cohesive_schemes = (:backward_euler, :heun, :ralston)
     has_cohesive_elems && !(tangent_scheme in cohesive_schemes) && alert("Using cohesive elements requires an implicit tangent scheme for stability $(repr(cohesive_schemes)). Current scheme: $(repr(tangent_scheme))")
 
     # Get dofs organized according to boundary conditions
@@ -217,6 +217,8 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
     if tangent_scheme==:forward_euler
         p1=1.0; q11=1.0
+    elseif tangent_scheme==:backward_euler
+        p1=1.0; q11=1.0; a1=0.0; a2=1.0
     elseif tangent_scheme==:heun
         p1=1.0; q11=1.0; a1=0.5; a2=0.5
     elseif tangent_scheme==:ralston
@@ -232,9 +234,8 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
         ΔUex, ΔFex = ΔT*Uex, ΔT*Fex     # increment of external vectors
 
-        ΔTcr = min(rspan, 1.0-T)    # time span to apply cumulated residues
-        αcr  = min(ΔT/ΔTcr, 1.0)    # fraction of cumulated residues to apply
-        T<1-rspan && (ΔFex .+= αcr.*Rc) # addition of residuals
+        αcr  = min(ΔT/rspan, 1.0)    # fraction of cumulated residues to apply
+        ΔFex .+= αcr.*Rc # addition of residuals
 
         R   .= ΔFex
         ΔUa .= 0.0
@@ -242,7 +243,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
         # Newton Rapshon iterations
         nits      = 0
-        err       = 0.0
+        # err       = 0.0
         res       = 0.0
         res1      = 0.0
         converged = false
@@ -272,7 +273,11 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                 ΔUi = ΔUitr
             else
                 K2 = mount_K(active_elems, ndofs)
-                K = a1*K + a2*K2
+                if tangent_scheme==:backward_euler
+                    K = K2
+                else
+                    K = a1*K + a2*K2
+                end
                 sysstatus = solve_system!(K, ΔUi, R, nu)   # Changes unknown positions in ΔUi and R
                 failed(sysstatus) && (syserror=true; break)
                 # reset_state(active_elems)
@@ -290,15 +295,16 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             res = norm(R, Inf)
             @printf(data.log, "    it %d  residue: %-10.4e\n", it, res)
             
-            err = norm(ΔUi, Inf)/norm(ΔUa, Inf)
+            # err = norm(ΔUi, Inf)/norm(ΔUa, Inf)
             if it==1
                 res1 = res
                 # res > 0.5*norm(ΔFin[umap], Inf) && (converged=false; break)
                 # res1>5*ftol && (converged=false; break)
             end
             it>1  && (linear_domain=false)
+            
             res<ftol && (converged=true; break)
-            err<rtol && (converged=true; break)
+            # err<rtol && (converged=true; break)
 
             isnan(res) && break
             it>maxits  && break
