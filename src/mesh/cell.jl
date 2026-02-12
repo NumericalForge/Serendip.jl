@@ -89,7 +89,7 @@ function select(
     elems::Vector{<:AbstractCell},
     selectors::Union{Symbol,Expr,Symbolic,String,Vector{Int},NTuple{N, Symbolic} where N}...;
     invert = false,
-    tag::String = ""
+    tag::String = "",
     )
 
     selectors = flatten(selectors)
@@ -102,7 +102,7 @@ function select(
                 # do nothing (don't filter)
             elseif selector == :none
                 selected = Int[]
-            elseif selector in (:bulk, :cont, :line, :cohesive, :contact, :line_interface, :tip)
+            elseif selector in (:bulk, :cont, :line, :surface, :cohesive, :contact, :line_interface, :tip)
                 selector = selector==:bulk ? :cont : selector # fix for :bulk => :cont
                 selected = Int[ i for i in selected if elems[i].role==selector ]
             elseif selector == :active
@@ -148,6 +148,7 @@ function select(
     return elems[selected]
 end
 
+
 """
     select(domain::AbstractDomain, kind::Symbol, selectors...; invert=false, tag="")
 
@@ -181,7 +182,7 @@ function select(
     selectors::Union{Symbol,Expr,Symbolic,String,CellShape,Vector{<:Real},NTuple{N, Symbolic} where N}...;
     invert = false,
     nearest = true,
-    tag::String = ""
+    tag::String = "",
     )
 
     if kind == :element
