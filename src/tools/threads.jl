@@ -30,16 +30,12 @@ The macro expects a `begin ... end` block containing:
     R, C, V = Int[], Int[], Float64[]
     for elem in elements
         ke, rmap, cmap = compute_stiffness(elem)
-        # If an error occurs here and you 'break', all threads stop.
-        if is_invalid(ke)
-            break
-        end
         append!(R, rmap); append!(C, cmap); append!(V, ke)
     end
 end
 ```
 """
-macro withthreads(ex)
+macro withthreads_new_slower(ex)
     exbk = copy(ex)
     ex = Base.remove_linenums!(ex)
 
@@ -149,7 +145,7 @@ macro withthreads(ex)
                 end
 
                 t = Task(fun)
-                t.sticky = true
+                # t.sticky = true
                 tasks[tid] = t
                 schedule(t)
             end
@@ -170,7 +166,46 @@ macro withthreads(ex)
 end
 
 
-macro withthreads_0(ex)
+"""
+    @withthreads block
+
+A macro for parallelizing `for` loops with support for thread-local accumulators 
+and a fail-fast mechanism.
+
+# Arguments
+The macro expects a `begin ... end` block containing:
+1. **Initializers**: One or more assignments (e.g., `R = Int[]`) defining variables 
+   to be accumulated.
+2. **For Loop**: A standard Julia `for` loop.
+
+# Behavior
+- **Parallelization**: Splits the loop iterations across available `Threads.nthreads()`.
+- **Accumulation**: Each thread works on a private copy of the initializers. 
+  - If the initial variable is empty (length 0), results are combined using `append!`.
+  - Otherwise, results are combined using in-place addition `.+=`.
+- **Fail-Fast**: 
+  - Monitors a shared `Threads.Atomic{Bool}` stop signal.
+  - If any task encounters an exception or executes a `break` statement, all other 
+    tasks will terminate at the start of their next iteration.
+- **Exception Handling**: Re-throws any exception encountered during execution to 
+  the main thread.
+
+# Example: Finite Element Assembly
+```
+@withthreads begin
+    R, C, V = Int[], Int[], Float64[]
+    for elem in elements
+        ke, rmap, cmap = compute_stiffness(elem)
+        # If an error occurs here and you 'break', all threads stop.
+        if is_invalid(ke)
+            break
+        end
+        append!(R, rmap); append!(C, cmap); append!(V, ke)
+    end
+end
+```
+"""
+macro withthreads(ex)
     exbk = copy(ex)
     ex = Base.remove_linenums!(ex)
 
@@ -259,25 +294,19 @@ macro withthreads_0(ex)
         else
             tasks = Vector{Task}(undef, nt)
 
-            # ccall(:jl_enter_threaded_region, Cvoid, ())
-
             # new task and schedule
             for tid in 1:nt
-                function fun()
-                    nmin = (tid-1)*div(n, nt) + 1
-                    nmax = tid==nt ? n : tid*div(n, nt)
+                nmin = (tid-1) * div(n, nt) + 1
+                nmax = (tid == nt) ? n : tid * div(n, nt)
+
+                tasks[tid] = Threads.@spawn begin
                     $(esc(inner_init_exp))
-                    for $(esc(itr)) in $(esc(list))[nmin:nmax]
+                    for k in nmin:nmax
+                        $(esc(itr)) = $(esc(list))[k]
                         $(esc(body))
                     end
-                    return $(esc(inner_return_exp))
+                    $(esc(inner_return_exp))
                 end
-
-                t = Task(fun)
-                t.sticky = true
-                tasks[tid] = t
-                # ccall(:jl_set_task_tid, Cvoid, (Any, Cint), t, tid-1)
-                schedule(t)
             end
 
             # gathering results
@@ -288,8 +317,8 @@ macro withthreads_0(ex)
                     $(esc(fetchvar)) = fetch(tasks[tid])
                     $(esc(reduce_exp))
                 end
-            finally
-                # ccall(:jl_exit_threaded_region, Cvoid, ())
+            catch err
+                rethrow(err)
             end
         end
     end
