@@ -521,32 +521,61 @@ end
 
 export load_cracked_mesh
 
+
+"""
+    load_cracked_mesh(filename::String; tag::String="") -> Mesh
+
+Load a mesh containing crack marker elements and replace them with cohesive elements.
+
+This function reads a mesh from `filename` in which cracks are indicated by
+special elements placed along the crack path. These elements serve
+only as markers and are removed after cohesive elements are inserted.
+
+Marker elements definition by dimension:
+- In 2D, crack paths are marked by line elements located on element edges.
+- In 3D, crack surfaces are marked by flat (surface) elements.
+
+# Arguments
+- `filename::String`: Path to the input mesh file containing crack markers.
+
+# Keyword Arguments
+- `tag::String=""`: Optional tag assigned to the generated cohesive elements.
+
+# Returns
+- `Mesh`: A new mesh where crack markers have been replaced by cohesive elements.
+
+# Typical Use Case
+Pre-processing of fractured or pre-cracked meshes for cohesive-zone FEM
+simulations, where cracks are prescribed geometrically rather than inserted
+during analysis.
+"""
+
 function load_cracked_mesh(filename::String; tag::String="")
     mesh = Mesh(filename)
     ndim = mesh.ctx.ndim
 
     role = ndim==2 ? :line : :surface
 
-    sentinels = select(mesh.elems, role)
+    markers = select(mesh.elems, role)
 
-    # Iterate over sentinel elements
-    for sentinel in sentinels
-        neighbors = filter(e -> e.role == :cont, sentinel.nodes[1].elems)
+    # Iterate over marker elements
+    for marker in markers
+        neighbors = filter(e -> e.role == :cont, marker.nodes[1].elems)
 
         # Look for neighboring elements
-        for i in 2:length(sentinel.nodes)
-            intersect!(neighbors, filter(e -> e.role == :cont, sentinel.nodes[i].elems))
+        for i in 2:length(marker.nodes)
+            intersect!(neighbors, filter(e -> e.role == :cont, marker.nodes[i].elems))
         end
 
         # add cohesive element
         length(neighbors) == 2 || continue
 
-        cohesive = Cell(sentinel.shape, :cohesive, [sentinel.nodes; sentinel.nodes], tag=tag)
+        cohesive = Cell(marker.shape, :cohesive, [marker.nodes; marker.nodes], tag=tag)
         cohesive.couplings = neighbors
         push!(mesh.elems, cohesive)
     end
 
-    # Remove all sentinels
+    # Remove all markers
     mesh.elems = filter(e -> e.role != role, mesh.elems)
     synchronize(mesh, sort=true, cleandata=true)
 
