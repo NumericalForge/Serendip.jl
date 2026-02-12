@@ -3,7 +3,6 @@
 export MechCohesive
 
 struct MechCohesive<:MechFormulation
-    MechCohesive() = new()
 end
 
 

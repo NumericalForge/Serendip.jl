@@ -5,48 +5,49 @@ export MechContact
 struct MechContact<:MechFormulation
 end
 
+
 # Return the shape family that works with this element
 compat_role(::Type{MechContact}) = :contact
 
 
-function elem_init(elem::Element{MechContact})
-    # Computation of characteristic length 'h' for cohesive elements
-    # and set it in the integration point state
+# function elem_init(elem::Element{MechContact})
+#     # Computation of characteristic length 'h' for cohesive elements
+#     # and set it in the integration point state
 
-    hasfield(typeof(elem.ips[1].state), :h) || return
+#     hasfield(typeof(elem.ips[1].state), :h) || return
 
-    ndim = elem.ctx.ndim
+#     ndim = elem.ctx.ndim
 
-    # Avg volume of linked elements
-    V = 0.0
-    for elem in elem.couplings
-        V += cell_extent(elem)
-    end
-    V /= length(elem.couplings)
+#     # Avg volume of linked elements
+#     V = 0.0
+#     for elem in elem.couplings
+#         V += cell_extent(elem)
+#     end
+#     V /= length(elem.couplings)
 
-    # Area of cohesive element
-    A = 0.0
-    C = get_coords(elem)
-    n = div(length(elem.nodes), 2)
-    C = C[1:n, :]
-    J = fzeros(ndim, ndim-1)
+#     # Area of cohesive element
+#     A = 0.0
+#     C = get_coords(elem)
+#     n = div(length(elem.nodes), 2)
+#     C = C[1:n, :]
+#     J = fzeros(ndim, ndim-1)
 
-    for ip in elem.ips
-        # compute shape Jacobian
-        dNdR = elem.shape.deriv(ip.R)
-        @mul J = C'*dNdR
-        detJ = norm2(J)
-        detJ <= 0 && error("Invalid Jacobian norm for cohesive element")
-        A += detJ*ip.w
-    end
+#     for ip in elem.ips
+#         # compute shape Jacobian
+#         dNdR = elem.shape.deriv(ip.R)
+#         @mul J = C'*dNdR
+#         detJ = norm2(J)
+#         detJ <= 0 && error("Invalid Jacobian norm for cohesive element")
+#         A += detJ*ip.w
+#     end
 
-    # Calculate and save h at cohesive element's integration points
-    h = V/A
-    for ip in elem.ips
-        ip.state.h = h
-    end
+#     # Calculate and save h at cohesive element's integration points
+#     h = V/A
+#     for ip in elem.ips
+#         ip.state.h = h
+#     end
 
-end
+# end
 
 
 function elem_stiffness(elem::Element{MechContact})

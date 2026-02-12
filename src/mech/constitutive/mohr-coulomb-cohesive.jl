@@ -4,7 +4,7 @@ export MohrCoulombCohesive
 
 
 """
-    MohrCoulombCohesive(; E, nu=0.0, ft, GF, wc, mu, ft_law=:hordijk, zeta=5.0)
+    MohrCoulombCohesive(; E, nu=0.0, ft, GF, wc, mu, psi=mu, ft_law=:hordijk, zeta=5.0)
 
 Constitutive model for cohesive elements with a Mohr–Coulomb strength criterion.
 The tensile branch is regularized with the bulk characteristic length `h` to
@@ -24,6 +24,8 @@ derived from `E`, `nu`, `zeta`, and `h`.
   Mode-I fracture energy (> 0 if provided). May be used to compute `wc`.
 - `mu::Real`
   Friction coefficient (> 0).
+- `ψ::Real`
+  Dilarancy coefficient (> 0)
 - `ft_law::Union{Symbol,AbstractSpline} = :hordijk`
   Tensile softening law. Symbols: `:linear`, `:bilinear`, `:hordijk`; or a custom Spline.
 - `zeta::Real = 5.0`
@@ -42,6 +44,7 @@ mutable struct MohrCoulombCohesive<:Constitutive
     ft ::Float64
     wc ::Float64
     μ  ::Float64
+    ψ  ::Float64
     ft_law::Symbol
     ft_fun::Union{AbstractSpline,Nothing}
     ζ  ::Float64
@@ -53,6 +56,7 @@ mutable struct MohrCoulombCohesive<:Constitutive
         wc::Real = NaN,
         GF::Real = NaN,
         mu::Real = NaN,
+        psi::Real = NaN,
         ft_law::Union{Symbol,AbstractSpline} = :hordijk,
 
         zeta::Real=5.0
@@ -61,12 +65,15 @@ mutable struct MohrCoulombCohesive<:Constitutive
         @check 0<=nu<0.5 "MohrCoulombCohesive: Poisson ratio nu must be in the range [0, 0.5). Got $(repr(nu))."
         @check ft>0 "MohrCoulombCohesive: Tensile strength ft must be > 0. Got $(repr(ft))."
         @check mu>0 "MohrCoulombCohesive: Friction coefficient mu must be non-negative. Got $(repr(mu))."
+
+        isnan(psi) && (psi = mu)
+        @check psi>0 "MohrCoulombCohesive: Dilatancy coefficient psi must be non-negative. Got $(repr(psi))."
         @check zeta>=0 "MohrCoulombCohesive: Factor zeta must be non-negative. Got $(repr(zeta))."
 
         wc, ft_law, ft_fun, status = setup_tensile_strength(ft, GF, wc, ft_law)
         failed(status) && throw(ArgumentError("MohrCoulombCohesive: " * status.message))
 
-        return new(E, nu, ft, wc, mu, ft_law, ft_fun, zeta)
+        return new(E, nu, ft, wc, mu, psi, ft_law, ft_fun, zeta)
     end
 end
 
@@ -95,34 +102,38 @@ compat_state_type(::Type{MohrCoulombCohesive}, ::Type{MechCohesive}) = MohrCoulo
 
 
 function yield_func(mat::MohrCoulombCohesive, σ::Vec3, σmax::Float64)
-    return sqrt(σ[2]^2 + σ[3]^2) + (σ[1]-σmax)*mat.μ
+    σn, τ1, τ2 = σ
+    return √(τ1^2 + τ2^2) + (σn - σmax)*mat.μ
 end
 
 
 function stress_strength_ratio(mat::MohrCoulombCohesive, σ::AbstractVector)
+    σn, τ1, τ2 = σ
+
     σmax = calc_σmax(mat, 0.0)
-    τmax = (σmax - σ[1])*mat.μ
-    τ    = sqrt(σ[2]^2 + σ[3]^2)
-    return max(σ[1]/σmax, τ/τmax)
+    τmax = (σmax - σn)*mat.μ
+    τ    = √(τ1^2 + τ2^2)
+    return max(σn/σmax, τ/τmax)
 end
 
 
 function yield_deriv(mat::MohrCoulombCohesive, σ::Vec3)
-    τ = sqrt(σ[2]^2 + σ[3]^2)
-    return Vec3( mat.μ, σ[2]/τ, σ[3]/τ )
+    σn, τ1, τ2 = σ
+
+    τ = √(τ1^2 + τ2^2 + eps())
+    return Vec3( mat.μ, τ1/τ, τ2/τ )
 end
 
 
 function potential_derivs(mat::MohrCoulombCohesive, σ::Vec3)
-    if σ[1] >= 0.0 
-        # G1:
-        r = Vec3( 2*σ[1]*mat.μ^2, 2*σ[2], 2*σ[3] )
+    σn, τ1, τ2 = σ
+    
+    if σn < 0.0 
+        return Vec3( 0.0, τ1, τ2 )
     else
-        # G2:
-        r = Vec3( 0, 2*σ[2], 2*σ[3] )
+        ψ = mat.ψ
+        return Vec3( ψ^2*σn, τ1, τ2 )
     end
-
-    return r
 end
 
 
@@ -131,7 +142,7 @@ function calc_σmax(mat::MohrCoulombCohesive, up::Float64)
 end
 
 
-function deriv_σmax_upa(mat::MohrCoulombCohesive, up::Float64)
+function deriv_σmax_up(mat::MohrCoulombCohesive, up::Float64)
     # ∂σmax/∂up
     return calc_tensile_strength_derivative(mat, up)
 end
@@ -148,29 +159,31 @@ end
 function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
     σmax   = calc_σmax(mat, state.up)
     kn, ks = calc_kn_ks(mat, state)
+    tiny   = 1e-6*mat.ft
 
     De = @SMatrix [ kn   0.0  0.0
                     0.0  ks   0.0
                     0.0  0.0  ks ]
 
+    # @show σmax
+    # @show state.up
+
     if state.Δλ == 0.0  # Elastic 
         return De
-    elseif σmax == 0.0 && state.w[1] >= 0.0
+    elseif σmax <= tiny && state.w[1] >= 0.0
+        # @show "hi"
         # Dep  = De*1e-4
-        Dep  = De.*1e-3
+        Dep  = De*1e-3
         return Dep
     else
-        v = yield_deriv(mat, state.σ)
-        r = potential_derivs(mat, state.σ)
-        y = -mat.μ # ∂F/∂σmax
-        m = deriv_σmax_upa(mat, state.up)  # ∂σmax/∂up
-
-        #Dep  = De - De*r*v'*De/(v'*De*r - y*m*norm(r))
-        den = kn*r[1]*v[1] + ks*r[2]*v[2] + ks*r[3]*v[3] - y*m*norm(r)
-
-        Dep = @SMatrix [  kn - kn^2*r[1]*v[1]/den    -kn*ks*r[1]*v[2]/den      -kn*ks*r[1]*v[3]/den
-                         -kn*ks*r[2]*v[1]/den         ks - ks^2*r[2]*v[2]/den  -ks^2*r[2]*v[3]/den
-                         -kn*ks*r[3]*v[1]/den        -ks^2*r[3]*v[2]/den        ks - ks^2*r[3]*v[3]/den ]
+        n = yield_deriv(mat, state.σ)
+        m = potential_derivs(mat, state.σ)
+        H = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
+        
+        De_m  = De*m
+        nT_De = n'*De
+        den = dot(n, De_m) + mat.μ*H*norm(m)
+        Dep = De - (De_m*nT_De)/den
 
         return Dep
     end
@@ -178,67 +191,79 @@ end
 
 
 function nonlinear_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, cstate::MohrCoulombCohesiveState, σtr::Vec3)
-    # Compute Δλ
-
-    maxits = 50
-    Δλ     = 0.0
-    up     = 0.0
-    tol    = 1e-4
-    μ      = mat.μ
     kn, ks = calc_kn_ks(mat, state)
-    
+    σntr, τ1tr, τ2tr = σtr
+
+    μ = mat.μ
+    ψ = mat.ψ
+
+    τtr = √(τ1tr^2 + τ2tr^2 + eps())
+
+    maxits    = 20
+    converged = false
+    Δλ        = 0.0
+    up        = cstate.up
+    σ         = cstate.σ
+    σmax      = calc_σmax(mat, up)
+    tol       = mat.ft*1e-6
+
     for i in 1:maxits
-    
-        # quantities at n+1
-        if σtr[1]>0
-            σ     = Vec3( σtr[1]/(1+2*Δλ*kn*μ^2),  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) )
-            dσdΔλ = Vec3( -2*kn*μ^2*σtr[1]/(1+2*Δλ*kn*μ^2)^2,  -2*ks*σtr[2]/(1+2*Δλ*ks)^2,  -2*ks*σtr[3]/(1+2*Δλ*ks)^2 )
-            drdΔλ = Vec3( -4*kn*μ^4*σtr[1]/(1+2*Δλ*kn*μ^2)^2,  -4*ks*σtr[2]/(1+2*Δλ*ks)^2,  -4*ks*σtr[3]/(1+2*Δλ*ks)^2 )
+        den_σn = 1.0 + Δλ*kn*ψ^2
+        den_τ  = 1.0 + Δλ*ks
+
+        # stresses at current iterate
+        σn = (σntr < 0) ? σntr : σntr/den_σn
+        τ1 = τ1tr/den_τ
+        τ2 = τ2tr/den_τ
+        τ  = √(τ1^2 + τ2^2 + eps())
+        σ  = Vec3(σn, τ1, τ2)
+
+        # m at current iterate stress
+        m      = potential_derivs(mat, σ)
+        norm_m = norm(m)
+        # @show norm_m
+        # @show Δλ
+        unit_m = m / (norm_m + eps())
+
+        # softening variable at current iterate
+        up   = cstate.up + Δλ*norm_m
+        σmax = calc_σmax(mat, up)
+        H    = deriv_σmax_up(mat, up)
+
+        # residual
+        f = τ + μ*(σn - σmax)
+        if abs(f) < tol
+            # @show i
+            converged = true
+            break
+        end
+
+        # derivatives
+        if σntr<0
+            ∂σn∂Δλ = 0.0
+            ∂m∂Δλ  = Vec3( 0.0, -τ1tr*ks/den_τ^2, -τ2tr*ks/den_τ^2 )
         else
-            σ     = Vec3( σtr[1],  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) )
-            dσdΔλ = Vec3( 0,  -2*ks*σtr[2]/(1+2*Δλ*ks)^2,  -2*ks*σtr[3]/(1+2*Δλ*ks)^2 )
-            drdΔλ = Vec3( 0,  -4*ks*σtr[2]/(1+2*Δλ*ks)^2,  -4*ks*σtr[3]/(1+2*Δλ*ks)^2 )
+            ∂σn∂Δλ = -σntr*kn*ψ^2/den_σn^2
+            ∂m∂Δλ  = Vec3( -σntr*kn*ψ^4/den_σn^2, -τ1tr*ks/den_τ^2, -τ2tr*ks/den_τ^2 )
         end
-                 
-        r        = potential_derivs(mat, σ)
-        norm_r   = norm(r)
-        up       = cstate.up + Δλ*norm_r
-        σmax     = calc_σmax(mat, up)
-        m        = deriv_σmax_upa(mat, up)
-        dσmaxdΔλ = m*(norm_r + Δλ*dot(r/norm_r, drdΔλ))
-    
-        f = sqrt(σ[2]^2 + σ[3]^2) + (σ[1]-σmax)*μ
-        if (σ[2]==0 && σ[3]==0) 
-            dfdΔλ = (dσdΔλ[1] - dσmaxdΔλ)*μ
-        else
-            dfdΔλ = 1/sqrt(σ[2]^2 + σ[3]^2) * (σ[2]*dσdΔλ[2] + σ[3]*dσdΔλ[3]) + (dσdΔλ[1] - dσmaxdΔλ)*μ
-        end
-    
-        Δλ = Δλ - f/dfdΔλ
-    
-        abs(f) < tol && break
-    
-        if i == maxits || isnan(Δλ)
-            # warn("""MohrCoulombCohesive: Could not find Δλ. This may happen when the system
-            # becomes hypostatic and thus the global stiffness matrix is nearly singular.
-            # Increasing the mesh refinement may result in a nonsingular matrix.
-            # """)
-            # warn("iterations=$i Δλ=$Δλ")
-            return failure("MohrCoulombCohesive: Could nof find Δλ.")
-        end
+
+        ∂τ∂Δλ    = -τtr*ks/den_τ^2
+        ∂up∂Δλ   = norm_m + Δλ*dot(unit_m, ∂m∂Δλ)
+        ∂σmax∂Δλ = H*∂up∂Δλ
+        
+        ∂f∂Δλ = ∂τ∂Δλ + ∂σn∂Δλ*μ - ∂σmax∂Δλ*μ
+        Δλ    = max(Δλ - f/∂f∂Δλ, 0.0)
     end
 
-    # Update σ and upa
-    if σtr[1] > 0
-        σ = Vec3( σtr[1]/(1 + 2*Δλ*kn*(μ^2)), σtr[2]/(1 + 2*Δλ*ks), σtr[3]/(1 + 2*Δλ*ks) )
+    if converged
+        state.σ  = σ
+        state.Δλ = Δλ
+        state.up = up
+        # @show up
+        return success()
     else
-        σ = Vec3( σtr[1], σtr[2]/(1 + 2*Δλ*ks), σtr[3]/(1 + 2*Δλ*ks) )
-    end    
-    
-    state.Δλ = Δλ
-    state.σ  = σ
-    r        = potential_derivs(mat, σ)
-    state.up = cstate.up + state.Δλ*norm(r)
+        failure("MohrCoulombCohesive: nonlinear update failed.")
+    end
 
     return success()
 end
@@ -259,16 +284,18 @@ function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState,
     # σ trial and F trial
     σtr = cstate.σ + De*Δw
     ftr = yield_func(mat, σtr, σmax)
+
     # Elastic and EP integration
-    if σmax == 0.0 && cstate.w[1] >= 0.0
-        # Return to apex:
-        r1 = Vec3( σtr[1]/kn, σtr[2]/ks, σtr[3]/ks )
-        r  = r1/norm(r1)
-        state.Δλ = norm(r1)
+    # if σmax == 0.0 && cstate.w[1] >= 0.0
+    #     # Return to apex:
+    #     r1 = Vec3( σtr[1]/kn, σtr[2]/ks, σtr[3]/ks )
+    #     r  = r1/norm(r1)
+    #     state.Δλ = norm(r1)
         
-        state.up = cstate.up + state.Δλ
-        state.σ  = σtr - state.Δλ*De*r
-    elseif ftr <= 0.0
+    #     state.up = cstate.up + state.Δλ
+    #     state.σ  = σtr - state.Δλ*De*r
+    # else
+    if ftr <= 0.0
         # Pure elastic increment
         state.Δλ = 0.0
         state.σ  = σtr
@@ -286,11 +313,12 @@ end
 
 function state_values(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
     σmax = calc_σmax(mat, state.up)
-    τ = sqrt(state.σ[2]^2 + state.σ[3]^2)
+    σn, τ1, τ2 =  state.σ
+    τ = sqrt(τ1^2 + τ2^2)
 
     return Dict(
         :w    => state.w[1],
-        :σn   => state.σ[1],
+        :σn   => σn,
         :τ    => τ,
         :up   => state.up,
         :σmax => σmax

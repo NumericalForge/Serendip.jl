@@ -187,7 +187,6 @@ function update_state(mat::VonMises, state::VonMisesState, cstate::VonMisesState
         Δσ      = state.σ - cstate.σ
         return Δσ, success()
     else
-        σini = state.σ
         De   = calcDe(mat.E, mat.ν)
         σtr  = cstate.σ + De*Δε
         ftr  = yield_func(mat, state, σtr, cstate.εpa)

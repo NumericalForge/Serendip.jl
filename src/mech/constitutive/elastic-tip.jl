@@ -62,17 +62,15 @@ function calcD(mat::LinearTip, state::LinearTipState)
 end
 
 
-function update_state(mat::LinearTip, state::LinearTipState, Δw::Float64)
-    fini = state.f
-
-    if mat.fixed || state.w + Δw > 0.0
+function update_state(mat::LinearTip, state::LinearTipState, cstate::LinearTipState, Δw::Float64)
+    if mat.fixed || cstate.w + Δw > 0.0
         state.f = mat.k*Δw
     else
         state.f = 0.0
     end
 
-    Δf = state.f - fini
-    state.w += Δw
+    Δf = state.f - cstate.f
+    state.w = cstate.w + Δw
     return Δf, success()
 end
 

@@ -95,9 +95,9 @@ function elem_stiffness(elem::Element{MechCont})
     C = get_coords(elem)
     K = zeros(nnodes*ndim, nnodes*ndim)
 
-    B = zeros(6, nnodes*ndim)
-    DB = Array{Float64}(undef, 6, nnodes*ndim)
-    J  = Array{Float64}(undef, ndim, ndim)
+    B    = zeros(6, nnodes*ndim)
+    DB   = Array{Float64}(undef, 6, nnodes*ndim)
+    J    = Array{Float64}(undef, ndim, ndim)
     dNdX = Array{Float64}(undef, nnodes, ndim)
 
     for ip in elem.ips

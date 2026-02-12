@@ -171,8 +171,8 @@ function yield_derivs(mat::AsinhYieldCohesive, σ::Vec3, σmax::Float64)
     
     dfdσn  = α*β/(ft*√(α^2*χ^2 + 1))
     
-    τnorm = sqrt(σ[2]^2 + σ[3]^2)
-    dfdσ = [ dfdσn, σ[2]/τnorm, σ[3]/τnorm]
+    τ    = sqrt(σ[2]^2 + σ[3]^2)
+    dfdσ = [ dfdσn, σ[2]/τ, σ[3]/τ]
 
     if σmax>0
         θ = mat.θ
