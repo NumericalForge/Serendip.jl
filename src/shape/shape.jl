@@ -1,16 +1,5 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-# role::CellRole # BULK, SURFACE, LINE, LINEINTERFACE, TIP, INTERFACE
-# @enum(CellFamily,
-#     VERTEX_CELL   = 0,
-#     LINE_CELL     = 1,
-#     :bulk     = 2,
-#     SURFACE_CELL  = 3,
-#     JOINT_CELL    = 4,
-#     BONDSLIP_CELL = 5,
-#     TIP_CELL      = 6,
-# )
-
 
 mutable struct CellShape
     name       ::String
@@ -83,49 +72,6 @@ const Vtk2CellShape_dict = Dict{VTKCellType,CellShape}(
 # All isoparametric cell shapes
 const ALL_ISO_SHAPES = [ LIN2, LIN3, LIN4, TRI3, TRI6, QUAD4, QUAD8, QUAD9, QUAD12, PYR5, PYR13, TET4, TET10, WED6, WED15, HEX8, HEX20, HEX27 ]
 
-# dictionary (ndim,nfpoints,nlayers) => joint_shape
-
-# _joint_ndim_nfpoints_nlayers_dict = Dict(
-#     (2,2,2)=>JLIN2 , (2,3,2)=>JLIN3 , (2,4,2)=>JLIN4 , (3,3,2)=>JTRI3 , (3,4,2)=>JQUAD4 , (3,6,2)=>JTRI6 , (3,8,2)=>JQUAD8,
-#     (2,2,3)=>J3LIN2, (2,3,2)=>J3LIN3, (2,4,2)=>J3LIN4, (3,3,2)=>J3TRI3, (3,4,2)=>J3QUAD4, (3,6,2)=>J3TRI6, (3,8,2)=>J3QUAD8,
-# )
-
-
-# function get_shape_from_vtk(vtk_type::VTKCellType, npoints::Int64, nlayers::Int64=0)
-#     # vtk_type: VTK cell code
-#     # npoints : total number of cell points
-#     # nlayers : number of layers for joint elements
-
-#     # if vtk_type==VTK_POLYGON # TODO: Fix for this
-#     #     if npoints==12
-#     #         return QUAD12
-#     #     end
-#     # end
-
-    
-#     vtk_type==VTK_POLY_VERTEX || return Vtk2CellShape_dict[vtk_type]
-    
-    
-#     # Check if it is a joint cell with layers
-#     # if nlayers in (2,3)
-#     #     @show vtk_type
-#     #     shapedict = _joint_ndim_nfpoints_nlayers_dict
-#     #     nfpoints = div(npoints,nlayers)
-
-
-#     #     if haskey(shapedict, (ndim, nfpoints, nlayers))
-#     #         return shapedict[(ndim, nfpoints, nlayers)]
-#     #     end
-#     # end
-
-#     # Check for other cells
-#     if npoints==9   return TRI9
-#     elseif npoints==10  return TRI10
-#     end
-
-#     error("get_shape_from_vtk: Unknown shape for vtk_type $vtk_type and npoints $npoints with ndim $ndim")
-# end
-
 
 function get_shape_from_ndim_npoints(npoints::Int64, ndim::Int64)::CellShape
     # npoints : total number of cell points
@@ -151,8 +97,6 @@ function get_shape_from_ndim_npoints(npoints::Int64, ndim::Int64)::CellShape
 
     error("get_shape_from_ndim_npoints: Cannot get the cell shape from npoints=$npoints and ndim=$ndim")
 end
-
-
 
 
 function bdistance(shape::CellShape, R::Vector{Float64})

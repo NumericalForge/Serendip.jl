@@ -43,7 +43,11 @@ function save_vtk(mesh::AbstractDomain, filename::String; desc::String="")
     # Write elem types
     println(f, "CELL_TYPES ", ncells)
     for cell in mesh.elems
-        println(f, Int(cell.shape.vtk_type))
+        if cell.role in (:contact, :cohesive, :line_interface, :tip)
+            println(f, Int(VTK_POLY_VERTEX))
+        else
+            println(f, Int(cell.shape.vtk_type))
+        end
     end
     println(f)
 
@@ -56,13 +60,13 @@ function save_vtk(mesh::AbstractDomain, filename::String; desc::String="")
         for (field,D) in mesh.node_fields
             isempty(D) && continue
             isfloat = eltype(D)<:AbstractFloat
-            dtype = isfloat ? "float64" : "int"
+            T = isfloat ? "float64" : "int"
             ncomps = size(D,2)
             if ncomps==1
-                println(f, "SCALARS $field $dtype 1")
+                println(f, "SCALARS $field $T 1")
                 println(f, "LOOKUP_TABLE default")
             else
-                println(f, "VECTORS ", "$field $dtype")
+                println(f, "VECTORS ", "$field $T")
             end
             for i in 1:npoints
                 for j in 1:ncomps
@@ -91,13 +95,13 @@ function save_vtk(mesh::AbstractDomain, filename::String; desc::String="")
 
             isfloat = eltype(D)<:AbstractFloat
 
-            dtype = isfloat ? "float64" : "int"
+            T = isfloat ? "float64" : "int"
             ncomps = size(D,2)
-            if ncomps==1
-                println(f, "SCALARS $field $dtype 1")
-                println(f, "LOOKUP_TABLE default")
+            if ncomps==3
+                println(f, "VECTORS ", "$field $T")
             else
-                println(f, "VECTORS ", "$field $dtype")
+                println(f, "SCALARS $field $T $ncomps")
+                println(f, "LOOKUP_TABLE default")
             end
             for i in 1:ncells
                 for j in 1:ncomps
@@ -119,10 +123,10 @@ end
 
 
 function get_array_node!(array::AbstractArray, name::String, compressed, buf)
-    dtype = string(eltype(array))
+    T = string(eltype(array))
     ncomps = size(array,2)
     if compressed # appends compressed data to buf
-        xdata = XmlElement("DataArray", attributes=("type"=>dtype, "Name"=>name, "NumberOfComponents"=>"$ncomps", "format"=>"appended", "offset"=>"$(position(buf))"))
+        xdata = XmlElement("DataArray", attributes=("type"=>T, "Name"=>name, "NumberOfComponents"=>"$ncomps", "format"=>"appended", "offset"=>"$(position(buf))"))
         level = 4 # compression level
         inipos = position(buf)
 
@@ -146,7 +150,7 @@ function get_array_node!(array::AbstractArray, name::String, compressed, buf)
         write(buf, UInt64(1), UInt64(arr_size), UInt64(arr_size), UInt64(comp_arr_size))
         seek(buf, endpos)
     else
-        xdata = XmlElement("DataArray", attributes=("type"=>dtype, "Name"=>name, "NumberOfComponents"=>"$ncomps", "format"=>"ascii"))
+        xdata = XmlElement("DataArray", attributes=("type"=>T, "Name"=>name, "NumberOfComponents"=>"$ncomps", "format"=>"ascii"))
         isfloat = eltype(array)<:AbstractFloat
         io = IOBuffer()
         nrows = size(array,1)
@@ -439,7 +443,7 @@ function read_vtk(filename::String)
     elem_fields = OrderedDict{String,Array}()
 
     reading_node_data = false
-    reading_elem_data  = false
+    reading_elem_data = false
 
     TYPES = Dict("float32"=>Float32, "float64"=>Float64, "int"=>Int64)
 
@@ -509,13 +513,13 @@ function read_vtk(filename::String)
         if data[idx] == "VECTORS" && reading_node_data
             label = data[idx+1]
             ty = data[idx+2]
-            dtype = TYPES[ty]
+            T  = TYPES[ty]
             idx += 2
-            vectors = zeros(dtype, npoints,3)
+            vectors = zeros(T, npoints,3)
             for i in 1:npoints
-                vectors[i,1] = parse(dtype, data[idx+1])
-                vectors[i,2] = parse(dtype, data[idx+2])
-                vectors[i,3] = parse(dtype, data[idx+3])
+                vectors[i,1] = parse(T, data[idx+1])
+                vectors[i,2] = parse(T, data[idx+2])
+                vectors[i,3] = parse(T, data[idx+3])
                 idx += 3
             end
             node_fields[label] = vectors
@@ -524,13 +528,13 @@ function read_vtk(filename::String)
         if data[idx] == "VECTORS" && reading_elem_data
             label = data[idx+1]
             ty = data[idx+2]
-            dtype = TYPES[ty]
+            T = TYPES[ty]
             idx += 2
-            vectors = zeros(dtype, ncells,3)
+            vectors = zeros(T, ncells,3)
             for i in 1:ncells
-                vectors[i,1] = parse(dtype, data[idx+1])
-                vectors[i,2] = parse(dtype, data[idx+2])
-                vectors[i,3] = parse(dtype, data[idx+3])
+                vectors[i,1] = parse(T, data[idx+1])
+                vectors[i,2] = parse(T, data[idx+2])
+                vectors[i,3] = parse(T, data[idx+3])
                 idx += 3
             end
             elem_fields[label] = vectors
@@ -539,25 +543,40 @@ function read_vtk(filename::String)
         if data[idx] == "SCALARS" && reading_node_data
             label = data[idx+1]
             ty = data[idx+2]
+            T        = TYPES[ty]
             idx += 5
-            scalars = zeros(TYPES[ty], npoints)
+            scalars = zeros(T, npoints)
             for i in 1:npoints
                 idx += 1
-                scalars[i] = parse(TYPES[ty], data[idx])
+                scalars[i] = parse(T, data[idx])
             end
             node_fields[label] = scalars
         end
 
         if data[idx] == "SCALARS" && reading_elem_data
-            label = data[idx+1]
-            ty = data[idx+2]
-            idx += 5
-            scalars = zeros(TYPES[ty], ncells)
-            for i in 1:ncells
-                idx += 1
-                scalars[i] = parse(TYPES[ty], data[idx])
+            label    = data[idx+1]
+            ty       = data[idx+2]
+            T        = TYPES[ty]
+            ncomps   = parse(Int, data[idx+3])
+            idx     += 5
+            
+            if ncomps == 1
+                scalars  = zeros(T, ncells)
+                for i in 1:ncells
+                    idx += 1
+                    scalars[i] = parse(T, data[idx])
+                end
+                elem_fields[label] = scalars
+            else
+                vectors  = zeros(T, ncells, ncomps)
+                for i in 1:ncells
+                    for j in 1:ncomps
+                        idx += 1
+                        vectors[i,j] = parse(T, data[idx])
+                    end
+                end
+                elem_fields[label] = vectors
             end
-            elem_fields[label] = scalars
         end
 
         idx += 1
@@ -642,19 +661,19 @@ function get_array(data_array::XmlElement)
     TYPES = Dict("Float32"=>Float32, "Float64"=>Float64, "Int32"=>Int32, "Int64"=>Int64, "UInt64"=>UInt64)
 
     ncomps = haskey(data_array.attributes, "NumberOfComponents") ? parse(Int, data_array.attributes["NumberOfComponents"]) : 1
-    dtype  = TYPES[data_array.attributes["type"]]
+    T  = TYPES[data_array.attributes["type"]]
     isbin  = data_array.content isa Vector{UInt8}
     if isbin
         if ncomps==1
-            return reinterpret(dtype, data_array.content)
+            return reinterpret(T, data_array.content)
         else
-            return transpose(reshape(reinterpret(dtype, data_array.content), ncomps, :))
+            return transpose(reshape(reinterpret(T, data_array.content), ncomps, :))
         end
     else # string
         if ncomps==1
-            return parse.(dtype, split(data_array.content))
+            return parse.(T, split(data_array.content))
         else
-            return transpose(reshape(parse.(dtype, split(data_array.content)), ncomps, :))
+            return transpose(reshape(parse.(T, split(data_array.content)), ncomps, :))
         end
     end
 end
@@ -731,7 +750,6 @@ function Mesh(coords, connects, vtk_types, node_fields, elem_fields)
         # Fix information for 1d and 2d/3d interface elements
         for (i,cell) in enumerate(mesh.elems)
             if cell.shape==POLYVERTEX && interface_data[i,1]>0
-                # @show interface_data[i,1]
                 idx = interface_data[i,1]
                 cell.role  = idx==1 ? :contact : idx==2 ? :cohesive : idx==2 ? :line_interface : :tip
                 vtk_shape  = VTKCellType(interface_data[i,2])
