@@ -396,7 +396,6 @@ function add_cohesive_elements(
     end
     
     # Note: We do NOT filter locked_cells here anymore. 
-    # We will do a precise cleanup at the end.
 
     # --- 2. Index Existing Contact Elements (Geometric Map) ---
     _pos_key(n) = (round(n.coord.x, digits=8)+0.0, round(n.coord.y, digits=8)+0.0, round(n.coord.z, digits=8)+0.0)
@@ -415,7 +414,6 @@ function add_cohesive_elements(
     end
 
     # --- 3. Detect Coincident Faces ---
-    face_geo_map = Dict{Vector{Tuple{Float64,Float64,Float64}}, Tuple{AbstractCell, Int}}()
     face_pairs = Tuple{Cell, Cell}[] 
     
     # Helper to scan faces
@@ -519,6 +517,43 @@ function add_cohesive_elements(
 
     return mesh
 end
+
+
+export load_cracked_mesh
+
+function load_cracked_mesh(filename::String; tag::String="")
+    mesh = Mesh(filename)
+    ndim = mesh.ctx.ndim
+
+    role = ndim==2 ? :line : :surface
+
+    sentinels = select(mesh.elems, role)
+
+    # Iterate over sentinel elements
+    for sentinel in sentinels
+        neighbors = filter(e -> e.role == :cont, sentinel.nodes[1].elems)
+
+        # Look for neighboring elements
+        for i in 2:length(sentinel.nodes)
+            intersect!(neighbors, filter(e -> e.role == :cont, sentinel.nodes[i].elems))
+        end
+
+        # add cohesive element
+        length(neighbors) == 2 || continue
+
+        cohesive = Cell(sentinel.shape, :cohesive, [sentinel.nodes; sentinel.nodes], tag=tag)
+        cohesive.couplings = neighbors
+        push!(mesh.elems, cohesive)
+    end
+
+    # Remove all sentinels
+    mesh.elems = filter(e -> e.role != role, mesh.elems)
+    synchronize(mesh, sort=true, cleandata=true)
+
+    return mesh
+end
+
+
 
 
 # function cracksmesh(mesh::Mesh, opening::Real)
