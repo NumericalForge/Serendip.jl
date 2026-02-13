@@ -92,9 +92,9 @@ mutable struct VonMisesBarState<:ConstState
     ε::Float64
     εpa::Float64
     Δλ::Float64
-    function VonMisesBarState(ctx::Context)
+    function VonMisesBarState(ctx::Context, σ::Float64=0.0)
         this = new(ctx)
-        this.σ   = 0.0
+        this.σ   = σ
         this.ε   = 0.0
         this.εpa = 0.0
         this.Δλ  = 0.0
