@@ -151,15 +151,15 @@ function calc_cohesive_stress(elem::Element{MechCohesive})
             σn = dot(t1, n1)
             τ1 = dot(t1, n2)
             τ2 = dot(t1, n3)
-            push!(projected_stress, [ σn, τ1, τ2 ])
         else
             n1 = Vec3(n1[1], n1[2], 0.0)
             n2 = Vec3(n2[1], n2[2], 0.0)
             t1 = dott(σ, n1)
             σn = dot(t1, n1)
-            τ  = dot(t1, n2)
-            push!(projected_stress, [ σn, τ, 0.0 ])
+            τ1 = dot(t1, n2)
+            τ2 = 0.0
         end
+        push!(projected_stress, cap_stress(elem.cmodel, [ σn, τ1, τ2 ]))
     end
 
     return projected_stress

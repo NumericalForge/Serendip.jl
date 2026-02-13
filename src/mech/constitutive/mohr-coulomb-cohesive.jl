@@ -116,6 +116,12 @@ function stress_strength_ratio(mat::MohrCoulombCohesive, σ::AbstractVector)
     return max(σn/σmax, τ/τmax)
 end
 
+function cap_stress(mat::MohrCoulombCohesive, σ::AbstractVector)
+    σn, τ1, τ2 = σ
+    σmax = calc_σmax(mat, 0.0)
+    return Vec3(min(σn, σmax), τ1, τ2)
+end
+
 
 function yield_deriv(mat::MohrCoulombCohesive, σ::Vec3)
     σn, τ1, τ2 = σ
@@ -132,7 +138,7 @@ function potential_derivs(mat::MohrCoulombCohesive, σ::Vec3)
         return Vec3( 0.0, τ1, τ2 )
     else
         ψ = mat.ψ
-        return Vec3( ψ^2*σn, τ1, τ2 )
+        return Vec3( ψ^2*σn + eps()^0.5, τ1, τ2 )
     end
 end
 
@@ -171,8 +177,6 @@ function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
     if state.Δλ == 0.0  # Elastic 
         return De
     elseif σmax <= tiny && state.w[1] >= 0.0
-        # @show "hi"
-        # Dep  = De*1e-4
         Dep  = De*1e-3
         return Dep
     else
@@ -199,7 +203,7 @@ function nonlinear_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveSt
 
     τtr = √(τ1tr^2 + τ2tr^2 + eps())
 
-    maxits    = 20
+    maxits    = 30
     converged = false
     Δλ        = 0.0
     up        = cstate.up
@@ -221,8 +225,6 @@ function nonlinear_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveSt
         # m at current iterate stress
         m      = potential_derivs(mat, σ)
         norm_m = norm(m)
-        # @show norm_m
-        # @show Δλ
         unit_m = m / (norm_m + eps())
 
         # softening variable at current iterate
@@ -233,7 +235,6 @@ function nonlinear_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveSt
         # residual
         f = τ + μ*(σn - σmax)
         if abs(f) < tol
-            # @show i
             converged = true
             break
         end
@@ -259,13 +260,10 @@ function nonlinear_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveSt
         state.σ  = σ
         state.Δλ = Δλ
         state.up = up
-        # @show up
         return success()
     else
         failure("MohrCoulombCohesive: nonlinear update failed.")
     end
-
-    return success()
 end
 
 
@@ -286,16 +284,12 @@ function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState,
     ftr = yield_func(mat, σtr, σmax)
 
     # Elastic and EP integration
-    # if σmax == 0.0 && cstate.w[1] >= 0.0
-    #     # Return to apex:
-    #     r1 = Vec3( σtr[1]/kn, σtr[2]/ks, σtr[3]/ks )
-    #     r  = r1/norm(r1)
-    #     state.Δλ = norm(r1)
-        
-    #     state.up = cstate.up + state.Δλ
-    #     state.σ  = σtr - state.Δλ*De*r
-    # else
-    if ftr <= 0.0
+    if σmax == 0.0 && cstate.w[1] + Δw[1] >= 0.0
+        # traction-free after full decohesion
+        state.σ   = σtr*0.0
+        state.Δλ  = 1.0
+        state.up  = max(cstate.up, norm(cstate.w + Δw))
+    elseif ftr <= 0.0
         # Pure elastic increment
         state.Δλ = 0.0
         state.σ  = σtr
@@ -313,7 +307,7 @@ end
 
 function state_values(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
     σmax = calc_σmax(mat, state.up)
-    σn, τ1, τ2 =  state.σ
+    σn, τ1, τ2 = state.σ
     τ = sqrt(τ1^2 + τ2^2)
 
     return Dict(
