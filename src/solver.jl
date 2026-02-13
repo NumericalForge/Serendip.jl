@@ -92,23 +92,23 @@ struct SolverSettings
 
     @doc """
         SolverSettings(; tol=0.01, rtol=0.01, dT0=0.01, dTmin=1e-7, dTmax=0.1,
-                          rspan=0.01, tangent_scheme=:forward_euler, maxits=5, autoinc=false, quiet=false)
+                          rspan=0.01, tangent_scheme=:forward_euler, maxits=15, autoinc=false, quiet=false)
 
     Defines configuration parameters for controlling the analysis process.
 
     # Arguments
-    - `tol::Float64`: Absolute tolerance for convergence checks (default: `0.01`).
-    - `rtol::Float64`: Relative tolerance for convergence checks (default: `0.01`).
-    - `autoinc::Bool`: Enable automatic increment control (default: `false`).
-    - `dT0::Float64`: Initial increment of pseudo-time (default: `0.01`).
-    - `dTmin::Float64`: Minimum allowed increment of pseudo-time (default: `1e-7`).
-    - `dTmax::Float64`: Maximum allowed increment of pseudo-time (default: `0.1`).
-    - `tangent_scheme::Symbol`: Tangent update approach (`:forward_euler`, `:heun`, `ralston`).
-    - `maxits::Int`: Maximum number of iterations per increment (default: `5`).
-    - `rspan::Float64`: Progression span for reapplying the residual in nonlinear iterations (default: `0.01`).
-    - `alpha::Float64`: Damping coefficient for the mass matrix used in dynamic analyses (default: `0.0`).
-    - `beta::Float64`: Damping coefficient for the stiffness matrix used in dynamic analyses (default: `0.0`).
-    - `nmodes::Int`: Number of modes to compute in modal analysis (default: `5`).
+    - `tol::Float64`: Absolute tolerance for convergence checks.
+    - `rtol::Float64`: Relative tolerance for convergence checks.
+    - `autoinc::Bool`: Enable automatic increment control .
+    - `dT0::Float64`: Initial increment of pseudo-time.
+    - `dTmin::Float64`: Minimum allowed increment of pseudo-time.
+    - `dTmax::Float64`: Maximum allowed increment of pseudo-time.
+    - `tangent_scheme::Symbol`: Tangent update approach (`:forward_euler`, `:heun`, `:ralston`, `:backward_euler`).
+    - `maxits::Int`: Maximum number of iterations per increment .
+    - `rspan::Float64`: Progression span for reapplying the residual in nonlinear iterations.
+    - `alpha::Float64`: Damping coefficient for the mass matrix used in dynamic analyses.
+    - `beta::Float64`: Damping coefficient for the stiffness matrix used in dynamic analyses.
+    - `nmodes::Int`: Number of modes to compute in modal analysis .
 
     # Example
     ```julia
@@ -117,7 +117,7 @@ struct SolverSettings
     """
     function SolverSettings(;
         tol=0.01, rtol=0.01, autoinc=false, dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01,
-        tangent_scheme=:forward_euler, maxits=5, alpha=0.0, beta=0.0, nmodes=5, rayleigh=false)
+        tangent_scheme=:forward_euler, maxits=15, alpha=0.0, beta=0.0, nmodes=5, rayleigh=false)
         return new(tol, rtol, autoinc, dT0, dTmin, dTmax, tangent_scheme, maxits, rspan, alpha, beta, nmodes, rayleigh)
     end
 end
