@@ -92,7 +92,7 @@ mutable struct VonMisesBarState<:ConstState
     ε::Float64
     εpa::Float64
     Δλ::Float64
-    function VonMisesBarState(ctx::Context, σ::Float64=0.0)
+    function VonMisesBarState(ctx::Context; σ::Float64=0.0)
         this = new(ctx)
         this.σ   = σ
         this.ε   = 0.0
@@ -446,7 +446,7 @@ function nonlinear_update(mat::VonMises, state::VonMisesBeamState, cstate::VonMi
         σ  = σtr - Δλ*(De.*n_tr)
     end
 
-    return failure("VonMises: Could not find Δλ")
+    return failure("VonMises: plastic update failed")
 end
 
 
