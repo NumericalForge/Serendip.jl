@@ -154,6 +154,13 @@ function stress_strength_ratio(mat::PowerYieldCohesive, σ::AbstractVector)
 end
 
 
+function cap_stress(mat::PowerYieldCohesive, σ::AbstractVector)
+    σn, τ1, τ2 = σ
+    σmax = calc_σmax(mat, 0.0)
+    return Vec3(min(σn, σmax), τ1, τ2)
+end
+
+
 function yield_derivs(mat::PowerYieldCohesive, σ::Vec3, σmax::Float64)
     ft  = mat.ft
     α   = mat.α

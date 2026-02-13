@@ -262,7 +262,7 @@ function nonlinear_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveSt
         state.up = up
         return success()
     else
-        failure("MohrCoulombCohesive: nonlinear update failed.")
+        failure("MohrCoulombCohesive: plastic update failed.")
     end
 end
 
@@ -286,7 +286,7 @@ function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState,
     # Elastic and EP integration
     if σmax == 0.0 && cstate.w[1] + Δw[1] >= 0.0
         # traction-free after full decohesion
-        state.σ   = σtr*0.0
+        state.σ   = Vec(0.0, 0.0, 0.0)
         state.Δλ  = 1.0
         state.up  = max(cstate.up, norm(cstate.w + Δw))
     elseif ftr <= 0.0
