@@ -66,9 +66,9 @@ mutable struct ElasticBarState<:ConstState
     ctx::Context
     σ::Float64
     ε::Float64
-    function ElasticBarState(ctx::Context)
+    function ElasticBarState(ctx::Context; σ::Float64=0.0)
         this = new(ctx)
-        this.σ = 0.0
+        this.σ = σ
         this.ε = 0.0
         return this
     end
