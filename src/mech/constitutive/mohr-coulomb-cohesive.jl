@@ -116,24 +116,28 @@ function stress_strength_ratio(mat::MohrCoulombCohesive, σ::AbstractVector)
     return max(σn/σmax, τ/τmax)
 end
 
+
 function cap_stress(mat::MohrCoulombCohesive, σ::AbstractVector)
     σn, τ1, τ2 = σ
     σmax = calc_σmax(mat, 0.0)
-    return Vec3(min(σn, σmax), τ1, τ2)
+    τmax = max( (σmax - σn)*mat.μ, 0.0)
+    return Vec3(min(σn, σmax), min(τ1, τmax), min(τ2, τmax))
 end
 
 
-function yield_deriv(mat::MohrCoulombCohesive, σ::Vec3)
+function yield_derivs(mat::MohrCoulombCohesive, σ::Vec3)
     σn, τ1, τ2 = σ
 
     τ = √(τ1^2 + τ2^2 + eps())
-    return Vec3( mat.μ, τ1/τ, τ2/τ )
+
+    ∂f∂σmax = -mat.μ
+    return Vec3( mat.μ, τ1/τ, τ2/τ ), ∂f∂σmax
 end
 
 
 function potential_derivs(mat::MohrCoulombCohesive, σ::Vec3)
     σn, τ1, τ2 = σ
-    
+
     if σn < 0.0 
         return Vec3( 0.0, τ1, τ2 )
     else
@@ -158,6 +162,7 @@ function calc_kn_ks(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
     kn = mat.E*mat.ζ/state.h
     G  = mat.E/(2*(1 + mat.ν))
     ks = G*mat.ζ/state.h
+    # ks = G/state.h*0.1
     return kn, ks
 end
 
@@ -171,30 +176,27 @@ function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
                     0.0  ks   0.0
                     0.0  0.0  ks ]
 
-    # @show σmax
-    # @show state.up
-
     if state.Δλ == 0.0  # Elastic 
         return De
     elseif σmax <= tiny && state.w[1] >= 0.0
-        Dep  = De*1e-3
+        Dep = De*1e-3
         return Dep
     else
-        n = yield_deriv(mat, state.σ)
+        n, ∂f∂σmax = yield_derivs(mat, state.σ)
         m = potential_derivs(mat, state.σ)
         H = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
         
         De_m  = De*m
         nT_De = n'*De
-        den = dot(n, De_m) + mat.μ*H*norm(m)
-        Dep = De - (De_m*nT_De)/den
+        den   = dot(n, De_m) - ∂f∂σmax*H*norm(m)
+        Dep   = De - (De_m*nT_De)/den
 
         return Dep
     end
 end
 
 
-function nonlinear_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, cstate::MohrCoulombCohesiveState, σtr::Vec3)
+function plastic_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState, cstate::MohrCoulombCohesiveState, σtr::Vec3)
     kn, ks = calc_kn_ks(mat, state)
     σntr, τ1tr, τ2tr = σtr
 
@@ -251,7 +253,7 @@ function nonlinear_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveSt
         ∂τ∂Δλ    = -τtr*ks/den_τ^2
         ∂up∂Δλ   = norm_m + Δλ*dot(unit_m, ∂m∂Δλ)
         ∂σmax∂Δλ = H*∂up∂Δλ
-        
+
         ∂f∂Δλ = ∂τ∂Δλ + ∂σn∂Δλ*μ - ∂σmax∂Δλ*μ
         Δλ    = max(Δλ - f/∂f∂Δλ, 0.0)
     end
@@ -286,7 +288,7 @@ function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState,
     # Elastic and EP integration
     if σmax == 0.0 && cstate.w[1] + Δw[1] >= 0.0
         # traction-free after full decohesion
-        state.σ   = Vec(0.0, 0.0, 0.0)
+        state.σ   = Vec3(0.0, 0.0, 0.0)
         state.Δλ  = 1.0
         state.up  = max(cstate.up, norm(cstate.w + Δw))
     elseif ftr <= 0.0
@@ -295,7 +297,7 @@ function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState,
         state.σ  = σtr
     else
         # Plastic increment
-        status = nonlinear_update(mat, state, cstate, σtr)
+        status = plastic_update(mat, state, cstate, σtr)
         failed(status) && return state.σ, status
     end
 

@@ -156,7 +156,7 @@ function calcD(mat::MohrCoulombContact, state::MohrCoulombContactState)
 end
 
 
-function nonlinear_update(mat::MohrCoulombContact, state::MohrCoulombContactState, cstate::MohrCoulombContactState, σtr::Vec3)
+function plastic_update(mat::MohrCoulombContact, state::MohrCoulombContactState, cstate::MohrCoulombContactState, σtr::Vec3)
     # Compute Δλ
 
     maxits = 50
@@ -254,7 +254,7 @@ function update_state(mat::MohrCoulombContact, state::MohrCoulombContactState, c
         state.σ  = σtr
     else
         # Plastic increment
-        status = nonlinear_update(mat, state, cstate, σtr)
+        status = plastic_update(mat, state, cstate, σtr)
         failed(status) && return state.σ, status
     end
 

@@ -53,6 +53,7 @@ mutable struct PowerYieldCohesive<:Constitutive
     fc::Float64
     ft::Float64
     wc::Float64
+    ψ ::Float64
     ft_law::Symbol
     ft_fun::Union{AbstractSpline,Nothing}
     α::Float64
@@ -68,6 +69,7 @@ mutable struct PowerYieldCohesive<:Constitutive
         ft::Real = NaN,
         wc::Real = NaN,
         GF::Real = NaN,
+        psi::Real  = 1.0,
         ft_law::Union{Symbol,AbstractSpline} = :hordijk,
         alpha::Real = 1.5,
         gamma::Real = 0.1,
@@ -79,6 +81,7 @@ mutable struct PowerYieldCohesive<:Constitutive
         @check 0<=nu<0.5 "PowerYieldCohesive: Poisson ratio nu must be in the range [0, 0.5). Got $(repr(nu))."
         @check fc<0 "PowerYieldCohesive: Compressive strength fc must be < 0. Got $(repr(fc))."
         @check ft>0 "PowerYieldCohesive: Tensile strength ft must be > 0. Got $(repr(ft))."
+        @check psi>0 "PowerYieldCohesive: Dilatancy coefficient psi must be non-negative. Got $(repr(psi))."
         @check zeta>=0 "PowerYieldCohesive: Factor zeta must be non-negative. Got $(repr(zeta))."
         @check alpha > 0.5 "PowerYieldCohesive: alpha must be greater than 0.5. Got $(repr(alpha))."
         @check gamma >= 0.0 "PowerYieldCohesive: gamma must be non-negative. Got $(repr(gamma))."
@@ -88,14 +91,11 @@ mutable struct PowerYieldCohesive<:Constitutive
         wc, ft_law, ft_fun, status = setup_tensile_strength(ft,  GF, wc, ft_law)
         failed(status) && throw(ArgumentError("PowerYieldCohesive: " * status.message))
 
-        a     = (2*alpha*ft + alpha*fc - fc - √(alpha^2*fc^2 - 4*alpha^2*fc*ft + 4*alpha^2*ft^2 - 2*alpha*fc^2 + fc^2)) / (4*alpha-2)
-        b     = √(alpha*(2*a-fc)*(ft-a))
-        βini  = (b^2/ft^2)^alpha/(ft-a)
+        a    = (2*alpha*ft + alpha*fc - fc - √(alpha^2*fc^2 - 4*alpha^2*fc*ft + 4*alpha^2*ft^2 - 2*alpha*fc^2 + fc^2)) / (4*alpha-2)
+        b    = √(alpha*(2*a-fc)*(ft-a))
+        βini = (b^2/ft^2)^alpha/(ft-a)
 
-        return new(
-            E, nu, fc, ft, wc, ft_law, ft_fun,
-            alpha, gamma, theta, βini, zeta
-        )
+        return new(E, nu, fc, ft, wc, psi, ft_law, ft_fun, alpha, gamma, theta, βini, zeta)
     end
 end
 
@@ -122,15 +122,6 @@ end
 # Type of corresponding state structure
 compat_state_type(::Type{PowerYieldCohesive}, ::Type{MechCohesive}) = PowerYieldCohesiveState
 
-
-function paramsdict(mat::PowerYieldCohesive)
-    mat = OrderedDict( string(field)=> getfield(mat, field) for field in fieldnames(typeof(mat)) )
-
-    mat.ft_law in (:hordijk, :soft) && ( mat["GF"] = 0.1943*mat.ft*mat.wc )
-    return mat
-end
-
-
 function calc_β(mat::PowerYieldCohesive, σmax::Float64)
     βini = mat.βini
     βres = mat.γ*βini
@@ -139,18 +130,22 @@ end
 
 
 function yield_func(mat::PowerYieldCohesive, σ::Vec3, σmax::Float64)
-    β  = calc_β(mat, σmax)
-    
-    return β*(σ[1] - σmax) + ((σ[2]^2 + σ[3]^2)/mat.ft^2)^mat.α
+    σn, τ1, τ2 = σ
+
+    β = calc_β(mat, σmax)
+
+    return β*(σn - σmax) + ((τ1^2 + τ2^2)/mat.ft^2)^mat.α
 end
 
 
 function stress_strength_ratio(mat::PowerYieldCohesive, σ::AbstractVector)
+    σn, τ1, τ2 = σ
+
     σmax = calc_σmax(mat, 0.0)
     β    = calc_β(mat, σmax)
-    τmax = mat.ft*( β*abs(σmax - σ[1]) )^(1 / (2*mat.α))
-    τ    = sqrt(σ[2]^2 + σ[3]^2)
-    return max(σ[1]/σmax, τ/τmax)
+    τmax = mat.ft*( β*abs(σmax - σn) )^(1 / (2*mat.α))
+    τ    = √(τ1^2 + τ2^2)
+    return max(σn/σmax, τ/τmax)
 end
 
 
@@ -161,33 +156,40 @@ function cap_stress(mat::PowerYieldCohesive, σ::AbstractVector)
 end
 
 
+function calc_∂β∂σmax(mat::PowerYieldCohesive, σmax::Float64)
+    σmax == 0.0 && return 0.0
+    βini = mat.βini
+    βres = mat.γ*βini
+    return (βini - βres)*mat.θ/mat.ft*(σmax/mat.ft)^(mat.θ-1)
+end
+
+
 function yield_derivs(mat::PowerYieldCohesive, σ::Vec3, σmax::Float64)
+    σn, τ1, τ2 = σ
+    τ   = √(τ1^2 + τ2^2 + eps())
     ft  = mat.ft
     α   = mat.α
     β   = calc_β(mat, σmax)
-    tmp = 2*α/ft^2*((σ[2]^2+σ[3]^2)/ft^2)^(α-1)
+    tmp = τ1==τ2==0.0 ? 0.0 : 2*α/ft^2*((τ1^2+τ2^2)/ft^2)^(α-1)
 
-    σ[2]==σ[3]==0.0 && (tmp=0)
+    
+    ∂f∂σ    = Vec3( β , τ1*tmp, τ2*tmp )
+    ∂β∂σmax = calc_∂β∂σmax(mat, σmax)
+    dfdσmax = ∂β∂σmax*(σn - σmax) - β
 
-    return Vec3( β , σ[2]*tmp, σ[3]*tmp )
- 
+    return ∂f∂σ, dfdσmax
 end
 
 
 function potential_derivs(mat::PowerYieldCohesive, σ::Vec3)
-    if σ[1] > 0.0 
-        # G1:
-        r = Vec3( 2*σ[1], 2*σ[2], 2*σ[3] )
+    σn, τ1, τ2 = σ
+
+    if σn < 0.0 
+        return Vec3( 0.0, τ1, τ2 )
     else
-        # G2:
-        r = Vec3( 0.0, 2*σ[2], 2*σ[3]  )
+        ψ = mat.ψ
+        return Vec3( ψ^2*σn + eps()^0.5, τ1, τ2 )
     end
-
-    if r[1]==r[2]==r[3]==0.0
-        r = Vec3( 1.0, 0.0, 0.0 )
-    end
-
-    return r
 end
 
 
@@ -213,7 +215,7 @@ end
 function calcD(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
     σmax   = calc_σmax(mat, state.up)
     kn, ks = calc_kn_ks(mat, state)
-    θ      = mat.θ
+    tiny   = 1e-6*mat.ft
 
     De = @SMatrix [ kn   0.0  0.0
                     0.0  ks   0.0
@@ -221,143 +223,100 @@ function calcD(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
 
     if state.Δλ == 0.0  # Elastic 
         return De
-    elseif σmax == 0.0 && state.w[1] >= 0.0
+    elseif σmax <= tiny && state.w[1] >= 0.0
         Dep = De*1e-3
         return Dep
     else
-        ft      = mat.ft
-        βini    = mat.βini
-        βres    = mat.γ*βini
-        β       = calc_β(mat, σmax)
-        dfdσmax = (βini-βres)/ft*(state.σ[1]-σmax)*θ*(σmax/ft)^(θ-1) - β
+        n, ∂fσmax = yield_derivs(mat, state.σ, σmax)
+        m = potential_derivs(mat, state.σ)
+        H = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
+        
+        De_m  = De*m
+        nT_De = n'*De
+        den   = dot(n, De_m) - ∂fσmax*H*norm(m)
+        Dep   = De - (De_m*nT_De)/den
 
-        r = potential_derivs(mat, state.σ)
-        dfdσ = yield_derivs(mat, state.σ, σmax)
-        dσmaxdup = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
-
-        den = kn*r[1]*dfdσ[1] + ks*r[2]*dfdσ[2] + ks*r[3]*dfdσ[3] - dfdσmax*dσmaxdup*norm(r)
-
-        Dep = [   kn - kn^2*r[1]*dfdσ[1]/den    -kn*ks*r[1]*dfdσ[2]/den      -kn*ks*r[1]*dfdσ[3]/den
-                  -kn*ks*r[2]*dfdσ[1]/den        ks - ks^2*r[2]*dfdσ[2]/den  -ks^2*r[2]*dfdσ[3]/den
-                  -kn*ks*r[3]*dfdσ[1]/den       -ks^2*r[3]*dfdσ[2]/den        ks - ks^2*r[3]*dfdσ[3]/den ]
         return Dep
     end
 end
 
 
-function nonlinear_update(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, cstate::PowerYieldCohesiveState, σtr::Vec3)
-    maxits = 50
-    Δλ     = 0.0
-    up     = 0.0
-    σ      = zeros(Vec3)
-    σ0     = zeros(Vec3)
-    βini   = mat.βini
-    βres   = mat.γ*βini
-    θ      = mat.θ
-    ft     = mat.ft
-    tol    = 1e-6
-
+function plastic_update(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, cstate::PowerYieldCohesiveState, σtr::Vec3)
     kn, ks = calc_kn_ks(mat, state)
+    σntr, τ1tr, τ2tr = σtr
+
+    ψ = mat.ψ
+
+    τtr = √(τ1tr^2 + τ2tr^2 + eps())
+
+    maxits    = 30
+    converged = false
+    Δλ        = 0.0
+    up        = cstate.up
+    σ         = cstate.σ
+    σmax      = calc_σmax(mat, up)
+    tol       = mat.ft*1e-6
 
     for i in 1:maxits
+        den_σn = 1.0 + Δλ*kn*ψ^2
+        den_τ  = 1.0 + Δλ*ks
 
-        # quantities at n+1
-        if σtr[1]>0
-            σ     = Vec3( σtr[1]/(1+2*Δλ*kn),  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) )
-            dσdΔλ = Vec3( -2*kn*σtr[1]/(1+2*Δλ*kn)^2,  -2*ks*σtr[2]/(1+2*Δλ*ks)^2,  -2*ks*σtr[3]/(1+2*Δλ*ks)^2 )
-        else
-            σ     = Vec3( σtr[1],  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) )
-            dσdΔλ = Vec3( 0,  -2*ks*σtr[2]/(1+2*Δλ*ks)^2,  -2*ks*σtr[3]/(1+2*Δλ*ks)^2 )
-        end
+        # stresses at current iterate
+        σn = (σntr < 0) ? σntr : σntr/den_σn
+        τ1 = τ1tr/den_τ
+        τ2 = τ2tr/den_τ
+        τ  = √(τ1^2 + τ2^2 + eps())
+        σ  = Vec3(σn, τ1, τ2)
 
-        drdΔλ = 2*dσdΔλ
-                 
-        r      = potential_derivs(mat, σ)
-        norm_r = norm(r)
-        up     = cstate.up + Δλ*norm_r
-        σmax   = calc_σmax(mat, up)
-        β      = calc_β(mat, σmax)
-        f      = yield_func(mat, σ, σmax)
+        # m at current iterate stress
+        m      = potential_derivs(mat, σ)
+        norm_m = norm(m)
+        unit_m = m / (norm_m + eps())
 
-        dfdσ    = yield_derivs(mat, σ, σmax)
-        dfdσmax = (βini-βres)/ft*(σ[1]-σmax)*θ*(σmax/ft)^(θ-1) - β
+        # softening variable at current iterate
+        up   = cstate.up + Δλ*norm_m
+        σmax = calc_σmax(mat, up)
+        H    = deriv_σmax_up(mat, up)
 
-        dσmaxdup = deriv_σmax_up(mat, up)
-        dσmaxdΔλ = dσmaxdup*(norm_r + Δλ*dot(r/norm_r, drdΔλ))
-        dfdΔλ    = dot(dfdσ, dσdΔλ) + dfdσmax*dσmaxdΔλ
-        Δλ       = Δλ - f/dfdΔλ
-        
-        if Δλ<=0 || isnan(Δλ) || i==maxits
-            # return 0.0, state.σ, 0.0, failure("PowerYieldCohesive: failed to find Δλ")
-            # switch to bissection method
-            # return calc_Δλ_bis(mat, σtr)
-            return failure("PowerYieldCohesive: failed to find Δλ")
-        end
-
-        if maximum(abs, σ-σ0) <= tol
+        # residual
+        f = yield_func(mat, σ, σmax)
+        if abs(f) < tol
+            converged = true
             break
         end
-        σ0 = σ
+
+        # derivatives
+        if σntr<0
+            ∂σn∂Δλ = 0.0
+            ∂m∂Δλ  = Vec3( 0.0, -τ1tr*ks/den_τ^2, -τ2tr*ks/den_τ^2 )
+        else
+            ∂σn∂Δλ = -σntr*kn*ψ^2/den_σn^2
+            ∂m∂Δλ  = Vec3( -σntr*kn*ψ^4/den_σn^2, -τ1tr*ks/den_τ^2, -τ2tr*ks/den_τ^2 )
+        end
+
+        ∂τ∂Δλ    = -τtr*ks/den_τ^2
+        ∂up∂Δλ   = norm_m + Δλ*dot(unit_m, ∂m∂Δλ)
+        ∂σmax∂Δλ = H*∂up∂Δλ
+
+        ∂β∂σmax = calc_∂β∂σmax(mat, σmax)
+        ∂β∂Δλ   = ∂β∂σmax*∂σmax∂Δλ
+        β       = calc_β(mat, σmax)
+        ∂f∂Δλ   = ∂β∂Δλ*(σn-σmax) + β*(∂σn∂Δλ - ∂σmax∂Δλ) + 2*mat.α/mat.ft*(τ/mat.ft)^(2*mat.α - 1)*∂τ∂Δλ
+        Δλ      = max(Δλ - f/∂f∂Δλ, 0.0)
     end
 
-    if σtr[1]>0
-        σ = Vec3( σtr[1]/(1 + 2*Δλ*kn), σtr[2]/(1 + 2*Δλ*ks), σtr[3]/(1 + 2*Δλ*ks) )
+    if converged
+        state.σ  = σ
+        state.Δλ = Δλ
+        state.up = up
+        return success()
     else
-        σ = Vec3( σtr[1], σtr[2]/(1 + 2*Δλ*ks), σtr[3]/(1 + 2*Δλ*ks) )
+        failure("PowerYieldCohesive: plastic update failed.")
     end
-
-    state.Δλ = Δλ
-    state.σ  = σ
-    r        = potential_derivs(mat, σ)
-    state.up = cstate.up + state.Δλ*norm(r)
-    return success()
 end
 
 
-# function calc_σ_up(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σtr::Vec3, Δλ::Float64)
-#     kn, ks  = calc_kn_ks(mat, state)
-
-#     if σtr[1]>0
-#         σ = [ σtr[1]/(1+2*Δλ*kn),  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) ]
-#     else
-#         σ = [ σtr[1],  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) ]
-#     end
-
-#     r  = potential_derivs(mat, state, σ)
-#     up = state.up + Δλ*norm(r)
-#     return σ, up
-# end
-
-
-# function calc_Δλ_bis(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, σtr::Vec3)
-#     kn, ks  = calc_kn_ks(mat, state)
-#     De = @SMatrix [ kn   0.0  0.0
-#                     0.0  ks   0.0
-#                     0.0  0.0  ks ]
-    
-#     r = potential_derivs(mat, state, state.σ)
-
-#     ff(Δλ) = begin
-#         # quantities at n+1
-#         σ, up = calc_σ_up(mat, state, σtr, Δλ)
-#         σmax  = calc_σmax(mat, up)
-#         yield_func(mat, state, σ, σmax)
-#     end
-    
-#     # find root interval from Δλ estimative
-#     Δλ0 = norm(σtr - cstate.σ)/norm(De*r)
-#     a, b, status = findrootinterval(ff, 0.0, Δλ0)
-#     failed(status) && return state.σ, 0.0, 0.0, status
-
-#     Δλ, status = findroot(ff, a, b, ftol=1e-5, method=:bisection)
-#     failed(status) && return 0.0, status
-
-#     return Δλ, success()  
-# end
-
-
 function update_state(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, cstate::PowerYieldCohesiveState, Δw::Vector{Float64})
-
     kn, ks = calc_kn_ks(mat, state)
     De = @SMatrix [ kn   0.0  0.0
                     0.0  ks   0.0
@@ -366,25 +325,26 @@ function update_state(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, c
     σmax = calc_σmax(mat, cstate.up)  
 
     if isnan(Δw[1]) || isnan(Δw[2])
-        alert("PowerYieldCohesive: Invalid value for joint displacement: Δw = $Δw")
+        alert("PowerYieldCohesive: Invalid value for relative displacement: Δw = $Δw")
     end
 
     # σ trial and f trial
-    σtr  = cstate.σ + De*Δw
-    ftr  = yield_func(mat, σtr, σmax)
+    σtr = cstate.σ + De*Δw
+    ftr = yield_func(mat, σtr, σmax)
 
     # Elastic and EP integration
-    if ftr <= 0.0
-        state.Δλ  = 0.0
-        state.σ   = σtr
-    elseif state.up>=mat.wc && σtr[1]>0
-        Δup      = norm(Vec3( σtr[1]/kn, σtr[2]/ks, σtr[3]/ks ))
-        state.up = cstate.up + Δup
-        state.σ  = zeros(Vec3)
-        state.Δλ = 1.0
+    if σmax == 0.0 && cstate.w[1] + Δw[1] >= 0.0
+        # traction-free after full decohesion
+        state.σ   = Vec3(0.0, 0.0, 0.0)
+        state.Δλ  = 1.0
+        state.up  = max(cstate.up, norm(cstate.w + Δw))
+    elseif ftr <= 0.0
+        # Pure elastic increment
+        state.Δλ = 0.0
+        state.σ  = σtr
     else
         # Plastic increment
-        status = nonlinear_update(mat, state, cstate, σtr)
+        status = plastic_update(mat, state, cstate, σtr)
         failed(status) && return state.σ, status
     end
 
@@ -396,15 +356,16 @@ end
 
 function state_values(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
     σmax = calc_σmax(mat, state.up)
-    τ    = sqrt(state.σ[2]^2 + state.σ[3]^2)
+    σn, τ1, τ2 = state.σ
+    τ = sqrt(τ1^2 + τ2^2)
 
     return Dict(
         :w    => state.w[1],
-        :σn   => state.σ[1],
+        :σn   => σn,
         :τ    => τ,
         :up   => state.up,
         :σmax => σmax
-        )
+    )
 end
 
 

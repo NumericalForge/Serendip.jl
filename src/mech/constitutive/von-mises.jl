@@ -403,7 +403,7 @@ function update_state(mat::VonMises, state::VonMisesBeamState, cstate::VonMisesB
         state.Δλ = 0.0
         state.σ  = σtr
     else
-        status = nonlinear_update(mat, state, cstate, σtr)
+        status = plastic_update(mat, state, cstate, σtr)
         failed(status) && return state.σ, status
     end
 
@@ -414,7 +414,7 @@ function update_state(mat::VonMises, state::VonMisesBeamState, cstate::VonMisesB
 end
 
 
-function nonlinear_update(mat::VonMises, state::VonMisesBeamState, cstate::VonMisesBeamState, σtr::Vec3)
+function plastic_update(mat::VonMises, state::VonMisesBeamState, cstate::VonMisesBeamState, σtr::Vec3)
     E, ν = mat.E, mat.ν
     G  = state.αs*E/2/(1+ν)
     De = Vec3(E, 2*G, 2*G)
