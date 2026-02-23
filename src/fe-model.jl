@@ -213,12 +213,9 @@ function FEModel(
     model.faces = CellFace[]
     for (i,cell) in enumerate(mesh.faces)
         conn = [ p.id for p in cell.nodes ]
-        face = CellFace(cell.shape, cell.role, model.nodes[conn], tag=cell.tag)
-        if cell.owner!==nothing
-            face.owner = model.elems[cell.owner.id]
-        else
-            error("FEModel: face $(i) has no owner element")
-        end
+        face = CellFace(cell.shape, cell.role, model.nodes[conn], tag=cell.tag, facet_idx=cell.facet_idx)
+        cell.owner === nothing && error("FEModel: face $(i) has no owner element")
+        face.owner = model.elems[cell.owner.id]
         face.id = i
         push!(model.faces, face)
     end
@@ -227,10 +224,9 @@ function FEModel(
     model.edges = CellEdge[]
     for (i,cell) in enumerate(mesh.edges)
         conn = [ p.id for p in cell.nodes ]
-        edge = CellEdge(cell.shape, cell.role, model.nodes[conn], tag=cell.tag)
-        if cell.owner!==nothing
-            edge.owner = model.elems[cell.owner.id]
-        end
+        edge = CellEdge(cell.shape, cell.role, model.nodes[conn], tag=cell.tag, facet_idx=cell.facet_idx)
+        cell.owner===nothing && error("FEModel: edge $(i) has no owner element")
+        edge.owner = model.elems[cell.owner.id]
         edge.id = i
         push!(model.edges, edge)
     end
