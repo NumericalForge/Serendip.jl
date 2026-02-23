@@ -1,374 +1,28 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
-# """
-#     add_boundary_contact_elements(mesh, selector; tag="", nodes_tag="", quiet=false)
-
-# Add contact interface elements to the boundary of `mesh`, coupling the original boundary faces with duplicated support nodes.  
-# Useful for modeling surface contact or elastic supports (e.g., Winkler foundation).
-
-# # Arguments
-# - `mesh::Mesh`: The mesh where boundary contact elements will be added.
-# - `selector::Union{Expr,Symbolic,Tuple,String,Nothing}`: Region selector that defines which boundary faces receive contact elements.
-# - `tag::String=""`: Tag to assign to the created contact elements.
-# - `nodes_tag::String=""`: Tag for the duplicated support nodes.
-# - `quiet::Bool=false`: Suppress console output if `true`.
-
-# # Returns
-# - `Mesh`: The updated mesh containing the new contact interface elements.
-
-# # Example
-# ```julia
-# add_boundary_contact_elements(mesh, selector="bottom_face", tag="foundation_contact", nodes_tag="support_nodes")
-# ```
-# """
-# function add_boundary_contact_elements(
-#     mesh        :: Mesh,
-#     selector    :: Union{Expr,Symbolic,Tuple,String,Nothing}=nothing;
-#     tag         :: String="",
-#     nodes_tag   :: String="",
-#     quiet       :: Bool=false,
-# )
-
-#     quiet || printstyled("Addition of boundary interface elements:\n", bold=true, color=:cyan)
-
-#     selector === nothing && throw(SerendipException("add_boundary_interface_elements: selector argument is required."))
-
-#     # Get target cells
-#     faces = select(mesh.faces, selector)
-#     isempty(faces) && throw(SerendipException("add_boundary_interface_elements: no target cells found for selector $(repr(selector))."))
-
-#     # duplicate nodes
-#     nodes_to_dup = Set{Node}( node for face in faces for node in face.nodes )
-#     new_nodes_d  = Dict{UInt64, Node}( hash(p) => Node(p.coord, tag=nodes_tag) for p in nodes_to_dup )
-
-#     # Add contact elements
-#     contact_cells = Cell[]
-#     for face in faces
-#         con = copy(face.nodes)
-#         for (i, node) in enumerate(face.nodes)
-#             hs = hash(node)
-#             n  = new_nodes_d[hs]
-#             push!(con, n)
-#         end
-#         contact_cell = Cell(face.shape, :contact, con, tag=tag)
-#         contact_cell.couplings = [ face.owner ]
-#         push!(contact_cells, contact_cell)
-#     end
-
-#     # Update
-#     append!(mesh.elems, contact_cells)
-#     append!(mesh.nodes, collect(values(new_nodes_d)))
-
-#     # Update and reorder mesh
-#     synchronize(mesh, sort=true, cleandata=true)
-
-#     if !quiet
-#         @printf "  %5d new contact cells\n" length(contact_cells)
-#         @printf "  %5d total cells\n" length(mesh.elems)
-#     end
-
-#     return mesh
-# end
-
-
-
-# """
-#     add_boundary_shell_elements(mesh, selector; tag="", contact_tag="", quiet=false)
-
-# Add shell (surface) elements to the boundary of `mesh`, optionally coupling them with contact interface elements.
-
-# # Arguments
-# - `mesh::Mesh`: The mesh where shell elements will be added.
-# - `selector::Union{Expr,Symbolic,Tuple,String}`: Region selector defining which boundary faces are converted to shells.
-# - `tag::String=""`: Tag assigned to the created shell elements.
-# - `contact_tag::String=""`: If provided, also create contact elements linking original faces and new shell nodes, tagged with this value.
-# - `quiet::Bool=false`: Suppress console output if `true`.
-
-# # Returns
-# - `Mesh`: The updated mesh including the new shell and, if applicable, contact elements.
-
-# # Example
-# ```julia
-# add_boundary_shell_elements(mesh, selector="outer_faces", tag="shell", contact_tag="shell_contact")
-# ```
-# """
-# function add_boundary_shell_elements(
-#     mesh       :: Mesh,
-#     selector   :: Union{Expr,Symbolic,Tuple,String};
-#     tag        :: String="",
-#     contact_tag:: String="",
-#     quiet      :: Bool=false,
-# )
-
-#     quiet || printstyled("Addition of boundary shell elements:\n", bold=true, color=:cyan)
-    
-#     faces = select(mesh.faces, selector)
-#     gen_contact_elems = contact_tag != ""
-
-#     # Add shell elements
-#     new_cells   = Cell[]
-#     new_nodes_d = Dict{UInt64, Node}()
-
-#     if gen_contact_elems
-#         nodes_to_dup = Set{Node}( node for face in faces for node in face.nodes )
-#         new_nodes_d  = Dict{UInt64, Node}( hash(p) => Node(p.coord, tag=p.tag) for p in nodes_to_dup )
-
-#         for face in faces
-#             con_sh = Node[]
-#             for node in face.nodes
-#                 hs = hash(node)
-#                 n  = new_nodes_d[hs]
-#                 push!(con_sh, n)
-#             end
-#             shell_cell = Cell(face.shape, :surface, con_sh, tag=tag)
-#             push!(new_cells, shell_cell)
-
-#             contact_cell = Cell(face.shape, :contact, [face.nodes; con_sh], tag=contact_tag)
-#             contact_cell.couplings = [ face.owner, shell_cell ]
-#             push!(new_cells, contact_cell)
-#         end
-#         new_nodes = collect(values(new_nodes_d))
-#         append!(mesh.nodes, new_nodes)
-#     else
-#         for face in faces
-#             shell_cell = Cell(face.shape, :surface, face.nodes, tag=tag)
-#             push!(new_cells, shell_cell)
-#         end
-#     end
-
-#     # Update and reorder mesh
-#     append!(mesh.elems, new_cells)
-#     synchronize(mesh, sort=true, cleandata=true)
-
-#     if !quiet
-#         @printf "  %4d dimensions                           \n" mesh.ctx.ndim
-#         @printf "  %5d nodes\n" length(mesh.nodes)
-#         @printf "  %5d new cells\n" length(new_cells)
-#         # length(new_contact_cells)>0 && @printf("  %5d new interface cells\n", length(new_contact_cells))
-#         @printf "  %5d total cells\n" length(mesh.elems)
-#     end
-
-#     return mesh
-# end
-
-
-
-# function get_updated_nodes(old_nodes::Vector{Node}, new_nodes::Vector{Node})
-#     con = similar(old_nodes)
-#     for (i,p1) in enumerate(old_nodes)
-#         for p2 in new_nodes
-#             if hash(p1)==hash(p2)
-#                 con[i] = p2
-#                 break
-#             end
-#         end
-#     end
-#     return con
-# end
-
-
-# """
-#     add_contact_elements(mesh, selectors...; tag="", quiet=false)
-
-# Insert contact elements along coincident interfaces in `mesh`.  
-# Interfaces are detected between bulk regions with distinct tags within the selected subset.
-
-# # Arguments
-# - `mesh::Mesh`: Mesh to modify.
-# - `selectors::Union{Expr,Symbolic,Tuple,String}...`: Optional selectors to restrict the bulk regions considered. If omitted, all bulk elements are processed.
-# - `tag::String=""`: Tag for generated contact elements. If empty, a tag is derived from the connected region tags (e.g., `"A-B"`).
-# - `quiet::Bool=false`: Suppress console output if `true`.
-
-# # Returns
-# - `Mesh`: The updated mesh including the generated contact elements.
-
-# # Example
-# ```julia
-# select(mesh, :element, x<=1, tag="A")
-# select(mesh, :element, x>=1, tag="B")
-# add_contact_elements(mesh; tag="A-B")
-# ```
-# """
-# function add_contact_elements(
-#     mesh         ::Mesh,
-#     selectors    ::Union{Expr,Symbolic,Tuple,String}...;
-#     tag          ::String="",
-#     quiet        ::Bool=false,
-# )
-#     quiet || printstyled("Addition of contact elements:\n", bold=true, color=:cyan)
-
-#     # Target and locked cells: includes solids, lines, etc.
-#     if length(selectors)==0
-#         target_cells = select(mesh.elems, :cont)
-#         locked_cells = setdiff(mesh.elems, target_cells)
-#     else
-#         target_cells = Cell[]
-#         for selector in selectors
-#             tc = select(mesh.elems, selector, :cont)
-#             append!(target_cells, tc)
-#         end
-
-#         locked_cells = setdiff(mesh.elems, target_cells)
-#     end
-    
-#     length(target_cells)==0 && throw(SerendipException("add_contact_elements: no target_cells found for selector $(repr(selectors))."))
-
-#     # Get tags
-#     tag_set = Set{String}(cell.tag for cell in target_cells)
-#     length(tag_set)==0 && throw(SerendipException("add_contact_elements: no tags found. Tagged regions are required."))
-
-#     # Get contact faces
-#     trial_faces = CellFace[]
-
-#     # ❱❱❱ Iterate over tags
-#     for tag in tag_set
-#         tag_cells = select(target_cells, tag)
-#         tag_bulks = select(tag_cells, :cont)
-#         tag_faces = get_outer_facets(tag_bulks)
-        
-#         # duplicate nodes
-#         nodes_to_dup = Set{Node}( node for face in tag_faces for node in face.nodes )
-#         new_nodes_d  = Dict{UInt64, Node}( hash(p) => Node(p.coord, tag=p.tag) for p in nodes_to_dup )
-        
-#         # update connectivities at outer target cells
-#         for cell in tag_bulks # do not use tag_outer_cells here
-#             for (i,p) in enumerate(cell.nodes)
-#                 if p in nodes_to_dup
-#                     cell.nodes[i] = new_nodes_d[hash(p)]
-#                 end
-#             end
-#         end
-        
-#         # update outer faces
-#         tag_faces = get_outer_facets(tag_bulks)
-#         append!(trial_faces, tag_faces)
-#     end
-
-#     # ❱❱❱ Get paired faces
-#     face_pairs  = Tuple{Cell, Cell}[]
-#     face_d      = Dict{UInt64, Cell}()
-
-#     for face in trial_faces
-#         hs = hash(face)
-#         f  = get(face_d, hs, nothing)
-#         if f===nothing
-#             face_d[hs] = face
-#         else
-#             push!(face_pairs, (face, f))
-#             delete!(face_d, hs)
-#         end
-#     end
-
-#     # ❱❱❱ Generate contact elements
-#     contact_cells = Cell[]
-#     tags = Set{String}()
-#     for (f1, f2) in face_pairs
-#         n   = length(f1.nodes)
-#         con = Array{Node}(undef, 2*n)
-#         k = 0
-#         for (i,p1) in enumerate(f1.nodes)
-#             for p2 in f2.nodes
-#                 if hash(p1)==hash(p2)
-#                     k += 1
-#                     con[i]   = p1
-#                     con[n+i] = p2
-#                     break
-#                 end
-#             end
-#         end
-#         k==n || error("add_contact_elements: faces f1 and f2 are not coincident.")
-
-#         if tag==""
-#             tagA, tagB = sort([f1.owner.tag, f2.owner.tag])
-#             tag = tagA*"-"*tagB
-#             push!(tags, tag)
-#         end
-#         cell = Cell(f1.shape, :contact, con, tag=tag)
-#         cell.couplings = [f1.owner, f2.owner]
-#         push!(contact_cells, cell)
-#     end
-
-#     # ❱❱❱ Remove overlapping cohesive elements
-#     contact_cells_d = Dict{UInt64, Cell}( hash(c) => c for c in contact_cells )
-#     cohesive_cells = select(locked_cells, :cohesive)
-#     cohesive_cells_to_remove = Cell[]
-#     for cell in cohesive_cells
-#         hs = hash(cell)
-#         if haskey(contact_cells_d, hs)
-#             push!(cohesive_cells_to_remove, cell)
-#         end
-#     end
-#     setdiff!(locked_cells, cohesive_cells_to_remove)
-
-#     # ❱❱❱ Fix cells connectivities for elements with couplings
-#     for c in locked_cells
-#         if c.role in (:tip, :line_interface)
-#             bulk = c.couplings[1]
-#             nspts = length(bulk.nodes)
-#             c.nodes[1:nspts] .= bulk.nodes
-#         elseif c.role == :cohesive
-#             n = length(c.nodes) ÷ 2
-#             bulk1, _ = c.couplings
-#             con = get_updated_nodes(c.nodes[1:n], bulk1.nodes)
-#             c.nodes = [ con; con ] # face nodes are the same in a mesh cohesive element
-#         end
-#     end
-    
-#     # All cells
-#     mesh.elems = [ locked_cells; target_cells; contact_cells]
-
-#     # Include new nodes once
-#     nodes_d = Dict{Int,Node}()
-#     idx     = length(mesh.nodes)
-#     for cell in mesh.elems
-#         for node in cell.nodes
-#             if node.id < 0
-#                 idx += 1
-#                 node.id = idx # new id
-#             end
-#             nodes_d[node.id] = node
-#         end
-#     end
-
-#     # All nodes
-#     mesh.nodes = collect(values(nodes_d))
-
-#     # Update and reorder mesh
-#     synchronize(mesh, sort=true, cleandata=true)
-
-#     if !quiet
-#         @printf "  %5d new contact cells\n" length(contact_cells)
-#         @printf "  %5d total cells\n" length(mesh.elems)
-#         @printf "  %5d total nodes\n" length(mesh.nodes)
-#         if length(tags)>0
-#             s_tags = repr.(collect(tags))
-#             println("  generated contact tags: ", join(s_tags,", ", " and "))
-#         end
-#     end
-
-#     return mesh
-# end
-
-
 """
-    add_cohesive_elements(mesh, selector=nothing; tag="", quiet=false)
+    add_cohesive_elements(mesh, selector=nothing; tag="", implicit=false, quiet=false)
 
 Insert cohesive elements into `mesh` by pairing coincident faces.
 Prevents insertion if the interface is already occupied by a contact element.
 
 Algorithm:
-1. Identifies target bulk elements and locked elements.
-2. Builds a geometric map of existing Contact Elements to prevent conflicts.
-3. Scans all internal faces of the target region.
-4. Detects coincident faces geometrically.
-5. Generates new Cohesive Elements.
-6. **Clean**: Post-process removal of any old cohesive elements that match the new ones (same location + same owners).
+1. Split elements into target (where interfaces are searched) and locked (kept as-is).
+2. Optionally duplicate target-cell nodes (`implicit=false`) to make interfaces topologically open.
+3. Build a geometric index of existing contact interfaces to avoid overlap.
+4. Pair coincident faces from target and neighboring locked boundaries.
+5. Create cohesive elements with aligned node ordering across both faces.
+6. Remove old cohesive elements that match the same owners and interface geometry.
 
 # Arguments
 - `mesh::Mesh`: Mesh to modify.
 - `selector::Union{Expr,Symbol,Symbolic,Tuple,String,Nothing}=nothing`: Optional selector restricting where cohesive elements are created.
 - `tag::String=""`: Tag assigned to generated cohesive elements.
+- `implicit::Bool=false`: If `true`, keeps the original shared topology
+  (intrinsic/implicit interface activation). If `false`, duplicates target-region
+  cell nodes before pairing faces so cohesive elements are created with distinct
+  node sets on each side.
 - `quiet::Bool=false`: Suppress output.
 
 # Returns
@@ -378,12 +32,13 @@ function add_cohesive_elements(
     mesh         ::Mesh,
     selector     ::Union{Expr,Symbol,Symbolic,Tuple,String,Nothing}=nothing;
     tag          ::String="",
+    implicit     ::Bool=false,
     quiet        ::Bool=false,
 )
 
     quiet || printstyled("Addition of cohesive elements:\n", bold=true, color=:cyan)
 
-    # --- 1. Identify Target & Locked Cells ---
+    # 1. Select target bulk cells and keep the remaining cells as locked
     if selector === nothing
         target_cells = select(mesh.elems, :cont)
         locked_cells = setdiff(mesh.elems, target_cells)
@@ -395,31 +50,64 @@ function add_cohesive_elements(
         locked_cells = setdiff(mesh.elems, target_cells)
     end
     
-    # Note: We do NOT filter locked_cells here anymore. 
+    # locked_cells may include contact/special elements used later.
 
-    # --- 2. Index Existing Contact Elements (Geometric Map) ---
+    # 1.5 Optional topology split for non-implicit mode (default).
+    # Duplicate all nodes of each target cell. This disconnects target cells
+    # from neighbors before interface generation.
+    if !implicit
+        replacements = Dict{AbstractCell, Dict{Node, Node}}()
+
+        for cell in target_cells
+            node_map = Dict{Node, Node}()
+            for (i, node) in enumerate(cell.nodes)
+                if !haskey(node_map, node)
+                    new_node = copy(node)
+                    new_node.id = -1
+                    node_map[node] = new_node
+                end
+                cell.nodes[i] = node_map[node]
+            end
+            replacements[cell] = node_map
+        end
+
+        # Keep special interface cells consistent with their updated host cell.
+        target_set = Set{AbstractCell}(target_cells)
+        for cell in locked_cells
+            cell.role in (:line_interface, :tip) || continue
+            isempty(cell.couplings) && continue
+            host = cell.couplings[1]
+            host in target_set || continue
+
+            node_map = replacements[host]
+            for (i, node) in enumerate(cell.nodes)
+                haskey(node_map, node) && (cell.nodes[i] = node_map[node])
+            end
+        end
+    end
+
+    # 2. Index existing contact interfaces by geometry
     _pos_key(n) = (round(n.coord.x, digits=8)+0.0, round(n.coord.y, digits=8)+0.0, round(n.coord.z, digits=8)+0.0)
     
     contact_geo_keys = Set{Vector{Tuple{Float64,Float64,Float64}}}()
     
-    # We scan locked_cells because Contact elements (role :contact) are NOT :cont,
-    # so they are guaranteed to be in the locked_cells list.
+    # Contacts are non-continuum, so they are expected in locked_cells.
     for cell in locked_cells
         if cell.role == :contact
-            # Map Master face geometry
+            # Use the first half (master side) as interface footprint.
             m = div(length(cell.nodes), 2)
             geo_key = sort([_pos_key(n) for n in cell.nodes[1:m]])
             push!(contact_geo_keys, geo_key)
         end
     end
 
-    # --- 3. Detect Coincident Faces ---
+    # 3. Pair coincident faces
     face_pairs = Tuple{Cell, Cell}[] 
     
-    # Helper to scan faces
+    # Geometric key -> first unmatched face.
     pending_faces = Dict{Vector{Tuple{Float64,Float64,Float64}}, Cell}()
     
-    # A. Process Target Cells
+    # A) target internal faces
     for cell in target_cells
         for face in get_facets(cell)
             geo_key = sort([_pos_key(n) for n in face.nodes])
@@ -433,7 +121,7 @@ function add_cohesive_elements(
         end
     end
     
-    # B. Process Locked Cells (Outer Only)
+    # B) locked outer faces (interfaces between target and non-target)
     locked_outer_faces = get_outer_facets(collect(locked_cells))
     for face in locked_outer_faces
         geo_key = sort([_pos_key(n) for n in face.nodes])
@@ -446,64 +134,72 @@ function add_cohesive_elements(
         end
     end
 
-    # --- 4. Generate Cohesive Elements ---
+    # 4. Build cohesive elements from paired faces
     cohesive_cells = Cell[]
     
-    # Signature: (Set(OwnerIDs), GeometricKey)
-    # Used to detect duplicates in Step 5
+    # Signature (owner pair + geometry) used for duplicate cleanup.
     new_signatures = Set{Tuple{Set{Int}, Vector{Tuple{Float64,Float64,Float64}}}}()
     
     for (f1, f2) in face_pairs
-        # Check Contact Conflict
+        # Skip if a contact element already occupies this interface.
         geo_key = sort([_pos_key(n) for n in f1.nodes])
         if geo_key in contact_geo_keys
             continue
         end
         
-        # Construct
+        # Build connectivity with face-2 nodes reordered to face-1 sequence.
         n = length(f1.nodes)
-        con = [f1.nodes; f2.nodes]
-        
-        if length(con) != 2*n
-             error("add_cohesive_elements: Mismatched face node counts.")
+        length(f2.nodes) == n || error("add_cohesive_elements: Mismatched face node counts.")
+
+        f2_by_key = Dict{Tuple{Float64,Float64,Float64}, Node}()
+        for node in f2.nodes
+            f2_by_key[_pos_key(node)] = node
+        end
+
+        con = copy(f1.nodes)
+        for node in f1.nodes
+            node2 = get(f2_by_key, _pos_key(node), nothing)
+            node2 === nothing && error("add_cohesive_elements: faces are not coincident.")
+            push!(con, node2)
         end
 
         cell = Cell(f1.shape, :cohesive, con, tag=tag)
         cell.couplings = [f1.owner, f2.owner]
         push!(cohesive_cells, cell)
         
-        # Record Signature
-        # Owners: Set of IDs (order independent)
+        # Record signature with owner order independence.
         owner_ids = Set([f1.owner.id, f2.owner.id])
-        # Geometry: Sorted coordinates of the interface (one face is enough)
         push!(new_signatures, (owner_ids, geo_key))
     end
 
-    # --- 5. Clean Up Existing Cohesive Elements ---
+    # 5. Remove old cohesive elements replaced by the new set
     removed_count = 0
     filter!(locked_cells) do cell
         if cell.role == :cohesive
-            # Check if this old cell matches any new cell's signature
             if length(cell.couplings) >= 2
                 owner_ids = Set([c.id for c in cell.couplings])
                 
-                # Geometry: Use first half of nodes (Face 1)
+                # Compare owner pair and first-face geometry.
                 m = div(length(cell.nodes), 2)
                 geo_key = sort([_pos_key(n) for n in cell.nodes[1:m]])
                 
                 if (owner_ids, geo_key) in new_signatures
                     removed_count += 1
-                    return false # Remove
+                    return false
                 end
             end
         end
         return true
     end
 
-    # --- 6. Finalize ---
+    # 6. Finalize mesh arrays and synchronize
     append!(mesh.elems, cohesive_cells)
-    # Note: locked_cells was filtered in place
     mesh.elems = [locked_cells; target_cells; cohesive_cells]
+
+    if !implicit
+        # Rebuild node list from final connectivity to avoid stale/orphan nodes.
+        mesh.nodes = get_nodes(mesh.elems)
+    end
     
     synchronize(mesh, sort=true, cleandata=true)
 
