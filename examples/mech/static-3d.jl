@@ -29,7 +29,7 @@ run(ana)
 plot = DomainPlot(model,
     field = "σzz",
     colormap = :spectral,
-    label = L"\sigma_z",
+    label = t"σ_z",
     elevation = 30,
     azimuth = -60,
     warp = 50

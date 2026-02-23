@@ -35,7 +35,7 @@ run(ana)
 plot = DomainPlot(model,
     field = "σxx",
     colormap = :coolwarm,
-    label = L"\sigma_x",
+    label = t"σ_x",
     warp = 10000
 )
 save(plot, "static-2d.pdf")

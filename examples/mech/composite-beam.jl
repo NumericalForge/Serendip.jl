@@ -129,7 +129,7 @@ plot = DomainPlot(model,
     edge_width = 0.1,
     view_mode = :wireframe,
     colorbar = :bottom,
-    label = L"\sigma_{x'}",
+    label = t"σ_(x')",
     warp = 20,
 )
 save(plot, "composite-beam.pdf")

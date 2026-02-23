@@ -35,7 +35,7 @@ run(ana)
 plot = DomainPlot(model,
     field = "σx´",
     colormap = :coolwarm,
-    label = L"$\sigma_x$ [MPa]",
+    label = t"$σ_x$ [MPa]",
     warp = 100,
     node_labels = true
 )

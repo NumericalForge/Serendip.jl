@@ -1,4 +1,4 @@
-#❱❱❱ Cracking in a 3D cantilever beam ❰❰❰#
+# #❱❱❱ Cracking in a 3D cantilever beam ❰❰❰#
 
 using Serendip
 
@@ -23,9 +23,9 @@ add_array(geo, p, ny=3, dy=0.25*b)
 mesh = Mesh(geo)
 
 select(mesh.elems, :bulk, tag="bulk")
-add_cohesive_elements(mesh, tag="cohesive")
+add_cohesive_elements(mesh, x<ℓ/2, tag="cohesive", implicit=false)
 
-# finite element analysis
+# ❱❱❱ Finite element analysis
 E     = 37.e6
 ft    = 2.4e3
 fc    = -24e3
@@ -48,7 +48,7 @@ stage = add_stage(ana, nincs=10, nouts=50)
 add_bc(stage, :node, x==0, ux=0, uy=0, uz=0)
 add_bc(stage, :node, x==ℓ, uz=-0.0002)
 
-run(ana, autoinc=true, maxits=3, tol=0.5, rspan=0.03, tangent_scheme=:ralston, quiet=false)
+run(ana, autoinc=true, maxits=3, tol=0.5, rspan=0.03, tangent_scheme=:backward_euler, quiet=false)
 
 # ❱❱❱ Post-processing
 
@@ -60,15 +60,15 @@ plot = DomainPlot(model,
     colormap   = :spectral,
     diverging  = true,
     edge_color = :gray,
-    edge_width = 0.1,
+    # edge_width = 0.1,
     colorbar   = :bottom,
-    label      = L"$\sigma_{xx}$ [MPa]",
+    label      = t"$σ_(x x)$ [MPa]",
 )
 save(plot, "beam-crack-3d.pdf")
 
 chart = Chart(
-    xlabel = L"$u_z$ [mm]",
-    ylabel = L"$σ_{zz}$ [kN]",
+    xlabel = t"$u_z$ [mm]",
+    ylabel = t"$σ_(z z)$ [kN]",
 )
 add_line(chart, -log1.table[:uz]*1e3, -log1.table[:fz], mark=:circle)
 save(chart, "beam-crack-3d-chart.pdf")
