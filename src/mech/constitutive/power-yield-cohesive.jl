@@ -206,7 +206,7 @@ end
 
 function calc_kn_ks(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
     kn = mat.E*mat.ζ/state.h
-    G  = mat.E/(2*(1+mat.ν))
+    G  = mat.E/(2*(1 + mat.ν))
     ks = G*mat.ζ/state.h
     return kn, ks
 end
@@ -224,7 +224,7 @@ function calcD(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
     if state.Δλ == 0.0  # Elastic 
         return De
     elseif σmax <= tiny && state.w[1] >= 0.0
-        Dep = De*1e-3
+        Dep = De*1e-4
         return Dep
     else
         n, ∂fσmax = yield_derivs(mat, state.σ, σmax)
@@ -249,13 +249,13 @@ function plastic_update(mat::PowerYieldCohesive, state::PowerYieldCohesiveState,
 
     τtr = √(τ1tr^2 + τ2tr^2 + eps())
 
-    maxits    = 30
+    maxits    = 50
     converged = false
     Δλ        = 0.0
     up        = cstate.up
     σ         = cstate.σ
     σmax      = calc_σmax(mat, up)
-    tol       = mat.ft*1e-6
+    tol       = mat.ft*1e-4
 
     for i in 1:maxits
         den_σn = 1.0 + Δλ*kn*ψ^2

@@ -52,7 +52,10 @@ function elem_init(elem::Element{MechCohesive})
         ip.state.h = h
     end
 
-    elem.cache = MechCohesiveCache(false)
+    # Explicit cohesive elements already have duplicated/opposite-face nodes.
+    # Intrinsic/extrinsic inserted interfaces usually start with the same node ids on both faces.
+    mobilized = elem.nodes[1].id != elem.nodes[n+1].id
+    elem.cache = MechCohesiveCache(mobilized)
 end
 
 
@@ -110,7 +113,7 @@ function elem_stiffness(elem::Element{MechCohesive})
 end
 
 
-function elem_internal_forces(elem::Element{MechCohesive}, ΔUg::Vector{Float64}=Float64[], Δt::Float64=0.0)
+function elem_internal_forces(elem::Element{MechCohesive}, ΔU::Vector{Float64}=Float64[], Δt::Float64=0.0)
     if elem.cache.mobilized == false 
         # recover cohesive stress from neighboring bulk elements
         σ_arr = recover_cohesive_stress(elem)
@@ -125,13 +128,11 @@ function elem_internal_forces(elem::Element{MechCohesive}, ΔUg::Vector{Float64}
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
     hnodes = div(nnodes, 2) # half the number of total nodes
-    keys   = (:ux, :uy, :uz)[1:ndim]
-    map    = Int[ get_dof(node, key).eq_id for node in elem.nodes for key in keys ]
+    map    = dof_map(elem)
     nstr   = 3
 
-    update = !isempty(ΔUg)
+    update = !isempty(ΔU)
     if update
-        ΔU = ΔUg[map]
         Δω = zeros(nstr)
     end
 
@@ -222,77 +223,73 @@ tensor is projected onto the element's local coordinate system to obtain normal 
 
 """
 function recover_cohesive_stress(elem::Element{MechCohesive})
-    ndim   = elem.ctx.ndim
+    ndim = elem.ctx.ndim
     nnodes = length(elem.nodes)
-    hnodes = div(nnodes, 2) # half the number of total nodes
-    C      = get_coords(elem.nodes[1:hnodes], ndim)
+    nface_nodes = div(nnodes, 2)
+    face_coords = get_coords(elem.nodes[1:nface_nodes], ndim)
 
-    # Get all integration points from neighboring bulk elements
-    ips   = [ip for bulk_elem in elem.couplings for ip in bulk_elem.ips]
-    nips  = length(ips)      # total number of ips in neighboring bulk elements
-    ncips = length(elem.ips) # number of integration points in the cohesive element
-    nstr  = length(ips[1].state.σ) # number of stress components in the continuum
+    # Integration points from bulk elements coupled to the interface.
+    neighbor_ips = [ip for bulk_elem in elem.couplings for ip in bulk_elem.ips]
+    n_neighbor_ips = length(neighbor_ips)
+    n_cohesive_ips = length(elem.ips)
+    n_stress_comp = length(neighbor_ips[1].state.σ) # number of stress components from neighboring bulk elements
 
-    # Helper for polynomial terms
-    @inline function reg_terms(x::Float64, y::Float64, nterms::Int64)
-        nterms==4 && return ( 1.0, x, y, x*y )
-        nterms==3 && return ( 1.0, x, y )
+    @inline function reg_terms(x::Float64, y::Float64, nterms::Int)
+        nterms == 4 && return (1.0, x, y, x*y)
+        nterms == 3 && return (1.0, x, y)
         return (1.0,)
     end
 
-    @inline function reg_terms(x::Float64, y::Float64, z::Float64, nterms::Int64)
-        nterms==4  && return ( 1.0, x, y, z )
+    @inline function reg_terms(x::Float64, y::Float64, z::Float64, nterms::Int)
+        nterms == 4 && return (1.0, x, y, z)
         return (1.0,)
     end
 
-    if ndim==3
-        nterms = nips>=4 ? 4 : 1
+    nterms = if ndim == 3
+        n_neighbor_ips >= 4 ? 4 : 1
     else
-        nterms = nips>=4 ? 4 : nips>=3 ? 3 : 1
+        n_neighbor_ips >= 4 ? 4 : n_neighbor_ips >= 3 ? 3 : 1
     end
 
-    # Build the regression matrix M for neighboring bulk element ips
-    M = FMat(undef, nips, nterms)
-    for (i, ip) in enumerate(ips)
+    # Regression matrix at neighbor IP coordinates.
+    Mreg = FMat(undef, n_neighbor_ips, nterms)
+    for (i, ip) in enumerate(neighbor_ips)
         x, y, z = ip.coord
-        M[i, :] .= (ndim == 3) ? reg_terms(x, y, z, nterms) : reg_terms(x, y, nterms)
+        Mreg[i, :] .= (ndim == 3) ? reg_terms(x, y, z, nterms) : reg_terms(x, y, nterms)
     end
 
-    # Build the evaluation matrix N for cohesive element ips
-    N = FMat(undef, ncips, nterms)
+    # Evaluation matrix at cohesive IP coordinates.
+    Meval = FMat(undef, n_cohesive_ips, nterms)
     for (i, ip) in enumerate(elem.ips)
         x, y, z = ip.coord
-        N[i, :] .= (ndim == 3) ? reg_terms(x, y, z, nterms) : reg_terms(x, y, nterms)
+        Meval[i, :] .= (ndim == 3) ? reg_terms(x, y, z, nterms) : reg_terms(x, y, nterms)
     end
 
-    V = FMat(undef, nstr, ncips) # to compute stress components at cohesive element ips
-    W = FVec(undef, nips)        # to store stress components at neighboring ips
-    a = FVec(undef, nterms)      # to store regression coefficients for each stress component
-    F = qr(M)                    # pre-factor M for efficient least-squares regression. 
+    # Recovered continuum stress components at cohesive IPs.
+    σ_eval = FMat(undef, n_stress_comp, n_cohesive_ips)
+    σ_sample = FVec(undef, n_neighbor_ips)
+    coeffs = FVec(undef, nterms)
+    reg_solver = qr(Mreg)
 
-    # Perform regression for each stress component
-    for i in 1:nstr
-        for j in 1:nips
-            W[j] = ips[j].state.σ[i]
+    for icomp in 1:n_stress_comp
+        for jip in 1:n_neighbor_ips
+            σ_sample[jip] = neighbor_ips[jip].state.σ[icomp]
         end
-        a .= F\W  # solve M*a = W for regression coefficients
-        V[i, :] = N*a   
+        coeffs .= reg_solver \ σ_sample
+        σ_eval[icomp, :] = Meval * coeffs
     end
 
     projected_stress = Vector{Float64}[]
-    for (i,ip) in enumerate(elem.ips)
-        # compute Jacobian and rotation matrix at element center
+    for (i, ip) in enumerate(elem.ips)
         dNdR = elem.shape.deriv(ip.R)
-        J = C'*dNdR
-        # calc_interface_rotation(J, T)
+        J = face_coords' * dNdR
         T = calc_interface_rotation(J)
-        
-        # compute normal and shear stresses
-        n1 = T[:,1]
-        n2 = T[:,2]
-        σ  = V[:, i]
-        if ndim==3
-            n3 = T[:,3]
+
+        n1 = T[:, 1]
+        n2 = T[:, 2]
+        σ = σ_eval[:, i]
+        if ndim == 3
+            n3 = T[:, 3]
             t1 = dott(σ, n1)
             σn = dot(t1, n1)
             τ1 = dot(t1, n2)
@@ -305,7 +302,7 @@ function recover_cohesive_stress(elem::Element{MechCohesive})
             τ1 = dot(t1, n2)
             τ2 = 0.0
         end
-        push!(projected_stress, cap_stress(elem.cmodel, [ σn, τ1, τ2 ]))
+        push!(projected_stress, cap_stress(elem.cmodel, [σn, τ1, τ2]))
     end
 
     return projected_stress

@@ -186,17 +186,15 @@ function elem_stiffness(elem::Element{MechBondSlip})
 end
 
 
-function elem_internal_forces(elem::Element{MechBondSlip}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
+function elem_internal_forces(elem::Element{MechBondSlip}, ΔU::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
     p = elem.etype.p
 
-    keys = (:ux, :uy, :uz)[1:ndim]
-    map  = [ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]
+    map  = dof_map(elem)
 
-    update = !isempty(ΔUg)
+    update = !isempty(ΔU)
     if update
-        ΔU = ΔUg[map]
         Δu = zeros(ndim)
     end
 

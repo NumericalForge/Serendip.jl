@@ -112,7 +112,7 @@ function stress_strength_ratio(mat::MohrCoulombCohesive, σ::AbstractVector)
 
     σmax = calc_σmax(mat, 0.0)
     τmax = (σmax - σn)*mat.μ
-    τ    = √(τ1^2 + τ2^2)
+    τ    = √(τ1^2 + τ2^2) + eps()
     return max(σn/σmax, τ/τmax)
 end
 
@@ -127,8 +127,7 @@ end
 
 function yield_derivs(mat::MohrCoulombCohesive, σ::Vec3)
     σn, τ1, τ2 = σ
-
-    τ = √(τ1^2 + τ2^2 + eps())
+    τ = √(τ1^2 + τ2^2) + eps()
 
     ∂f∂σmax = -mat.μ
     return Vec3( mat.μ, τ1/τ, τ2/τ ), ∂f∂σmax
@@ -162,7 +161,6 @@ function calc_kn_ks(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
     kn = mat.E*mat.ζ/state.h
     G  = mat.E/(2*(1 + mat.ν))
     ks = G*mat.ζ/state.h
-    # ks = G/state.h*0.1
     return kn, ks
 end
 
@@ -179,7 +177,7 @@ function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
     if state.Δλ == 0.0  # Elastic 
         return De
     elseif σmax <= tiny && state.w[1] >= 0.0
-        Dep = De*1e-3
+        Dep = De*1e-8
         return Dep
     else
         n, ∂f∂σmax = yield_derivs(mat, state.σ)
@@ -205,7 +203,7 @@ function plastic_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveStat
 
     τtr = √(τ1tr^2 + τ2tr^2 + eps())
 
-    maxits    = 30
+    maxits    = 50
     converged = false
     Δλ        = 0.0
     up        = cstate.up
@@ -278,10 +276,10 @@ function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState,
     σmax   = calc_σmax(mat, cstate.up)  
 
     if isnan(Δw[1]) || isnan(Δw[2])
-        alert("MohrCoulombCohesive: Invalid value for joint displacement: Δw = $Δw")
+        alert("MohrCoulombCohesive: Invalid value for relative displacement: Δw = $Δw")
     end
 
-    # σ trial and F trial
+    # σ trial and f trial
     σtr = cstate.σ + De*Δw
     ftr = yield_func(mat, σtr, σmax)
 
@@ -318,7 +316,7 @@ function state_values(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
         :τ    => τ,
         :up   => state.up,
         :σmax => σmax
-      )
+    )
 end
 
 

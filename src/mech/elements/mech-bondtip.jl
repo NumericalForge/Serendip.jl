@@ -84,7 +84,7 @@ function elem_stiffness(elem::Element{MechBondTip})
 end
 
 
-function elem_internal_forces(elem::Element{MechBondTip}, ΔUg::Vector{Float64}=Float64[], Δt::Float64=0.0)
+function elem_internal_forces(elem::Element{MechBondTip}, ΔU::Vector{Float64}=Float64[], Δt::Float64=0.0)
     ndim   = elem.ctx.ndim
     host   = elem.couplings[1]
     member = elem.couplings[2]
@@ -92,14 +92,12 @@ function elem_internal_forces(elem::Element{MechBondTip}, ΔUg::Vector{Float64}=
     Cm     = get_coords(member)
 
     B    = mountB(elem, Ch, Cm)
-    keys = (:ux, :uy, :uz)[1:ndim]
-    map = [ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]
+    map = dof_map(elem)
 
-    update = !isempty(ΔUg)
+    update = !isempty(ΔU)
     ip = elem.ips[1]
 
     if update
-        ΔU = ΔUg[map]
         Δw = dot(B, ΔU)
         Δf, _ = update_state(elem.cmodel, ip.state, ip.cstate, Δw)
     else

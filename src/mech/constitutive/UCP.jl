@@ -461,7 +461,7 @@ function calcD(mat::UCP, state::UCPState)
 end
 
 
-function nonlinear_update(mat::UCP, state::UCPState, σtr::Vec6)
+function plastic_update(mat::UCP, state::UCPState, σtr::Vec6)
     maxits = 50
     tol    = mat.ft*0.0001
     h      = state.h
@@ -603,7 +603,7 @@ function update_state(mat::UCP, state::UCPState, cstate::UCPState, Δε::Abstrac
         #     state.Δλ = 1.0
         #     state.σ  = zeros(Vec6)
         # else
-            status = nonlinear_update(mat, state, σtr)
+            status = plastic_update(mat, state, σtr)
             failed(status) && return state.σ, status
             
         # end

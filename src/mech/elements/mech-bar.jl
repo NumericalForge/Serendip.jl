@@ -133,22 +133,18 @@ function setNt(ndim::Int,Ni::Vect, N::Matx)
 end
 
 
-function elem_internal_forces(elem::Element{MechBar}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
+function elem_internal_forces(elem::Element{MechBar}, ΔU::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
     A      = elem.etype.A
-    keys   = [:ux, :uy, :uz][1:ndim]
-    map    = Int[ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]
+    map    = dof_map(elem)
 
     ΔF = zeros(nnodes*ndim)
     C = get_coords(elem)
     B = zeros(1, nnodes*ndim)
     J = Array{Float64}(undef, ndim, 1)
 
-    update = !isempty(ΔUg)
-    if update
-        ΔU = ΔUg[map]
-    end
+    update = !isempty(ΔU)
 
     for ip in elem.ips
         dNdR = elem.shape.deriv(ip.R)

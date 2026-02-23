@@ -19,6 +19,19 @@ function elem_config_dofs(elem::Element{<:MechFormulation})
 end
 
 
+"""
+    dof_map(elem)
+
+Returns the displacement DOF map for an element in local ordering expected by
+its element routines.
+"""
+function dof_map(elem::Element{<:MechFormulation})
+    ndim = elem.ctx.ndim
+    keys = (:ux, :uy, :uz)[1:ndim]
+    return Int[get_dof(node, key).eq_id for node in elem.nodes for key in keys]
+end
+
+
 function reset_displacements(model::AbstractDomain)
     for n in model.nodes
         for dof in n.dofs

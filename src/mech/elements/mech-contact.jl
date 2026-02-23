@@ -102,18 +102,16 @@ function elem_stiffness(elem::Element{MechContact})
 end
 
 
-function elem_internal_forces(elem::Element{MechContact}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
+function elem_internal_forces(elem::Element{MechContact}, ΔU::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
     hnodes = div(nnodes, 2) # half the number of total nodes
-    keys   = (:ux, :uy, :uz)[1:ndim]
-    map    = Int[ get_dof(node, key).eq_id for node in elem.nodes for key in keys ]
+    map    = dof_map(elem)
     nstr   = 3
 
-    update = !isempty(ΔUg)
+    update = !isempty(ΔU)
     if update
-        ΔU = ΔUg[map]
         Δω = zeros(nstr)
     end
 

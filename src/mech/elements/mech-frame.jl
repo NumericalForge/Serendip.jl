@@ -71,6 +71,9 @@ function elem_map(elem::Element{MechFrame})
 end
 
 
+dof_map(elem::Element{MechFrame}) = elem_map(elem)
+
+
 function beam_shape_func(𝑥::Float64, ℓ::Float64)
     N = Array{Float64}(undef,6)
     N[1] = 1 - 𝑥/ℓ
@@ -225,11 +228,10 @@ end
 #     return dF, map, success()
 # end
 
-function elem_internal_forces(elem::Element{MechFrame}, ΔUg::Vector{Float64}=Float64[], Δt::Float64=0.0)
+function elem_internal_forces(elem::Element{MechFrame}, ΔU::Vector{Float64}=Float64[], Δt::Float64=0.0)
     K, map, map = elem_stiffness(elem)
-    update = !isempty(ΔUg)
+    update = !isempty(ΔU)
     if update
-        ΔU = ΔUg[map]
         ΔF = K*ΔU
     else
         ΔF = zeros(length(map)) # TODO: use ips

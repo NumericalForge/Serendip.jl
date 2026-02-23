@@ -223,6 +223,9 @@ function elem_map(elem::Element{MechBeam})
 end
 
 
+dof_map(elem::Element{MechBeam}) = elem_map(elem)
+
+
 # Rotation Matrix
 function set_rot_x_xp(elem::Element{MechBeam}, J::Matx, R::Matx)
     ndim = elem.ctx.ndim
@@ -359,7 +362,7 @@ function elem_stiffness(elem::Element{MechBeam})
 end
 
 
-function elem_internal_forces(elem::Element{MechBeam}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
+function elem_internal_forces(elem::Element{MechBeam}, ΔU::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim = elem.ctx.ndim
     nnodes = length(elem.nodes)
     ndof = ndim==2 ? 3 : 6
@@ -377,9 +380,8 @@ function elem_internal_forces(elem::Element{MechBeam}, ΔUg::Vector{Float64}=Flo
     map = elem_map(elem)
     ΔF  = zeros(ndof*nnodes)
 
-    update = !isempty(ΔUg)
+    update = !isempty(ΔU)
     if update
-        ΔU = ΔUg[map]
         Δε = zeros(nstr)
     end
 

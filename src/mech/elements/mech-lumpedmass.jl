@@ -20,13 +20,19 @@ end
 compat_role(::Type{MechLumpedMass}) = VERTEX_CELL
 
 
+function dof_map(elem::MechLumpedMass)
+    ndim = elem.ctx.ndim
+    keys = (:ux, :uy, :uz)[1:ndim]
+    return Int[node.dofdict[key].eq_id for node in elem.nodes for key in keys]
+end
+
+
 function elem_stiffness(elem::MechLumpedMass)
     ndim = elem.ctx.ndim
     mat  = elem.cmodel
     K = zeros(ndim, ndim)
 
-    keys = [:ux, :uy, :uz][1:ndim]
-    map  = Int[ node.dofdict[key].eq_id for node in elem.nodes for key in keys ]
+    map = dof_map(elem)
     return K, map, map
 end
 
@@ -37,8 +43,7 @@ function elem_mass(elem::MechLumpedMass)
 
     M = mat.m*Matrix{Float64}(I, ndim, ndim)
 
-    keys = [:ux, :uy, :uz][1:ndim]
-    map  = Int[ node.dofdict[key].eq_id for node in elem.nodes for key in keys ]
+    map = dof_map(elem)
 
     return M, map, map
 end

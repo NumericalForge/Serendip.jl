@@ -20,6 +20,13 @@ end
 compat_role(::Type{MechSpring}) = LINE_CELL
 
 
+function dof_map(elem::MechSpring)
+    ndim = elem.ctx.ndim
+    keys = (:ux, :uy, :uz)[1:ndim]
+    return Int[node.dofdict[key].eq_id for node in elem.nodes for key in keys]
+end
+
+
 function elem_stiffness(elem::MechSpring)
     ndim = elem.ctx.ndim
     mat  = elem.cmodel
@@ -45,8 +52,7 @@ function elem_stiffness(elem::MechSpring)
                0    0  -kz    0    0   kz ]
     end
 
-    keys = [:ux, :uy, :uz][1:ndim]
-    map  = Int[ node.dofdict[key].eq_id for node in elem.nodes for key in keys ]
+    map = dof_map(elem)
     return K, map, map
 end
 
@@ -76,8 +82,7 @@ function elem_damping(elem::MechSpring)
                0    0  -cz    0    0   cz ]
     end
 
-    keys = [:ux, :uy, :uz][1:ndim]
-    map  = Int[ node.dofdict[key].eq_id for node in elem.nodes for key in keys ]
+    map = dof_map(elem)
     return K, map, map
 end
 

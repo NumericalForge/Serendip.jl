@@ -245,16 +245,16 @@ function calcD(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
     if state.Δλ == 0.0  # Elastic 
         return De
     elseif σmax <= tiny && state.w[1] >= 0.0
-        Dep = De*1e-3
+        Dep = De*1e-8
         return Dep
     else
-        n, ∂fσmax = yield_derivs(mat, state.σ, σmax)
+        n, ∂f∂σmax = yield_derivs(mat, state.σ, σmax)
         m = potential_derivs(mat, state.σ)
         H = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
         
         De_m  = De*m
         nT_De = n'*De
-        den   = dot(n, De_m) - ∂fσmax*H*norm(m)
+        den   = dot(n, De_m) - ∂f∂σmax*H*norm(m)
         Dep   = De - (De_m*nT_De)/den
 
         return Dep

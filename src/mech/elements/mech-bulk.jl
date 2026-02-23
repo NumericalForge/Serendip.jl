@@ -168,12 +168,11 @@ function elem_mass(elem::Element{MechCont})
 end
 
 
-function elem_internal_forces(elem::Element{MechCont}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
+function elem_internal_forces(elem::Element{MechCont}, ΔU::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
-    keys   = (:ux, :uy, :uz)[1:ndim]
-    map    = [ get_dof(node, key).eq_id for node in elem.nodes for key in keys ]
+    map    = dof_map(elem)
 
     ΔF = zeros(nnodes*ndim)
     B  = zeros(6, nnodes*ndim)
@@ -182,9 +181,8 @@ function elem_internal_forces(elem::Element{MechCont}, ΔUg::Vector{Float64}=Flo
     dNdX = Array{Float64}(undef, nnodes, ndim)
     C = get_coords(elem)
 
-    update = !isempty(ΔUg)
+    update = !isempty(ΔU)
     if update
-        ΔU = ΔUg[map]
         Δε = zeros(6)
     end
 
@@ -244,5 +242,4 @@ function elem_vals(elem::Element{MechCont})
 
     return vals
 end
-
 

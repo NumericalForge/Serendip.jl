@@ -55,6 +55,13 @@ function body_c(elem::MechFluid, key::Symbol, val::Union{Real,Symbol,Expr})
 end
 
 
+function dof_map(elem::MechFluid)
+    ndim = elem.ctx.ndim
+    keys = (:ux, :uy, :uz)[1:ndim]
+    return Int[node.dofdict[key].eq_id for node in elem.nodes for key in keys]
+end
+
+
 function setB(::MechFluid, dNdX::Matx, B::Matx)
     nnodes, ndim = size(dNdX)
     # Note that matrix B is designed to work with tensors in Mandel's notation
@@ -145,8 +152,7 @@ function elem_mass(elem::MechFluid)
         @mul M += coef*N'*N
     end
 
-    keys = (:ux, :uy, :uz)[1:ndim]
-    map  = [ node.dofdict[key].eq_id for node in elem.nodes for key in keys ]
+    map = dof_map(elem)
 
     return M, map, map
 end
@@ -156,8 +162,7 @@ function elem_internal_forces(elem::MechFluid)
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
-    keys   = (:ux, :uy, :uz)[1:ndim]
-    map    = [ node.dofdict[key].eq_id for node in elem.nodes for key in keys ]
+    map = dof_map(elem)
 
     dF = zeros(nnodes*ndim)
     B  = zeros(6, nnodes*ndim)
@@ -191,8 +196,7 @@ function update_elem!(elem::MechFluid, U::Vector{Float64}, Δt::Float64)
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
-    keys   = (:ux, :uy, :uz)[1:ndim]
-    map    = [ node.dofdict[key].eq_id for node in elem.nodes for key in keys ]
+    map = dof_map(elem)
 
     dU = U[map]
     dF = zeros(nnodes*ndim)
@@ -226,5 +230,3 @@ function elem_vals(elem::MechFluid)
     vals = OrderedDict{Symbol,Float64}()
     return vals
 end
-
-

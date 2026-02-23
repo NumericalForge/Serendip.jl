@@ -41,6 +41,9 @@ function elem_map(elem::Element{MechEmbBar})
 end
 
 
+dof_map(elem::Element{MechEmbBar}) = elem_map(elem)
+
+
 function _mountNN(elem::Element{MechEmbBar})
     ndim = elem.ctx.ndim
     solid = elem.couplings[1]
@@ -129,16 +132,15 @@ function elem_stiffness(elem::Element{MechEmbBar})
 end
 
 
-function elem_internal_forces(elem::Element{MechEmbBar}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
+function elem_internal_forces(elem::Element{MechEmbBar}, ΔU::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
     A      = elem.etype.A
     NN     = elem.cache.NN
 
     map = elem_map(elem)
-    update = !isempty(ΔUg)
+    update = !isempty(ΔU)
     if update
-        ΔU = ΔUg[map]
         ΔUbar = NN*ΔU
     end
 

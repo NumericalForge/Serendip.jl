@@ -70,10 +70,10 @@ end
 
 mutable struct MohrCoulombContactState<:ConstState
     ctx::Context
-    σ  ::Vec3 # stress
-    w  ::Vec3 # relative displacements
-    up::Float64           # effective plastic relative displacement
-    Δλ ::Float64          # plastic multiplier
+    σ  ::Vec3        # stress
+    w  ::Vec3        # relative displacements
+    up ::Float64     # effective plastic relative displacement
+    Δλ ::Float64     # plastic multiplier
     function MohrCoulombContactState(ctx::Context)
         this    = new(ctx)
         this.σ  = zeros(Vec3)
@@ -90,26 +90,30 @@ compat_state_type(::Type{MohrCoulombContact}, ::Type{MechContact}) = MohrCoulomb
 
 
 function yield_func(mat::MohrCoulombContact, σ::Vec3, σmax::Float64)
-    return sqrt(σ[2]^2 + σ[3]^2) + (σ[1]-σmax)*mat.μ
+        σn, τ1, τ2 = σ
+    return √(τ1^2 + τ2^2) + (σn - σmax)*mat.μ
 end
 
 
-function yield_deriv(mat::MohrCoulombContact, σ::Vec3)
-    τ = sqrt(σ[2]^2 + σ[3]^2)
-    return Vec3( mat.μ, σ[2]/τ, σ[3]/τ )
+function yield_derivs(mat::MohrCoulombContact, σ::Vec3)
+    σn, τ1, τ2 = σ
+
+    τ = √(τ1^2 + τ2^2 + eps())
+
+    ∂f∂σmax = -mat.μ
+    return Vec3( mat.μ, τ1/τ, τ2/τ ), ∂f∂σmax
 end
 
 
 function potential_derivs(mat::MohrCoulombContact, σ::Vec3)
-    if σ[1] >= 0.0 
-        # G1:
-        r = Vec3( 2*σ[1]*mat.μ^2, 2*σ[2], 2*σ[3] )
-    else
-        # G2:
-        r = Vec3( 0, 2*σ[2], 2*σ[3] )
-    end
+    σn, τ1, τ2 = σ
 
-    return r
+    if σn < 0.0 
+        return Vec3( 0.0, τ1, τ2 )
+    else
+        μ = mat.μ
+        return Vec3( μ^2*σn + eps()^0.5, τ1, τ2 )
+    end
 end
 
 
@@ -126,7 +130,8 @@ end
 
 function calcD(mat::MohrCoulombContact, state::MohrCoulombContactState)
     σmax   = calc_σmax(mat, state.up)
-    ks, kn = mat.ks, mat.kn
+    kn, ks = mat.kn, mat.ks
+    tiny   = 1e-6*mat.ft
 
     De = @SMatrix [ kn   0.0  0.0
                     0.0  ks   0.0
@@ -134,22 +139,18 @@ function calcD(mat::MohrCoulombContact, state::MohrCoulombContactState)
 
     if state.Δλ == 0.0  # Elastic 
         return De
-    elseif σmax == 0.0 && state.w[1] >= 0.0
-        # Dep  = De*1e-4
-        Dep  = De*1e-3
+    elseif σmax <= tiny && state.w[1] >= 0.0
+        Dep = De*1e-3
         return Dep
     else
-        v = yield_deriv(mat, state.σ)
-        r = potential_derivs(mat, state.σ)
-        y = -mat.μ # ∂F/∂σmax
-        m = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
-
-        #Dep  = De - De*r*v'*De/(v'*De*r - y*m*norm(r))
-        den = kn*r[1]*v[1] + ks*r[2]*v[2] + ks*r[3]*v[3] - y*m*norm(r)
-
-        Dep = @SMatrix [  kn - kn^2*r[1]*v[1]/den    -kn*ks*r[1]*v[2]/den      -kn*ks*r[1]*v[3]/den
-                         -kn*ks*r[2]*v[1]/den         ks - ks^2*r[2]*v[2]/den  -ks^2*r[2]*v[3]/den
-                         -kn*ks*r[3]*v[1]/den        -ks^2*r[3]*v[2]/den        ks - ks^2*r[3]*v[3]/den ]
+        n, ∂f∂σmax = yield_derivs(mat, state.σ)
+        m = potential_derivs(mat, state.σ)
+        H = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
+        
+        De_m  = De*m
+        nT_De = n'*De
+        den   = dot(n, De_m) - ∂f∂σmax*H*norm(m)
+        Dep   = De - (De_m*nT_De)/den
 
         return Dep
     end
@@ -157,69 +158,74 @@ end
 
 
 function plastic_update(mat::MohrCoulombContact, state::MohrCoulombContactState, cstate::MohrCoulombContactState, σtr::Vec3)
-    # Compute Δλ
+    kn, ks = mat.kn, mat.ks
+    σntr, τ1tr, τ2tr = σtr
 
-    maxits = 50
-    Δλ     = 0.0
-    up     = 0.0
-    tol    = 1e-4
-    μ      = mat.μ
-    ks, kn = mat.ks, mat.kn
+    μ = mat.μ
+
+    τtr = √(τ1tr^2 + τ2tr^2 + eps())
+
+    maxits    = 30
+    converged = false
+    Δλ        = 0.0
+    up        = cstate.up
+    σ         = cstate.σ
+    σmax      = calc_σmax(mat, up)
+    tol       = mat.ft*1e-6
 
     for i in 1:maxits
+        den_σn = 1.0 + Δλ*kn*μ^2
+        den_τ  = 1.0 + Δλ*ks
 
-        # quantities at n+1
-        if σtr[1]>0
-            σ     = Vec3( σtr[1]/(1+2*Δλ*kn*μ^2),  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) )
-            dσdΔλ = Vec3( -2*kn*μ^2*σtr[1]/(1+2*Δλ*kn*μ^2)^2,  -2*ks*σtr[2]/(1+2*Δλ*ks)^2,  -2*ks*σtr[3]/(1+2*Δλ*ks)^2 )
-            drdΔλ = Vec3( -4*kn*μ^4*σtr[1]/(1+2*Δλ*kn*μ^2)^2,  -4*ks*σtr[2]/(1+2*Δλ*ks)^2,  -4*ks*σtr[3]/(1+2*Δλ*ks)^2 )
+        # stresses at current iterate
+        σn = (σntr < 0) ? σntr : σntr/den_σn
+        τ1 = τ1tr/den_τ
+        τ2 = τ2tr/den_τ
+        τ  = √(τ1^2 + τ2^2 + eps())
+        σ  = Vec3(σn, τ1, τ2)
+
+        # m at current iterate stress
+        m      = potential_derivs(mat, σ)
+        norm_m = norm(m)
+        unit_m = m / (norm_m + eps())
+
+        # softening variable at current iterate
+        up   = cstate.up + Δλ*norm_m
+        σmax = calc_σmax(mat, up)
+        H    = deriv_σmax_up(mat, up)
+
+        # residual
+        f = τ + μ*(σn - σmax)
+        if abs(f) < tol
+            converged = true
+            break
+        end
+
+        # derivatives
+        if σntr<0
+            ∂σn∂Δλ = 0.0
+            ∂m∂Δλ  = Vec3( 0.0, -τ1tr*ks/den_τ^2, -τ2tr*ks/den_τ^2 )
         else
-            σ     = Vec3( σtr[1],  σtr[2]/(1+2*Δλ*ks),  σtr[3]/(1+2*Δλ*ks) )
-            dσdΔλ = Vec3( 0,  -2*ks*σtr[2]/(1+2*Δλ*ks)^2,  -2*ks*σtr[3]/(1+2*Δλ*ks)^2 )
-            drdΔλ = Vec3( 0,  -4*ks*σtr[2]/(1+2*Δλ*ks)^2,  -4*ks*σtr[3]/(1+2*Δλ*ks)^2 )
-        end
-                 
-        r        = potential_derivs(mat, σ)
-        norm_r   = norm(r)
-        up       = cstate.up + Δλ*norm_r
-        σmax     = calc_σmax(mat, up)
-        m        = deriv_σmax_up(mat, up)
-        dσmaxdΔλ = m*(norm_r + Δλ*dot(r/norm_r, drdΔλ))
-
-        f = sqrt(σ[2]^2 + σ[3]^2) + (σ[1]-σmax)*μ
-        if (σ[2]==0 && σ[3]==0) 
-            dfdΔλ = (dσdΔλ[1] - dσmaxdΔλ)*μ
-        else
-            dfdΔλ = 1/sqrt(σ[2]^2 + σ[3]^2) * (σ[2]*dσdΔλ[2] + σ[3]*dσdΔλ[3]) + (dσdΔλ[1] - dσmaxdΔλ)*μ
+            ∂σn∂Δλ = -σntr*kn*μ^2/den_σn^2
+            ∂m∂Δλ  = Vec3( -σntr*kn*μ^4/den_σn^2, -τ1tr*ks/den_τ^2, -τ2tr*ks/den_τ^2 )
         end
 
-        Δλ = Δλ - f/dfdΔλ
+        ∂τ∂Δλ    = -τtr*ks/den_τ^2
+        ∂up∂Δλ   = norm_m + Δλ*dot(unit_m, ∂m∂Δλ)
+        ∂σmax∂Δλ = H*∂up∂Δλ
 
-        abs(f) < tol && break
-
-        if i == maxits || isnan(Δλ)
-            # warn("""MohrCoulombContact: Could not find Δλ. This may happen when the system
-            # becomes hypostatic and thus the global stiffness matrix is nearly singular.
-            # Increasing the mesh refinement may result in a nonsingular matrix.
-            # """)
-            # warn("iterations=$i Δλ=$Δλ")
-            return failure("MohrCoulombContact: Could nof find Δλ.")
-        end
+        ∂f∂Δλ = ∂τ∂Δλ + ∂σn∂Δλ*μ - ∂σmax∂Δλ*μ
+        Δλ    = max(Δλ - f/∂f∂Δλ, 0.0)
     end
 
-        # Update σ and upa
-    if σtr[1] > 0
-        σ = Vec3( σtr[1]/(1 + 2*Δλ*kn*(μ^2)), σtr[2]/(1 + 2*Δλ*ks), σtr[3]/(1 + 2*Δλ*ks) )
+    if converged
+        state.σ  = σ
+        state.Δλ = Δλ
+        state.up = up
+        return success()
     else
-        σ = Vec3( σtr[1], σtr[2]/(1 + 2*Δλ*ks), σtr[3]/(1 + 2*Δλ*ks) )
-    end    
-    
-    state.Δλ = Δλ
-    state.σ  = σ
-    r        = potential_derivs(mat, σ)
-    state.up = cstate.up + state.Δλ*norm(r)
-
-    return success()
+        failure("MohrCoulombCohesive: plastic update failed.")
+    end
 end
 
 
@@ -232,7 +238,7 @@ function update_state(mat::MohrCoulombContact, state::MohrCoulombContactState, c
     σmax   = calc_σmax(mat, cstate.up)  
 
     if isnan(Δw[1]) || isnan(Δw[2])
-        alert("MohrCoulombContact: Invalid value for joint displacement: Δw = $Δw")
+        alert("MohrCoulombCohesive: Invalid value for joint displacement: Δw = $Δw")
     end
 
     # σ trial and F trial
@@ -240,14 +246,11 @@ function update_state(mat::MohrCoulombContact, state::MohrCoulombContactState, c
     ftr = yield_func(mat, σtr, σmax)
 
     # Elastic and EP integration
-    if σmax == 0.0 && cstate.w[1] >= 0.0
-        # Return to apex:
-        r1 = Vec3( σtr[1]/kn, σtr[2]/ks, σtr[3]/ks )
-        r  = r1/norm(r1)
-        state.Δλ = norm(r1)
-
-        state.up = cstate.up + state.Δλ
-        state.σ  = σtr - state.Δλ*De*r
+    if σmax == 0.0 && cstate.w[1] + Δw[1] >= 0.0
+        # traction-free after full decohesion
+        state.σ   = Vec3(0.0, 0.0, 0.0)
+        state.Δλ  = 1.0
+        state.up  = max(cstate.up, norm(cstate.w + Δw))
     elseif ftr <= 0.0
         # Pure elastic increment
         state.Δλ = 0.0
@@ -266,13 +269,15 @@ end
 
 function state_values(mat::MohrCoulombContact, state::MohrCoulombContactState)
     σmax = calc_σmax(mat, state.up)
-    τ = sqrt(state.σ[2]^2 + state.σ[3]^2)
-    s = sqrt(state.w[2]^2 + state.w[3]^2)
+    σn, τ1, τ2 = state.σ
+    wn, s1, s2 = state.w
+    τ = sqrt(τ1^2 + τ2^2)
+    s = sqrt(s1^2 + s2^2)
     
     return Dict(
-        :w    => state.w[1],
+        :w    => wn,
         :s    => s,
-        :σn   => state.σ[1],
+        :σn   => σn,
         :τ    => τ,
         :up   => state.up,
         :σmax => σmax

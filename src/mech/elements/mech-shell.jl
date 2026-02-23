@@ -136,6 +136,9 @@ function elem_map(elem::Element{MechShell})
 end
 
 
+dof_map(elem::Element{MechShell}) = elem_map(elem)
+
+
 function setB(elem::Element{MechShell}, ip::Ip, N::Vect, L::Matx, dNdX::Matx, Rθ::Matx, Bil::Matx, Bi::Matx, B::Matx)
     nnodes = size(dNdX,1)
     th = elem.etype.th
@@ -310,7 +313,7 @@ function elem_mass(elem::Element{MechShell})
 end
 
 
-function elem_internal_forces(elem::Element{MechShell}, ΔUg::Vector{Float64}=Float64[], dt::Float64=0.0)
+function elem_internal_forces(elem::Element{MechShell}, ΔU::Vector{Float64}=Float64[], dt::Float64=0.0)
     nnodes = length(elem.nodes)
     th   = elem.etype.th
     ndof = 6
@@ -326,9 +329,8 @@ function elem_internal_forces(elem::Element{MechShell}, ΔUg::Vector{Float64}=Fl
     Bil = zeros(6,5)
     Bi  = zeros(6,ndof)
 
-    update = !isempty(ΔUg)
+    update = !isempty(ΔU)
     if update
-        ΔU = ΔUg[map]
         Δε = zeros(6)
     end
 

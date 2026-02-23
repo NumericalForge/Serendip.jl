@@ -425,7 +425,7 @@ function plastic_update(mat::VonMises, state::VonMisesBeamState, cstate::VonMise
     n_tr   = (Q.*σtr)/σvm_tr # freezing the plastic direction
     
     Δλ     = 0.0
-    maxits = 30
+    maxits = 50
     tol    = 1e-6*mat.σy
     for i in 1:maxits
         σvm = √(σ[1]^2 + 1.5*(σ[2]^2 + σ[3]^2) )
