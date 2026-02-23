@@ -174,7 +174,10 @@ function save_vtu(mesh::AbstractDomain, filename::String; desc::String="", compr
 
     npoints = length(mesh.nodes)
     ncells  = length(mesh.elems)
-    root = XmlElement("VTKFile", attributes=("type"=>"UnstructuredGrid", "version"=>"1.0",  "byte_order"=>"LittleEndian", "header_type"=>"UInt64", "compressor"=>"vtkZLibDataCompressor"))
+    root_atts = compress ?
+        ("type"=>"UnstructuredGrid", "version"=>"1.0", "byte_order"=>"LittleEndian", "header_type"=>"UInt64", "compressor"=>"vtkZLibDataCompressor") :
+        ("type"=>"UnstructuredGrid", "version"=>"1.0", "byte_order"=>"LittleEndian")
+    root = XmlElement("VTKFile", attributes=root_atts)
     ugrid = XmlElement("UnstructuredGrid")
     piece = XmlElement("Piece", attributes=("NumberOfPoints"=>"$npoints", "NumberOfCells"=>"$ncells"))
     addchild!(ugrid, piece)
@@ -590,28 +593,89 @@ end
 function read_vtu(filename::String)
     doc = XmlDocument(filename)
 
-    # check if file is compressed
-    if getchild(doc.root, "AppendedData")!==nothing
-        raw = Vector{UInt8}(strip(getchild(doc.root, "AppendedData").content[2:end])) # remove first character _
+    # Decode appended binary blocks (compressed or uncompressed) into DataArray contents.
+    xapp = getchild(doc.root, "AppendedData")
+    if xapp !== nothing
+        # IMPORTANT:
+        # For encoding="raw", XML text normalization can alter raw bytes.
+        # Extract appended payload directly from file bytes instead of xapp.content.
+        file_bytes = read(filename)
+        app_tag = findfirst(UInt8[codeunits("<AppendedData")...], file_bytes)
+        app_tag === nothing && error("read_vtu: <AppendedData> tag not found in file bytes")
+
+        tag_close = findnext(==(UInt8('>')), file_bytes, first(app_tag))
+        tag_close === nothing && error("read_vtu: Invalid <AppendedData> tag (missing '>').")
+
+        marker = findnext(==(UInt8('_')), file_bytes, tag_close + 1)
+        marker === nothing && error("read_vtu: AppendedData marker '_' not found.")
+
+        app_end = findfirst(UInt8[codeunits("</AppendedData>")...], file_bytes)
+        app_end === nothing && error("read_vtu: </AppendedData> closing tag not found.")
+
+        raw_start = marker + 1
+        raw_stop = first(app_end) - 1
+        raw_start > raw_stop && error("read_vtu: Empty appended payload.")
+
+        # Do not strip/trim: trailing whitespace bytes can belong to compressed blocks.
+        raw = file_bytes[raw_start:raw_stop]
         nodes = getallchildren(doc.root)
 
-        # update content on xml nodes with offset att
+        header_type = get(doc.root.attributes, "header_type", "UInt32")
+        H = header_type == "UInt64" ? UInt64 :
+            header_type == "UInt32" ? UInt32 :
+            error("read_vtu: Unsupported header_type=$header_type")
+        hbytes = sizeof(H)
+        is_compressed = haskey(doc.root.attributes, "compressor")
+
+        # Update XML node contents from appended payload using each DataArray offset.
         for node in nodes
             node isa XmlElement || continue
             node.name == "DataArray" && haskey(node.attributes, "offset") || continue
             offset = parse(Int, node.attributes["offset"])
 
-            first  = offset + 1
-            last   = offset + 4*sizeof(UInt64(0))
+            first = offset + 1
+            first > length(raw) && error("read_vtu: Invalid offset $offset (out of payload bounds)")
 
-            header = Int.(reinterpret(UInt64, raw[first:last]))
-            len    = header[4]
+            if is_compressed
+                # VTK compressed layout:
+                # [num_blocks, block_size, last_block_size, compressed_block_sizes...]
+                nblocks = Int(reinterpret(H, raw[first:first+hbytes-1])[1])
+                nblocks < 1 && error("read_vtu: Invalid number of compressed blocks: $nblocks")
 
-            first = offset + 4*sizeof(UInt64(0)) + 1
-            last  = first + len - 1
+                hlen = (3 + nblocks)*hbytes
+                last = offset + hlen
+                last > length(raw) && error("read_vtu: Compressed header exceeds payload at offset $offset")
 
-            # fill xml nodes with decompressed data
-            node.content = transcode(ZlibDecompressor, raw[first:last]) # decompression
+                header = Int.(reinterpret(H, raw[first:last]))
+                comp_sizes = header[4:end]
+                comp_total = sum(comp_sizes)
+                comp_first = offset + hlen + 1
+                comp_last = comp_first + comp_total - 1
+                comp_last > length(raw) && error("read_vtu: Compressed block exceeds payload at offset $offset")
+
+                if nblocks == 1
+                    node.content = transcode(ZlibDecompressor, raw[comp_first:comp_last])
+                else
+                    out = UInt8[]
+                    pos = comp_first
+                    for clen in comp_sizes
+                        chunk_last = pos + clen - 1
+                        chunk_last > comp_last && error("read_vtu: Invalid compressed chunk size at offset $offset")
+                        append!(out, transcode(ZlibDecompressor, raw[pos:chunk_last]))
+                        pos = chunk_last + 1
+                    end
+                    node.content = out
+                end
+            else
+                # VTK uncompressed appended layout: [byte_length, payload...]
+                last = first + hbytes - 1
+                last > length(raw) && error("read_vtu: Uncompressed header exceeds payload at offset $offset")
+                len = Int(reinterpret(H, raw[first:last])[1])
+                data_first = last + 1
+                data_last = data_first + len - 1
+                data_last > length(raw) && error("read_vtu: Uncompressed payload exceeds bounds at offset $offset")
+                node.content = raw[data_first:data_last]
+            end
         end
     end
 
@@ -639,7 +703,6 @@ function read_vtu(filename::String)
     if xpointdata!==nothing
         for array_data in xpointdata.children
             label = array_data.attributes["Name"]
-            # label in ("node-id",) && continue # skip extra fields
             node_fields[label] = get_array(array_data)
         end
     end
@@ -648,7 +711,6 @@ function read_vtu(filename::String)
     if xcelldata!==nothing
         for array_data in xcelldata.children
             label = array_data.attributes["Name"]
-            # label in ("elem-id", "tag", "tag-s1", "tag-s2", "cell-type", "interface-data", "embedded-data") && continue # skip extra fields
             elem_fields[label] = get_array(array_data)
         end
     end
