@@ -35,6 +35,6 @@ run(ana, autoinc=true, quiet=false, tol=1e-2)
 
 # Post-processing
 
-# chart = Chart(xlabel="uy", ylabel="fy")
-# add_series(chart, log.table["uy"], log.table["fy"])
-# save(chart, "vm-beam-2d.pdf")
+chart = Chart(xlabel="uy", ylabel="fy")
+add_series(chart, log.table["uy"], log.table["fy"])
+save(chart, "vm-beam-2d.pdf")

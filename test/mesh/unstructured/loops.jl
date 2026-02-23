@@ -3,56 +3,20 @@ using Test
 
 geo = GeoModel()
 
-s= 0.3
-p1 = addpoint!(geo, 0, 0, 0, size=s)
-p2 = addpoint!(geo, 1, 0, 0, size=s)
-p3 = addpoint!(geo, 1, 1, 0, size=s)
-p4 = addpoint!(geo, 0, 1, 0, size=s)
+outer = add_rectangle(geo, [0.0, 0.0, 0.0], 1.0, 1.0, tag="outer")
 
-addline!(geo, p1, p2)
-addline!(geo, p2, p3)
-addline!(geo, p3, p4)
-addline!(geo, p4, p1)
+p1 = add_point(geo, [0.5, 0.0, 0.0])
+p2 = add_point(geo, [0.5, 1.0, 0.0])
+e1 = add_line(geo, p1, p2)
 
-# inner loops
-p5 = addpoint!(geo, 0.5, 0, 0, size=s)
-p6 = addpoint!(geo, 0.5, 1, 0, size=s)
-addline!(geo, p5, p6)
+p3 = add_point(geo, [0.0, 0.75, 0.0])
+p4 = add_point(geo, [1.0, 0.75, 0.0])
+e2 = add_line(geo, p3, p4)
 
-# hole loop
-pa = addpoint!(geo, 0.2, 0.2, 0, size=s)
-pb = addpoint!(geo, 0.4, 0.2, 0, size=s)
-pc = addpoint!(geo, 0.4, 0.4, 0, size=s)
-pd = addpoint!(geo, 0.2, 0.4, 0, size=s)
-addline!(geo, pa, pb)
-addline!(geo, pb, pc)
-addline!(geo, pc, pd)
-addline!(geo, pd, pa)
+out = fragment(geo, [outer], [e1, e2]; remove_object=true, remove_tool=true)
+nsurfs = length([e for e in out if e isa Surface])
 
-# outer loop
-pa = addpoint!(geo, 1, 0.9, 0, size=s)
-pb = addpoint!(geo, 1.1,0.9, 0, size=s)
-pc = addpoint!(geo, 1.1,1.1, 0, size=s)
-pd = addpoint!(geo, 0.9,1.1, 0, size=s)
-pe = addpoint!(geo, 0.9,1, 0, size=s)
-addline!(geo, pa, pb)
-addline!(geo, pb, pc)
-addline!(geo, pc, pd)
-addline!(geo, pd, pe)
+mesh = Mesh(geo)
 
-# outer loop
-pa = addpoint!(geo, 0.4, 1, 0, size=s)
-pb = addpoint!(geo, 0.4, 1.1, 0, size=s)
-pc = addpoint!(geo, 0.2, 1.1, 0, size=s)
-pd = addpoint!(geo, 0.2, 1, 0, size=s)
-addline!(geo, pa, pb)
-addline!(geo, pb, pc)
-addline!(geo, pc, pd)
-
-println(@test length(geo.faces) == 5)
-
-# plot = GeometryPlot(geo); save(plot, "geo.pdf")
-
-
-
-
+println(@test nsurfs >= 3)
+println(@test mesh.elems[1].tag == "outer")

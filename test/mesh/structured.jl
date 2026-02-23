@@ -67,7 +67,7 @@ end
 
 
 
-printstyled("\nMesh generation of joint cells\n", color=:blue, bold=true)
+printstyled("\nMesh generation of cohesive elements\n", color=:blue, bold=true)
 
 # nodes_count = [ 108, 108, 36, 72, 648, 1620, 216, 540]
 nodes_count = [ 25, 49, 16, 40, 64, 343, 64, 208]
@@ -83,7 +83,7 @@ for (n, e, shape) in zip(nodes_count, elems_count, shapes)
         add_block(geo, [0,0,0], 1,1,1, nx=3, ny=3, nz=3, shape=shape)
     end
     mesh = Mesh(geo)
-    add_cohesive_elements(mesh)
+    add_cohesive_elements(mesh, implicit=true)
 
     TR = @test length(mesh.nodes) == n && length(mesh.elems) == e
     println(TR)
@@ -113,7 +113,7 @@ for (n, e, shape) in zip(nodes_count, elems_count, shapes)
     add_path(geo, [l1])
 
     mesh = Mesh(geo)
-    add_cohesive_elements(mesh)
+    add_cohesive_elements(mesh, implicit=true)
 
     # @show length(mesh.nodes), length(mesh.elems)
     TR = @test length(mesh.nodes) == n && length(mesh.elems) == e

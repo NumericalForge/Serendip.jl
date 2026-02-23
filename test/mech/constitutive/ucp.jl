@@ -55,7 +55,7 @@ uu = 0.0002
 add_bc(stage1, :node, x==0, ux=0)
 add_bc(stage1, :node, y==0, uy=0)
 add_bc(stage1, :node, z==0, uz=0)
-add_bc(stage1, :node, x==ℓ, ux=uu)
+# add_bc(stage1, :node, x==ℓ, ux=uu)
 add_bc(stage1, :node, z==h, uz=uu)
 
 run(ana, autoinc=true, tol=0.5, quiet=false)

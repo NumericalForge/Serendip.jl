@@ -1,18 +1,21 @@
 using Serendip, Test
 
-# 3D unstructured mesh
 geo = GeoModel()
 
-s= 0.5
-p0 = addpoint!(geo, 0, 0, 0, size=s)
-p1 = addpoint!(geo, 1, 0, 0, size=s)
-p2 = addpoint!(geo, 0, 1, 0, size=s)
-p3 = addpoint!(geo, -1, 0, 0, size=s)
+p0 = add_point(geo, [0.0, 0.0, 0.0])
+p1 = add_point(geo, [1.0, 0.0, 0.0])
+p2 = add_point(geo, [0.0, 1.0, 0.0])
+p3 = add_point(geo, [-1.0, 0.0, 0.0])
 
-addarc!(geo, p1, p0, p2)
-addarc!(geo, p2, p0, p3)
-addline!(geo, p1, p3)
+a1 = add_circle_arc(geo, p1, p0, p2)
+a2 = add_circle_arc(geo, p2, p0, p3)
+l1 = add_line(geo, p3, p1)
 
-pull!(geo, geo.faces[1], axis=[0,0,1], length=0.5)
+loop = add_loop(geo, [a1, a2, l1])
+surf = add_plane_surface(geo, loop, tag="body")
+extrude(geo, surf, [0.0, 0.0, 0.5])
 
-# plot = GeometryPlot(geo); save(plot, "geo.pdf")
+mesh = Mesh(geo)
+println(@test mesh.ctx.ndim == 3)
+println(@test length(mesh.elems) > 0)
+println(@test mesh.elems[1].tag == "body")

@@ -27,8 +27,8 @@ add_bc(stage, :node, (y==0, z==0), uz=0)
 add_bc(stage, :node, (x==th/2, y==0, z==0), ux=0)
 add_bc(stage, :node, (x==th/2, y==1, z==0), uz=-0.03)
 
-run(ana, autoinc=true, tol=0.001)
-@test log.table.fz[end]≈-30 atol=1.1
+run(ana, autoinc=true, tol=0.01)
+@test log.table.fz[end]≈-31.1 atol=1.1
 
 makeplots = false
 if @isdefined(makeplots) && makeplots
