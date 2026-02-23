@@ -13,13 +13,14 @@ mutable struct Cell<:AbstractCell
     embedded ::Bool                   # flag for embedded cells
     crossed  ::Bool                   # flag if cell crossed by linear inclusion
     owner    ::Union{AbstractCell,Nothing}  # owner cell if this cell is a face/edge
+    facet_idx::Int                    # index of the facet in the owner cell (starting from 1)
     couplings::Vector{AbstractCell}   # neighbor cells in case of interface cells
     ctx      ::MeshContext            # mesh environment variables
 
 
-    function Cell(shape::CellShape, role::Symbol, nodes::Vector{Node}; ctx::MeshContext=MeshContext(0), tag::String="", owner=nothing, id::Int=-1, active=true)
+    function Cell(shape::CellShape, role::Symbol, nodes::Vector{Node}; ctx::MeshContext=MeshContext(0), tag::String="", owner=nothing, facet_idx=0, id::Int=-1, active=true)
         # use a shallow copy of nodes
-        return new(id, shape, role, copy(nodes), tag, active, 0.0, false, false, owner, AbstractCell[], ctx)
+        return new(id, shape, role, copy(nodes), tag, active, 0.0, false, false, owner, facet_idx, AbstractCell[], ctx)
     end
 end
 
@@ -34,7 +35,7 @@ Base.hash(cell::Cell) = sum(hash(node) for node in cell.nodes)
 Base.isequal(c1::Cell, c2::Cell) = hash(c1)==hash(c2)
 
 
-Base.copy(cell::Cell)  = Cell(cell.shape, cell.nodes, tag=cell.tag, owner=cell.owner)
+Base.copy(cell::Cell)  = Cell(cell.shape, cell.nodes, tag=cell.tag, owner=cell.owner, acet_idx=cell.facet_idx)
 
 
 function get_coords(c::AbstractCell, ndim=3)
@@ -255,14 +256,13 @@ function get_facets(cell::AbstractCell)
 
     facet_shape==() && return faces
 
-    # sameshape = typeof(facet_shape) == CellShape # check if all facets have the same shape
     role = cell.shape.ndim ==3 ? :surface : :line # 2D cells have only lines as facets
 
     # Iteration for each facet
     for (i, face_idxs) in enumerate(all_facets_idxs)
         nodes      = cell.nodes[face_idxs]
         shape      = facet_shape[i]
-        face       = Cell(shape, role, nodes, tag=cell.tag, owner=cell)
+        face       = Cell(shape, role, nodes, tag=cell.tag, owner=cell, facet_idx=i)
         face.nodes = nodes # update nodes since Cell creates a copy
         push!(faces, face)
     end
@@ -276,10 +276,10 @@ function get_edges(cell::AbstractCell)
     edges  = Cell[]
     all_edge_idxs = cell.shape.edge_idxs
 
-    for edge_idx in all_edge_idxs
+    for (i,edge_idx) in enumerate(all_edge_idxs)
         nodes = cell.nodes[edge_idx]
         shape = (LIN2, LIN3, LIN4)[length(nodes)-1]
-        edge  = Cell(shape, :line, nodes, tag=cell.tag, owner=cell)
+        edge  = Cell(shape, :line, nodes, tag=cell.tag, owner=cell, facet_idx=i)
         push!(edges, edge)
     end
 
