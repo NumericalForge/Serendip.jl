@@ -10,6 +10,7 @@ const _available_formats = [
     ".pdf",
     ".png",
     ".svg",
+    ".ps",
 ]
 
 

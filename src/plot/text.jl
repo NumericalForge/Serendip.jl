@@ -1,170 +1,101 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-# cache is required to avoid multiple calls to findfont
-const _font_cache = Dict{String, String}() # cache font -> family
+# Cache is required to avoid repeated font-discovery lookups.
+const _resolved_font_family_cache = Dict{String, String}()
 
-const _available_fonts = [
+# Ordered fallback candidates for font-family resolution.
+const _font_fallback_candidates = [
     "NewComputerModern",
     "NewComputerModern Regular",
     "Times New Roman",
     "Cambria",
     "Palatino Linotype",
     "Georgia",
+    "DejaVu Serif",
+    "Liberation Serif",
+    "Noto Serif",
+    "serif",
+    "sans-serif",
 ]
 
-function get_font(str)
-    haskey(_font_cache, str) && return _font_cache[str]
+function _font_family_from_name(name::AbstractString)
+    isempty(name) && return nothing
+    font = FreeTypeAbstraction.findfont(name)
+    font === nothing && return nothing
+    return replace(font.family_name, "Math" => "")
+end
 
-    font = FreeTypeAbstraction.findfont(str)
+function resolve_font_family(name::AbstractString)
+    key = String(name)
+    haskey(_resolved_font_family_cache, key) && return _resolved_font_family_cache[key]
 
-    if font===nothing
-        for fnt in _available_fonts
-            font = FreeTypeAbstraction.findfont(fnt)
-            font!==nothing && break
+    # First, attempt the requested family.
+    family = _font_family_from_name(key)
+
+    # Then try known fallbacks.
+    if family === nothing
+        for candidate in _font_fallback_candidates
+            family = _font_family_from_name(candidate)
+            family !== nothing && break
         end
     end
 
-    family = replace(font.family_name, "Math" => "")
-    _font_cache[str] = family # update cache
+    # Last resort: let Cairo/Pango attempt generic families.
+    family = something(family, "serif")
+    _resolved_font_family_cache[key] = family
 
     return family
 end
 
+# Backward-compatible alias used across plotting files.
+get_font(name::AbstractString) = resolve_font_family(name)
 
-function fix_tex_elems!(elems)
-    # fix the position of the elements due to unary minus
-    if elems[1][1].represented_char == '−'
-        for i in 2:length(elems)
-            elem = elems[i]
-            point = typeof(elem[2])(elem[2][1] - 0.3, elem[2][2])
-            elems[i] = (elem[1], point, elem[3])
-        end
-    end
-
-    # fix spacement for × character
-    pos = findfirst(elem -> !(elem[1] isa HLine) && elem[1].represented_char == '×', elems)
-    if pos !== nothing && pos < length(elems)
-        elem = elems[pos]
-        point = typeof(elem[2])(elem[2][1] - 0.07, elem[2][2])
-        elems[pos] = (elem[1], point, elem[3])
-        for i in pos+1:length(elems)
-            elem = elems[i]
-            point = typeof(elem[2])(elem[2][1] - 0.37, elem[2][2])
-            elems[i] = (elem[1], point, elem[3])
-        end
-    end
-
-    return elems
+function _current_font_family(cc::CairoContext)
+    font_face = ccall((:cairo_get_font_face, Cairo.libcairo), Ptr{Cvoid}, (Ptr{Cvoid},), cc.ptr)
+    font_family = ccall((:cairo_toy_font_face_get_family, Cairo.libcairo), Cstring, (Ptr{Cvoid},), font_face)
+    family = unsafe_string(font_family)
+    return isempty(family) ? resolve_font_family("NewComputerModern") : family
 end
 
+function _text_anchor_shift(layout::TypesetLayout, halign::AbstractString, valign::AbstractString)
+    rw = halign == "center" ? 0.5 : halign == "right" ? 1.0 : 0.0
+    rh = valign == "center" ? 0.5 : valign == "top" ? 1.0 : 0.0
 
-function getsize(str::LaTeXString, fontsize::Float64)
-    texelems = generate_tex_elements(str)
-    fix_tex_elems!(texelems)
-
-    width  = maximum([elem[2][1] for elem in texelems], init=0.0) + 0.7
-    maxh   = maximum([elem[2][2] for elem in texelems], init=0.0) + 0.7
-    minh   = minimum([elem[2][2] for elem in texelems], init=0.0) - 0.2
-    height = maxh - minh
-    return width*fontsize, height*fontsize
+    dx = -rw * layout.width
+    dy = -((1 - rh) * layout.max_y + rh * layout.min_y)
+    return dx, dy
 end
-
-function getsize(cc::CairoContext, str::LaTeXString, fontsize::Float64)
-    return getsize(str, fontsize)
-end
-
-
-function getsize(str::AbstractString, fontsize::Float64)
-    str = LaTeXString(str)
-    return getsize(str, fontsize)
-end
-
 
 function getsize(cc::CairoContext, str::AbstractString, fontsize::Float64)
-    te = text_extents(cc, str)
-    return te[3], te[4]
+    font = _current_font_family(cc)
+    layout = layout_typeset(cc, str, fontsize, font=font)
+    return layout.width, layout.height
 end
 
+function getsize(str::AbstractString, fontsize::Float64)
+    surf = CairoImageSurface(4, 4, Cairo.FORMAT_ARGB32)
+    cc = CairoContext(surf)
+    select_font_face(cc, resolve_font_family("NewComputerModern"), Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
+    set_font_size(cc, fontsize)
+    return getsize(cc, str, fontsize)
+end
 
 function draw_text(cc::CairoContext, x, y, str::AbstractString; halign="center", valign="center", angle=0)
     Cairo.save(cc)
 
-    te = text_extents(cc, str)
-    width = te[3]
-    height = te[4]
-    rw = halign=="center" ? 0.5 : halign=="right" ? 1.0 : 0.0
-    rh = valign=="center" ? 0.5 : valign=="top" ? 1.0 : 0.0
-
-    Cairo.translate(cc, x, y)
-    Cairo.rotate(cc, -angle*pi/180)
-    Cairo.translate(cc, -rw*width, rh*height)
-    move_to(cc, 0, 0)
-    show_text(cc, str)
-
-    Cairo.restore(cc)
-end
-
-
-# Draw latex string with Cairo
-function draw_text(cc::CairoContext, x, y, str::LaTeXString; halign="center", valign="center", angle=0)
-    Cairo.save(cc)
-
-    texelems = generate_tex_elements(str)
-    fix_tex_elems!(texelems)
-
-    # get the current font
-    font_face = ccall((:cairo_get_font_face, Cairo.libcairo), Ptr{Cvoid}, (Ptr{Cvoid},), cc.ptr)
-    font_family = ccall((:cairo_toy_font_face_get_family, Cairo.libcairo), Cstring, (Ptr{Cvoid},), font_face)
-    font = unsafe_string(font_family)
-
-    # get font size
+    font = _current_font_family(cc)
     fmatrix = get_font_matrix(cc)
-    fsize = norm([fmatrix.xx, fmatrix.xy])
+    fontsize = norm([fmatrix.xx, fmatrix.xy])
 
-    # get size
-    width = fsize*(maximum([elem[2][1] for elem in texelems], init=0.0) + 0.7)
-    maxh = maximum([elem[2][2] for elem in texelems], init=0.0) + 0.7
-    minh = minimum([elem[2][2] for elem in texelems], init=0.0) - 0.15
-    height = fsize*(maxh - minh)
-
-    # width, height = getsize(str, fsize)
-    rw = halign=="center" ? 0.5 : halign=="right" ? 1.0 : 0.0
-    rh = valign=="center" ? 0.5 : valign=="top" ? 1.0 : 0.0
+    layout = layout_typeset(cc, str, fontsize, font=font)
+    dx, dy = _text_anchor_shift(layout, halign, valign)
 
     Cairo.translate(cc, x, y)
-    Cairo.rotate(cc, -angle*pi/180)
-    Cairo.translate(cc, -rw*width, rh*height + minh*fsize)
-    move_to(cc, 0, 0)
+    Cairo.rotate(cc, -angle * pi / 180)
+    Cairo.translate(cc, dx, dy)
 
-    for elem in texelems
-        x0, y0 = elem[2]
+    draw_typeset_layout!(cc, layout, font=font)
 
-        if elem[1] isa TeXChar
-            texchar = elem[1]
-            scale = elem[3]
-            glyph = texchar.represented_char
-
-            if texchar.slanted || occursin(glyph, "αβγδεζηθικλμνξοπρστυφχψω")
-                select_font_face(cc, font, Cairo.FONT_SLANT_ITALIC, Cairo.FONT_WEIGHT_NORMAL )
-            else
-                select_font_face(cc, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL )
-            end
-            set_font_size(cc, fsize*scale)
-
-            move_to(cc, x0*fsize, -y0*fsize)
-            show_text(cc, string(glyph))
-
-        elseif elem[1] isa HLine
-            hline = elem[1]
-            w = hline.width*fsize
-            # move_to(cc, xi, yi); rel_line_to(cc, w*cos(-θ), w*sin(-θ)); stroke(cc)
-            set_line_width(cc, hline.thickness*fsize)
-            move_to(cc, x0*fsize, -y0*fsize); rel_line_to(cc, w, 0); stroke(cc)
-        end
-    end
-
-    set_font_size(cc, fsize)
-    set_font_face(cc, "NewComputerModern $fsize") # for pango text
+    set_font_size(cc, fontsize)
     Cairo.restore(cc)
-
 end

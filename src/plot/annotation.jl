@@ -1,48 +1,39 @@
 
-# Annotation_params = [
-#     FunInfo(:Annotation, "Creates an `Annotation` instance."),
-#     ArgInfo(:text, "Text to be displayed", type=AbstractString),
-#     ArgInfo(:x, "x-coordinate of the annotation", cond=:(0<=x<=1), type=Real),
-#     ArgInfo(:y, "y-coordinate of the annotation", cond=:(0<=y<=1), type=Real),
-#     KwArgInfo(:text_alignment, "Alignment of the text", :auto, values=(:auto, :left, :right, :top, :bottom)),
-#     KwArgInfo(:target, "Coordinates of the target point of the arrow relative to data", [0.0,0.0], length=2),
-#     KwArgInfo(:line_width, "Edge weight", 0.4, cond=:(line_width>0)),
-#     KwArgInfo(:font, "Name of the font", "NewComputerModern", type=AbstractString),
-#     KwArgInfo(:fontsize, "Size of the font in dpi", 6.0, cond=:(fontsize>0)),
-#     KwArgInfo(:color, "Color of the text", :default),
-# ]
-
-
 mutable struct Annotation <: FigureComponent
-    text::AbstractString
-    x::Float64
-    y::Float64
-    text_alignment::Symbol
-    target::Vector{Float64}
-    line_width::Float64
-    font::String
-    fontsize::Float64
-    color::Symbol
+    text       ::AbstractString
+    x          ::Float64
+    y          ::Float64
+    alignment  ::Symbol
+    target     ::Vector{Float64}
+    has_target ::Bool
+    line_width ::Float64
+    font       ::String
+    font_size  ::Float64
+    color      ::Symbol
     function Annotation(text::AbstractString, x::Real, y::Real;
-        text_alignment::Symbol=:auto,
-        target::AbstractArray{<:Real,1}=[0.0, 0.0],
+        alignment::Symbol=:auto,
+        target::Union{Nothing,AbstractArray{<:Real,1}}=[0.0, 0.0],
         line_width::Real=0.4,
         font::AbstractString="NewComputerModern",
-        fontsize::Real=6.0,
+        font_size::Real=6.0,
         color::Symbol=:black
     )
 
         @check 0 <= x <= 1 "x must be in the range [0,1]"
         @check 0 <= y <= 1 "y must be in the range [0,1]"
-        @check text_alignment in (:auto, :left, :right, :top, :bottom) "Invalid text_alignment: $(repr(text_alignment))"
-        @check length(target) == 2 "target must be a 2D point"
+        @check alignment in (:auto, :left, :right, :top, :bottom) "Invalid alignment: $(repr(alignment))"
         @check line_width > 0 "line_width must be positive"
-        @check fontsize > 0 "fontsize must be positive"
+        @check font_size > 0 "font_size must be positive"
 
-        # args = checkargs([text, x, y], kwargs, Annotation_params)
-        target = float.(target)
+        has_target = target !== nothing
+        if has_target
+            @check length(target) == 2 "target must be a 2D point"
+            target = float.(target)
+        else
+            target = [0.0, 0.0]
+        end
 
-        return new(text, x, y, text_alignment, target, line_width, font, fontsize, color)
+        return new(text, x, y, alignment, target, has_target, line_width, font, font_size, color)
     end
 end
 
@@ -54,7 +45,7 @@ end
 
 function draw!(c::Figure, cc::CairoContext, a::Annotation)
 
-    set_font_size(cc, a.fontsize)
+    set_font_size(cc, a.font_size)
     font = get_font(a.font)
     select_font_face(cc, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
 
@@ -63,33 +54,24 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
     # convert from axes to Cairo coordinates
     x = c.canvas.box[1] + a.x * c.canvas.width
     y = c.canvas.box[2] + (1 - a.y) * c.canvas.height
-    halign = a.text_alignment == :right ? "right" : "left"
-    valign = a.text_alignment == :top ? "top" : "bottom"
+    halign = a.alignment == :right ? "right" : "left"
+    valign = a.alignment == :top ? "top" : "bottom"
     set_source_rgb(cc, 0, 0, 0)
     draw_text(cc, x, y, a.text, halign=halign, valign=valign, angle=0)
 
-    if a.text_alignment == :auto
-        a.text_alignment = :left
+    if a.alignment == :auto
+        a.alignment = :left
     end
 
     # draw arrow
-    if a.target !== nothing
+    if a.has_target
 
         # compute text size
-        w, h = getsize(cc, a.text, a.fontsize)
+        w, h = getsize(cc, a.text, a.font_size)
         text_outerpad = 0.1 * min(w, h)
 
-        if halign == "left"
-            x += w / 2
-        else
-            x -= w / 2
-        end
-
-        if valign == "top"
-            y += 0.5 * h
-        else
-            y -= 0.5 * h
-        end
+        x = halign == "left" ? x + w/2 : x - w/2
+        y = valign == "top" ? y + h/2 : y - h/2
 
         w += text_outerpad
         h += text_outerpad
@@ -156,7 +138,7 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
         end
 
         # Draw line 2
-        dx += sign(dx) * a.line_width
+        x_prev, y_prev = x, y
         move_to(cc, x, y)
         if lines[2] == '|'
             rel_line_to(cc, 0, dy)
@@ -167,5 +149,42 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
         end
 
         stroke(cc)
+
+        # Draw a concave (chevron/notched) arrowhead at target.
+        vx = xa - x_prev
+        vy = ya - y_prev
+        vlen = hypot(vx, vy)
+        if vlen < 1e-8
+            vx = xa - x
+            vy = ya - y
+            vlen = hypot(vx, vy)
+        end
+        if vlen > 1e-8
+            ux = vx / vlen
+            uy = vy / vlen
+            nx = -uy
+            ny = ux
+
+            head_len = max(6.0 * a.line_width, 4.0)
+            head_w = 0.9 * head_len
+            notch_depth = 0.45 * head_len
+
+            tipx, tipy = xa, ya
+            basex = tipx - head_len * ux
+            basey = tipy - head_len * uy
+            leftx = basex + 0.5 * head_w * nx
+            lefty = basey + 0.5 * head_w * ny
+            rightx = basex - 0.5 * head_w * nx
+            righty = basey - 0.5 * head_w * ny
+            notchx = tipx - (head_len - notch_depth) * ux
+            notchy = tipy - (head_len - notch_depth) * uy
+
+            move_to(cc, tipx, tipy)
+            line_to(cc, leftx, lefty)
+            line_to(cc, notchx, notchy)
+            line_to(cc, rightx, righty)
+            close_path(cc)
+            fill(cc)
+        end
     end
 end

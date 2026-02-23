@@ -29,29 +29,8 @@ mutable struct Colorbar<:FigureComponent
         @check length_factor>0 "Colorbar length_factor must be >0"
         @check font_size>0 "Colorbar font_size must be >0"
         @check length(limits)==2 "Colorbar limits must be a vector of length 2"
-        # @check limits[1]<limits[2] "Colorbar limits must be in ascending order"
-        # @check bins>0 "Colorbar bins must be >0"
-        # ; args...)
-        # args = checkargs(args,
-        #     [
-        #         KwArgInfo( :location, "Colorbar location", :right, values=(:none, :right, :bottom) ),
-        #         KwArgInfo( :colormap, "Colormap", :coolwarm),
-        #         KwArgInfo( :limits, "Colorbar limit values", [0.0,0.0], length=2 ),
-        #         KwArgInfo( :label, "Colorbar label", "", type=AbstractString ),
-        #         KwArgInfo( :font_size, "Font size", 9.0, cond=:(font_size>0)),
-        #         KwArgInfo( :font, "Font name", "NewComputerModern", type=AbstractString),
-        #         KwArgInfo( :ticks, "Colorbar tick values", Float64[], type=AbstractArray ),
-        #         KwArgInfo( :tick_labels, "Colorbar tick labels", String[], type=AbstractArray ),
-        #         KwArgInfo( :tick_length, "Colorbar tick length", 3 ),
-        #         KwArgInfo( :bins, "Number of bins", 6 ),
-        #         KwArgInfo( :inner_sep, "Colorbar inner separation", 3 ),
-        #         KwArgInfo( :length_factor, "Length factor", 1.0 ),
-        #     ],
-        #     aliens=false,
-        # )
-
+    
         colormap = colormap isa Symbol ? Colormap(colormap) : colormap
-        # this = new(location, colormap)
 
         axis = nothing
         if location != :none
@@ -63,18 +42,15 @@ mutable struct Colorbar<:FigureComponent
                 label       = label,
                 font_size   = font_size,
                 font        = font,
+                ticks       = ticks,
+                tick_labels = tick_labels,
+                tick_length = tick_length,
                 bins        = bins,
-                # ticks       = c.args.colorbarticks,
-                # tick_labels = c.args.colorbarticklabels,
-                # mult        = c.args.colorbarmult,
             )
         end
 
         return new(location, colormap, axis, length_factor, inner_sep, Float64[0,0,0,0])
 
-        # this.length_factor = args.length_factor
-        # this.args = args
-        # return this
     end
 end
 

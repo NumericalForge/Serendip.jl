@@ -9,13 +9,13 @@ Creates an `Axis` component.
 - `direction::Symbol` : Axis direction (`:horizontal` or `:vertical`, default `:horizontal`).
 - `location::Symbol` : Axis location (`:none`, `:left`, `:right`, `:top`, `:bottom`, default `:none`).
   If `:none`, it becomes `:bottom` for horizontal and `:left` for vertical.
-- `limits::Vector{Float64}` : Axis limits `[min, max]` (default `[0.0, 0.0]`).
+- `limits::Vector{Float64}` : Axis limits `[min, max]`. Use `Float64[]` for auto limits.
 - `label::AbstractString` : Axis label text (default `""`).
 - `font::AbstractString` : Font family for label and ticks (default `"NewComputerModern"`).
 - `font_size::Float64` : Font size (> 0, default `7.0`).
 - `ticks::AbstractArray` : Explicit tick positions (default `Float64[]`).
 - `tick_labels::AbstractArray` : Labels for ticks (default `String[]`). Must match `length(ticks)` when provided.
-- `tick_length::Float64` : Tick mark length (default `3.0`). Use `nothing` to omit tick marks.
+- `tick_length::Float64` : Tick mark length input (default `0.4*font_size`).
 - `bins::Int` : Hint for the number of tick bins (default `6`).
 - `mult::Float64` : Multiplier applied to axis values (default `1.0`).
 
@@ -26,25 +26,26 @@ Creates an `Axis` component.
 
 """
 mutable struct Axis<:FigureComponent
-    direction::Symbol
-    location::Symbol
-    limits::Vector{Float64}
-    label::AbstractString
-    font::String
-    font_size::Float64
-    ticks::AbstractArray
+    direction  ::Symbol
+    location   ::Symbol
+    limits     ::Vector{Float64}
+    auto_limits::Bool
+    label      ::AbstractString
+    font       ::String
+    font_size  ::Float64
+    ticks      ::AbstractArray
     tick_labels::AbstractArray
     tick_length::Float64
-    nbins::Int
-    mult::Float64
-    inner_sep::Float64
-    width::Float64
-    height::Float64
+    nbins      ::Int
+    mult       ::Float64
+    inner_sep  ::Float64
+    width      ::Float64
+    height     ::Float64
 
     function Axis(;
         direction::Symbol=:horizontal,
         location::Symbol=:none,
-        limits::Vector{<:Real}=[0.0, 0.0],
+        limits::AbstractVector{<:Real}=Float64[],
         label::AbstractString="",
         font::String="NewComputerModern",
         font_size::Real=7.0,
@@ -67,29 +68,13 @@ mutable struct Axis<:FigureComponent
             @check length(ticks)==length(tick_labels) "Axis: the length of labels must match the number of ticks"
         end
 
-        limits = collect(limits)
+        @check length(limits) in (0, 2) "Axis: limits must have length 2 (manual) or be empty (auto)"
+        auto_limits = length(limits) == 0
+        limits = auto_limits ? [0.0, 0.0] : collect(float.(limits))
 
-        return new(direction, location, limits, label, font, font_size, ticks, tick_labels, tick_length, bins, mult, 3)
+        return new(direction, location, limits, auto_limits, label, font, font_size, ticks, tick_labels, tick_length, bins, mult, 3)
     end
 end
-
-
-# func_params(::Type{Axis}) = [
-#     FunInfo( :Axis, "Creates an instance of an `Axis`."),
-#     KwArgInfo( :direction, "Axis direction", :horizontal, values=(:horizontal, :vertical) ),
-#     KwArgInfo( :location, "Axis location", :none, values=(:none, :left, :right, :top, :bottom) ),
-#     KwArgInfo( :limits, "Axis limit values", [0.0,0.0], length=2 ),
-#     KwArgInfo( :label, "Axis label", "", type=AbstractString ),
-#     KwArgInfo( :font, "Font name", "NewComputerModern", type=AbstractString),
-#     KwArgInfo( :font_size, "Font size", 7.0, cond=:(font_size>0)),
-#     KwArgInfo( :ticks, "Axis tick values", Float64[], type=AbstractArray ),
-#     KwArgInfo( :tick_labels, "Axis tick labels", String[], type=AbstractArray ),
-#     KwArgInfo( :tick_length, "Axis tick length", 3 ),
-#     KwArgInfo( :bins, "Hint for the number of bins", 6 ),
-#     KwArgInfo( :mult, "Axis values multiplier", 1.0 ),
-#     KwArgInfo( :inner_sep, "Axis inner pad", 3 ),
-# ]
-# @doc docstring(func_params(Axis)) Axis()
 
 
 function get_bin_length(vinf, vsup, n)
@@ -154,16 +139,15 @@ function make_ticklabels(ticks)
     end
     max_digits = min(max_digits, 5)
 
-    labels = []
+    labels = String[]
     for (m, ex) in zip(M, E)
         if ex==0
             label = Printf.format(Printf.Format("%."*string(max_digits)*"f"), m)
         else
-            # label = Printf.format(Printf.Format("%."*string(max_digits)*"f"), m)
             label = string(m)
-            label *= "\\times 10^{$ex}"
+            label = "\$" * label * " times 10^{$ex}\$"
         end
-        push!(labels, latexstring(label))
+        push!(labels, label)
     end
 
     return labels
@@ -190,8 +174,8 @@ function configure!(ax::Axis)
 
         ax.ticks = round.(vinf:dv:vsup, digits=10)
     else # check ticks
-        vmin, = minimum(ax.limits)
-        vmax, = maximum(ax.limits)
+        vmin = minimum(ax.limits)
+        vmax = maximum(ax.limits)
         idxs = [ i for (i,tick) in enumerate(ax.ticks) if vmin<=tick<=vmax ]
         ax.ticks = ax.ticks[idxs]
 
@@ -202,12 +186,6 @@ function configure!(ax::Axis)
         ax.tick_labels = make_ticklabels(ax.ticks)
     end
 
-    # configure latex strings
-    if !isa(ax.label, LaTeXString) && contains(ax.label, "\$")
-        ax.label = LaTeXString(ax.label)
-    end
-
-    ax.tick_labels = [ !isa(label, LaTeXString) && contains(label, "\$") ? LaTeXString(label) : label for label in ax.tick_labels  ]
     ax.nbins = length(ax.ticks) - 1
 
     # configure size (axis dimensions do do not include tick lengths)

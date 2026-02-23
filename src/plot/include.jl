@@ -1,6 +1,7 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 include("colors.jl")
+include("typesetting.jl")
 include("text.jl")
 
 include("figure.jl")

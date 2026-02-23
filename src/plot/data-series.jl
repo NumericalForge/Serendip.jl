@@ -4,71 +4,26 @@ const _line_style_list = [:none, :solid, :dot, :dash, :dashdot]
 const _mark_list = [:none, :circle, :square, :triangle, :utriangle, :cross, :xcross, :diamond, :pentagon, :hexagon, :star]
 
 
-# Mark_params = [
-#     FunInfo(:Mark, "Creates a customizable `Mark` instance to be used in a `DataSeries`"),
-#     ArgInfo(:shape, "Shape of the mark"),
-#     KwArgInfo(:size, "Size of the mark", 2.5, cond=:(size>0)),
-#     KwArgInfo(:color, "Color of the mark", :white),
-#     KwArgInfo(:stroke_color, "Stroke color of the mark", :default),
-# ]
-
-mutable struct Mark
-    shape::Symbol
-    size::Float64
-    color::Union{Symbol,Tuple}
-    stroke_color::Union{Symbol,Tuple}
-
-    function Mark(shape::Symbol; args...)
-        args = checkargs([shape], args, Mark_params, aliens=false)
-        return new(shape, args.size, args.color, args.stroke_color)
-    end
-end
-
-
-# DataSeries_params = [
-#     FunInfo(:DataSeries, "Creates a customizable `DataSeries` instance to be used in a `Chart`"),
-#     ArgInfo(:X, "Array of x-coordinates"),
-#     ArgInfo(:Y, "Array of y-coordinates"),
-#     KwArgInfo(:line_style, "Line style", :solid, values=_line_style_list),
-#     KwArgInfo(:dash, "Dash pattern", Float64[]),
-#     KwArgInfo(:color, "Line color", :default),
-#     KwArgInfo((:line_width, :lineweight), "Edge weight", 0.5, cond=:(line_width>0)),
-#     KwArgInfo(:mark, "Mark shape", :none,  values=_mark_list),
-#     KwArgInfo((:mark_size, :ms), "Mark size", 2.5, cond=:(mark_size>0)),
-#     KwArgInfo((:mark_color, :mc), "Mark color", :white),
-#     KwArgInfo((:mark_stroke_color, :mark_stroke_color, :msc), "Mark stroke color", :default),
-#     KwArgInfo(:label, "Data series label in legend", ""),
-#     KwArgInfo(:tag, "Data series tag over line", ""),
-#     KwArgInfo(:tag_position, "Tag position", 0.5),
-#     KwArgInfo(:tag_location, "Tag location", :top, values=[:bottom, :top, :left, :right]),
-#     KwArgInfo(:tag_alignment, "Sets that the tag will be aligned with the data series", values=[:horizontal, :vertical, :parallel]),
-#     # KwArgInfo(:x, "x coordinate for a vertical line", nothing),
-#     # KwArgInfo(:y, "y coordinate for a horizontal line", nothing),
-#     KwArgInfo(:order, "Order fo drawing", nothing),
-#     ArgCond(:(length(X)==length(Y)), "Length of X and Y arrays must be equal"),
-# ]
-# @doc docstring(DataSeries_params) DataSeries
-
 mutable struct DataSeries
-    kind  ::Symbol  # type of data series, e.g., :line, :scatter, :bar, etc.
-    X     ::AbstractArray
-    Y     ::AbstractArray
-    # x     ::Union{Float64,Nothing}
-    # y     ::Union{Float64,Nothing}
-    line_style    ::Symbol
-    line_width    ::Float64
-    color::Union{Symbol,Color}
-    dash  ::Vector{Float64}
-    mark::Symbol
-    mark_size::Float64
-    mark_color::Union{Symbol,Color}
+    kind             ::Symbol  # type of data series, e.g., :line, :scatter, :bar, etc.
+    X                ::AbstractArray
+    Y                ::AbstractArray
+    line_style       ::Symbol
+    line_width       ::Float64
+    color            ::Union{Symbol,Color}
+    dash             ::Vector{Float64}
+    mark             ::Symbol
+    mark_size        ::Float64
+    mark_color       ::Union{Symbol,Color}
     mark_stroke_color::Union{Symbol,Color}
-    label ::AbstractString
-    tag::AbstractString
-    tag_location::Symbol
-    tag_position::Float64
-    tag_alignment::Symbol
-    order::Int
+    label            ::AbstractString
+    tag              ::AbstractString
+    tag_location     ::Symbol
+    tag_position     ::Float64
+    tag_alignment    ::Symbol
+    bar_width        ::Float64
+    bar_base         ::Float64
+    order            ::Int
 
     function DataSeries(kind::Symbol, X::AbstractArray, Y::AbstractArray;
                             line_style=:solid,
@@ -79,9 +34,11 @@ mutable struct DataSeries
                             mark_color=:white, mark_stroke_color=:default,
                             label="", tag="", tag_location=:top, tag_position=0.5,
                             tag_alignment=:horizontal,
+                            bar_width=0.0,
+                            bar_base=0.0,
                             order=0
     )
-        @check kind in [:line, :scatter, :bar, :area] "Invalid data series kind: $(repr(kind))"
+        @check kind in [:line, :scatter, :bar] "Invalid data series kind: $(repr(kind))"
         @check length(X)==length(Y) "Length of X and Y arrays must be equal"
         @check line_style in _line_style_list "Invalid line style: $(repr(line_style))"
         @check mark in _mark_list "Invalid mark shape: $(repr(mark))"
@@ -89,6 +46,7 @@ mutable struct DataSeries
         @check tag_alignment in [:horizontal, :vertical, :parallel] "Invalid tag alignment: $(repr(tag_alignment))"
         @check line_width > 0 "Line width must be greater than zero"
         @check mark_size > 0 "Mark size must be greater than zero"
+        @check bar_width >= 0 "Bar width must be non-negative"
 
 
         if color != :default && color isa Symbol
@@ -128,12 +86,13 @@ mutable struct DataSeries
                     dash,
                     mark, mark_size, mark_color, mark_stroke_color,
                     label, tag, tag_location, tag_position, tag_alignment,
+                    bar_width, bar_base,
                     order)
     end
 end
 
 
-function DataSereies(X::AbstractArray, Y::AbstractArray; args...)
+function DataSeries(X::AbstractArray, Y::AbstractArray; args...)
     return DataSeries(:line, X, Y; args...)
 end
 

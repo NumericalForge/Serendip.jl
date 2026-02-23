@@ -6,7 +6,7 @@
         size=(220,150), face_color=:aliceblue, warp=0.0,
         edge_width=0.3, edge_color=:auto, outline_width=0.4,
         line_elem_width=0.6,
-        field="", limits=[0.0,0.0], field_kind=:auto, field_mult=1.0,
+        field="", limits=Float64[], field_kind=:auto, field_mult=1.0,
         label="", colormap=:coolwarm, diverging=false,
         colorbar=:right, colorbar_ratio=0.9, bins=6,
         font="NewComputerModern", font_size=7.0,
@@ -32,10 +32,10 @@ Create a customizable domain plot for meshes and FE models.
 - `outline_width::Real`: boundary outline width.
 - `line_elem_width::Real`: stroke width for line elements (bars/beams).
 - `field::AbstractString`: scalar field name for coloring; empty disables.
-- `limits::Vector{<:Real}`: field range `[min,max]`; `[0,0]` → auto.
+- `limits::Vector{<:Real}`: field range `[min,max]`; empty vector enables auto range.
 - `field_kind::Symbol`: `:auto | :none | :node | :element`.
 - `field_mult::Real`: multiplier applied to field values.
-- `label::AbstractString`: colorbar label (alias: `colorbar_label`).
+- `label::AbstractString`: colorbar label.
 - `colormap::Union{Symbol,Colormap}`: e.g. `:viridis`, `:coolwarm`, or a `Colormap`.
 - `diverging::Bool`: center colormap at zero.
 - `colorbar::Symbol`: `:none | :right | :bottom`.
@@ -56,7 +56,7 @@ Create a customizable domain plot for meshes and FE models.
 - `quiet::Bool`: suppress constructor log.
 
 # Notes
-- Use `save` to export the chart to a file.
+- Use `save` to export the figure to a file.
 
 # Example
 ```julia
@@ -96,6 +96,7 @@ mutable struct DomainPlot<:Figure
     field::String
     field_kind::Symbol
     limits::Vector{Float64}
+    auto_limits::Bool
     field_mult::Float64
     warp::Float64
     label::AbstractString
@@ -123,7 +124,7 @@ mutable struct DomainPlot<:Figure
         line_elem_width::Real=0.6,
         field::AbstractString="",
         field_kind::Symbol=:auto,
-        limits::Vector{Float64}=[0.0,0.0],
+        limits::AbstractVector{<:Real}=Float64[],
         field_mult::Real=1.0,
         label::AbstractString="",
         colormap::Union{Symbol,Colormap}=:coolwarm,
@@ -149,13 +150,14 @@ mutable struct DomainPlot<:Figure
 
         @check face_color in keys(_colors_dict) "face_color must be one of: $(collect(keys(_colors_dict))). Got $face_color"
         @check edge_color == :auto || edge_color in keys(_colors_dict) "edge_color must be :auto or one of: $(collect(keys(_colors_dict))). Got $edge_color"
-        @check font in _available_fonts "font must be one of: $(_available_fonts). Got $(repr(font))"
+        @check !isempty(font) "font must be a non-empty string"
+        @check length(limits) in (0, 2) "limits must have length 2 (manual) or be empty (auto)"
 
         canvas = Canvas()
         the_colorbar = Colorbar()
         width, height = size
         axes_loc    = axes
-        axis_labels = length(axis_labels)==0 ? [L"x", L"y", L"z"] : axis_labels
+        axis_labels = length(axis_labels)==0 ? ["x", "y", "z"] : axis_labels
         axes_widget = AxisWidget(location=axes_loc, labels=axis_labels, font=font, font_size=font_size, azimuth=azimuth, elevation=elevation, arrow_length=20)
 
         mesh = mesh
@@ -168,7 +170,8 @@ mutable struct DomainPlot<:Figure
         face_color   = _colors_dict[face_color]
         field        = string(field)
         field_kind   = string(field) == "" ? :none : field_kind
-        limits       = collect(limits)
+        auto_limits  = length(limits) == 0
+        limits       = auto_limits ? [0.0, 0.0] : collect(float.(limits))
         field_mult   = field_mult
         warp         = warp
         label        = label
@@ -199,7 +202,7 @@ mutable struct DomainPlot<:Figure
             width, height,
             edge_width, edge_color, outline_width, 
             line_elem_width, face_color,
-            field, field_kind, limits, field_mult,
+            field, field_kind, limits, auto_limits, field_mult,
             warp, label, colormap, diverging,
             colorbar_location, colorbar_ratio,
             bins, font, font_size,
@@ -411,7 +414,7 @@ function configure!(mplot::DomainPlot)
 
         # Colormap
         mplot.values = fvals
-        if mplot.limits==[0.0, 0.0]
+        if mplot.auto_limits
             mplot.limits = [fmin, fmax]
         else
             fmin, fmax = mplot.limits
@@ -574,10 +577,10 @@ function draw!(mplot::DomainPlot, ctx::CairoContext)
 
     # draw axes
     if mplot.axes_loc != :none
-        if mplot.axes_loc == :bottomleft
+        if mplot.axes_loc == :bottom_left
             x = mplot.outerpad
             y = mplot.canvas.box[4] - mplot.axes.height
-        elseif mplot.axes_loc == :topleft
+        elseif mplot.axes_loc == :top_left
             x = mplot.outerpad
             y = mplot.canvas.box[2]
         else
@@ -605,9 +608,9 @@ function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::Abstract
 
     function get_outline_color(face_color, edge_color)
         if edge_color == :auto
-            face_color.*0.55
+            face_color.*0.7
         else
-            _colors_dict[mplot.edge_color].*0.55
+            _colors_dict[mplot.edge_color].*0.7
         end
     end
 
@@ -842,4 +845,3 @@ function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::Abstract
     end
 
 end
-
