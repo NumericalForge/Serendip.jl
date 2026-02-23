@@ -818,14 +818,23 @@ end
 
 
 function DataTable(filename::String, delim::Char='\t')
+    @check isfile(filename) "DataTable: file $filename does not exists"
     _, format = splitext(filename)
     formats = (".dat", ".table", ".csv")
     format in formats || error("DataTable: cannot read \"$format\". Suitable formats are $formats")
+    
+    local matrix, headstr
 
     if format in formats
-        matrix, headstr = readdlm(filename, delim, header=true, use_mmap=false)
+        success = true
+        try 
+            matrix, headstr = readdlm(filename, delim, header=true, use_mmap=false)
+        catch err
+            success = false
+        end
+        !success && error("DataTable: Invalid file content `$filename`")
         header = vec(strip.(headstr))
-        table = DataTable(header, matrix)
+        table  = DataTable(header, matrix)
         return table
     end
 end
