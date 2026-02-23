@@ -207,7 +207,7 @@ function get_outer_facets(cells::Vector{<:AbstractCell})
         role = cell.shape.ndim == 3 ? :surface : :line
         
         # Create the actual Cell object now
-        face = Cell(shape, role, nodes, tag=cell.tag, owner=cell)
+        face = Cell(shape, role, nodes, tag=cell.tag, owner=cell, facet_idx=local_face_idx)
         push!(outer_facets, face)
     end
 
@@ -216,18 +216,58 @@ end
 
 
 function get_edges(surf_cells::Array{<:AbstractCell,1})
+    # canonical key for local node-index lists
+    edgekey(idxs) = Tuple(sort(idxs))
+
     edges_dict = Dict{UInt64, Cell}()
 
-    # Get only unique edges
-    for cell in surf_cells
-        for edge in get_edges(cell)
-            edge.owner = cell.owner
+    # cache by owner shape + owner face idx + face-edge idx
+    fmap_cache = Dict{Tuple{CellShape,Int,Int},Int}()
+
+    for face in surf_cells
+        owner = face.owner
+
+        # Standalone surfaces (owner is itself) may have facet_idx==0.
+        # In this case face-edge indexing already matches owner-edge indexing.
+        if owner === face || face.facet_idx == 0
+            for edge in get_edges(face)
+                edge.owner = owner
+                edges_dict[hash(edge)] = edge
+            end
+            continue
+        end
+
+        # map owner edge signatures once per owner
+        owner_edge_map = Dict{Tuple,Int}()
+        for (j, eidxs) in enumerate(owner.shape.edge_idxs)
+            owner_edge_map[edgekey(eidxs)] = j
+        end
+
+        for edge in get_edges(face)
+            # edge.facet_idx is local edge index in the FACE shape
+            key = (owner.shape, face.facet_idx, edge.facet_idx)
+            owner_edge_idx = get!(fmap_cache, key) do
+                # owner local node ids of this owner-face
+                owner_face_idxs = owner.shape.facet_idxs[face.facet_idx]
+                # local node ids (inside that face) of this face-edge
+                face_edge_idxs  = face.shape.edge_idxs[edge.facet_idx]
+                # convert to owner local node ids
+                owner_edge_idxs = owner_face_idxs[face_edge_idxs]
+                get(owner_edge_map, edgekey(owner_edge_idxs), 0)
+            end
+
+            owner_edge_idx == 0 && error("get_edges: cannot map face edge to owner edge")
+
+            # edge.facet_idx will take the number of local edge in the solid element
+            edge.owner = owner
+            edge.facet_idx = owner_edge_idx
             edges_dict[hash(edge)] = edge
         end
     end
 
     return collect(values(edges_dict))
 end
+
 
 
 # Return a list of neighbors for each cell
