@@ -17,10 +17,18 @@ module Serendip
 using StatsBase, Statistics, LinearAlgebra
 using StaticArrays, FixedSizeArrays, SparseArrays, Arpack, Gmsh
 using Printf, DelimitedFiles, DataStructures, Glob, Dates, JSON
-using Cairo, LaTeXStrings, MathTeXEngine
+using Cairo
 import FreeTypeAbstraction
 
-export @L_str # reexport LaTeXStrings
+macro t_str(s)
+    return s
+end
+
+macro L_str(s)
+    return esc(:(@t_str($s)))
+end
+
+export @t_str, @L_str
 
 import DataStructures: OrderedDict, OrderedSet
 
@@ -67,7 +75,7 @@ export get_nodes, change_quadrature, get_ips, elems_ip_vals, update_material!, s
 # Plotting
 include("plot/include.jl")
 export Chart, LineChart, DataSeries, Legend, Colormap, DomainPlot, GeometryPlot, Annotation
-export add_series!, add_line, add_scatter!, add_bars!, addlegend!, add_annotation
+export add_series!, add_line, add_scatter, add_bar, add_bars!, addlegend!, add_annotation
 # Deprecated/Aliases
 export add_series, addannotation!
 

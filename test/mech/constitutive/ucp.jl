@@ -66,15 +66,15 @@ run(ana, autoinc=true, tol=0.5, quiet=false)
 table = log.table
 
 chart = Chart(
-    xlabel=L"$ε_{zz}$",
-    ylabel=L"$σ_{zz}$",
+    xlabel=t"$ε_(z z)$",
+    ylabel=t"$σ_(z z)$",
 )
 add_series(chart, table["εzz"], table["σzz"], mark=:circle)
 save(chart, "σ-ε.pdf")
 
 chart = Chart(
-    xlabel=L"$ξ$",
-    ylabel=L"$ρ$",
+    xlabel=t"$ξ$",
+    ylabel=t"$ρ$",
 )
 add_series(chart, table["ξ"], table["ρ"], mark=:circle)
 save(chart, "ξ-ρ.pdf")

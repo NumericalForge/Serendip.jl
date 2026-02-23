@@ -45,8 +45,8 @@ solve!(model, tol=1e-1, autoinc=true, quiet=false).success
 # Plotting
 
 chart = Chart(
-    xlabel = L"varepsilon_{zz}times 1000",
-    ylabel = L"sigma_{zz}",
+    xlabel = t"varepsilon_(z z)times 1000",
+    ylabel = t"σ_(z z)",
     xmult = 1e3,
 )
 table = model.loggers[1].table

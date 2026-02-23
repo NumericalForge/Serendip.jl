@@ -41,8 +41,8 @@ run(ana, autoinc=true, dTmax=0.02)
 # Post-process
 table = log.table
 chart = Chart(
-    xlabel=L"$ε_{zz} × 10^3$", xmult=1000,
-    ylabel=L"$σ_{zz}$ [MPa]", ymult=1e-3,
+    xlabel=t"$ε_(z z) × 10^3$", xmult=1000,
+    ylabel=t"$σ_(z z)$ [MPa]", ymult=1e-3,
 )
 add_series(chart, -table["εzz"], -table["σzz"], mark=:circle)
 save(chart, "compression.pdf")
@@ -67,8 +67,8 @@ run(ana, autoinc=true, dTmax=0.01)
 # Post-process
 table = log.table
 chart = Chart(
-    xlabel=L"$ε_{zz} × 10^3$", xmult=1000,
-    ylabel=L"$σ_{zz}$ [MPa]", ymult=1e-3,
+    xlabel=t"$ε_(z z) × 10^3$", xmult=1000,
+    ylabel=t"$σ_(z z)$ [MPa]", ymult=1e-3,
 )
 add_series(chart, -table["εzz"], -table["σzz"], mark=:circle)
 save(chart, "tension.pdf")
