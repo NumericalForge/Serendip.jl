@@ -677,6 +677,96 @@ function _get_dimids_from_entities(entities)
 end
 
 
+function _common_nonempty_tag(ents)
+    tags = unique(e.tag for e in ents if e.tag != "")
+    return length(tags) == 1 ? tags[1] : ""
+end
+
+
+function _tag_maxdim_outputs!(geo::GeoModel, out_dimids, tag::String)
+    tag == "" && return
+    length(out_dimids) == 0 && return
+
+    maxdim = maximum(Int(dimid[1]) for dimid in out_dimids)
+    for out_dimid0 in out_dimids
+        out_dimid = (Int(out_dimid0[1]), Int(out_dimid0[2]))
+        out_dimid[1] == maxdim || continue
+        out_ent = get(geo.entities, out_dimid, nothing)
+        if out_ent === nothing
+            out_ent = _get_entities_from_dimids(geo, [out_dimid])[1]
+        end
+        out_ent.tag = tag
+        geo.entities[out_dimid] = out_ent
+    end
+end
+
+
+function _update_tags_from_boolean_op!(geo::GeoModel, in_dimids, out_dimids, out_dimtags_map; tag::String="", ambiguous_policy::Symbol=:clear)
+    @check ambiguous_policy in (:clear, :first)
+    out_tags = Dict{Tuple{Int,Int}, Set{String}}()
+    first_inferred_tag = Dict{Tuple{Int,Int}, String}()
+    touched_dims = Set{Int}()
+
+    for (i, in_dimid0) in enumerate(in_dimids)
+        i <= length(out_dimtags_map) || break
+        in_dimid = (Int(in_dimid0[1]), Int(in_dimid0[2]))
+        push!(touched_dims, in_dimid[1])
+        in_ent = get(geo.entities, in_dimid, nothing)
+        in_ent === nothing && continue
+        in_ent.tag == "" && continue
+
+        for out_dimid0 in out_dimtags_map[i]
+            out_dimid = (Int(out_dimid0[1]), Int(out_dimid0[2]))
+            push!(touched_dims, out_dimid[1])
+            push!(get!(out_tags, out_dimid, Set{String}()), in_ent.tag)
+            if !haskey(first_inferred_tag, out_dimid)
+                first_inferred_tag[out_dimid] = in_ent.tag
+            end
+        end
+    end
+
+    # Prune stale entries in dimensions affected by the boolean operation.
+    for dim in touched_dims
+        live_ids = Set(id for (_, id) in gmsh.model.occ.getEntities(dim))
+        stale_keys = Tuple{Int,Int}[]
+        for (dimid, _) in geo.entities
+            dimid[1] == dim || continue
+            dimid[2] in live_ids && continue
+            push!(stale_keys, dimid)
+        end
+        for key in stale_keys
+            delete!(geo.entities, key)
+        end
+    end
+
+    for out_dimid0 in out_dimids
+        out_dimid = (Int(out_dimid0[1]), Int(out_dimid0[2]))
+        out_ent = get(geo.entities, out_dimid, nothing)
+        if out_ent === nothing
+            out_ent = _get_entities_from_dimids(geo, [out_dimid])[1]
+        end
+
+        if tag != ""
+            out_ent.tag = tag
+        else
+            tags = get(out_tags, out_dimid, Set{String}())
+            if length(tags) == 1
+                out_ent.tag = first(tags)
+            else
+                if ambiguous_policy == :first && haskey(first_inferred_tag, out_dimid)
+                    out_ent.tag = first_inferred_tag[out_dimid]
+                else
+                    # Ambiguous/unknown inheritance must clear stale tags.
+                    out_ent.tag = ""
+                end
+            end
+        end
+
+        geo.entities[out_dimid] = out_ent
+    end
+end
+
+
 """
     Base.copy(geo, ents::Vector{<:GeoEntity})
 
@@ -778,11 +868,13 @@ Extrude one or more entities `ents` in the geometric model `geo` along vector `A
 """
 function extrude(geo::GeoModel, ents, A; num_elements=[], heights=[], recombine=false)
     ents = ents isa Vector ? ents : [ents]
+    common_tag = _common_nonempty_tag(ents)
     gmsh.model.occ.synchronize()
     dimids = _get_dimids_from_entities(ents)
-    dimids = gmsh.model.occ.extrude(dimids, A..., num_elements, heights, recombine)
+    out_dimids = gmsh.model.occ.extrude(dimids, A..., num_elements, heights, recombine)
     gmsh.model.occ.synchronize()
-    return _get_entities_from_dimids(geo, dimids)
+    _tag_maxdim_outputs!(geo, out_dimids, common_tag)
+    return _get_entities_from_dimids(geo, out_dimids)
 end
 
 
@@ -803,14 +895,17 @@ around the axis defined by point `X` and direction `A`.
 - `recombine::Bool=false`: If `true`, recombine into quads/hexas where possible.
 
 # Returns
-- `Nothing`
+- `Vector`: Newly created entities resulting from the revolution.
 """
 function revolve(geo::GeoModel, ents, X, A, angle, num_elements=[], heights=[], recombine=false)
     ents = ents isa Vector ? ents : [ents]
+    common_tag = _common_nonempty_tag(ents)
     gmsh.model.occ.synchronize()
     dimids = _get_dimids_from_entities(ents)
-    gmsh.model.occ.revolve(dimids, X..., A..., angle, num_elements, heights, recombine)
+    out_dimids = gmsh.model.occ.revolve(dimids, X..., A..., angle, num_elements, heights, recombine)
     gmsh.model.occ.synchronize()
+    _tag_maxdim_outputs!(geo, out_dimids, common_tag)
+    return _get_entities_from_dimids(geo, out_dimids)
 end
 
 
@@ -841,7 +936,7 @@ end
 # Boolean operations on entities
 
 """
-    cut(geo, ents1, ents2; remove_object=false, remove_tool=true)
+    cut(geo, ents1, ents2; remove_object=false, remove_tool=true, tag="")
 
 Boolean cut of `ents1` by `ents2` in the geometric model `geo`.  
 All entities in each set must have the same topological dimension.
@@ -852,11 +947,12 @@ All entities in each set must have the same topological dimension.
 - `ents2`: Tools that cut `ents1` (all same dimension as `ents1`).
 - `remove_object::Bool=false`: If `true`, remove original objects.
 - `remove_tool::Bool=true`: If `true`, remove tool entities.
+- `tag::String=""`: If non-empty, assigns this tag to all resulting entities.
 
 # Returns
 - `Vector`: Resulting entities from the cut.
 """
-function cut(geo::GeoModel, ents1, ents2; remove_object=false, remove_tool=true)
+function cut(geo::GeoModel, ents1, ents2; remove_object=false, remove_tool=true, tag::String="")
     ents1 = ents1 isa Vector ? ents1 : [ents1]
     ents2 = ents2 isa Vector ? ents2 : [ents2]
     gmsh.model.occ.synchronize()
@@ -867,8 +963,10 @@ function cut(geo::GeoModel, ents1, ents2; remove_object=false, remove_tool=true)
     if dim1 == dim2
         ids1 = [ (dim1, e.id) for e in ents1 ]
         ids2 = [ (dim1, e.id) for e in ents2 ]
-        dimids, _ = gmsh.model.occ.cut(ids1, ids2, remove_object, remove_tool)
+        in_dimids = vcat(ids1, ids2)
+        dimids, out_dimtags_map = gmsh.model.occ.cut(ids1, ids2, -1, remove_object, remove_tool)
         gmsh.model.occ.synchronize()
+        _update_tags_from_boolean_op!(geo, in_dimids, dimids, out_dimtags_map; tag=tag, ambiguous_policy=:first)
 
         return _get_entities_from_dimids(geo, dimids)
     else
@@ -878,7 +976,7 @@ end
 
 
 """
-    fuse(geo, ents1, ents2; remove_object=true, remove_tool=true)
+    fuse(geo, ents1, ents2; remove_object=true, remove_tool=true, tag="")
 
 Boolean union of `ents1` and `ents2` in the geometric model `geo`.  
 All entities in each set must have the same topological dimension.
@@ -889,11 +987,12 @@ All entities in each set must have the same topological dimension.
 - `ents2`: Second set of entities (same dimension).
 - `remove_object::Bool=true`: If `true`, remove original objects.
 - `remove_tool::Bool=true`: If `true`, remove tool entities.
+- `tag::String=""`: If non-empty, assigns this tag to all resulting entities.
 
 # Returns
 - `Vector`: Resulting fused entities.
 """
-function fuse(geo::GeoModel, ents1, ents2, remove_object=true, remove_tool=true)
+function fuse(geo::GeoModel, ents1, ents2; remove_object=true, remove_tool=true, tag::String="")
     ents1 = ents1 isa Vector ? ents1 : [ents1]
     ents2 = ents2 isa Vector ? ents2 : [ents2]
     gmsh.model.occ.synchronize()
@@ -904,8 +1003,10 @@ function fuse(geo::GeoModel, ents1, ents2, remove_object=true, remove_tool=true)
     if dim1 == dim2
         ids1 = [ (dim1, e.id) for e in ents1 ]
         ids2 = [ (dim2, e.id) for e in ents2 ]
-        dimids, _ = gmsh.model.occ.fuse(ids1, ids2, -1, remove_object, remove_tool)
+        in_dimids = vcat(ids1, ids2)
+        dimids, out_dimtags_map = gmsh.model.occ.fuse(ids1, ids2, -1, remove_object, remove_tool)
         gmsh.model.occ.synchronize()
+        _update_tags_from_boolean_op!(geo, in_dimids, dimids, out_dimtags_map; tag=tag, ambiguous_policy=:clear)
 
         return _get_entities_from_dimids(geo, dimids)
 
@@ -916,7 +1017,7 @@ end
 
 
 """
-    intersect(geo, ents1, ents2; remove_object=true)
+    intersect(geo, ents1, ents2; remove_object=true, tag="")
 
 Boolean intersection of `ents1` and `ents2` in the geometric model `geo`.  
 All entities in each set must have the same topological dimension.
@@ -926,11 +1027,12 @@ All entities in each set must have the same topological dimension.
 - `ents1`: First set of entities (same dimension).
 - `ents2`: Second set of entities (same dimension).
 - `remove_object::Bool=true`: If `true`, remove original inputs.
+- `tag::String=""`: If non-empty, assigns this tag to all resulting entities.
 
 # Returns
 - `Vector`: Resulting intersection entities.
 """
-function Base.intersect(geo::GeoModel, ents1, ents2, remove_object=true)
+function Base.intersect(geo::GeoModel, ents1, ents2; remove_object=true, tag::String="")
     ents1 = ents1 isa Vector ? ents1 : [ents1]
     ents2 = ents2 isa Vector ? ents2 : [ents2]
     gmsh.model.occ.synchronize()
@@ -941,8 +1043,10 @@ function Base.intersect(geo::GeoModel, ents1, ents2, remove_object=true)
     if dim1 == dim2
         ids1 = [ (dim1, e.id) for e in ents1 ]
         ids2 = [ (dim2, e.id) for e in ents2 ]
-        dimids, _ = gmsh.model.occ.intersect(ids1, ids2, -1, remove_object)
+        in_dimids = vcat(ids1, ids2)
+        dimids, out_dimtags_map = gmsh.model.occ.intersect(ids1, ids2, -1, remove_object)
         gmsh.model.occ.synchronize()
+        _update_tags_from_boolean_op!(geo, in_dimids, dimids, out_dimtags_map; tag=tag, ambiguous_policy=:clear)
 
         return _get_entities_from_dimids(geo, dimids)
 
@@ -953,7 +1057,7 @@ end
 
 
 """
-    fragment(geo, ents1, ents2; remove_object=true, remove_tool=true)
+    fragment(geo, ents1, ents2; remove_object=true, remove_tool=true, tag="")
 
 Mutually fragment `ents1` and `ents2` in the geometric model `geo`, splitting them at intersections.
 
@@ -963,11 +1067,12 @@ Mutually fragment `ents1` and `ents2` in the geometric model `geo`, splitting th
 - `ents2`: Second set of entities.
 - `remove_object::Bool=true`: If `true`, remove original objects.
 - `remove_tool::Bool=true`: If `true`, remove tool entities.
+- `tag::String=""`: If non-empty, assigns this tag to all resulting entities.
 
 # Returns
 - `Vector`: All resulting fragmented entities.
 """
-function fragment(geo::GeoModel, ents1, ents2, remove_object=true, remove_tool=true)
+function fragment(geo::GeoModel, ents1, ents2; remove_object=true, remove_tool=true, tag::String="")
     ents1 = ents1 isa Vector ? ents1 : [ents1]
     ents2 = ents2 isa Vector ? ents2 : [ents2]
     gmsh.model.occ.synchronize()
@@ -975,8 +1080,10 @@ function fragment(geo::GeoModel, ents1, ents2, remove_object=true, remove_tool=t
     dimids1 = _get_dimids_from_entities(ents1)
     dimids2 = _get_dimids_from_entities(ents2)
 
-    dimids, _ = gmsh.model.occ.fragment(dimids1, dimids2, -1, remove_object, remove_tool)
+    in_dimids = vcat(dimids1, dimids2)
+    dimids, out_dimtags_map = gmsh.model.occ.fragment(dimids1, dimids2, -1, remove_object, remove_tool)
     gmsh.model.occ.synchronize()
+    _update_tags_from_boolean_op!(geo, in_dimids, dimids, out_dimtags_map; tag=tag, ambiguous_policy=:clear)
 
     return _get_entities_from_dimids(geo, dimids)
 end

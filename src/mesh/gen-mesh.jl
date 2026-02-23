@@ -81,19 +81,37 @@ function Mesh(geo::GeoModel;
         gmsh_ndim = gmsh.model.getDimension()
         dim_ids = gmsh.model.occ.getEntities(gmsh_ndim)
 
-        # set physical groups by tags: TODO: requires syncronnization of occ entities to geo.entities trying to preserve tags
-            # ents = [ ent for ((dim,id), ent) in geo.entities if dim==gmsh_ndim ]  # list of entities of dimension gmsh_ndim
-            # tags = unique( ent.tag for ent in ents ) # unique tags
-            # tags_gidx_dict = Dict( tag=>i for (i,tag) in enumerate(tags) )
+        # set physical groups by tags from synchronized OCC entity ids:
+        # - tagged entities are grouped together by tag
+        # - untagged entities keep one physical group per entity
+        tag_to_ids = Dict{String, Vector{Int}}()
+        ordered_tags = String[]
+        untagged_ids = Int[]
 
-            # for (tag, gidx) in tags_gidx_dict
-            #     ent_ids = [ ent.id for ent in ents if ent.tag==tag ]
-            #     gmsh.model.addPhysicalGroup(gmsh_ndim, ent_ids, gidx) # ndim, entities, group_id
-            # end
+        for (_, id) in dim_ids
+            ent = get(geo.entities, (gmsh_ndim, id), nothing)
+            if ent === nothing || ent.tag == ""
+                push!(untagged_ids, id)
+                continue
+            end
 
-        # set physical groups
-        for (i, (_, gidx)) in enumerate(dim_ids)
-            gmsh.model.addPhysicalGroup(gmsh_ndim, [gidx], i)
+            if !haskey(tag_to_ids, ent.tag)
+                tag_to_ids[ent.tag] = Int[]
+                push!(ordered_tags, ent.tag)
+            end
+            push!(tag_to_ids[ent.tag], id)
+        end
+
+        gidx = 1
+        for tag in ordered_tags
+            gmsh.model.addPhysicalGroup(gmsh_ndim, tag_to_ids[tag], gidx)
+            gmsh.model.setPhysicalName(gmsh_ndim, gidx, tag)
+            gidx += 1
+        end
+
+        for id in untagged_ids
+            gmsh.model.addPhysicalGroup(gmsh_ndim, [id], gidx)
+            gidx += 1
         end
 
         # make model coherent by fragmentation, removing duplicates and joining points
@@ -128,7 +146,6 @@ function Mesh(geo::GeoModel;
 
                 gmsh.model.mesh.field.setString(field_id, "F", expr)
                 push!(field_ids, field_id)
-
             end
 
             fmin = gmsh.model.mesh.field.add("Min")
@@ -169,20 +186,25 @@ function Mesh(geo::GeoModel;
         shape_dict = Dict( 1=>LIN2, 2=>TRI3, 3=>QUAD4, 4=>TET4, 5=>HEX8, 6=>WED6, 7=>PYR5, 8=>LIN3, 9=>TRI6, 10=>QUAD9, 11=>TET10, 12=>HEX27, 16=>QUAD8, 17=>HEX20 )
         nnodes_dict = Dict( 1=>2, 2=>3, 3=>4, 4=>4, 5=>8, 6=>6, 7=>5, 8=>3, 9=>6, 10=>9, 11=>10, 12=>27, 16=>8, 17=>20 )
 
-        elem_types, elem_ids, elem_conns = gmsh.model.mesh.getElements(gmsh_ndim)
         cells = Cell[]
-        for (i,ty) in enumerate(elem_types)
-            shape = shape_dict[ty]
-            nenodes = nnodes_dict[ty]
-            role = ty in (1,8) ? :line : :cont
-            for (j,id) in enumerate(elem_ids[i])
-                conn = elem_conns[i][ (j-1)*nenodes + 1 : j*nenodes ]
-                if shape == TET10 # Fix bug in Gmsh
-                    conn[9], conn[10] = conn[10], conn[9] # swap last two nodes
+        for (_, ent_id) in gmsh.model.getEntities(gmsh_ndim)
+            ent = get(geo.entities, (gmsh_ndim, ent_id), nothing)
+            ent_tag = ent === nothing ? "" : ent.tag
+
+            elem_types, elem_ids, elem_conns = gmsh.model.mesh.getElements(gmsh_ndim, ent_id)
+            for (i, ty) in enumerate(elem_types)
+                shape = shape_dict[ty]
+                nenodes = nnodes_dict[ty]
+                role = ty in (1,8) ? :line : :cont
+                for (j,id) in enumerate(elem_ids[i])
+                    conn = elem_conns[i][ (j-1)*nenodes + 1 : j*nenodes ]
+                    if shape == TET10 # Fix bug in Gmsh
+                        conn[9], conn[10] = conn[10], conn[9] # swap last two nodes
+                    end
+                    enodes = nodes[conn]
+                    cell = Cell(shape, role, enodes, tag=ent_tag, id=Int(id))
+                    push!(cells, cell)
                 end
-                enodes = nodes[conn]
-                cell = Cell(shape, role, enodes, id=Int(id))
-                push!(cells, cell)
             end
         end
 
@@ -227,4 +249,3 @@ function Mesh(geo::GeoModel;
     return mesh
 
 end
-
