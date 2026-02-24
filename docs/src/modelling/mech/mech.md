@@ -4,7 +4,7 @@
 ## Elements
 
 ```@docs
-MechBulk
+MechCont
 MechBar
 MechBeam
 MechShell

@@ -444,7 +444,7 @@ nothing # hide
 ```
 
 ```@example fem
-mplot(model, "beam-vm.svg", warpscale=10, field=:sxx, fieldmult=1e-3, colorbarlabel=raw"$\sigma_{xx}$", colorbarscale=0.4, azim=-90, dist=7)
+mplot(model, "beam-vm.svg", warpscale=10, field=:sxx, fieldmult=1e-3, colorbarlabel=raw"$σ_(x x)$", colorbarscale=0.4, azim=-90, dist=7)
 nothing # hide
 ```
 ![](./beam-vm.svg)
@@ -558,7 +558,7 @@ cplot(
     "x_vs_sxx.svg",
     ymult  = 1e-3,
     xlabel = raw"$x$ [m]",
-    ylabel = raw"$\sigma_{xx}$ [MPa]",
+    ylabel = raw"$σ_(x x)$ [MPa]",
 )
 
 nothing # hide

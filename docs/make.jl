@@ -10,7 +10,7 @@ makedocs(
     modules  = [Serendip],
     sitename = "Serendip",
     pagesonly = true,    # only listed pages are included
-    checkdocs = :all,   # :missing, :all
+    checkdocs = :exports,   # :missing, :exports, :all
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true",
         # assets = ["assets/luxor-docs.css"],
@@ -18,15 +18,17 @@ makedocs(
     ),
     pages = [
         "Introduction" => "index.md",
-        # "Tutorial" => "tutorial/tutorial.md",
-        # "Mesh" =>  "meshing/meshing.md",
-        # "Model model" =>  "modelling/modelling.md",
-        "Mechanical analysis" =>  "modelling/mech/mech.md",
+        "Manual" => [
+            "Getting Started" => "manual/getting-started.md",
+            "Workflow" => "manual/workflow.md",
+            "Tutorials" => "manual/tutorials.md",
+        ],
         "Examples" =>  [
-            "2D truss" => "examples/truss.md",
-            "Solid beam" => "examples/solid-beam.md",
+            "Overview" => "examples/overview.md",
+        ],
+        "API Reference" => [
+            "Reference" => "api/reference.md",
         ]
-        # "Plotting" =>  "plotting/plotting.md",
     ],
     doctest = true,
     repo = "https://github.com/NumericalForge/Serendip.jl",

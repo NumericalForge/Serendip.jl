@@ -6,7 +6,7 @@ end
 
 # Introduction to Serendip
 
-Serendip is a Finite Element library written in Julia language. The purpose of this library is to aid the research of new algorithms for the finite element method. Currently this library solves static and dynamic analyses in two and three-dimensions.
+Serendip is a finite element library written in Julia. The project focuses on research and implementation of formulations and constitutive models for structural analysis.
 
 ## Installation and basic usage
 
@@ -16,22 +16,21 @@ Install the package using the package manager, type `]` and then:
 ] add Serendip
 ```
 
-To use Serendip, type in Julia REPL:
+To use Serendip in Julia REPL:
 
 ```
 using Serendip
 ```
 
-To test, type `]` and then:
+To test:
 
 ```
 ] test Serendip
 ```
 
-## Development version
+## Documentation map
 
-To install the development version, type `]` and then
+The documentation is organized in two complementary tracks:
 
-```
-add Serendip#main
-```
+1. `Manual`: curated guidance, workflow notes, and tutorial-style pages.
+2. `API Reference`: full exported API surface generated from docstrings.
