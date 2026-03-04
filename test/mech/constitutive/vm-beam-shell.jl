@@ -28,10 +28,10 @@ add_bc(stage, :node, (x==1, y==h/2), uy = -0.03)
 
 run(ana, autoinc=true, tol=0.01)
 save(model, "vm-beam-shell.vtu")
-# @test log.table["fy"][end]≈-30 atol=0.7
+@test log.table["fy"][end]≈-30 atol=0.7
 
 chart = Chart(xlabel="uy", ylabel="fy")
-add_series(chart, log.table["uy"], log.table["fy"])
+add_line(chart, -log.table["uy"], -log.table["fy"], mark=:circle)
 save(chart, "vm-beam-shell.pdf")
 
 

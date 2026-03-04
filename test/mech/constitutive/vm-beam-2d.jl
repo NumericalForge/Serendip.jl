@@ -31,7 +31,7 @@ add_bc(stage, :node, (x==0), ux=0, uy=0, rz=0)
 add_bc(stage, :node, (x==L), uy = -0.03)
 
 run(ana, autoinc=true, quiet=false, tol=1e-2)
-@test log.table["fy"][end]≈-30 atol=5.0
+@test log.table["fy"][end]≈-34 atol=0.8
 
 # Post-processing
 
