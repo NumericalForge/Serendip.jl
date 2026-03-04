@@ -7,7 +7,7 @@ abstract type AbstractSpline end
 function check_Spline(X::Vector{<:Real}, Y::Vector{<:Real}; left::Symbol=:flat, right::Symbol=:flat)
     length(X) == length(Y) || error("Spline: X and Y must have the same length.")
     length(X) >= 2 || error("Spline: At least two points are required.")
-    issorted(X) || error("Spline: X must be sorted in ascending order.")
+    all(diff(X) .> 0) || error("Spline: X must be strictly increasing.")
     left in (:flat, :linear, :error) || error("Spline: left extrapolation must be :flat, :linear, or :error.")
     right in (:flat, :linear, :error) || error("Spline: right extrapolation must be :flat, :linear, or :error.")
 end
@@ -57,7 +57,7 @@ function (spline::LinearSpline)(x::Real)
             throw(DomainError(x, "Value is above the interpolation range."))
         elseif spline.right == :flat
             return Y[n]
-        elseif spline.right == :line
+        elseif spline.right == :linear
             # Extrapolate using the slope of the last segment
             slope = (Y[n] - Y[n-1]) / (X[n] - X[n-1])
             return Y[n] + slope * (x - X[n])
@@ -141,10 +141,6 @@ struct CubicSpline<:AbstractSpline
 
         n = length(X)
         h = diff(X)
-
-        @show h
-
-        @check !any(h .== 0) "Spline: All X values must be distinct."
         
         M = zeros(n) # Initialize second derivatives vector
 
