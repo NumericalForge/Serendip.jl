@@ -273,11 +273,11 @@ function get_ry_rz(elem::Element{MechBeam})
 end
 
 
-function setB(elem::Element{MechBeam}, ip::Ip, L::Matx, N::Vect, dNdX::Matx, Rθ::Matx, Bil::Matx, Bi::Matx, B::Matx)
+function setB(elem::Element{MechBeam}, ip::Ip, L::Matx, N::Vect, dNdX::Matx, Rθ::Matx, Bli::Matx, Bi::Matx, B::Matx)
     ndim = elem.ctx.ndim
     ndof = ndim==2 ? 3 : 6
     nnodes = size(dNdX,1)
-    Bil .= 0.0
+    Bli .= 0.0
 
     r_y, r_z = get_ry_rz(elem)
 
@@ -292,11 +292,11 @@ function setB(elem::Element{MechBeam}, ip::Ip, L::Matx, N::Vect, dNdX::Matx, Rθ
             Ni = nnodes>2 ? N[i] : 0.5 # MITC projectrion to reduce shear locking in two-node beams
             dNdx = dNdX[i]
 
-            Bil[1,1] = dNdx;                           Bil[1,3] = -dNdx*η*r_y
-                              Bil[3,2] = SR2/2*dNdx;   Bil[3,3] = -SR2/2*Ni
+            Bli[1,1] = dNdx;                           Bli[1,3] = -dNdx*η*r_y
+                              Bli[3,2] = SR2/2*dNdx;   Bli[3,3] = -SR2/2*Ni
 
             c = (i-1)*ndof
-            @mul Bi = Bil*Rθ
+            @mul Bi = Bli*Rθ
             B[:, c+1:c+ndof] .= Bi
         end
     else
@@ -311,14 +311,60 @@ function setB(elem::Element{MechBeam}, ip::Ip, L::Matx, N::Vect, dNdX::Matx, Rθ
 
             dNdx = dNdX[i]
 
-            Bil[1,1] = dNdx;                                                                             Bil[1,5] = dNdx*ζ*r_z;  Bil[1,6] = -dNdx*η*r_y
-                                                   Bil[2,3] = SR2/2*dNdx;  Bil[2,4] = SR2/2*dNdx*η*r_y;  Bil[2,5] = SR2/2*Ni
-                            Bil[3,2] = SR2/2*dNdx;                         Bil[3,4] = -SR2/2*dNdx*ζ*r_z;                        Bil[3,6] = -SR2/2*Ni
+            Bli[1,1] = dNdx;                                                                             Bli[1,5] = dNdx*ζ*r_z;  Bli[1,6] = -dNdx*η*r_y
+                                                   Bli[2,3] = SR2/2*dNdx;  Bli[2,4] = SR2/2*dNdx*η*r_y;  Bli[2,5] = SR2/2*Ni
+                            Bli[3,2] = SR2/2*dNdx;                         Bli[3,4] = -SR2/2*dNdx*ζ*r_z;                        Bli[3,6] = -SR2/2*Ni
 
             c = (i-1)*ndof
-            @mul Bi = Bil*Rθ
+            @mul Bi = Bli*Rθ
             B[:, c+1:c+ndof] .= Bi
         end
+    end
+end
+
+
+function setH(elem::Element{MechBeam}, ip::Ip, L::Matx, N::Vect, Rθ::Matx, Hli::Matx, Hi::Matx, H::Matx)
+    ndim = elem.ctx.ndim
+    ndof = ndim==2 ? 3 : 6
+    nnodes = length(N)
+    r_y, r_z = get_ry_rz(elem)
+
+    η = ip.R[2]
+    ζ = ndim==3 ? ip.R[3] : 0.0
+
+    H .= 0.0
+    for i in 1:nnodes
+        Ni = N[i]
+
+        # Local kinematic interpolation from nodal dofs to translational displacement.
+        Hli .= 0.0
+        if ndim==2
+            Hli[1,1] = Ni
+            Hli[1,3] = -Ni*η*r_y
+            Hli[2,2] = Ni
+
+            Rθ .= 0.0
+            Rθ[1:2,1:2] .= L
+            Rθ[3,3] = 1.0
+        else
+            Hli[1,1] = Ni
+            Hli[1,5] =  Ni*ζ*r_z
+            Hli[1,6] = -Ni*η*r_y
+
+            Hli[2,2] = Ni
+            Hli[2,4] = -Ni*ζ*r_z
+
+            Hli[3,3] = Ni
+            Hli[3,4] =  Ni*η*r_y
+
+            Rθ .= 0.0
+            Rθ[1:3,1:3] .= L
+            Rθ[4:6,4:6] .= elem.cache.Dlmn[i]
+        end
+
+        @mul Hi = Hli*Rθ
+        c = (i-1)*ndof
+        H[:, c+1:c+ndof] .= Hi
     end
 end
 
@@ -336,7 +382,7 @@ function elem_stiffness(elem::Element{MechBeam})
     B   = zeros(nstr, ndof*nnodes)
     L   = zeros(ndim, ndim)
     Rθ  = zeros(ndof, ndof)
-    Bil = zeros(nstr, ndof)
+    Bli = zeros(nstr, ndof)
     Bi  = zeros(nstr, ndof)
 
     for ip in elem.ips
@@ -348,7 +394,7 @@ function elem_stiffness(elem::Element{MechBeam})
         dNdX′ = dNdR*inv(dx′dξ)
         D     = calcD(elem.cmodel, ip.state)
 
-        setB(elem, ip, L, N, dNdX′, Rθ, Bil, Bi, B)
+        setB(elem, ip, L, N, dNdX′, Rθ, Bli, Bi, B)
 
         detJ′ = dx′dξ*r_z*r_y
         w2d = ndim==2 ? 2.0 : 1.0
@@ -359,6 +405,43 @@ function elem_stiffness(elem::Element{MechBeam})
 
     map = elem_map(elem)
     return K, map, map
+end
+
+
+function elem_mass(elem::Element{MechBeam})
+    ndim = elem.ctx.ndim
+    nnodes = length(elem.nodes)
+    ndof = ndim==2 ? 3 : 6
+
+    ρ = elem.etype.ρ
+    r_y, r_z = get_ry_rz(elem)
+
+    C = get_coords(elem)
+    M = zeros(ndof*nnodes, ndof*nnodes)
+
+    H   = zeros(ndim, ndof*nnodes)
+    Hli = zeros(ndim, ndof)
+    Hi  = zeros(ndim, ndof)
+    L   = zeros(ndim, ndim)
+    Rθ  = zeros(ndof, ndof)
+
+    for ip in elem.ips
+        N    = elem.shape.func(ip.R)
+        dNdR = elem.shape.deriv(ip.R)
+        J1D  = C'*dNdR
+        set_rot_x_xp(elem, J1D, L)
+        dx′dξ = norm(J1D)
+
+        setH(elem, ip, L, N, Rθ, Hli, Hi, H)
+
+        detJ′ = dx′dξ*r_z*r_y
+        w2d = ndim==2 ? 2.0 : 1.0
+        coef = ρ*detJ′*ip.w*w2d
+        @mul M += coef*H'*H
+    end
+
+    map = elem_map(elem)
+    return M, map, map
 end
 
 
@@ -374,7 +457,7 @@ function elem_internal_forces(elem::Element{MechBeam}, ΔU::Vector{Float64}=Floa
     B   = zeros(nstr, ndof*nnodes)
     L   = zeros(ndim,ndim)
     Rθ  = zeros(ndof,ndof)
-    Bil = zeros(nstr,ndof)
+    Bli = zeros(nstr,ndof)
     Bi  = zeros(nstr,ndof)
 
     map = elem_map(elem)
@@ -392,7 +475,7 @@ function elem_internal_forces(elem::Element{MechBeam}, ΔU::Vector{Float64}=Floa
         set_rot_x_xp(elem, J1D, L)
         dx′dξ = norm(J1D)
         dNdX′ = dNdR*inv(dx′dξ)
-        setB(elem, ip, L, N, dNdX′, Rθ, Bil, Bi, B)
+        setB(elem, ip, L, N, dNdX′, Rθ, Bli, Bi, B)
         if update
             @mul Δε = B*ΔU
             Δσ, status = update_state(elem.cmodel, ip.state, ip.cstate, Δε)
