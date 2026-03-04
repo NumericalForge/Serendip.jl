@@ -55,7 +55,7 @@ end
 
 
 function update_state(mat::LinearBondSlip, state::LinearBondSlipState, cstate::LinearBondSlipState, Δu::AbstractVector{Float64})
-    D = calcD(mat, state)
+    D  = calcD(mat, state)
     Δσ = D*Δu
 
     state.u .= cstate.u + Δu

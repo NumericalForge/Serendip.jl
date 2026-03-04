@@ -248,71 +248,20 @@ function update_state(mat::CyclicBondSlip, ips::CyclicBondSlipState, Δu::Vect)
 end
 
 
-function stress_update2(mat::CyclicBondSlip, ips::CyclicBondSlipState, Δu::Vect)
-    ks = mat.ks
-    kn = mat.kn
-    s  = ips.u[1]   # relative displacement
-    Δs = Δu[1]      # relative displacement increment
-    τini = ips.σ[1] # initial shear stress
-    τtr  = τini + ks*Δs # elastic trial
-    str  = s + Δs
-    ips.sacum += abs(Δs)
-    s>ips.spos && (ips.spos=s)
-    s<ips.sneg && (ips.sneg=s)
-
-    # amplitude
-    sa = ips.spos-ips.sneg
-    @assert sa>=0.0
-    sh = sa*ips.srev/mat.sres^2
-
-    # τmax = mat.τmax*(1 - (min(ips.srev, mat.sres)/mat.sres)^0.8)
-    # τmax = mat.τmax*exp(-1.2*(ips.srev/mat.sres))
-    # τmax = mat.τmax*min(1, 1.2*exp(-1.8*(ips.spos-ips.sneg)/mat.sres))
-    # ips.τmax = mat.τmax*exp(-1.25*sh)
-    ips.τmax = mat.τmax*exp(-1.02*sh)
-
-    # ips.speak = mat.speak*(1 + log(1 + 5*ips.srev/mat.sres))
-    ips.speak = mat.speak*(1 + 2.8*sh^0.5)
-
-    if ips.sacum<mat.speak
-        ips.τres = mat.τres*(ips.sacum/mat.speak)^mat.α
-    else
-        ips.τres = mat.τres*exp(-0.17*sh)
-    end
-
-
-    if str*τtr<0
-        τnl = ips.τres
-    else
-        τnl = max(ips.τres, tau(mat, ips, str))
-    end
-
-    ftr = abs(τtr) - τnl
-
-    if ftr<0.0
-        τ = τtr
-        ips.elastic = true
-    else
-        if str*τtr<0
-            Δsrev = (abs(τtr)-τnl)/ks
-            @assert Δsrev>0.0
-            ips.srev += Δsrev
-        end
-        τ = sign(τtr)*τnl
-        Δτ = τ - τini
-        ips.elastic = false
-    end
-
-    # calculate Δσ
-    Δτ = τ - τini
-    Δσ = kn*Δu
-    Δσ[1] = Δτ
-
-    # update u and σ
-    ips.u .+= Δu
-    ips.σ .+= Δσ
-
-    return Δσ, success()
+function update_state(mat::CyclicBondSlip, state::CyclicBondSlipState, cstate::CyclicBondSlipState, Δu::Vect)
+    # Compatibility overload for element routines that use current/committed states.
+    state.σ .= cstate.σ
+    state.u .= cstate.u
+    state.τnl = cstate.τnl
+    state.τmax = cstate.τmax
+    state.τres = cstate.τres
+    state.speak = cstate.speak
+    state.srev = cstate.srev
+    state.sacum = cstate.sacum
+    state.sneg = cstate.sneg
+    state.spos = cstate.spos
+    state.elastic = cstate.elastic
+    return update_state(mat, state, Δu)
 end
 
 
@@ -322,4 +271,3 @@ function state_values(mat::CyclicBondSlip, ips::CyclicBondSlipState)
       :τ => ips.σ[1] ,
       )
 end
-

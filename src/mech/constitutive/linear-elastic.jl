@@ -20,8 +20,8 @@ mutable struct LinearElastic<:Constitutive
     ν::Float64
 
     function LinearElastic(;
-        E::Float64=NaN,
-        nu::Float64=0.0,
+        E::Real=NaN,
+        nu::Real=0.0,
         )
         @check E > 0.0
         @check nu >= 0.0 && nu < 0.5
@@ -108,7 +108,7 @@ function calcDe(E::Real, ν::Real, stress_state::Symbol=:auto, αs::Float64=1.0)
             0.0   0.0   0.0   αs*c*(1.0-ν)  0.0           0.0
             0.0   0.0   0.0   0.0           αs*c*(1.0-ν)  0.0
             0.0   0.0   0.0   0.0           0.0           c*(1.0-ν) ]
-        ezz = -ν/E*(sxx+syy)
+        # ezz = -ν/E*(sxx+syy)
     else
         c = E/((1+ν)*(1-2*ν))
         return @SArray [

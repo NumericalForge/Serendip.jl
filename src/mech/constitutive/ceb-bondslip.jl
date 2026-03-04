@@ -2,24 +2,7 @@
 
 export CebBondSlip, CebBondSlip
 
-mutable struct CebBondSlipState<:ConstState
-    ctx::Context
-    σ  ::Vector{Float64}
-    u  ::Vector{Float64}
-    τy ::Float64      # max stress
-    sy ::Float64      # accumulated relative displacement
-    elastic::Bool
-    function CebBondSlipState(ctx::Context)
-        this = new(ctx)
-        ndim = ctx.ndim
-        this.σ = zeros(ndim)
-        this.u = zeros(ndim)
-        this.τy = 0.0
-        this.sy = 0.0
-        this.elastic = false
-        return this
-    end
-end
+
 
 
 """
@@ -74,17 +57,34 @@ mutable struct CebBondSlip<:Constitutive
         @check s2 > 0.0 "s2 must be > 0.0. Got $(s2)"
         @check s3 > 0.0 "s3 must be > 0.0. Got $(s3)"
         @check 0.0 <= alpha <= 1.0 "CebBondSlip: alpha must be in [0.0, 1.0]. Got $(alpha)"
+
+        ks = isnan(ks) ? 10*taumax/s1 : ks
+        kn = isnan(kn) ? 100*ks : kn
         
-        if isnan(ks)
-            ks = taumax/s1
-        end
-        if isnan(kn)
-            kn = min(1e3*ks, 1e9)
-        end
         @check kn > 0.0  "CebBondSlip: kn must be > 0.0. Current value $(kn)"
         @check ks >= taumax/s1 "ks must satisfy ks >= taumax/s1. Current value $(ks), taumax/s1=$(taumax/s1)"
 
         return new(taumax, taures, s1, s2, s3, alpha, ks, kn)
+    end
+end
+
+
+mutable struct CebBondSlipState<:ConstState
+    ctx::Context
+    σ  ::Vector{Float64}
+    u  ::Vector{Float64}
+    τy ::Float64      # max stress
+    sy ::Float64      # accumulated relative displacement
+    elastic::Bool
+    function CebBondSlipState(ctx::Context)
+        this = new(ctx)
+        ndim = ctx.ndim
+        this.σ = zeros(ndim)
+        this.u = zeros(ndim)
+        this.τy = 0.0
+        this.sy = 0.0
+        this.elastic = false
+        return this
     end
 end
 
@@ -104,7 +104,7 @@ function Tau(mat::CebBondSlip, sy::Float64)
     elseif sy<mat.s2
         return mat.τmax
     elseif sy<mat.s3
-        return mat.τmax - (mat.τmax-mat.τres)*(sy-mat.s2)/(mat.s3-mat.s2)
+        return mat.τmax - (mat.τmax - mat.τres)*(sy - mat.s2)/(mat.s3 - mat.s2)
     else
         return mat.τres
     end
@@ -122,7 +122,7 @@ function deriv(mat::CebBondSlip, state::CebBondSlipState, sy::Float64)
     elseif sy<mat.s2
         return mat.ks*1e-3
     elseif sy<mat.s3
-        return -(mat.τmax-mat.τres)/(mat.s3-mat.s2)
+        return -(mat.τmax - mat.τres)/(mat.s3 - mat.s2)
     else
         return mat.ks*1e-3
     end
@@ -156,8 +156,8 @@ end
 function update_state(mat::CebBondSlip, state::CebBondSlipState, cstate::CebBondSlipState, Δu::Vect)
     ks = mat.ks
     kn = mat.kn
-    Δs = Δu[1]      # relative displacement
-    τini = cstate.σ[1] # initial shear stress
+    Δs = Δu[1]         # relative displacement
+    τini = cstate.σ[1] # initial bond stress
     τtr  = τini + ks*Δs # elastic trial
 
     ftr  = yield_func(mat, state, τtr, cstate.τy)
@@ -166,16 +166,10 @@ function update_state(mat::CebBondSlip, state::CebBondSlipState, cstate::CebBond
         τ = τtr
         state.elastic = true
     else
-        # dτydsy = deriv(mat, state, state.sy)
-        # @s ks
-        # @s dτydsy
-        # Δsy     = (abs(τtr)-state.τy)/(ks+dτydsy)
-        # Δsy     = (abs(τtr)-state.τy)/abs(ks+dτydsy)
         Δsy       = (abs(τtr) - cstate.τy)/ks
         state.sy  = cstate.sy + Δsy
         state.τy  = Tau(mat, state.sy)
         τ  = state.τy*sign(τtr)
-        Δτ = τ - τini
         state.elastic = false
     end
 
@@ -185,8 +179,8 @@ function update_state(mat::CebBondSlip, state::CebBondSlipState, cstate::CebBond
     Δσ[1] = Δτ
 
     # update u and σ
-    state.u .= cstate.u .+ Δu
-    state.σ .= cstate.σ .+ Δσ
+    state.u = cstate.u + Δu
+    state.σ = cstate.σ + Δσ
 
     return Δσ, success()
 end
