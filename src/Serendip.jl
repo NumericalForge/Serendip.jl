@@ -15,7 +15,8 @@ Node, Element, Model, Dof, Ip, NodeBC, SurfaceBC
 module Serendip
 
 using StatsBase, Statistics, LinearAlgebra
-using StaticArrays, FixedSizeArrays, SparseArrays, Arpack, Gmsh
+using StaticArrays, FixedSizeArrays, SparseArrays, Arpack, Pardiso
+using Gmsh
 using Printf, DelimitedFiles, DataStructures, Glob, Dates, JSON
 using Cairo
 import FreeTypeAbstraction
