@@ -346,7 +346,6 @@ end
 
 
 function to_xml_node(dict::AbstractDict, name::String="Dict", attributes::AbstractDict=Dict{String,String}())
-    # vty = valtype(dict)
     s = string(typeof(dict))
     s = split(s,".")[end]
     attributes["type"] = s
@@ -355,14 +354,6 @@ function to_xml_node(dict::AbstractDict, name::String="Dict", attributes::Abstra
                 to_xml_node(collect(keys(dict)), "keys"),
                 to_xml_node(collect(values(dict)), "values")
                ]
-    #children = XmlElement[]
-    #for (k,v) in dict
-        #if typeof(v) <: Xsingletype
-            #push!(children, XmlElement(string(k), string(v)))
-        #else
-            #push!(children, XmlElement(string(k), Dict(), [to_xml_node(v)]))
-        #end
-    #end
 
     return XmlElement(name, attributes=attributes, children=children)
 
