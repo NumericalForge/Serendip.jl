@@ -29,24 +29,6 @@ mutable struct MCJointSeepState<:ConstState
 end
 
 
-MCJointSeep_params = [
-    FunInfo(:MCJointSeep, "Consitutive model for jointed rock with seepage"),
-    KwArgInfo(:E, "Young's modulus", cond=:(E>0)),
-    KwArgInfo(:nu, "Poisson ratio", cond=:(0<=nu<0.5)),
-    KwArgInfo(:ft, "Tensile strength", cond=:(ft>0)),
-    KwArgInfo(:mu, "Tangent of friction angle", cond=:(mu>=0)),
-    KwArgInfo(:zeta, "Factor to control elastic relative displacements", cond=:(zeta>=0)),
-    KwArgInfo(:wc, "Critical crack opening", 0.0, cond=:(wc>=0)),
-    KwArgInfo(:GF, "Fracture energy", 0.0, cond=:(GF>=0)),
-    KwArgInfo(:softmodel, "Softening model", :hordijk, values=(:linear, :bilinear, :hordijk, :soft, :custom), type=Symbol),
-    KwArgInfo(:beta, "Compressibility of fluid", 0.0, cond=:(beta>=0)),
-    KwArgInfo(:eta, "Viscosity", cond=:(eta>=0)),
-    KwArgInfo(:kt, "Transverse leak-off coefficient", cond=:(kt>=0)),
-    KwArgInfo(:w, "Initial fracture opening (longitudinal flow)", 0.0, cond=:(w>=0)),
-    KwArgInfo(:fracture, "Pre-existing fracture", false, type=Bool),
-]
-@doc docstring(MCJointSeep_params) MCJointSeep
-
 mutable struct MCJointSeep<:Constitutive
     E  ::Float64       # Young's modulus
     ν  ::Float64       # Poisson ratio
@@ -76,8 +58,6 @@ mutable struct MCJointSeep<:Constitutive
                 wc = round(5*GF/ft, sigdigits=5)
             elseif softmodel==:hordijk
                 wc = round(GF/(0.1947*ft), sigdigits=5)  
-            elseif softmodel==:soft
-                wc = round(GF/(0.1947*ft), sigdigits=5)
             end
         end
 

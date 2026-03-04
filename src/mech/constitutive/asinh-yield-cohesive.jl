@@ -27,7 +27,7 @@ bulk element size `h` to ensure mesh-objective fracture energy dissipation.
   Fracture energy (must be > 0 if given). Can be specified alternatively to `wc`.
 - `ft_law::Union{Symbol,AbstractSpline} = :hordijk`:  
   Softening law for post-peak tensile response. Options are:
-  `:linear`, `:bilinear`, `:hordijk`, `:soft` or a custom function.
+  `:linear`, `:bilinear`, `:hordijk` or a custom function.
 - `alpha::Real = 0.6`:  
   Parameter to control the shape of the yield surface (α > 0.5).
 - `gamma::Real = 0.1`:  
@@ -86,7 +86,7 @@ mutable struct AsinhYieldCohesive<:Constitutive
         @check alpha > 0.5 "AsinhYieldCohesive: alpha must be greater than 0.5. Got $(repr(alpha))."
         @check gamma >= 0.0 "AsinhYieldCohesive: gamma must be non-negative. Got $(repr(gamma))."
         @check theta >= 0.0 "AsinhYieldCohesive: theta must be non-negative. Got $(repr(theta))."
-        @check ft_law in (:linear, :bilinear, :hordijk, :soft) || ft_law isa AbstractSpline "AsinhYieldCohesive: Unknown ft_law model: $ft_law. Supported models are :linear, :bilinear, :hordijk, :soft or a custom AbstractSpline."
+        @check ft_law in (:linear, :bilinear, :hordijk) || ft_law isa AbstractSpline "AsinhYieldCohesive: Unknown ft_law model: $ft_law. Supported models are :linear, :bilinear, :hordijk or a custom AbstractSpline."
 
         wc, ft_law, ft_fun, status = setup_tensile_strength(ft,  GF, wc, ft_law)
         failed(status) && throw(ArgumentError("AsinhYieldCohesive: " * status.message))

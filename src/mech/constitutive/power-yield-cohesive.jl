@@ -86,7 +86,7 @@ mutable struct PowerYieldCohesive<:Constitutive
         @check alpha > 0.5 "PowerYieldCohesive: alpha must be greater than 0.5. Got $(repr(alpha))."
         @check gamma >= 0.0 "PowerYieldCohesive: gamma must be non-negative. Got $(repr(gamma))."
         @check theta >= 0.0 "PowerYieldCohesive: theta must be non-negative. Got $(repr(theta))."
-        @check ft_law in (:linear, :bilinear, :hordijk, :soft) || ft_law isa AbstractSpline "PowerYieldCohesive: Unknown ft_law model: $ft_law. Supported models are :linear, :bilinear, :hordijk, :soft or a custom AbstractSpline."
+        @check ft_law in (:linear, :bilinear, :hordijk) || ft_law isa AbstractSpline "PowerYieldCohesive: Unknown ft_law model: $ft_law. Supported models are :linear, :bilinear, :hordijk or a custom AbstractSpline."
 
         wc, ft_law, ft_fun, status = setup_tensile_strength(ft,  GF, wc, ft_law)
         failed(status) && throw(ArgumentError("PowerYieldCohesive: " * status.message))

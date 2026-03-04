@@ -1,5 +1,4 @@
 using Serendip
-using Revise
 
 r = 0.40
 L = 2.0

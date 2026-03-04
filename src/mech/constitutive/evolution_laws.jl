@@ -1,6 +1,6 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-const _tensile_evolution_laws = ( :constant, :linear, :bilinear, :hordijk, :soft, :custom )
+const _tensile_evolution_laws = ( :constant, :linear, :bilinear, :hordijk, :custom )
 const _compressive_evolution_laws = ( :constant, :popovics )
 
 
@@ -84,14 +84,14 @@ end
 
 
 function setup_tensile_strength(ft::Float64, GF::Float64, wc::Float64, ft_law::Union{Symbol,AbstractSpline})
-    # ft_law: :constant, :hordijk, :linear, :bilinear, :soft, or custom function (Spline)
+    # ft_law: :constant, :hordijk, :linear, :bilinear or custom function (Spline)
     # GF: Fracture energy
     # wc: critical crack opening
 
     ft > 0.0 || return 0.0, :none, nothing, failure("ft must be positive. Got ft=$ft)")
 
     (ft_law in _tensile_evolution_laws || ft_law isa AbstractSpline) ||
-        return wc, ft_law, nothing, failure("ft_law must be :linear, :bilinear, :hordijk, :soft, or a custom function (Spline). Got $(repr(ft_law)).")
+        return wc, ft_law, nothing, failure("ft_law must be :linear, :bilinear, :hordijk, or a custom function (Spline). Got $(repr(ft_law)).")
 
     ft_fun = nothing
     if ft_law isa AbstractSpline
@@ -120,8 +120,6 @@ function setup_tensile_strength(ft::Float64, GF::Float64, wc::Float64, ft_law::U
                 wc = 2*GF/ft
             elseif ft_law == :bilinear
                 wc = 5*GF/ft
-            elseif ft_law==:soft
-                wc = GF/(0.1947*ft)
             end
 
             wc = round(wc, sigdigits=5)
@@ -136,7 +134,7 @@ end
 
 function calc_tensile_strength(mat::Constitutive, w::Float64)
     # ft: tensile strength at zero crack opening
-    # ft_law: :constant, :hordijk, :linear, :bilinear, :soft, or custom function (Spline)
+    # ft_law: :constant, :hordijk, :linear, :bilinear or custom function (Spline)
     # ft_fun: custom function (Spline)
     # w: crack opening (plastic displacement jump)
 
@@ -180,18 +178,6 @@ function calc_tensile_strength(mat::Constitutive, w::Float64)
             b = 0.0
         end
         return a - b*w
-    elseif ft_law == :soft
-        m = 0.55
-        a = 1.30837
-        if w == 0.0
-            z = 1.0
-        elseif 0.0 < w < wc
-            x = w/wc
-            z = 1.0 - a^(1.0 - 1.0/x^m)
-        else
-            z = 0.0
-        end
-        return z*ft
     else
         @assert mat.ft_fun isa AbstractSpline
         return mat.ft_fun(w)
@@ -230,19 +216,6 @@ function calc_tensile_strength_derivative(mat::Constitutive, w::Float64)
             e = exp(1.0)
             dz = ((81*w^2*e^(-6.93*w/wc)/wc^3) - (6.93*(1 + 27*w^3/wc^3)*e^(-6.93*w/wc)/wc) - 0.02738402432/wc)
             dz = max(dz, 0.0) 
-        else
-            dz = 0.0
-        end
-        dft_dw = dz*ft 
-    elseif ft_law == :soft
-        m = 0.55
-        a = 1.30837
-
-        if w == 0.0
-            dz = 0.0
-        elseif w < wc
-            x = w/wc
-            dz =  -m*log(a)*a^(1-x^-m)*x^(-m-1)/wc
         else
             dz = 0.0
         end
