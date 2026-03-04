@@ -464,6 +464,35 @@ function _atom_ink_right(cc::CairoContext, font::String, atom::TSAtom, fontsize:
     return max(te[1] + te[3], 0.0)
 end
 
+function _atom_left_pad(cc::CairoContext, font::String, atom::TSAtom, fontsize::Float64)
+    isempty(atom.text) && return 0.0
+
+    Cairo.save(cc)
+    weight = atom.bold ? Cairo.FONT_WEIGHT_BOLD : Cairo.FONT_WEIGHT_NORMAL
+    select_font_face(cc, font, atom.italic ? Cairo.FONT_SLANT_ITALIC : Cairo.FONT_SLANT_NORMAL, weight)
+    set_font_size(cc, fontsize)
+    te = text_extents(cc, atom.text)
+    Cairo.restore(cc)
+
+    # Negative left bearing overlaps the previous glyph; add padding to compensate.
+    return max(-te[1], 0.0)
+end
+
+function _node_left_pad(cc::CairoContext, font::String, node::TypesetNode, fontsize::Float64)
+    if node isa TSAtom
+        return _atom_left_pad(cc, font, node::TSAtom, fontsize)
+    elseif node isa TSScripts
+        return _node_left_pad(cc, font, (node::TSScripts).base, fontsize)
+    elseif node isa TSGroup
+        items = (node::TSGroup).items
+        return isempty(items) ? 0.0 : _node_left_pad(cc, font, items[1], fontsize)
+    elseif node isa TSParenGroup
+        items = (node::TSParenGroup).items
+        return isempty(items) ? 0.0 : _node_left_pad(cc, font, items[1], fontsize)
+    end
+    return 0.0
+end
+
 function _node_width(cc::CairoContext, node::TypesetNode, font::String, fontsize::Float64)
     if node isa TSAtom
         atom = node::TSAtom
@@ -476,7 +505,8 @@ function _node_width(cc::CairoContext, node::TypesetNode, font::String, fontsize
             prev_node = i > 1 ? items[i-1] : nothing
             next_node = i < length(items) ? items[i+1] : nothing
             pre, post = _operator_spacing(item, prev_node, next_node, fontsize)
-            width += pre + _node_width(cc, item, font, fontsize) + post
+            left_pad = prev_node === nothing ? 0.0 : _node_left_pad(cc, font, item, fontsize)
+            width += left_pad + pre + _node_width(cc, item, font, fontsize) + post
         end
         return width
     elseif node isa TSParenGroup
@@ -502,10 +532,13 @@ function _node_width(cc::CairoContext, node::TypesetNode, font::String, fontsize
         else
             base_w - trailing_pad
         end
+        sub_adjust = _script_sub_x_adjust(s.base, fontsize, s.sub !== nothing)
         child_size = 0.7 * fontsize
         sub_w = s.sub === nothing ? 0.0 : _node_width(cc, s.sub, font, child_size)
         sup_w = s.sup === nothing ? 0.0 : _node_width(cc, s.sup, font, child_size)
-        return max(base_w, base_anchor + 0.07 * fontsize + max(sub_w, sup_w))
+        sup_x = base_anchor + 0.07 * fontsize
+        sub_x = sup_x + sub_adjust
+        return max(base_w, max(sup_x + sup_w, sub_x + sub_w))
     elseif node isa TSSqrt
         sqrt_node = node::TSSqrt
         body_w = _node_width(cc, sqrt_node.body, font, fontsize)
@@ -537,6 +570,17 @@ end
 
 @inline _is_operator_atom(node::TypesetNode) = node isa TSAtom && ((node::TSAtom).text in _typeset_binary_ops)
 @inline _is_opening_delim_atom(node::TypesetNode) = node isa TSAtom && ((node::TSAtom).text in ("(", "[", "{"))
+
+@inline function _script_sub_x_adjust(base::TypesetNode, fontsize::Float64, has_sub::Bool)
+    has_sub || return 0.0
+    if base isa TSAtom
+        t = (base::TSAtom).text
+        if t == "f" || t == "F" || t == "T"
+            return -0.25 * fontsize
+        end
+    end
+    return 0.0
+end
 
 function _operator_spacing(node::TypesetNode, prev_node::Union{Nothing,TypesetNode}, next_node::Union{Nothing,TypesetNode}, fontsize::Float64)
     _is_operator_atom(node) || return 0.0, 0.0
@@ -625,7 +669,9 @@ function _layout_node!(cc::CairoContext, node::TypesetNode, font::String, glyphs
         else
             base_w - trailing_pad
         end
-        script_x = x + base_anchor + 0.07 * fontsize
+        sub_adjust = _script_sub_x_adjust(script.base, fontsize, script.sub !== nothing)
+        sup_x = x + base_anchor + 0.07 * fontsize
+        sub_x = sup_x + sub_adjust
         sub_w = 0.0
         sup_w = 0.0
         child_size = 0.6 * fontsize
@@ -637,14 +683,14 @@ function _layout_node!(cc::CairoContext, node::TypesetNode, font::String, glyphs
         sub_y = y + (0.23 * fontsize + 0.25 * sub_extra)
 
         if script.sub !== nothing
-            sub_w = _layout_node!(cc, script.sub, font, glyphs, rules, script_x, sub_y, child_size, min_y, max_y)
+            sub_w = _layout_node!(cc, script.sub, font, glyphs, rules, sub_x, sub_y, child_size, min_y, max_y)
         end
 
         if script.sup !== nothing
-            sup_w = _layout_node!(cc, script.sup, font, glyphs, rules, script_x, sup_y, child_size, min_y, max_y)
+            sup_w = _layout_node!(cc, script.sup, font, glyphs, rules, sup_x, sup_y, child_size, min_y, max_y)
         end
 
-        return max(base_w, (script_x - x) + max(sub_w, sup_w))
+        return max(base_w, max((sup_x - x) + sup_w, (sub_x - x) + sub_w))
     end
 
     if node isa TSSqrt
@@ -718,6 +764,9 @@ function _layout_nodes!(cc::CairoContext, nodes::Vector{TypesetNode}, font::Stri
         next_node = i < length(nodes) ? nodes[i+1] : nothing
         pre, post = _operator_spacing(node, prev_node, next_node, fontsize)
         current_x += pre
+        if prev_node !== nothing
+            current_x += _node_left_pad(cc, font, node, fontsize)
+        end
         current_x += _layout_node!(cc, node, font, glyphs, rules, current_x, y, fontsize, min_y, max_y)
         current_x += post
     end

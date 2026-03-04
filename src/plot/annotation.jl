@@ -12,7 +12,7 @@ mutable struct Annotation <: FigureComponent
     color      ::Symbol
     function Annotation(text::AbstractString, x::Real, y::Real;
         alignment::Symbol=:auto,
-        target::Union{Nothing,AbstractArray{<:Real,1}}=[0.0, 0.0],
+        target::Union{Nothing,AbstractArray{<:Real,1}}=nothing,
         line_width::Real=0.4,
         font::AbstractString="NewComputerModern",
         font_size::Real=6.0,
@@ -30,7 +30,7 @@ mutable struct Annotation <: FigureComponent
             @check length(target) == 2 "target must be a 2D point"
             target = float.(target)
         else
-            target = [0.0, 0.0]
+            target = [ NaN, NaN ]
         end
 
         return new(text, x, y, alignment, target, has_target, line_width, font, font_size, color)
