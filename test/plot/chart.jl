@@ -1,5 +1,6 @@
 using Serendip
 
+
 X = collect(0:0.4:8)
 Y1 = sin.(X)
 Y2 = cos.(X)
@@ -17,5 +18,7 @@ add_scatter(chart, X, Y3, mark=:square, color=:green, line_style=:dash, label=t"
 
 add_annotation(chart, Annotation(t" $-2 + bold(A)^(1/2) - (A^2/B_3^2 + x^2/y^2 )^2 + f_2^2/g_2^2$", 0.3, 0.9, target=[1.5, 1], alignment=:top))
 add_annotation(chart, Annotation(t"A $+ sigma$", 0.1, 0.2, target=[4.0, 0], alignment=:top))
+add_annotation(chart, Annotation(t"$A_2^2 F_2^2 T_2^2$", 0.15, 0.3))
+add_annotation(chart, Annotation(t"$a_2^2 f_2^2 a^2 f t_2^2$", 0.15, 0.4))
 
 save(chart, "chart.pdf")
