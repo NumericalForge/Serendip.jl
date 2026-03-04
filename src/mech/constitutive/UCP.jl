@@ -85,7 +85,7 @@ mutable struct UCP<:Constitutive
         beta::Real = 1.15,
         p0::Real   = NaN,
         ft_law     = :hordijk,
-        fc_law     = :default,
+        fc_law     = :popovics,
         H::Real    = 0.0,
     )
         @check E>0 "UCP: Young's modulus E must be > 0. Got $E."
