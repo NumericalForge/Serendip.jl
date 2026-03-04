@@ -2,7 +2,7 @@
 
 export DataTable, save, split_by, randtable
 export compress, resize, filter, cut!, clamp!, denoise!
-export getheader
+export getheader, get_frequency
 
 
 # DataTable object
@@ -345,6 +345,155 @@ function Base.filter(table::DataTable, expr::Expr)
         idxs[i] = evaluate(expr; vars...)
     end
     return table[idxs]
+end
+
+
+@inline function _table_mean(v::AbstractVector{<:Real})
+    return sum(v)/length(v)
+end
+
+
+@inline function _table_median(v::AbstractVector{<:Real})
+    w = sort(collect(v))
+    n = length(w)
+    n == 0 && return NaN
+    if isodd(n)
+        return w[(n+1) ÷ 2]
+    else
+        i = n ÷ 2
+        return 0.5*(w[i] + w[i+1])
+    end
+end
+
+
+function _quadratic_extremum_time(t1::Float64, y1::Float64, t2::Float64, y2::Float64, t3::Float64, y3::Float64)
+    A = [t1^2 t1 1.0
+         t2^2 t2 1.0
+         t3^2 t3 1.0]
+    b = [y1, y2, y3]
+    x = A\b
+    a = x[1]
+    b1 = x[2]
+    abs(a) <= eps() && return t2
+    tx = -b1/(2a)
+    if t1 <= tx <= t3
+        return tx
+    else
+        return t2
+    end
+end
+
+
+function _extrema_times(t::Vector{Float64}, y::Vector{Float64}, mode::Symbol, threshold::Float64)
+    n = length(y)
+    times = Float64[]
+    idxs = Int[]
+
+    for i in 2:n-1
+        yi = y[i]
+        abs(yi) < threshold && continue
+
+        isext = if mode == :minima
+            yi <= y[i-1] && yi < y[i+1]
+        else
+            yi >= y[i-1] && yi > y[i+1]
+        end
+        isext || continue
+
+        tx = _quadratic_extremum_time(t[i-1], y[i-1], t[i], yi, t[i+1], y[i+1])
+        push!(times, tx)
+        push!(idxs, i)
+    end
+    return times, idxs
+end
+
+
+"""
+    get_frequency(table::DataTable, col::KeyType; time_col=nothing, extrema=:auto, min_rel_amplitude=0.35)
+
+Estimate the dominant oscillation frequency for a signal column in a `DataTable`.
+
+# Arguments
+- `table::DataTable`: input table containing time history data.
+- `col::KeyType`: signal column key.
+
+# Keywords
+- `time_col`: optional time-column key. If omitted, tries `:t` / `"t"`.
+- `extrema::Symbol`: `:auto`, `:minima`, or `:maxima`.
+- `min_rel_amplitude::Real`: extrema amplitude threshold as a fraction of centered signal peak.
+
+# Returns
+- `Float64`: estimated frequency in Hz.
+"""
+function get_frequency(
+    table::DataTable,
+    col::KeyType;
+    time_col::Union{Nothing,KeyType}=nothing,
+    extrema::Symbol=:auto,
+    min_rel_amplitude::Real=0.35,
+)
+    @check extrema in (:auto, :minima, :maxima) "get_frequency: `extrema` must be :auto, :minima or :maxima"
+    @check min_rel_amplitude >= 0.0 "get_frequency: `min_rel_amplitude` must be non-negative"
+
+    tkey = if time_col === nothing
+        if haskey(table, :t)
+            :t
+        elseif haskey(table, "t")
+            "t"
+        else
+            error("get_frequency: time column not found. Expected :t or \"t\".")
+        end
+    else
+        time_col
+    end
+
+    y = Float64.(table[col])
+    t = Float64.(table[tkey])
+
+    n = length(t)
+    @check n == length(y) "get_frequency: time and signal columns must have the same length"
+    @check n >= 3 "get_frequency: at least 3 samples are required"
+    all(diff(t) .> 0.0) || error("get_frequency: time column must be strictly increasing")
+
+    finite = isfinite.(t) .& isfinite.(y)
+    t = t[finite]
+    y = y[finite]
+    n = length(t)
+    @check n >= 3 "get_frequency: not enough finite samples"
+
+    y0 = y .- _table_mean(y)
+    amp = maximum(abs, y0)
+    amp > 0.0 || error("get_frequency: signal amplitude is zero.")
+    threshold = min_rel_amplitude*amp
+
+    tmins, _ = _extrema_times(t, y0, :minima, threshold)
+    tmaxs, _ = _extrema_times(t, y0, :maxima, threshold)
+
+    tsel = if extrema == :minima
+        tmins
+    elseif extrema == :maxima
+        tmaxs
+    else
+        length(tmins) >= length(tmaxs) ? tmins : tmaxs
+    end
+
+    length(tsel) >= 2 || error("get_frequency: not enough extrema to estimate frequency.")
+
+    periods = diff(tsel)
+    periods = periods[isfinite.(periods) .& (periods .> 0.0)]
+    length(periods) > 0 || error("get_frequency: invalid period data.")
+
+    # Reject strong outliers when enough cycles are available.
+    if length(periods) >= 3
+        pmed = _table_median(periods)
+        keep = abs.(periods .- pmed) .<= 0.25*pmed
+        if count(keep) >= 1
+            periods = periods[keep]
+        end
+    end
+
+    T = _table_mean(periods)
+    return 1.0/T
 end
 
 
