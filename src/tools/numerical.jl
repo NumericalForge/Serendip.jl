@@ -12,12 +12,12 @@ neg(x) = (-abs(x)+x)/2.0
 
 
 """
-    smooth_pos(x)
+    spos(x)
 
 Smooth approximation of max(0, x).
 Replaces the sharp kink at zero with a quadratic curve in [-ϵ, ϵ].
 """
-@inline function smooth_pos(x::Float64, eps::Float64=1e-7)
+@inline function spos(x::Float64, eps::Float64=1e-8)
     if x > eps
         return x
     elseif x < -eps
@@ -29,14 +29,14 @@ Replaces the sharp kink at zero with a quadratic curve in [-ϵ, ϵ].
 end
 
 """
-    smooth_neg(x)
+    sneg(x)
 
 Smooth approximation of min(0, x).
 Derived from identity: min(0, x) = x - max(0, x)
 """
-@inline function smooth_neg(x::Float64, eps::Float64=1e-7)
-    # This ensures consistency: smooth_min(x) + smooth_max(x) = x
-    return x - smooth_pos(x, eps)
+@inline function sneg(x::Float64, eps::Float64=1e-8)
+    # This ensures consistency: smin(x) + smax(x) = x
+    return x - spos(x, eps)
 end
 
 
@@ -67,11 +67,13 @@ end
 
 # computes the first derivative using central
 # differences formula and Richardson extrapolation
-function derive(f::Function, x::Float64; ref::Float64=1.0)
+function derive(f::Function, x::Float64; ref::Float64=1.0, order=1)
     # h  = eps()^(1/2)*abs(ref)
     h  = eps()^(1/2)
 
     d1 = (f(x+h)-f(x-h))/(2*h)
+    order == 1 && return d1
+
     h  = h/2
     d2 = (f(x+h)-f(x-h))/(2*h)
     return (4*d2-d1)/3
