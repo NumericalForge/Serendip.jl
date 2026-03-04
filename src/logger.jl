@@ -100,7 +100,7 @@ function add_logger(
         if n==0
             target = [ nearest(items, X) ]
             X = round.(target[1].coord, sigdigits=4)
-            notify("add_logger: No $kind found at $selector_str. Picking the nearest at $X")
+            notify("add_logger: No $kind found at $selector_str. Picking nearest at $X")
         else
             target = target[1:1] # take the first
         end
@@ -112,9 +112,9 @@ function add_logger(
 
     target = select(ana.model, item_name, selector)
     n = length(target)
-    n == 0 && notify("add_logger: No $(item_name)s found for selector: ", selector_str)
+    n == 0 && notify("add_logger: No $(item_name)s match: ", selector_str)
     if kind in (:node, :ip)
-        n >  1 && notify("add_logger: Multiple $(item_name)s match selector: ", selector_str, ". Picking the first one.")
+        n >  1 && notify("add_logger: Multiple $(item_name)s match: ", selector_str, ". Picking one.")
         n >= 1 && (target = target[1:1])
     end
 

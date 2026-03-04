@@ -138,7 +138,7 @@ function add_monitor(
         if n==0
             target = [ nearest(items, X) ]
             X = round.(target[1].coord, sigdigits=4)
-            notify("add_monitor: No $kind found at $selector_str. Picking the nearest at $X")
+            notify("add_monitor: No $kind found at $selector_str. Picking nearest at $X")
         else
             target = target[1:1] # take the first
         end
@@ -151,9 +151,9 @@ function add_monitor(
 
     target = select(ana.model, item_kind, selector)
     n = length(target)
-    n == 0 && notify("setup_monitor: No $(item_kind)s found for selector: $selector_str")
+    n == 0 && notify("setup_monitor: No $(item_kind)s match: $selector_str")
     if kind in (:node, :ip)
-        n >  1 && notify("setup_monitor: Multiple $(item_kind)s match selector: $selector_str. Picking the first one")
+        n >  1 && notify("setup_monitor: Multiple $(item_kind)s match: $selector_str. Picking one")
         n >= 1 && (target = target[1:1])
     end
 
