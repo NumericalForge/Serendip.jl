@@ -1,17 +1,49 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 const _tensile_evolution_laws = ( :constant, :linear, :bilinear, :hordijk, :soft, :custom )
-const _compressive_evolution_laws = ( :constant, :default, :popovics )
+const _compressive_evolution_laws = ( :constant, :popovics )
 
 
-function setup_compressive_strength(fc::Float64, εc::Float64, fc_law::Union{Symbol,AbstractSpline})
-    # fc_law: :constant, :default, :popovics, or custom function (Spline)
+function setup_compressive_strength(E::Float64, fc::Float64, εc::Float64, fc_law::Union{Symbol,AbstractSpline})
+    # fc_law: :constant, :popovics, or custom function (Spline)
 
     fc < 0.0 || return :none, nothing, failure("fc must be negative. Got fc=$fc)")
     εc < 0.0 || return :none, nothing, failure("εc must be negative. Got εc=$εc)")
+    (fc_law in _compressive_evolution_laws || fc_law isa AbstractSpline) || return :none, nothing, failure("fc_law must be :constant, :popovics, or a custom function (Spline). Got $(repr(fc_law)).")
 
-    (fc_law in _compressive_evolution_laws || fc_law isa AbstractSpline) ||
-        return :none, nothing, failure("fc_law must be :default, :popovics, or a custom function (Spline). Got $(repr(fc_law)).")
+    if fc_law == :popovics # compute the default curve based on Popovics model
+        Ep = Float64[ 0.0 ]
+        Fc = Float64[ 0.4*fc ]
+        Δε = abs(εc)/10
+        ε = 0.0
+        η = 1/(1 - abs(fc)/(E*abs(εc))) # same as  η = 1/(1 - fc/(εcp_pk*Hc))   with   Hc = E*εc/εcp_pk
+        εpp = abs(εc) - abs(fc)/E
+        npoints = 30
+        
+        for i in 1:npoints
+            χ = ε/abs(εc)
+            fci = fc * η * χ/(η - 1 + χ^η)
+            εp = ε - abs(fci)/E
+            ε += Δε
+
+            εp > 0.0 || continue
+            if εp < εpp
+                abs(fci) > 0.4*abs(fc) || continue
+            end
+            push!(Fc, fci)
+            push!(Ep, εp)
+            
+            if i == 15 # increase spacement after peak
+                Δε = Δε*5
+            end
+        end
+
+        fc_fun = LinearSpline(Ep, Fc, left=:linear, right=:flat)
+        
+        return :popovics, fc_fun, success()
+    elseif fc_law == :constant
+        return fc_law, nothing, success()
+    end
 
     fc_fun = nothing
     if fc_law isa AbstractSpline
@@ -39,34 +71,14 @@ function calc_compressive_strength(mat::Constitutive, fc0::Float64, fcr::Float64
     # fcr: residual compressive strength
     # εcp: compressive plastic strain
 
-    fc     = mat.fc
-    εcp_pk = abs(mat.εc) - abs(fc)/mat.E  # εcp_pk is the compression plastic strain at the peak of the uniaxial compression curve
-    χ      = εcp/εcp_pk
-    fc_law = mat.fc_law
-    # fc0    = 0.35*fc
-    # fcr    = 0.1*fc
-    
-    if fc_law == :constant
-        return fc
-    elseif fc_law == :popovics
-        η = 1/(1 - fc/(mat.E*mat.εc)) # same as  η = 1/(1 - fc/(εcp_pk*Hc))   with   Hc = E*εc/εcp_pk
-        return fc * η * χ/(η - 1 + χ^η)
-    elseif mat.fc_law==:default
-        η = mat.η # from material parameters
-        if εcp < 0.0 # sometimes εcp is slightly negative due to numerical errors
-            return fc0
-        elseif εcp < εcp_pk
-            # before peak
-            return fc0 + (fc - fc0) * η * χ/(η - 1 + χ^η)
-        else
-            # after peak
-            return fcr + (fc - fcr) * η * χ/(η - 1 + χ^η)
-        end
-    else
+    if mat.fc_law == :constant
+        return matfc
+    elseif mat.fc_law in (:custom, :popovics)
         return mat.fc_fun(εcp)
     end
 
-    return ft
+    error("Unknown fc_law: $(mat.fc_law).")
+
 end
 
 
@@ -132,7 +144,8 @@ function calc_tensile_strength(mat::Constitutive, w::Float64)
     wc     = mat.wc
     ft_law = mat.ft_law
 
-    w < 0 && return ft # This condition is important for the case of compression
+    # @assert w >= 0.0 # do not assert to allow computation of derivatives near w=0
+    # w < 0 && return ft # This condition is important for the case of compression
 
     if ft_law == :constant
         return ft
@@ -140,6 +153,7 @@ function calc_tensile_strength(mat::Constitutive, w::Float64)
         if w < wc
             e = exp(1.0)
             z = (1 + 27*(w/wc)^3)*e^(-6.93*w/wc) - 28*(w/wc)*e^(-6.93)           
+            z = max(z, 0.0) # to avoid negative values and sign flip due to numerical errors
         else
             z = 0.0
         end
@@ -182,8 +196,6 @@ function calc_tensile_strength(mat::Constitutive, w::Float64)
         @assert mat.ft_fun isa AbstractSpline
         return mat.ft_fun(w)
     end
-
-    return ft
 end
 
 
@@ -194,7 +206,7 @@ function calc_tensile_strength_derivative(mat::Constitutive, w::Float64)
     wc     = mat.wc
     ft_law = mat.ft_law
 
-    # w < 0 && return ft # TODO: Check for the right behavior
+    @assert w >= 0.0
 
     if ft_law == :linear
         if w < wc
@@ -217,6 +229,7 @@ function calc_tensile_strength_derivative(mat::Constitutive, w::Float64)
         if w < wc
             e = exp(1.0)
             dz = ((81*w^2*e^(-6.93*w/wc)/wc^3) - (6.93*(1 + 27*w^3/wc^3)*e^(-6.93*w/wc)/wc) - 0.02738402432/wc)
+            dz = max(dz, 0.0) 
         else
             dz = 0.0
         end
