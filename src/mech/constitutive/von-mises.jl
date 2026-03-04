@@ -114,194 +114,150 @@ compat_state_type(::Type{VonMises}, ::Type{MechEmbBar}) = VonMisesBarState
 # ❱❱❱ VonMises model for 3D and 2D bulk elements and shell elements
 
 function yield_func(mat::VonMises, state::VonMisesState, σ::Vec6, εpa::Float64)
-    if state.ctx.stress_state==:plane_stress || state.αs!=1.0
-        # f = 1/2 σ*Psd*σ - 1/3 (fy + H εp)^2
-        # f = J2D - 1/3 (fy + H εp)^2
-
-        j2d = J2(σ)
-
-        σy  = mat.σy
-        H   = mat.H
-        return j2d - 1/3*(σy + H*εpa)^2
-    else
-        j2d = J2(σ)
-        σy  = mat.σy
-        H   = mat.H
-        return √(3*j2d) - σy - H*εpa
-    end
+    j2d = J2(σ)
+    σy  = mat.σy
+    H   = mat.H
+    return √(3*j2d) - σy - H*εpa
 end
 
 
 function calcD(mat::VonMises, state::VonMisesState)
+    
     if state.ctx.stress_state==:plane_stress || state.αs!=1.0
-        αs  = state.αs
+        αs = state.αs
         De = calcDe(mat.E, mat.ν, :plane_stress, αs)
-        state.Δλ==0.0 && return De
-        σ = state.σ
-
-        s     = SVector( 2/3*σ[1] - 1/3*σ[2], 2/3*σ[2] - 1/3*σ[1], -1/3*σ[1]-1/3*σ[2], σ[4], σ[5], σ[6] )
-        dfdσ  = s
-        dfdεp = -2/3*mat.H*(mat.σy + mat.H*state.εpa)
-
-        return De - De*dfdσ*dfdσ'*De / (dfdσ'*De*dfdσ - norm(s)*dfdεp)
-
     else
-        De  = calcDe(mat.E, mat.ν)
-        state.Δλ==0.0 && return De
-
-        j2d = J2(state.σ)
-        @assert j2d>0
-
-        s     = dev(state.σ)
-        dfdσ  = √1.5*s/norm(s)
-        dfdεp = -mat.H
-
-        return De - De*dfdσ*dfdσ'*De / (dfdσ'*De*dfdσ - √1.5*dfdεp)
+        De = calcDe(mat.E, mat.ν)
     end
+    
+    state.Δλ==0.0 && return De
 
+    j2d = J2(state.σ)
+    @assert j2d>0
+    
+    σ = state.σ
+    p = 1/3*(σ[1] + σ[2] + σ[3])
+    s = SVector( σ[1]-p, σ[2]-p, σ[3]-p, σ[4], σ[5], σ[6] )
+
+    dfdσ  = s*(√1.5/norm(s))
+    dεpdλ = √1.5
+    dfdεp = -mat.H
+
+    return De - De*dfdσ*dfdσ'*De / (dfdσ'*De*dfdσ - dfdεp*dεpdλ)
 end
 
 
 function update_state(mat::VonMises, state::VonMisesState, cstate::VonMisesState, Δε::Vector{Float64})
     if state.ctx.stress_state==:plane_stress || state.αs!=1.0
-
-        αs   = state.αs
-        De   = calcDe(mat.E, mat.ν, :plane_stress, αs)
-        σtr  = cstate.σ + De*Δε
-        ftr  = yield_func(mat, state, σtr, cstate.εpa)
-        tol  = 1e-8
-
-        if ftr<tol
-            # elastic
-            state.Δλ = 0.0
-            state.σ  = σtr
-        else
-            # plastic
-            σ, εpa, Δλ, status = calc_σ_εpa_Δλ_plane_stress(mat, state, cstate, σtr)
-            failed(status) && return state.σ, status
-
-            state.σ, state.εpa, state.Δλ = σ, εpa, Δλ
-        end
-
-        state.ε = cstate.ε + Δε
-        Δσ      = state.σ - cstate.σ
-        return Δσ, success()
+        De = calcDe(mat.E, mat.ν, :plane_stress, state.αs)
     else
-        De   = calcDe(mat.E, mat.ν)
-        σtr  = cstate.σ + De*Δε
-        ftr  = yield_func(mat, state, σtr, cstate.εpa)
-        tol  = 1e-8
+        De = calcDe(mat.E, mat.ν)
+    end
 
-        if ftr<tol
-            # elastic
-            state.Δλ = 0.0
-            state.σ  = σtr
+    σtr  = cstate.σ + De*Δε
+    ftr  = yield_func(mat, state, σtr, cstate.εpa)
+    tol  = mat.σy*1e-8
+
+    if ftr < tol
+        state.Δλ = 0.0
+        state.σ  = σtr
+        Δσ = state.σ - cstate.σ
+    else
+        if state.ctx.stress_state==:plane_stress || state.αs!=1.0
+            status = plastic_update_plane_stress(mat, state, cstate, σtr)
+            failed(status) && return state.σ, status
+    
+            Δσ = state.σ - cstate.σ
+    
+            # # out-of-plane stress and strain components for plane stress condition TODO: Mandel
+            # s33  = -1/3 * (state.σ[1] + state.σ[2])
+            # Δε33 = -(mat.ν / mat.E) * (Δσ[1] + Δσ[2]) + state.Δγ * s33
+            
+            # update Δε
+            # Δε = Vec6(Δε[1], Δε[2], Δε33, Δε[4], Δε[5], Δε[6])
+    
+            return Δσ, success()
         else
-            # plastic
             E, ν  = mat.E, mat.ν
             G     = E/(2*(1+ν))
-            j2dtr = J2(σtr)
+            j2tr  = J2(σtr)
 
             Δλ = ftr/(3*G + √1.5*mat.H)
-            √j2dtr - Δλ*√3*G >= 0.0 || return state.σ, failure("VonMisses: Negative value for √J2D")
+            √j2tr - Δλ*√3*G >= 0.0 || return state.σ, failure("VonMisses: Negative value for √J2")
 
-            s         = (1 - √3*G*Δλ/√j2dtr)*dev(σtr)
+            s         = (1 - √3*G*Δλ/√j2tr)*dev(σtr)
             state.σ   = σtr - √6*G*Δλ*s/norm(s)
             state.εpa = cstate.εpa + Δλ
             state.Δλ  = Δλ
+    
+            Δσ = state.σ - cstate.σ
         end
-
-        state.ε = cstate.ε + Δε
-        Δσ      = state.σ - cstate.σ
-        return Δσ, success()
     end
+
+    state.ε = cstate.ε + Δε
+    
+    return Δσ, success()
 end
 
 
 function state_values(mat::VonMises, state::VonMisesState)
     σ, ε  = state.σ, state.ε
+
     # j1    = tr(σ)
     # srj2d = √J2(σ)
 
     stress_state = state.αs==1.0 ? state.ctx.stress_state : :plane_stress
     D = stress_strain_dict(σ, ε, stress_state)
     D[:εp]   = state.εpa
-
+    
     return D
 end
 
 
-function calc_σ_εpa_Δλ_plane_stress(mat::VonMises, state::VonMisesState, cstate::VonMisesState, σtr::Vec6)
-    # Δλ estimative
-    # De   = calcDe(mat.E, mat.ν, :plane_stress)
-    # dfdσ = SVector( 2/3*σtr[1] - 1/3*σtr[2], 2/3*σtr[2] - 1/3*σtr[1], 0.0, σtr[4], σtr[5], σtr[6] )
-    dfdσ = SVector( 2/3*σtr[1] - 1/3*σtr[2], 2/3*σtr[2] - 1/3*σtr[1], -1/3*σtr[1]-1/3*σtr[2], σtr[4], σtr[5], σtr[6] )
+function plastic_update_plane_stress(mat::VonMises, state::VonMisesState, cstate::VonMisesState, σtr::Vec6)
 
-    # Δλ0  = norm(σtr-state.σ)/norm(De*dfdσ)
-    Δλ0  = norm(σtr-state.σ)/(mat.E*norm(dfdσ))
-
-    # find initial interval
-    a = 0.0
-    b = Δλ0
-
-    σ, εpa = calc_σ_εpa_plane_stress(mat, state, cstate, σtr, a)
-    fa     = yield_func(mat, state, σ, εpa)
-    σ, εpa = calc_σ_εpa_plane_stress(mat, state, cstate, σtr, b)
-    fb     = yield_func(mat, state, σ, εpa)
-
-    # search for a valid interval
-    if fa*fb>0
-        maxits = 50
-        for i in 1:maxits
-            b  += Δλ0*(1.6)^i
-            σ, εpa = calc_σ_εpa_plane_stress(mat, state, cstate, σtr, b)
-            fb     = yield_func(mat, state, σ, εpa)
-            fa*fb<0.0 && break
-
-            i==maxits && return state.σ, 0.0, 0.0, failure("VonMises: Could not find interval for Δλ")
-        end
-    end
-
-    ff(Δλ) = begin
-        σ, εpa = calc_σ_εpa_plane_stress(mat, state, cstate, σtr, Δλ)
-        yield_func(mat, state, σ, εpa)
-    end
-
-    tol = 10^-(8-log10(mat.σy))
-
-
-    # findroot
-    # Δλ, status = findroot(ff, a, b, tol)
-    # failed(status) && return state.σ, 0.0, 0.0, status
-
-    # σ, εpa = calc_σ_εpa_plane_stress(mat, state, σtr, Δλ)
-
-    # bissection method
-    local f, Δλ, σ, εpa
-    σ0  = zeros(SVector{6}) # initial value
-
-    tol    = 10^-(10-log10(mat.σy))
     maxits = 50
+    tol    = 1e-6*mat.σy
+    Δλ     = 0.0 # plastic multiplier increment
+    Δγ     = 0.0 # auxiliary variable
+    
+    αs   = state.αs
+    De   = calcDe(mat.E, mat.ν, :plane_stress, αs)
+    invA = I4
+    
+    σ      = σtr
+    εpa    = cstate.εpa
+    ∂εp∂Δγ = √1.5
 
     for i in 1:maxits
-        Δλ = (a+b)/2
-        σ, εpa = calc_σ_εpa_plane_stress(mat, state, cstate, σtr, Δλ)
-        f = yield_func(mat, state, σ, εpa)
-
-        if fa*f<0
-            b = Δλ
-        else
-            a  = Δλ
-            fa = f
+        
+        R = yield_func(mat, state, σ, εpa)
+        if abs(R) <= tol
+            state.σ   = σ
+            state.εpa = εpa
+            state.Δλ  = Δλ
+            return success()
         end
+        
+        p      = 1/3*(σ[1] + σ[2] + σ[3])
+        s      = SVector( σ[1]-p, σ[2]-p, σ[3]-p, σ[4], σ[5], σ[6] )
+        ∂σvm∂σ = s/(√1.5*norm(s))
+        ∂R∂εp  = -mat.H
+        ∂σ∂Δγ  = -invA*De*s
+        
+        ∂R∂Δγ  = dot(∂σvm∂σ, ∂σ∂Δγ) + ∂R∂εp*∂εp∂Δγ
+        Δγ     = max(Δγ - R/∂R∂Δγ, 0.0)
 
-        maximum(abs, σ-σ0) <= tol && break
-        σ0 = σ
+        σvm    = √(3*J2(σ))
+        Δλ     = 2/3*Δγ*σvm
+        invA   = inv(I4 + Δγ*De*Psd)
 
-        i==maxits && return state.σ, 0.0, 0.0, failure("VonMises: could not find Δλ with NR/bissection (maxits reached, f=$f)")
+        σ   = invA*σtr
+        εpa = cstate.εpa + Δλ*∂εp∂Δγ
+
     end
 
-    return σ, εpa, Δλ, success()
+    return failure("VonMises: plastic update failed")
 end
 
 
