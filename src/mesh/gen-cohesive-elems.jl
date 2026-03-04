@@ -40,10 +40,10 @@ function add_cohesive_elements(
 
     # 1. Select target bulk cells and keep the remaining cells as locked
     if selector === nothing
-        target_cells = select(mesh.elems, :cont)
+        target_cells = select(mesh.elems, :solid)
         locked_cells = setdiff(mesh.elems, target_cells)
     else
-        target_cells = select(mesh.elems, selector, :cont)
+        target_cells = select(mesh.elems, selector, :solid)
         if isempty(target_cells)
             error("add_cohesive_elements: no target cells found for selector $selector")
         end
@@ -256,11 +256,11 @@ function load_cracked_mesh(filename::String; tag::String="")
 
     # Iterate over marker elements
     for marker in markers
-        neighbors = filter(e -> e.role == :cont, marker.nodes[1].elems)
+        neighbors = filter(e -> e.role == :solid, marker.nodes[1].elems)
 
         # Look for neighboring elements
         for i in 2:length(marker.nodes)
-            intersect!(neighbors, filter(e -> e.role == :cont, marker.nodes[i].elems))
+            intersect!(neighbors, filter(e -> e.role == :solid, marker.nodes[i].elems))
         end
 
         # add cohesive element

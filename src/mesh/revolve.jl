@@ -155,7 +155,7 @@ function revolve(
                 error("revolve: Cell shape $(cell.shape.name) is not supported")
             end
 
-            role = cell.shape in (LIN2, LIN3, LIN4) ? :surface : :cont
+            role = cell.shape in (LIN2, LIN3, LIN4) ? :surface : :solid
 
             newcell = Cell(newshape, role, nodes, tag=cell.tag)
             push!(cells, newcell)

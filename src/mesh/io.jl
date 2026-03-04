@@ -2,6 +2,18 @@
 
 using TranscodingStreams, CodecZlib
 
+vtk_legacy_type(::Type{T}) where {T<:AbstractFloat} = "float64"
+vtk_legacy_type(::Type{T}) where {T<:Unsigned} = "unsigned_long"
+vtk_legacy_type(::Type{T}) where {T<:Integer} = "int"
+
+function compact_float_str(x::AbstractFloat; sigdigits::Int=10)
+    s = @sprintf("%.*g", sigdigits, Float64(x))
+    if !occursin('.', s) && !occursin('e', s) && !occursin('E', s)
+        s *= ".0"
+    end
+    return s
+end
+
 function save_vtk(mesh::AbstractDomain, filename::String; desc::String="")
     # Saves a UnstructuredGrid
     npoints = length(mesh.nodes)
@@ -25,7 +37,9 @@ function save_vtk(mesh::AbstractDomain, filename::String; desc::String="")
 
     # Write nodes
     for (i,node) in enumerate(mesh.nodes)
-        @printf f "%23.15e %23.15e %23.15e \n" node.coord.x node.coord.y node.coord.z
+        print(f, compact_float_str(node.coord.x, sigdigits=15), " ")
+        print(f, compact_float_str(node.coord.y, sigdigits=15), " ")
+        print(f, compact_float_str(node.coord.z, sigdigits=15), "\n")
     end
     println(f)
 
@@ -60,7 +74,7 @@ function save_vtk(mesh::AbstractDomain, filename::String; desc::String="")
         for (field,D) in mesh.node_fields
             isempty(D) && continue
             isfloat = eltype(D)<:AbstractFloat
-            T = isfloat ? "float64" : "int"
+            T = vtk_legacy_type(eltype(D))
             ncomps = size(D,2)
             if ncomps==1
                 println(f, "SCALARS $field $T 1")
@@ -71,11 +85,9 @@ function save_vtk(mesh::AbstractDomain, filename::String; desc::String="")
             for i in 1:npoints
                 for j in 1:ncomps
                     if isfloat
-                        @printf f "%23.10e" Float32(D[i,j])
+                        print(f, compact_float_str(D[i,j]), " ")
                     else
-                        # @show 30
-                        @printf f "%10d" D[i,j]
-                        # @show 40
+                        @printf f "%d " D[i,j]
                     end
                 end
             end
@@ -86,16 +98,11 @@ function save_vtk(mesh::AbstractDomain, filename::String; desc::String="")
     # Write cell data
 
     if has_elem_data
-        # any( contains(field, "tag-") for field in keys(mesh.elem_fields) ) && warn("save: Skipping tag string while saving mesh in .vtk legacy format")
-
         println(f, "CELL_DATA ", ncells)
         for (field,D) in mesh.elem_fields
             isempty(D) && continue
-            contains(field, "tag-") && continue # skip encoded tags
-
             isfloat = eltype(D)<:AbstractFloat
-
-            T = isfloat ? "float64" : "int"
+            T = vtk_legacy_type(eltype(D))
             ncomps = size(D,2)
             if ncomps==3
                 println(f, "VECTORS ", "$field $T")
@@ -106,9 +113,9 @@ function save_vtk(mesh::AbstractDomain, filename::String; desc::String="")
             for i in 1:ncells
                 for j in 1:ncomps
                     if isfloat
-                        @printf f "%23.10e" Float32(D[i,j])
+                        print(f, compact_float_str(D[i,j]), " ")
                     else
-                        @printf f "%10d" D[i,j]
+                        @printf f "%d " D[i,j]
                     end
                 end
             end
@@ -157,7 +164,7 @@ function get_array_node!(array::AbstractArray, name::String, compressed, buf)
         for i in 1:nrows
             for j in 1:ncomps
                 if isfloat
-                    @printf io "%20.10e" Float32(array[i,j])
+                    print(io, compact_float_str(array[i,j]), " ")
                 else
                     print(io, array[i,j], "  ")
                 end
@@ -234,7 +241,6 @@ function save_vtu(mesh::AbstractDomain, filename::String; desc::String="", compr
             addchild!(xpointdata, get_array_node!(D, field, compress, buf))
         end
         addchild!(piece, xpointdata)
-        # push!(piece.children, xpointdata)
     end
 
     # Write cell data
@@ -352,20 +358,6 @@ function add_extra_fields(mesh::AbstractDomain)
         end
     end
 
-    # Add field for inset nodes
-    # if :line_interface in interface_types
-    #     for i in 1:ncells
-    #         cell = mesh.elems[i]
-    #         if cell.role==:line_interface
-    #             interface_data[i,1] = 3
-    #             interface_data[i,2] = Int(cell.shape.vtk_type)
-    #             interface_data[i,3] = cell.shape.npoints
-    #             interface_data[i,4] = cell.couplings[1].id
-    #             interface_data[i,5] = cell.couplings[2].id
-    #         end
-    #     end
-    # end
-
     # Add field for embedded elements
     if any( c.role==:line && length(c.couplings)>0 for c in mesh.elems )
         embedded_data = zeros(Int, ncells) # host cell id
@@ -378,7 +370,7 @@ function add_extra_fields(mesh::AbstractDomain)
         mesh.elem_fields["embedded-data"] = embedded_data
     end
 
-    # Add two UInt64 fields to enconde the tag of maximum 16 UTF units
+    # Add one UInt64x2 field to encode tags with maximum 16 UTF units.
     tags = collect(Set(elem.tag for elem in mesh.elems))
     if length(tags)>1 || tags[1] != ""
         tag_d = Dict( tag=>i for (i,tag) in enumerate(tags) )
@@ -389,19 +381,17 @@ function add_extra_fields(mesh::AbstractDomain)
             push!(parts, (t1, t2))
         end
 
-        Ts1 = zeros(UInt, length(mesh.elems))
-        Ts2 = zeros(UInt, length(mesh.elems))
+        Tdata = zeros(UInt64, length(mesh.elems), 2)
         for (i,elem) in enumerate(mesh.elems)
             t1, t2 = parts[tag_d[elem.tag]]
-            Ts1[i] = encode_string_to_uint64(t1)
-            Ts2[i] = encode_string_to_uint64(t2)
+            Tdata[i,1] = encode_string_to_uint64(t1)
+            Tdata[i,2] = encode_string_to_uint64(t2)
         end
 
         T = Int[ tag_d[elem.tag]-1 for elem in mesh.elems ]
 
-        mesh.elem_fields["tag-s1"] = Ts1
-        mesh.elem_fields["tag-s2"] = Ts2
-        mesh.elem_fields["tag"]    = T
+        mesh.elem_fields["tag-data"] = Tdata
+        mesh.elem_fields["tag"] = T
     end
 end
 
@@ -448,7 +438,18 @@ function read_vtk(filename::String)
     reading_node_data = false
     reading_elem_data = false
 
-    TYPES = Dict("float32"=>Float32, "float64"=>Float64, "int"=>Int64)
+    TYPES = Dict(
+        "float32"=>Float32,
+        "float64"=>Float64,
+        "int"=>Int64,
+        "unsigned_char"=>UInt8,
+        "unsigned_short"=>UInt16,
+        "unsigned_int"=>UInt32,
+        "unsigned_long"=>UInt64,
+        "long"=>Int64,
+        "double"=>Float64,
+        "float"=>Float32
+    )
 
     idx = 1
     while idx<=length(data)
@@ -787,7 +788,7 @@ function Mesh(coords, connects, vtk_types, node_fields, elem_fields)
             if shape.ndim==1
                 role = :line
             else
-                role = :cont
+                role = :solid
             end
 
             if shape.ndim==2 && ndim==3
@@ -853,12 +854,11 @@ function Mesh(coords, connects, vtk_types, node_fields, elem_fields)
         isinverted(cell) && flip(cell)
     end
 
-    # Build tag if available
-    if haskey(mesh.elem_fields, "tag-s1") && haskey(mesh.elem_fields, "tag-s2")
-        Ts1 = mesh.elem_fields["tag-s1"]
-        Ts2 = mesh.elem_fields["tag-s2"]
+    # Build tag from encoded fields if available.
+    if haskey(mesh.elem_fields, "tag-data")
+        Tdata = mesh.elem_fields["tag-data"]
         for (i,cell) in enumerate(mesh.elems)
-            cell.tag = decode_uint64_to_string(Ts1[i]) * decode_uint64_to_string(Ts2[i])
+            cell.tag = decode_uint64_to_string(UInt64(Tdata[i,1])) * decode_uint64_to_string(UInt64(Tdata[i,2]))
         end
     end
 

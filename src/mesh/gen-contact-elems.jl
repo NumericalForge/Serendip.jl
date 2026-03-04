@@ -14,11 +14,11 @@ function add_contact_elements(
 
     # --- 1. Identify Target Cells ---
     if isempty(selectors)
-        target_cells = select(mesh.elems, :cont)
+        target_cells = select(mesh.elems, :solid)
     else
         target_cells = Cell[]
         for s in selectors
-            append!(target_cells, select(mesh.elems, s, :cont))
+            append!(target_cells, select(mesh.elems, s, :solid))
         end
         unique!(target_cells)
     end

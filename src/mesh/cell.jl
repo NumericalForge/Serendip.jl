@@ -5,7 +5,7 @@
 mutable struct Cell<:AbstractCell
     id       ::Integer
     shape    ::CellShape
-    role     ::Symbol  # :vertex, :line, :bulk, :cont, :surface, :contact, :cohesive, :line_interface, :tip
+    role     ::Symbol  # :vertex, :line, :bulk, :solid, :surface, :contact, :cohesive, :line_interface, :tip
     nodes    ::Vector{Node}
     tag      ::String
     active   ::Bool
@@ -71,7 +71,7 @@ Filters a list of finite element cells (`elems`) based on one or more `selectors
 
 Selectors can be:
 - `:all`             → select all elements (no filtering)
-- `:cont`, `:bulk`, `:line`, `:contact`, `:cohesive`, `:line_interface`, `:tip` → select by element role
+- `:solid`, `:bulk`, `:line`, `:contact`, `:cohesive`, `:line_interface`, `:tip` → select by element role
 - `:active`          → select only active elements
 - `:embedded`        → select embedded line elements (with couplings)
 - `String`           → match element tag
@@ -103,8 +103,8 @@ function select(
                 # do nothing (don't filter)
             elseif selector == :none
                 selected = Int[]
-            elseif selector in (:bulk, :cont, :line, :surface, :cohesive, :contact, :line_interface, :tip)
-                selector = selector==:bulk ? :cont : selector # fix for :bulk => :cont
+            elseif selector in (:bulk, :solid, :line, :surface, :cohesive, :contact, :line_interface, :tip)
+                selector = selector==:bulk ? :solid : selector # fix for :bulk => :solid
                 selected = Int[ i for i in selected if elems[i].role==selector ]
             elseif selector == :active
                 selected = Int[ i for i in selected if elems[i].active ]
@@ -389,7 +389,7 @@ end
 
 # Returns the cell quality ratio as reg_surf/surf
 function cell_quality(c::AbstractCell)::Float64
-    c.role in (:bulk, :cont) || return 1.0
+    c.role in (:bulk, :solid) || return 1.0
     
     # get faces
     faces = get_facets(c)
@@ -470,7 +470,7 @@ Returns true if the two elements share enough nodes to define a common face.
 Optimized for early exit and zero memory allocation.
 """
 function have_common_face(c1::AbstractCell, c2::AbstractCell)
-    continuum = (:bulk, :cont)
+    continuum = (:bulk, :solid)
 
     c1.role in continuum || return false
     c2.role in continuum || return false

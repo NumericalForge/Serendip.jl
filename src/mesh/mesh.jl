@@ -419,7 +419,7 @@ function compute_facets(mesh::Mesh)
         mesh.faces = mesh.edges
     elseif mesh.ctx.ndim==3
         solids = filter( elem->elem.shape.ndim==3, mesh.elems )
-        surfaces = filter( elem-> elem.role==:surface || (elem.shape.ndim==2 && elem.role==:cont), mesh.elems )
+        surfaces = filter( elem-> elem.role==:surface || (elem.shape.ndim==2 && elem.role==:solid), mesh.elems )
         for cell in surfaces
             cell.owner = cell # set itself as owner
         end
@@ -653,7 +653,7 @@ function Mesh(
         else
             shape = get_shape_from_ndim_npoints(length(pts), ndim)
         end
-        role = shape in (LIN2, LIN3, LIN4) ? :line : :cont
+        role = shape in (LIN2, LIN3, LIN4) ? :line : :solid
         cell = Cell(shape, role, pts, tag=tag, ctx=ctx)
         push!(cells, cell)
     end

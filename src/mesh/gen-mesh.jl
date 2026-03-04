@@ -139,10 +139,10 @@ function Mesh(geo::GeoModel;
 
                 field_id = gmsh.model.mesh.field.add("MathEval")
                 n = 2/max(field.roundness,0.01) # roundness 1 -> n=2 (ellipsoid), roundness 0 -> n=∞ (box)
-                g = field.gradient # 0 -> sharp, 1 -> linear
+                g = field.transition # 0 -> sharp, 1 -> linear
 
                 an, bn, cn = a^n, b^n, c^n
-                expr = "$size2 + ($size1 - $size2) * ( 1 - (abs(x-$x)^$n/$an + abs(y-$y)^$n/$bn + abs(z-$z)^$n/$cn)^(1/$n))^$g * step(1 - ( abs(x-$x)^$n/$an + abs(y-$y)^$n/$bn + abs(z-$z)^$n/$cn ))"
+                expr = "$size2 + ($size1 - $size2) * abs( 1 - (abs(x-$x)^$n/$an + abs(y-$y)^$n/$bn + abs(z-$z)^$n/$cn)^(1/$n))^$g * step(1 - ( abs(x-$x)^$n/$an + abs(y-$y)^$n/$bn + abs(z-$z)^$n/$cn ))"
 
                 gmsh.model.mesh.field.setString(field_id, "F", expr)
                 push!(field_ids, field_id)
@@ -195,7 +195,7 @@ function Mesh(geo::GeoModel;
             for (i, ty) in enumerate(elem_types)
                 shape = shape_dict[ty]
                 nenodes = nnodes_dict[ty]
-                role = ty in (1,8) ? :line : :cont
+                role = ty in (1,8) ? :line : :solid
                 for (j,id) in enumerate(elem_ids[i])
                     conn = elem_conns[i][ (j-1)*nenodes + 1 : j*nenodes ]
                     if shape == TET10 # Fix bug in Gmsh

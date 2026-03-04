@@ -301,7 +301,7 @@ function configure!(mplot::DomainPlot)
 
     active_elems = select(mesh.elems, :active)
     if ndim==2
-        areacells = [ elem for elem in active_elems if elem.role==:cont ]
+        areacells = [ elem for elem in active_elems if elem.role==:solid ]
         linecells = [ cell for cell in active_elems if cell.role==:line ]
         feature_edges = get_outer_facets(areacells)
 
@@ -309,8 +309,8 @@ function configure!(mplot::DomainPlot)
         nodes    = get_nodes(elems)
     else
         # get surface cells and update
-        volcells  = [ elem for elem in active_elems if elem.role==:cont && elem.shape.ndim==3 ]
-        areacells = [ elem for elem in active_elems if elem.role==:cont && elem.shape.ndim==2 ]
+        volcells  = [ elem for elem in active_elems if elem.role==:solid && elem.shape.ndim==3 ]
+        areacells = [ elem for elem in active_elems if elem.role==:solid && elem.shape.ndim==2 ]
         linecells = [ cell for cell in active_elems if cell.role==:line ]
         surfcells = get_outer_facets(volcells)
         feature_edges = get_feature_edges(surfcells)
@@ -370,7 +370,7 @@ function configure!(mplot::DomainPlot)
         mplot.shades = mplot.shades[perm]
     else
         # sort elems by area (show largest first)
-        areas = [ elem.role==:cont ? cell_extent(elem) : 0 for elem in elems ]
+        areas = [ elem.role==:solid ? cell_extent(elem) : 0 for elem in elems ]
         perm = sortperm(areas, rev=true)
         elems = elems[perm]
     end
@@ -529,7 +529,7 @@ function draw!(mplot::DomainPlot, ctx::CairoContext)
     # Draw elements
     for (i,elem) in enumerate(mplot.elems)
 
-        elem.role in ( :line, :cont, :surface ) || continue
+        elem.role in ( :line, :solid, :surface ) || continue
 
         # culling back faces
         if elem.owner !== nothing && mplot.view_mode in (:surface, :surface_with_edges)

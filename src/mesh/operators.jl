@@ -501,7 +501,7 @@ end
 
 
 function isinverted(elem::AbstractCell)
-    elem.role==:cont || return false
+    elem.role==:solid || return false
 
     if elem.shape.ndim==2
         coords = get_coords(elem)

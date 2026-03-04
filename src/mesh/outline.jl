@@ -24,7 +24,7 @@ function get_feature_edges(cells::Vector{<:AbstractCell}; angle=150)
 
     # Get faces
     for cell in cells
-        cell.role in (:cont, :surface) || continue # only bulk cells
+        cell.role in (:solid, :surface) || continue # only bulk cells
         if cell.shape.ndim==2
             hs = hash(cell)
             faces_dict[hs] = cell
