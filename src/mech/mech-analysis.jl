@@ -284,9 +284,9 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     active_elems = filter(elem -> elem.active, model.elems)
     
     # Check for cohesive elements
-    has_cohesive_elems = any( elem -> elem isa Element{MechCohesive}, active_elems )
-    cohesive_schemes = (:backward_euler, :heun, :ralston)
-    has_cohesive_elems && !(tangent_scheme in cohesive_schemes) && alert("Using cohesive elements requires an implicit tangent scheme for stability $(repr(cohesive_schemes)). Current scheme: $(repr(tangent_scheme))")
+    # has_cohesive_elems = any( elem -> elem isa Element{MechCohesive}, active_elems )
+    # cohesive_schemes = (:backward_euler, :heun, :ralston)
+    # has_cohesive_elems && !(tangent_scheme in cohesive_schemes) && alert("Using cohesive elements requires an implicit tangent scheme for stability $(repr(cohesive_schemes)). Current scheme: $(repr(tangent_scheme))")
 
     # Get dofs organized according to boundary conditions
     dofs, nu = configure_dofs(model, bcs) # unknown dofs first
@@ -366,7 +366,11 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
         ΔUex, ΔFex = ΔT*Uex, ΔT*Fex     # increment of external vectors
 
-        αcr  = min(ΔT/rspan, 1.0)    # fraction of cumulated residues to apply
+        η = 1.0
+        αcap = η*ΔT*norm(F)/(T+ΔT)/(norm(Rc)+eps())  
+        αcr  = min(ΔT/rspan, αcap, 1.0)    # fraction of cumulated residues to apply
+        # αcr  = min(ΔT/rspan, 1.0)    # fraction of cumulated residues to apply
+
         ΔFex .+= αcr.*Rc # addition of residuals
 
         R   .= ΔFex
