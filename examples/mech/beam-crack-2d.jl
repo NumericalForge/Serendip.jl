@@ -43,8 +43,7 @@ stage = add_stage(ana, nincs=10, nouts=50)
 add_bc(stage, :node, x==0, ux=0, uy=0)
 add_bc(stage, :node, x==ℓ, uy=-0.002)
 
-# run(ana, autoinc=true, maxits=3, tol=0.3, rspan=0.03, tangent_scheme=:ralston, quiet=false)
-run(ana, autoinc=true, maxits=5, tol=0.1, dTmax=0.01, rspan=0.03, tangent_scheme=:ralston, quiet=false)
+run(ana, autoinc=true, maxits=3, tol=0.1, rspan=0.03, quiet=false)
 
 # ❱❱❱ Post-processing
 

@@ -32,7 +32,7 @@ q2b = add_point(geo, [0.005, 0.0675, 0.0], embedded=true)
 q2a = add_point(geo, [0.055, 0.0525, 0.0], embedded=true)
 q1b = add_point(geo, [0.055, 0.0825, 0.0], embedded=true)
 
-set_refinement(geo, [0.03, 0.06, 0], 0.03, 0.02, 1, 0.4*sz, sz, gradient=0.7, roundness=0.5)
+set_refinement(geo, [0.03, 0.06, 0], 0.03, 0.02, 1, 0.4*sz, sz, transition=0.7, roundness=0.5)
 
 mesh = Mesh(geo)
 
@@ -76,7 +76,7 @@ stage = add_stage(ana, nouts=50)
 add_bc(stage, :node, (y==0), ux=0, uy=0)
 add_bc(stage, :node, (y==htop), uy=w)
 
-run(ana, autoinc=true, tol=0.01, rspan=0.03, dTmax=0.005, tangent_scheme=:ralston, quiet=false)
+run(ana, autoinc=true, tol=0.01, rspan=0.03, quiet=false)
 
 # ❱❱❱ Post-processing
 
