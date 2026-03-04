@@ -33,21 +33,11 @@ function solve_system!(
         RHS = F1 - K12*U2
 
         try
-            # try
-                LUfact = lu(K11)
-                U1 = LUfact\RHS
-            # catch err
-            #     err isa InterruptException && rethrow(err)
-            #     if typeof(err)==SingularException
-            #         # Regularization attempt
-            #         msg = "$msg\nsolve_system!: Syngular matrix - regularization attempt"
-            #         S = spdiagm([ 1/maximum(abs, K11[i,:]) for i in 1:nu ])
-            #         LUfact = lu(S*K11)
-            #         U1  = (LUfact\(S*RHS))
-            #     else
-            #         return failure("$msg\nsolve_system!: $err")
-            #     end
-            # end
+
+            # LUfact = lu(K11)
+            # U1 = LUfact\RHS
+            ps = MKLPardisoSolver()
+            U1 = solve(ps, K11, RHS)
 
             F2 += K21*U1
         catch err
@@ -105,7 +95,7 @@ struct SolverSettings
     - `dTmax::Float64`: Maximum allowed increment of pseudo-time.
     - `tangent_scheme::Symbol`: Tangent update approach (`:forward_euler`, `:heun`, `:ralston`, `:backward_euler`).
     - `maxits::Int`: Maximum number of iterations per increment .
-    - `rspan::Float64`: Progression span for reapplying the residual in nonlinear iterations.
+    - `rspan::Float64`: Pseudo-time window for reapplying residuals in nonlinear iterations.
     - `alpha::Float64`: Damping coefficient for the mass matrix used in dynamic analyses.
     - `beta::Float64`: Damping coefficient for the stiffness matrix used in dynamic analyses.
     - `nmodes::Int`: Number of modes to compute in modal analysis .
@@ -431,10 +421,12 @@ end
 
 function print_alerts(ana::Analysis, alerts::Vector{String})
     str = strip(String(take!(ana.data.alerts)))
+    T = ana.data.T
 
     if str!=""
         list = split(str, "\n")
-        list = String[ string("  ", Time(now()), "  ", m) for m in list ]
+        # list = String[ string("  ", Time(now()), "  ", m) for m in list ]
+        list = String[ string("  ", round(T*100,digits=2), "%  ", m) for m in list ]
         append!(alerts, list)
     end
 
