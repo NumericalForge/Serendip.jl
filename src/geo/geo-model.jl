@@ -101,7 +101,7 @@ struct SizeField
     size1::Float64
     size2::Float64
     roundness::Float64
-    gradient::Float64
+    transition::Float64
 end
 
 
@@ -222,12 +222,13 @@ function add_block(geometry::GeoModel,
     X, dx::Real, dy::Real, dz::Real;
     nx::Int=0, ny::Int=0, nz::Int=0, n::Int=0,
     rx::Real=1.0, ry::Real=1.0, rz::Real=1.0, r::Real=0.0, 
+    quadratic=false,
     shape=nothing, tag="")
 
     bl = Block(X, float(dx), float(dy), float(dz); 
         nx=nx, ny=ny, nz=nz, n=n,
         rx=rx, ry=ry, rz=rz, r=r,
-        shape=shape, tag=tag)
+        quadratic=quadratic, shape=shape, tag=tag )
     # bl = Block(X1, X2; nx=nx, ny=ny, nz=nz, n=n, rx=rx, ry=ry, rz=rz, r=r, shape=shape, tag=tag)
     push!(geometry.blocks, bl)
     return bl
@@ -492,7 +493,7 @@ end
 
 
 """
-    set_refinement(geo, X, rx, ry, rz, size1, size2; gradient=0.1, roundness=0.5)
+    set_refinement(geo, X, rx, ry, rz, size1, size2; transition=0.1, roundness=0.5)
 
 Register a mesh-refinement field centered at `X`.
 The field targets element size `size1` near `X`, transitioning to `size2` away from it.
@@ -508,7 +509,7 @@ The radii `rx`, `ry`, and `rz` set the extents along the x/y/z axes.
 - `size2`::Real              : outer target size.
 
 # Keywords
-- `gradient`::Real (>0) = 0.1 : transition gradient from `size1` to `size2`
+- `transition`::Real (>=0) = 0.1 : transition smoothness from `size1` to `size2`
   (`0` = sharp, `1` = linear).
 - `roundness`::Real ∈ [0,1] = 0.5 : shape of the refinement region
   (`0` = box-like, `1` = ellipsoidal).
@@ -516,10 +517,21 @@ The radii `rx`, `ry`, and `rz` set the extents along the x/y/z axes.
 # Example
 ```julia
 set_refinement(geo, [0.5, 0.5, 0.5], 10.0, 20.0, 15.0, 0.1, 0.5;
-               gradient=0.5, roundness=0.8)
+               transition=0.5, roundness=0.8)
 ```
 """
-function set_refinement(geo::GeoModel, X::Vector{<:Real}, rx::Real, ry::Real, rz::Real, size1::Real, size2::Real; gradient::Real=0.1, roundness::Real=0.5)
+function set_refinement(
+    geo::GeoModel,
+    X::Vector{<:Real},
+    rx::Real,
+    ry::Real,
+    rz::Real,
+    size1::Real,
+    size2::Real;
+    transition::Real=0.1,
+    gradient=nothing,
+    roundness::Real=0.5
+)
     gmsh.model.occ.synchronize()
 
     @check length(X) == 3 "set_refinement: coordinate 'X' must be a vector of length 3"
@@ -529,7 +541,16 @@ function set_refinement(geo::GeoModel, X::Vector{<:Real}, rx::Real, ry::Real, rz
     @check rz>0 "set_refinement: 'rz' must be positive"
     @check size1>0 "set_refinement: 'size1' must be positive"
     @check size2>0 "set_refinement: 'size2' must be positive"
-    @check gradient>0 "set_refinement: 'gradient' must be positive"
+
+    if gradient !== nothing
+        gradient isa Real || error("set_refinement: deprecated keyword 'gradient' must be a Real")
+        @check gradient>=0 "set_refinement: deprecated 'gradient' must be non-negative"
+        (transition != 0.1 && transition != gradient) &&
+            error("set_refinement: pass only one of 'transition' or deprecated 'gradient'")
+        transition = gradient
+    end
+
+    @check transition>=0 "set_refinement: 'transition' must be non-negative"
     @check 0.0<=roundness<=1.0 "set_refinement: 'roundness' must be in [0, 1]"
 
     min_size = min(size1, gmsh.option.getNumber("Mesh.CharacteristicLengthMin"))
@@ -537,6 +558,6 @@ function set_refinement(geo::GeoModel, X::Vector{<:Real}, rx::Real, ry::Real, rz
     gmsh.option.setNumber("Mesh.CharacteristicLengthMin", min_size)
     gmsh.option.setNumber("Mesh.CharacteristicLengthMax", max_size)
 
-    push!(geo.fields, SizeField(X, rx, ry, rz, size1, size2, roundness, gradient))
+    push!(geo.fields, SizeField(X, rx, ry, rz, size1, size2, roundness, transition))
 
 end
