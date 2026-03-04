@@ -60,6 +60,7 @@ mutable struct PowerExpBondSlip<:Constitutive
     end
 end
 
+
 mutable struct PowerExpBondSlipState<:ConstState
     ctx::Context
     σ  ::Vector{Float64}
@@ -100,17 +101,11 @@ function Tau(mat::PowerExpBondSlip, s::Float64)
         w = (s - mat.speak)/(mat.sc - mat.speak)
         z = (2*(1-w)*(1 + β*w)) / (1 + (1 + β*w)^2)
         return mat.τres + (mat.τmax - mat.τres)*z
-
-        # β = 0.9 # controls the rate of decay
-        # c = 0.11
-        # speak, sc = mat.speak, mat.sc
-        # τmax, τres = mat.τmax, mat.τres
-        # return τmax - (τmax - τres) * exp(c - c / ((s - speak)/(sc - speak))^β )
-        # let f(x,β) = τmax - (τmax - τres)*exp(c)*exp(-c/pow((x - s1)/(sc - s1), β))
     else
         return mat.τres
     end
 end
+
 
 function deriv(mat::PowerExpBondSlip, state::PowerExpBondSlipState, s::Float64)
     s_factor = 0.01
@@ -124,61 +119,14 @@ function deriv(mat::PowerExpBondSlip, state::PowerExpBondSlipState, s::Float64)
     elseif s<=mat.sc
         β=mat.β
         w = (s - mat.speak)/(mat.sc - mat.speak)
-        # dzdw = - (β^3*w^2 + β^2*w^2 + 2*β^2*w + 4*β*w + 2)/(2*(1-w)^2*(1+β*w)^2)
-        # dzdw = ((β-1) - 2*β*w)/ ((1-w)*(1+β*w)) - (2*β*(1+β*w))/( 1 + (1+β*w)^2 )
-        # num = -2*(1 + β*w)^2 - 6*β*(1-w)*(1+β*w)
         num = -2*( β^3*w^2 + β^2*w^2 + 2*β^2*w + 4*β*w + 2 )
         den = (1 + (1+β*w)^2)^2
         dzdw = num/den
         return (mat.τmax - mat.τres)/(mat.sc - mat.speak)*dzdw
     else
-        return -mat.ks*1e-3
-
-        # τ = Tau(mat, s)
-        # β = 0.9 # controls the rate of decay
-        # c = 0.11
-        # speak, sc = mat.speak, mat.sc
-        # τmax, τres = mat.τmax, mat.τres
-        # return  -(τmax - τ)*(c*β)/(sc - speak) / ( (s - speak)/(sc - speak) )^(β + 1)
-
-
-        # return β/(sc-speak) * (τmax - τ) * log(1.0 - τres/τmax) / ((s - speak)/(sc-speak))^(β + 1)
-        # w = (s - mat.speak)/(mat.sc - mat.speak)
-        # dwds = 1/(mat.sc - mat.speak)
-        # dzdw = ( 81*w^2 - 6.93*(1 + 27*w^3))*exp(-6.93*w) - 28*exp(-6.93)
-        # return (mat.τmax - mat.τres)*dzdw*dwds
+        return mat.ks*1e-3
     end
 end
-
-# function Tau(mat::PowerExpBondSlip, s::Float64)
-#     if s<mat.speak
-#         return mat.τmax*(s/mat.speak)^mat.α
-#         # return mat.τmax*(1 - (1 - (s/mat.speak))^(1/mat.α))
-#     else
-#         w = (s - mat.speak)/(mat.sc - mat.speak)
-#         z = (1 + 27*w^3)*exp(-6.93*w) - 28*w*exp(-6.93)
-#         return mat.τres + (mat.τmax - mat.τres)*z
-#     end
-# end
-
-
-# function deriv(mat::PowerExpBondSlip, state::PowerExpBondSlipState, s::Float64)
-#     s_factor = 0.01
-#     if s < s_factor*mat.speak
-#         s = s_factor*mat.speak   # to avoid undefined derivative
-#     end
-
-#     if s<=mat.speak
-#         return mat.α*mat.τmax/mat.speak*(s/mat.speak)^(mat.α-1)
-#         # return mat.τmax/(mat.speak*mat.α)*(1 - s/mat.speak)^(1/mat.α - 1)
-#     else
-#         w = (s - mat.speak)/(mat.sc - mat.speak)
-#         dwds = 1/(mat.sc - mat.speak)
-#         dzdw = ( 81*w^2 - 6.93*(1 + 27*w^3))*exp(-6.93*w) - 28*exp(-6.93)
-#         return (mat.τmax - mat.τres)*dzdw*dwds
-#     end
-# end
-
 
 
 function calcD(mat::PowerExpBondSlip, state::PowerExpBondSlipState)
@@ -201,32 +149,33 @@ function calcD(mat::PowerExpBondSlip, state::PowerExpBondSlipState)
 end
 
 
-function yield_func(mat::PowerExpBondSlip, state::PowerExpBondSlipState, τ::Float64)
-    return abs(τ) - state.τy
+function yield_func(mat::PowerExpBondSlip, state::PowerExpBondSlipState, τ::Float64, τy::Float64)
+    return abs(τ) - τy
 end
 
-function update_state(mat::PowerExpBondSlip, state::PowerExpBondSlipState, Δu::Vect)
+
+function update_state(mat::PowerExpBondSlip, state::PowerExpBondSlipState, cstate::PowerExpBondSlipState, Δu::Vect)
     ks = mat.ks
     kn = mat.kn
-    Δs = Δu[1]      # relative displacement
-    τini = state.σ[1] # initial shear stress
+    Δs = Δu[1]         # relative displacement
+    τini = cstate.σ[1] # initial bond stress
     τtr  = τini + ks*Δs # elastic trial
 
-    ftr  = yield_func(mat, state, τtr)
+    ftr  = yield_func(mat, state, τtr, cstate.τy)
 
     if ftr<0.0
         τ = τtr
         state.elastic = true
     else
-        Δs = (abs(τtr)-state.τy)/ks # only plastic part
+        Δs = (abs(τtr) - cstate.τy)/ks # only plastic part
 
         if state.s<mat.speak && Δs>0.2*mat.speak
             return state.σ, failure("PowerExpBondSlip: Plastic slip is too large")
         end
 
-        state.s  += Δs
-        state.τy  = Tau(mat, state.s)
-        τ         = state.τy*sign(τtr)
+        state.s  = cstate.s + Δs
+        state.τy = Tau(mat, state.s)
+        τ        = state.τy*sign(τtr)
 
         state.elastic  = false
     end
@@ -237,8 +186,8 @@ function update_state(mat::PowerExpBondSlip, state::PowerExpBondSlipState, Δu::
     Δσ[1] = Δτ
 
     # update u and σ
-    state.u .+= Δu
-    state.σ .+= Δσ
+    state.u = cstate.u + Δu
+    state.σ = cstate.σ + Δσ
 
     return Δσ, success()
 end
@@ -246,8 +195,7 @@ end
 
 function state_values(mat::PowerExpBondSlip, state::PowerExpBondSlipState)
     return OrderedDict(
-      :s => state.u[1] ,
-      :τ => state.σ[1] ,
-      )
+        :s => state.u[1] ,
+        :τ => state.σ[1] ,
+    )
 end
-
