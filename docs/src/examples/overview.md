@@ -4,6 +4,8 @@ This section links to runnable examples in the repository.
 
 ## Mechanical examples
 
+- `examples/docs/simple-truss.jl`
+- `examples/docs/static-2d.jl`
 - `examples/mech/static-3d.jl`
 - `examples/mech/dynamic.jl`
 - `examples/mech/beam-crack-2d.jl`

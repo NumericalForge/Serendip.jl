@@ -1,8 +1,22 @@
 # Inside make.jl
 push!(LOAD_PATH,"../src/")
-using Serendip, Documenter
+using Serendip, Documenter, Literate
 
 root = joinpath(dirname(pathof(Serendip)), "..", "docs")
+
+Literate.markdown(
+    joinpath(dirname(pathof(Serendip)), "..", "examples", "docs", "simple-truss.jl"),
+    joinpath(root, "src", "examples");
+    name = "simple-truss",
+    documenter = true,
+)
+
+Literate.markdown(
+    joinpath(dirname(pathof(Serendip)), "..", "examples", "docs", "static-2d.jl"),
+    joinpath(root, "src", "examples");
+    name = "static-2d",
+    documenter = true,
+)
 
 makedocs(
     # remotes = nothing,
@@ -25,6 +39,8 @@ makedocs(
         ],
         "Examples" =>  [
             "Overview" => "examples/overview.md",
+            "Simple Truss" => "examples/simple-truss.md",
+            "Static 2D" => "examples/static-2d.md",
         ],
         "API Reference" => [
             "Reference" => "api/reference.md",
