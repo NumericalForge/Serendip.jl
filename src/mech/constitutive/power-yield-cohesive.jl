@@ -34,7 +34,7 @@ bulk element size `h` to ensure mesh-objective fracture energy dissipation.
   Parameter to control the residual shear strength (γ ≥ 0).
 - `theta::Real = 1.5`:  
   Parameter to control the rate of reduction of shear strength (θ ≥ 0).
-- `zeta::Real = 5.0`:  
+- `zeta::Real = 10.0`:  
   Factor to control elastic relative displacements in cohesive formulations (≥ 0).
 
 # Returns
@@ -69,12 +69,12 @@ mutable struct PowerYieldCohesive<:Constitutive
         ft::Real = NaN,
         wc::Real = NaN,
         GF::Real = NaN,
-        psi::Real  = 1.0,
+        psi::Real  = 1.5,
         ft_law::Union{Symbol,AbstractSpline} = :hordijk,
         alpha::Real = 1.5,
         gamma::Real = 0.1,
         theta::Real = 1.5,
-        zeta::Real = 5.0,
+        zeta::Real = 10.0,
     )
 
         @check E>0 "PowerYieldCohesive: Young's modulus E must be > 0. Got $(repr(E))."
@@ -170,7 +170,7 @@ function yield_derivs(mat::PowerYieldCohesive, σ::Vec3, σmax::Float64)
     ft  = mat.ft
     α   = mat.α
     β   = calc_β(mat, σmax)
-    tmp = τ1==τ2==0.0 ? 0.0 : 2*α/ft^2*((τ1^2+τ2^2)/ft^2)^(α-1)
+    tmp = τ1==τ2==0.0 ? 0.0 : 2*α/ft^2*(τ^2/ft^2)^(α-1)
 
     
     ∂f∂σ    = Vec3( β , τ1*tmp, τ2*tmp )
@@ -188,7 +188,7 @@ function potential_derivs(mat::PowerYieldCohesive, σ::Vec3)
         return Vec3( 0.0, τ1, τ2 )
     else
         ψ = mat.ψ
-        return Vec3( ψ^2*σn + eps()^0.5, τ1, τ2 )
+        return Vec3( ψ^2*σn + eps(), τ1, τ2 )
     end
 end
 
@@ -205,9 +205,18 @@ end
 
 
 function calc_kn_ks(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
-    kn = mat.E*mat.ζ/state.h
+    ζmax = mat.ζ
+    ζmin = 0.1*ζmax # minimum value to prevent excessive stiffness degradation
+
+    wn = state.w[1]
+    w0 = 0.3*mat.wc # characteristic relative displacement for stiffness degradation
+
+    ζ  = clamp(ζmax - (ζmax-ζmin)*wn/w0, ζmin, ζmax) # linear degradation of stiffness with opening displacement
+    
+    kn = mat.E*ζ/state.h
     G  = mat.E/(2*(1 + mat.ν))
-    ks = G*mat.ζ/state.h
+    ks = G*ζ/state.h
+
     return kn, ks
 end
 
@@ -224,16 +233,16 @@ function calcD(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
     if state.Δλ == 0.0  # Elastic 
         return De
     elseif σmax <= tiny && state.w[1] >= 0.0
-        Dep = De*1e-4
+        Dep = De*1e-6
         return Dep
     else
-        n, ∂fσmax = yield_derivs(mat, state.σ, σmax)
+        n, ∂f∂σmax = yield_derivs(mat, state.σ, σmax)
         m = potential_derivs(mat, state.σ)
         H = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
         
         De_m  = De*m
         nT_De = n'*De
-        den   = dot(n, De_m) - ∂fσmax*H*norm(m)
+        den   = dot(n, De_m) - ∂f∂σmax*H*norm(m)
         Dep   = De - (De_m*nT_De)/den
 
         return Dep
@@ -255,7 +264,9 @@ function plastic_update(mat::PowerYieldCohesive, state::PowerYieldCohesiveState,
     up        = cstate.up
     σ         = cstate.σ
     σmax      = calc_σmax(mat, up)
-    tol       = mat.ft*1e-4
+    tol       = mat.ft*1e-8
+    σtol      = mat.ft*1e-6
+    σ0        = copy(σ)
 
     for i in 1:maxits
         den_σn = 1.0 + Δλ*kn*ψ^2
@@ -280,10 +291,12 @@ function plastic_update(mat::PowerYieldCohesive, state::PowerYieldCohesiveState,
 
         # residual
         f = yield_func(mat, σ, σmax)
-        if abs(f) < tol
+        if abs(f) < tol && maximum(abs, σ-σ0) < σtol
             converged = true
             break
         end
+
+        σ0 = copy(σ)
 
         # derivatives
         if σntr<0
@@ -322,7 +335,7 @@ function update_state(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, c
                     0.0  ks   0.0
                     0.0  0.0  ks ]
 
-    σmax = calc_σmax(mat, cstate.up)  
+    σmax = calc_σmax(mat, cstate.up)
 
     if isnan(Δw[1]) || isnan(Δw[2])
         alert("PowerYieldCohesive: Invalid value for relative displacement: Δw = $Δw")
@@ -333,12 +346,7 @@ function update_state(mat::PowerYieldCohesive, state::PowerYieldCohesiveState, c
     ftr = yield_func(mat, σtr, σmax)
 
     # Elastic and EP integration
-    if σmax == 0.0 && cstate.w[1] + Δw[1] >= 0.0
-        # traction-free after full decohesion
-        state.σ   = Vec3(0.0, 0.0, 0.0)
-        state.Δλ  = 1.0
-        state.up  = max(cstate.up, norm(cstate.w + Δw))
-    elseif ftr <= 0.0
+    if ftr <= 0.0
         # Pure elastic increment
         state.Δλ = 0.0
         state.σ  = σtr

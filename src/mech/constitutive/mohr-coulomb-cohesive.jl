@@ -141,7 +141,7 @@ function potential_derivs(mat::MohrCoulombCohesive, σ::Vec3)
         return Vec3( 0.0, τ1, τ2 )
     else
         ψ = mat.ψ
-        return Vec3( ψ^2*σn + eps()^0.5, τ1, τ2 )
+        return Vec3( ψ^2*σn + eps(), τ1, τ2 )
     end
 end
 
@@ -158,9 +158,18 @@ end
 
 
 function calc_kn_ks(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
-    kn = mat.E*mat.ζ/state.h
+    ζmax = mat.ζ
+    ζmin = 0.1*ζmax # minimum value to prevent excessive stiffness degradation
+
+    wn = state.w[1]
+    w0 = 0.3*mat.wc # characteristic relative displacement for stiffness degradation
+
+    ζ  = clamp(ζmax - (ζmax-ζmin)*wn/w0, ζmin, ζmax) # linear degradation of stiffness with opening displacement
+    
+    kn = mat.E*ζ/state.h
     G  = mat.E/(2*(1 + mat.ν))
-    ks = G*mat.ζ/state.h
+    ks = G*ζ/state.h
+
     return kn, ks
 end
 
@@ -176,9 +185,9 @@ function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
 
     if state.Δλ == 0.0  # Elastic 
         return De
-    elseif σmax <= tiny && state.w[1] >= 0.0
-        Dep = De*1e-8
-        return Dep
+    # elseif σmax <= tiny && state.w[1] >= 0.0
+    #     Dep = De*1e-6
+    #     return Dep
     else
         n, ∂f∂σmax = yield_derivs(mat, state.σ)
         m = potential_derivs(mat, state.σ)
@@ -209,7 +218,9 @@ function plastic_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveStat
     up        = cstate.up
     σ         = cstate.σ
     σmax      = calc_σmax(mat, up)
-    tol       = mat.ft*1e-6
+    tol       = mat.ft*1e-8
+    σtol      = mat.ft*1e-6
+    σ0        = copy(σ)
 
     for i in 1:maxits
         den_σn = 1.0 + Δλ*kn*ψ^2
@@ -234,10 +245,12 @@ function plastic_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveStat
 
         # residual
         f = τ + μ*(σn - σmax)
-        if abs(f) < tol
+        if abs(f) < tol && maximum(abs, σ-σ0) < σtol
             converged = true
             break
         end
+
+        σ0 = copy(σ)
 
         # derivatives
         if σntr<0
@@ -273,7 +286,7 @@ function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState,
                     0.0  ks   0.0
                     0.0  0.0  ks ]
 
-    σmax   = calc_σmax(mat, cstate.up)  
+    σmax = calc_σmax(mat, cstate.up)
 
     if isnan(Δw[1]) || isnan(Δw[2])
         alert("MohrCoulombCohesive: Invalid value for relative displacement: Δw = $Δw")
@@ -284,12 +297,7 @@ function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState,
     ftr = yield_func(mat, σtr, σmax)
 
     # Elastic and EP integration
-    if σmax == 0.0 && cstate.w[1] + Δw[1] >= 0.0
-        # traction-free after full decohesion
-        state.σ   = Vec3(0.0, 0.0, 0.0)
-        state.Δλ  = 1.0
-        state.up  = max(cstate.up, norm(cstate.w + Δw))
-    elseif ftr <= 0.0
+    if ftr <= 0.0
         # Pure elastic increment
         state.Δλ = 0.0
         state.σ  = σtr
