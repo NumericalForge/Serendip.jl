@@ -14,7 +14,7 @@ end
 
 const MechBulk = MechCont
 
-compat_role(::Type{MechCont}) = :cont
+compat_role(::Type{MechCont}) = :solid
 
 
 function elem_init(elem::Element{MechCont})
