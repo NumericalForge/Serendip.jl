@@ -106,6 +106,10 @@ function select(
             elseif selector in (:bulk, :solid, :line, :surface, :cohesive, :contact, :line_interface, :tip)
                 selector = selector==:bulk ? :solid : selector # fix for :bulk => :solid
                 selected = Int[ i for i in selected if elems[i].role==selector ]
+            elseif selector == :ip
+                return select(get_ips(elems), selectors[i+1:end]...; invert=invert, nearest=nearest, tag=tag)
+            elseif selector == :node
+                return select(get_nodes(elems), selectors[i+1:end]...; invert=invert, nearest=nearest, tag=tag)
             elseif selector == :active
                 selected = Int[ i for i in selected if elems[i].active ]
             elseif selector == :embedded
@@ -195,6 +199,7 @@ function select(
     elseif kind == :node
         return select(domain.nodes, selectors...; invert=invert, nearest=nearest, tag=tag)
     elseif kind == :ip
+        length(domain.elems)>0 && hasfield(typeof(domain.elems[1]), :ips) || return []
         ips = [ ip for elem in domain.elems for ip in elem.ips ]
         return select(ips, selectors...; invert=invert, nearest=nearest, tag=tag)
     else
@@ -202,21 +207,6 @@ function select(
     end
 
 end
-
-
-# function nearest(cells::Vector{Cell}, coord)
-#     n = length(cells)
-#     D = zeros(n)
-#     X = vec(coord)
-
-#     for (i,cell) in enumerate(cells)
-#         C = vec(mean(get_coords(cell), dims=1))
-#         D[i] = norm(X-C)
-#     end
-
-#     return cells[sortperm(D)[1]]
-# end
-
 
 
 # Gets the coordinates of a bounding box for an array of nodes
