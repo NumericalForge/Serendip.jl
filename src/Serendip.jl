@@ -67,7 +67,7 @@ include("constitutive.jl")
 export Constitutive
 
 include("ip.jl")
-export Ip, ip_vals, maximum, minimum, sort
+export Ip, ip_vals, maximum, minimum, sort, get_ips
 
 include("element.jl")
 export Element
