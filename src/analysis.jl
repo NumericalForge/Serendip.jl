@@ -248,7 +248,7 @@ function update_records!(ana::Analysis; checkpoint=true, force=false)
     data = ana.data
     outdir = data.outdir
 
-    flushinterval = 5.0
+    flushinterval = 7.5
     flush = time()-data.flushtime>flushinterval || checkpoint || force || data.T >= 1.0-1e-8
     flush && (data.flushtime = time())
 
