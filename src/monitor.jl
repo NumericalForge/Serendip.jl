@@ -7,7 +7,7 @@ mutable struct Monitor{T}
     target  ::Vector{T}
     stops   ::Vector
     filename::String
-    values  ::OrderedDict{Symbol, Float64}
+    values  ::OrderedDict{Union{Symbol,Expr}, Number}
     table   ::DataTable
 end
 
@@ -105,7 +105,18 @@ function add_monitor(
     # get filename
     filename = getfullpath(ana.data.outdir, filename)
 
-    exprs = typeof(expr) in (Symbol, Expr) ? [expr] : vec(collect(expr))
+    exprs = if expr isa Symbol
+        [ expr ]
+    elseif expr isa Expr 
+        if expr.head == :tuple
+            vec(expr.args)
+        else
+            [ expr ]
+        end
+    else        
+        vec(collect(expr))
+    end 
+
     all(typeof(ex) in (Symbol, Expr) for ex in exprs) || error("add_monitor: expr must be a Symbol or Expr or a collection of them")
 
     for (i,ex) in enumerate(exprs)
@@ -318,7 +329,7 @@ function output(monitor::Monitor)
         if v isa Real && !(v isa Bool)
             v = round(v, sigdigits=5)
         end
-        push!(labels, string(k))
+        push!(labels, replace(string(k), " " => ""))
         push!(values, string(v))
 
     end
