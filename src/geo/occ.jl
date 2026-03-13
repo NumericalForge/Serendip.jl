@@ -945,14 +945,14 @@ All entities in each set must have the same topological dimension.
 - `geo::GeoModel`: Geometry model where the operation occurs.
 - `ents1`: Objects to be cut (all same dimension).
 - `ents2`: Tools that cut `ents1` (all same dimension as `ents1`).
-- `remove_object::Bool=false`: If `true`, remove original objects.
+- `remove_object::Bool=true`: If `true`, remove original objects.
 - `remove_tool::Bool=true`: If `true`, remove tool entities.
 - `tag::String=""`: If non-empty, assigns this tag to all resulting entities.
 
 # Returns
 - `Vector`: Resulting entities from the cut.
 """
-function cut(geo::GeoModel, ents1, ents2; remove_object=false, remove_tool=true, tag::String="")
+function cut(geo::GeoModel, ents1, ents2; remove_object=true, remove_tool=true, tag::String="")
     ents1 = ents1 isa Vector ? ents1 : [ents1]
     ents2 = ents2 isa Vector ? ents2 : [ents2]
     gmsh.model.occ.synchronize()
