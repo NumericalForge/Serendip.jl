@@ -111,6 +111,16 @@ function derive(spline::LinearSpline, x::Real)
     # ❱❱❱ Find the Interval
     i = searchsortedlast(X, x)
 
+    # At internal knots the linear spline is not differentiable; use the
+    # symmetric secant slope, which matches the central finite-difference limit.
+    xi = X[clamp(i, 1, n)]
+    tol = √eps(Float64)*max(abs(x), abs(xi), 1.0)
+    if 1 < i < n && abs(x - xi) <= tol
+        left = (Y[i] - Y[i-1]) / (X[i] - X[i-1])
+        right = (Y[i+1] - Y[i]) / (X[i+1] - X[i])
+        return 0.5*(left + right)
+    end
+
     # If x is exactly the last point, use the last segment's slope
     if i == n
         i = n - 1
