@@ -1,6 +1,9 @@
 using Serendip
 
 @run_files [
-    "elem/acoustic-fluid.jl",
-    "acoustic-modal.jl"
+    "acoustic-modal.jl",
+    "acoustic-modal-free-surface.jl",
+    "acoustic-modal-interface.jl",
+    "acoustic-transient-interface.jl",
+    "acoustic-transient-mech-compare.jl",
 ]
