@@ -1,59 +1,53 @@
 using Serendip
-using Test
-
 # mesh
-bls = [
-       Block( [0 0 0; 0.1 0.1 0.2], nx=2, ny=2, nz=2, tag="solids"),
-      ]
-msh= Mesh(bls)
 
-# fem domain
-mats = [
-       "solids" => MechBulk => WillamWarnke => (E=30e6, nu=0.25, fc=-30e3, ft=3e3, fb=-33e3, H=0)
-      ]
+geo = GeoModel()
+add_block(geo, [0, 0, 0], 0.1, 0.1, 0.2, nx=2, ny=2, nz=2, tag="solids")
+mesh = Mesh(geo)
 
-ana = MechAnalysis()
-model = FEModel(msh, mats, ana)
+# elements and constitutive model
 
-loggers = [
-           [0, 0, 0.1] => IpLogger("cscp.dat")
-          ]
-setloggers!(model, loggers)
+mapper = RegionMapper()
+add_mapping(
+    mapper,
+    "solids",
+    MechSolid,
+    WillamWarnke,
+    E=30e6,
+    nu=0.25,
+    fc=-30e3,
+    epsc=-0.002,
+    ft=3e3,
+    GF=0.1,
+    ft_law=:hordijk,
+    fc_law=:popovics,
+    beta=1.1,
+)
 
-# boundary conditions
-bcs = [
-    # and(x==0, y==0, z==0) => NodeBC(ux=0, uy=0),
-    x==0 => NodeBC(ux=0),
-    y==0 => NodeBC(uy=0),
-    z==0 => NodeBC(uz=0),
-    z==0.2 => NodeBC(uz=-0.001),
-    x==0.1 => NodeBC(ux=-0.0005),
-    # y==0.1 => NodeBC(uy=-0.001),
-    # z==0.2 => NodeBC(uz=+0.0001),
-]
-addstage!(model, bcs, nincs=10, nouts=10)
+model = FEModel(mesh, mapper)
+ana = MechAnalysis(model)
 
-# bcs[2] = :(z==0.5) => NodeBC(uz=+0.001)
-# addstage!(model, bcs, nincs=10)
-solve!(model, tol=1e-1, autoinc=true, quiet=false).success
+log = add_logger(ana, :ip, [0.05, 0.05, 0.1], "cscp.dat")
 
 # boundary conditions
-# bcs[2] = :(z==0.5) => NodeBC(uz=+0.008)
-# @test solve!(model, autoinc=true, nincs=10, tol=1e-2).success
 
+stage = add_stage(ana, nincs=10, nouts=10)
+add_bc(stage, :node, x==0, ux=0)
+add_bc(stage, :node, y==0, uy=0)
+add_bc(stage, :node, z==0, uz=0)
+add_bc(stage, :node, z==0.2, uz=-0.001)
+add_bc(stage, :node, x==0.1, ux=-0.0005)
+
+run(ana, tol=1e-1, autoinc=true, quiet=false).successful
 
 # Plotting
 
+table = log.table
+
 chart = Chart(
-    xlabel = t"varepsilon_(z z)times 1000",
-    ylabel = t"σ_(z z)",
-    xmult = 1e3,
+    xlabel="ezz x 1000",
+    ylabel="szz",
+    xmult=1e3,
 )
-table = model.loggers[1].table
-
-series = [
-    DataSeries(table.ezz, table.szz),
-]
-
-add_series(chart, series)
+add_series(chart, table["εzz"], table["σzz"])
 save(chart, "chart.pdf")

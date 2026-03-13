@@ -5,7 +5,7 @@ export WillamWarnke
 
 """
     WillamWarnke(; E, nu, fc, epsc, η=2.2, ft, GF=NaN, wc=NaN,
-                  ft_law=:hordijk, fc_law=:popovics, beta=1.15)
+                  ft_law=:constant, fc_law=:constant, beta=1.15)
 
 Linear‐elastic concrete with a Willam–Warnke yield surface and
 nonlinear hardening/softening in compression and tension softening
@@ -20,8 +20,8 @@ regularized by fracture energy.
 - `ft::Real`: Uniaxial tensile strength (> 0).
 - `GF::Real=NaN`: Tensile fracture energy (> 0). Use `GF` or `wc`.
 - `wc::Real=NaN`: Critical crack opening (≥ 0). Use `wc` or `GF`.
-- `ft_law::Symbol=:hordijk`: Tension softening law. `:hordijk` uses the Hordijk curve.
-- `fc_law::Symbol=:popovics`: Compression law. `:popovics` uses a Popovics-type curve.
+- `ft_law::Symbol=:constant`: Tension law passed to `setup_tensile_strength`.
+- `fc_law::Symbol=:constant`: Compression law passed to `setup_compressive_strength`.
 - `beta::Real=1.15`: Biaxial/uniaxial compressive strength factor (1 ≤ β ≤ 1.5).
 
 Exactly one of `GF` or `wc` must be provided.
@@ -77,10 +77,9 @@ mutable struct WillamWarnke<:Constitutive
         wc, ft_law, ft_fun, status = setup_tensile_strength(ft, GF, wc, ft_law)
         failed(status) && throw(ArgumentError("WillamWarnke: " * status.message))
 
-        fc_law, fc_fun, status = setup_compressive_strength(fc, epsc, fc_law)
+        fc_law, fc_fun, status = setup_compressive_strength(E, fc, epsc, fc_law)
         failed(status) && throw(ArgumentError("WillamWarnke: " * status.message))
 
-        fc_fun = nothing
         if fc_law isa AbstractSpline
             fc_fun = fc_law
             fc_law = :custom
@@ -115,6 +114,7 @@ mutable struct WillamWarnkeState<:ConstState
         this.ε   = zeros(Vec6)
         this.εtp = 0.0
         this.εcp = 0.0
+        this.εvp = 0.0
         this.Δλ  = 0.0
         this.h   = 0.0
         this
@@ -123,7 +123,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{WillamWarnke}, ::Type{MechBulk}) = ctx.stress_state!=:plane_stress ? WillamWarnkeState : error("WillamWarnke: This model is not compatible with planestress")
+compat_state_type(::Type{WillamWarnke}, ::Type{MechSolid}) = WillamWarnkeState
 
 
 function calc_θ(::WillamWarnke, σ::Vec6)
@@ -459,36 +459,36 @@ end
 # end
 
 
-function update_state(mat::WillamWarnke, state::WillamWarnkeState, Δε::AbstractArray)
-    σini = state.σ
+function update_state(mat::WillamWarnke, state::WillamWarnkeState, cstate::WillamWarnkeState, Δε::AbstractArray)
     De   = calcDe(mat.E, mat.ν, state.ctx.stress_state)
-    σtr  = state.σ + De*Δε
-    ftr  = yield_func(mat, state, σtr, state.εtp, state.εcp)
+    σtr  = cstate.σ + De*Δε
+    ftr  = yield_func(mat, cstate, σtr, cstate.εtp, cstate.εcp)
 
-    Δλ  = 0.0
-    tol = 1.0
     tol = 0.1
 
     if ftr < 1e-8
         # elastic
         state.Δλ = 0.0
         state.σ  = σtr
+        state.εtp = cstate.εtp
+        state.εcp = cstate.εcp
+        state.εvp = cstate.εvp
     else
         # plastic
         # σ, εpa, Δλ, status = calc_σ_εpa_Δλ(mat, state, σtr)
         # σ, εpa, Δλ, status = calc_σ_εpa_Δλ_bis(mat, state, σtr)
-        state.σ, state.εtp, state.εcp, state.Δλ, status = calc_σ_εp_Δλ(mat, state, σtr)
+        state.σ, state.εtp, state.εcp, state.Δλ, status = calc_σ_εp_Δλ(mat, cstate, σtr)
+        state.εvp = cstate.εvp
         @assert state.εcp >= 0.0
         @assert state.εtp >= 0.0
         @assert state.εvp >= 0.0
 
-        Δσ = state.σ - σini
-
         failed(status) && return state.σ, status
     end
 
-    state.ε += Δε
-    Δσ       = state.σ - σini
+    state.h  = cstate.h
+    state.ε  = cstate.ε + Δε
+    Δσ       = state.σ - cstate.σ
     return Δσ, success()
 end
 
