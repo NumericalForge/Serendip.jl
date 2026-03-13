@@ -7,7 +7,7 @@ bl  = Block( [0 0 0; 1. 1. 1.], nx=2, ny=2, nz=2, shape=HEX8, tag="solids")
 mesh = Mesh(bl)
 
 mats = [
-        "solids" => MechBulk => Mazars => (E=30000, nu=0.2, eps0=1.e-4, At=0.9, Bt=5000., Ac=1.0, Bc=1500.0)
+        "solids" => MechSolid => Mazars => (E=30000, nu=0.2, eps0=1.e-4, At=0.9, Bt=5000., Ac=1.0, Bc=1500.0)
        ]
 
 model = FEModel(mesh, mats)

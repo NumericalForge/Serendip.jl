@@ -65,7 +65,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{TMCombined{M1,M2}}, ::Type{TMSolid}) where {M1,M2} = TMCombinedState{compat_state_type(M1,ThermoSolid,ctx), compat_state_type(M2,MechBulk,ctx)}
+compat_state_type(::Type{TMCombined{M1,M2}}, ::Type{TMSolid}) where {M1,M2} = TMCombinedState{compat_state_type(M1,ThermoSolid,ctx), compat_state_type(M2,MechSolid,ctx)}
 compat_state_type(::Type{TMCombined{M1,M2}}, ::Type{TMShell}) where {M1,M2} = TMCombinedState{compat_state_type(M1,ThermoShell,ctx), compat_state_type(M2,MechShell,ctx)}
 
 

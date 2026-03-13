@@ -18,7 +18,7 @@ mesh = Mesh(geo)
 
 # Model definition
 mapper = RegionMapper()
-add_mapping(mapper, "solids", MechBulk, LinearElastic, E=30e6, nu=0.2, rho=rho)
+add_mapping(mapper, "solids", MechSolid, LinearElastic, E=30e6, nu=0.2, rho=rho)
 
 model = FEModel(mesh, mapper)
 

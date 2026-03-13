@@ -9,7 +9,7 @@ select(mesh, :element, tag="bulks")
 # mplot(mesh, "mesh.pdf")
 
 mapper = RegionMapper()
-add_mapping(mapper, "bulks", MechBulk, LinearElastic, E=2e6, nu=0.2, rho=15.0)
+add_mapping(mapper, "bulks", MechSolid, LinearElastic, E=2e6, nu=0.2, rho=15.0)
 
 model = FEModel(mesh, mapper)
 ana = MechModalAnalysis(model)
@@ -19,7 +19,7 @@ add_bc(stage, :node, (y==0.0), ux=0, uy=0)
 
 run(ana, nmodes=5)
 
-# mats = [ :bulks => MechBulk => LinearElastic => (E=2e6, nu=0.2, rho=15.0) ]
+# mats = [ :bulks => MechSolid => LinearElastic => (E=2e6, nu=0.2, rho=15.0) ]
 
 # model = FEModel(mesh, mats, )
 # ana = MechModalAnalysis(model)

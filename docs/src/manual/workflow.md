@@ -19,7 +19,7 @@ using Serendip
 # Mesh and mapping
 mesh = Mesh(rand_mesh(2, 2))
 mapper = RegionMapper()
-add_mapping(mapper, :all, MechBulk, LinearElastic; E=30e6, nu=0.2)
+add_mapping(mapper, :all, MechSolid, LinearElastic; E=30e6, nu=0.2)
 
 # Model + analysis
 model = FEModel(mesh, mapper)

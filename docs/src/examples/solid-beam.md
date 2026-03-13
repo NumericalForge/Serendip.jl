@@ -41,7 +41,7 @@ extrude(geo, surf, [0, 1, 0], heights=[th])
 mesh= Mesh(geo)
 
 # List of element types and constitutive model
-mapper = RegionModel(MechBulk, VonMises; E=E, nu=nu, fy=fy, H=H)
+mapper = RegionModel(MechSolid, VonMises; E=E, nu=nu, fy=fy, H=H)
 
 # A mechanical analysis context
 ctx = Context()

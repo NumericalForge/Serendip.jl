@@ -17,7 +17,7 @@ select(mesh, :element, tag="solids"); # tag all elements as "solids"
 # ## Finite element model
 
 mapper = RegionMapper()
-add_mapping(mapper, "solids", MechBulk, LinearElastic, E=200e6, nu=0.2)
+add_mapping(mapper, "solids", MechSolid, LinearElastic, E=200e6, nu=0.2)
 model = FEModel(mesh, mapper, stress_state=:plane_stress)
 
 ana = MechAnalysis(model, outkey="static-2d")

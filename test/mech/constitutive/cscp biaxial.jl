@@ -12,7 +12,7 @@ ft = 2.95e3
 
 
 mapper = RegionMapper()
-add_mapping(mapper, "solids", MechBulk, CSCP, E=30e6, nu=0.2, alpha=0.666, beta=1.15, fc=fc, ft=ft, epsc=0.002, GF=0.1, wc=0.00005)
+add_mapping(mapper, "solids", MechSolid, CSCP, E=30e6, nu=0.2, alpha=0.666, beta=1.15, fc=fc, ft=ft, epsc=0.002, GF=0.1, wc=0.00005)
 
 model = FEModel(mesh, mapper)
 ana = MechAnalysis(model)

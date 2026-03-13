@@ -95,8 +95,8 @@ add_contact_elements(mesh, "steel-beam", "concrete", tag="contact")
 # ❱❱❱ Finite element modeling
 
 mapper = RegionMapper()
-add_mapping(mapper, "steel-beam", MechBulk, LinearElastic, E=200e6, nu=0.2)
-add_mapping(mapper, "concrete", MechBulk, LinearElastic, E=22.1e6, nu=0.25)
+add_mapping(mapper, "steel-beam", MechSolid, LinearElastic, E=200e6, nu=0.2)
+add_mapping(mapper, "concrete", MechSolid, LinearElastic, E=22.1e6, nu=0.25)
 add_mapping(mapper, "cohesive", MechCohesive, MohrCoulombCohesive, E=22.1e6, ft=3.0e3, mu=1.4, GF=0.1)
 add_mapping(mapper, "contact", MechContact, LinearInterface, ks=1e7, kn=1e10)
 add_mapping(mapper, "rebar", MechBar, LinearElastic, E=200e6, A=0.005)

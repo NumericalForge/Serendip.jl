@@ -14,7 +14,7 @@ add_block(geo, [0.0, 0.0], L, h, 0, nx=50, ny=2, shape=QUAD8, tag="beam")
 mesh = Mesh(geo)
 
 mapper = RegionMapper()
-add_mapping(mapper, "beam", MechBulk, VonMises, E=E, nu=nu, fy=fy, H=H)
+add_mapping(mapper, "beam", MechSolid, VonMises, E=E, nu=nu, fy=fy, H=H)
 
 model = FEModel(mesh, mapper, stress_state=:plane_stress, thickness=th)
 

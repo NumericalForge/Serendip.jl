@@ -46,7 +46,7 @@ for (cmodel, props) in models_props_d
     elem_type = model_elem_d[cmodel]
     
     mapper = RegionMapper()
-    add_mapping(mapper, "bulk", MechBulk, LinearElastic, E=E, nu=nu)
+    add_mapping(mapper, "bulk", MechSolid, LinearElastic, E=E, nu=nu)
     add_mapping(mapper, "interface", elem_type, cmodel; props...)
     
     model = FEModel(mesh, mapper, stress_state=:plane_stress, thickness=1.0)

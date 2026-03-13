@@ -10,7 +10,7 @@ for shape in (TRI3, TRI6, QUAD4, QUAD8)
     add_block(geo, [0, 0], 1, 1, 0, nx=4, ny=4, shape=shape, tag="solids")
     mesh = Mesh(geo)
 
-    mapper = RegionModel(MechBulk, LinearElastic, E=100.0, nu=0.2)
+    mapper = RegionModel(MechSolid, LinearElastic, E=100.0, nu=0.2)
 
     model = FEModel(mesh, mapper, stress_state=:axisymmetric)
     ana   = MechAnalysis(model)

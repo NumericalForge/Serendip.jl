@@ -6,7 +6,7 @@ add_block(geo, [0,0,0], 1,1,1, nx=2, ny=2, nz=2, tag="solids")
 mesh = Mesh(geo)
 
 mapper = RegionMapper()
-add_mapping(mapper, "solids", MechBulk, LinearElastic, E=100.0, nu=0.2)
+add_mapping(mapper, "solids", MechSolid, LinearElastic, E=100.0, nu=0.2)
 
 model = FEModel(mesh, mapper)
 ana = MechAnalysis(model)

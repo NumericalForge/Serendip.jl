@@ -18,7 +18,7 @@ save(plot, "simple-beam-mesh.pdf")
 
 # ❱❱❱ Finite element analysis
 
-mapper = RegionModel(MechBulk, LinearElastic, E=22.0e6, nu=0.25)
+mapper = RegionModel(MechSolid, LinearElastic, E=22.0e6, nu=0.25)
 model = FEModel(mesh, mapper)
 
 ana   = MechAnalysis(model, outkey="simple-beam")

@@ -15,7 +15,7 @@ fc = -30.87e3
 ft = 2.95e3
 
 mapper = RegionMapper()
-add_mapping(mapper, "solids", MechBulk, WillamWarnke, 
+add_mapping(mapper, "solids", MechSolid, WillamWarnke, 
     E=30e6, nu=0.2, 
     alpha=0.666, beta=1.15, 
     fc=fc, epsc=-0.002, eta=2.2,

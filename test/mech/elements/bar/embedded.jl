@@ -22,7 +22,7 @@ mesh = Mesh(geo)
 
 # FEM analysis
 mapper = RegionMapper()
-add_mapping(mapper, "solid", MechBulk, LinearElastic, E=1.e4, nu=0.25)
+add_mapping(mapper, "solid", MechSolid, LinearElastic, E=1.e4, nu=0.25)
 add_mapping(mapper, "embedded", MechBar, VonMises, E=1.e8, fy=500e3, A=0.005)
 
 model = FEModel(mesh, mapper)

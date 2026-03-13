@@ -13,7 +13,7 @@ for shape in (TRI3, TRI6, QUAD4, QUAD8, QUAD9)
     select(mesh, :face, y==0, tag="bottom") # bottom face
     select(mesh, :face, y==1, tag="top") # top face
 
-    mapper = RegionModel(MechBulk, LinearElastic, E=100.0, nu=0.2)
+    mapper = RegionModel(MechSolid, LinearElastic, E=100.0, nu=0.2)
 
     model = FEModel(mesh, mapper)
 
@@ -44,7 +44,7 @@ for shape in (TET4, TET10, HEX8, HEX20, HEX27)
     select(mesh, :face, x==0, tag="sides") # lateral face
     select(mesh, :face, x==1, tag="sides") # lateral face
 
-    mapper = RegionModel(MechBulk, LinearElastic, E=100.0, nu=0.2)
+    mapper = RegionModel(MechSolid, LinearElastic, E=100.0, nu=0.2)
     model = FEModel(mesh, mapper)
 
     ana = MechAnalysis(model)

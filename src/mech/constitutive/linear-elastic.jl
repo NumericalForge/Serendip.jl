@@ -3,15 +3,15 @@
 export LinearElastic
 
 """
-    LinearElastic(; E=1.0, nu=0.0)
+    LinearElastic(; E, nu=0.0)
 
 Linear elastic isotropic material model.
 This model can be used with bulk elements (e.g. solids), beams, bars, and shells.
 It assumes small deformations and linear stress-strain response.
 
 # Parameters
-- `E`: Young's modulus. Must be positive.
-- `nu`: Poisson's ratio. Must satisfy `0 ≤ ν < 0.5`.
+- `E::Real`: Young's modulus (must be > 0).
+- `nu::Real`: Poisson's ratio (must satisfy `0 ≤ ν < 0.5`).
 
 The shear correction factor `alpha_s` (defaulting to 5/6 for some formulations) is not a direct parameter of this constitutive model but is handled by the element formulations (e.g., `MechBeam`, `MechShell`) that use it.
 """
@@ -90,7 +90,7 @@ mutable struct ElasticFrameState<:ConstState
 end
 
 
-compat_state_type(::Type{LinearElastic}, ::Type{MechBulk})   = LinearElasticState
+compat_state_type(::Type{LinearElastic}, ::Type{MechSolid})   = LinearElasticState
 compat_state_type(::Type{LinearElastic}, ::Type{MechShell})  = LinearElasticState
 compat_state_type(::Type{LinearElastic}, ::Type{MechBeam})   = ElasticBeamState
 compat_state_type(::Type{LinearElastic}, ::Type{MechBar})    = ElasticBarState

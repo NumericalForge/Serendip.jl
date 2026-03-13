@@ -19,7 +19,7 @@ mesh = Mesh(geo, quiet=true)
 
 # Finite elements
 mapper = RegionMapper()
-add_mapping(mapper, x>=0, MechBulk, LinearElastic, rho=10, E=1.0, nu=0.3)
+add_mapping(mapper, x>=0, MechSolid, LinearElastic, rho=10, E=1.0, nu=0.3)
 
 select(mesh, :element, x==0, tag="base")
 select(mesh, :node, x==0, tag="base")

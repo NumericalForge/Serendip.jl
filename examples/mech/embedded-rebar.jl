@@ -29,7 +29,7 @@ nu = 0.3
 
 # Material mapping
 mapper = RegionMapper()
-add_mapping(mapper, "solids", MechBulk, LinearElastic, E=E, nu=nu)
+add_mapping(mapper, "solids", MechSolid, LinearElastic, E=E, nu=nu)
 add_mapping(mapper, "embedded", MechBar, VonMises, E=Es, A=A, fy=fy, H=H)
 
 # FE model

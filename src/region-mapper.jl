@@ -42,13 +42,13 @@ Each mapping associates a filtered region of the mesh with:
 # Arguments
 - `mapper::RegionMapper`: The mapper to add the region mapping to.
 - `selector`: A filtering expression defining the mesh region (e.g., `x==0`, `:all`).
-- `etype::Type`: The element formulation type (e.g., `MechBulk`).
+- `etype::Type`: The element formulation type (e.g., `MechSolid`).
 - `cmodel::Type`: The constitutive model type (e.g., `LinearElastic`).
 - `params...`: Named parameters for the constitutive model (e.g., `rho=10.0, E=30.0e6`).
 
 # Example
 ```julia
-add_mapping(mapper, x>=0, MechBulk, LinearElastic; rho=10.0, E=30.0e6, nu=0.3)
+add_mapping(mapper, x>=0, MechSolid, LinearElastic; rho=10.0, E=30.0e6, nu=0.3)
 ```
 
 # Trows
@@ -73,13 +73,13 @@ Creates a `RegionMapper` for simple cases where the **same element formulation**
 This is a convenience shortcut equivalent to manually creating a `RegionMapper` and adding a mapping with `selector=:all`.
 
 # Arguments
-- `etype::Type`: The element formulation type (e.g., `MechBulk`).
+- `etype::Type`: The element formulation type (e.g., `MechSolid`).
 - `cmodel::Type`: The constitutive model type (e.g., `LinearElastic`).
 - `params...`: Named parameters for the constitutive model.
 
 # Example
 ```julia
-model = RegionModel(MechBulk, LinearElastic; rho=10, E=1.0, nu=0.3)
+model = RegionModel(MechSolid, LinearElastic; rho=10, E=1.0, nu=0.3)
 ```
 """
 function RegionModel(etype::Type{S}, cmodel::Type{T}; params...) where S<:ElementFormulation where T<:Constitutive

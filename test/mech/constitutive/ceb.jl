@@ -20,7 +20,7 @@ select(get_nodes(select(mesh, :element, "solids")), tag="fixed")
 
 # ❱❱❱ Finite elements
 mapper = RegionMapper()
-add_mapping(mapper, "solids", MechBulk, LinearElastic, E=24e3, nu=0.2)
+add_mapping(mapper, "solids", MechSolid, LinearElastic, E=24e3, nu=0.2)
 add_mapping(mapper, "bars", MechBar, LinearElastic, E=200e6, A=0.00011)
 add_mapping(mapper, "joints", MechBondSlip, CebBondSlip,
             taumax=12.0, taures=3.0, s1=0.001, s2=0.0011, s3=0.004, alpha=0.5,

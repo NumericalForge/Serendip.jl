@@ -60,7 +60,7 @@ for case in cases
     select(get_nodes(select(mesh, :element, "solids")), tag="fixed")
 
     mapper = RegionMapper()
-    add_mapping(mapper, "solids", MechBulk, LinearElastic, E=24e6, nu=0.2)
+    add_mapping(mapper, "solids", MechSolid, LinearElastic, E=24e6, nu=0.2)
     add_mapping(mapper, "bars", MechBar, LinearElastic, E=200e6, A=0.00011)
     add_mapping(mapper, "joints", MechBondSlip, case.cmodel; case.kwargs..., p=p)
 

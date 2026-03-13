@@ -60,8 +60,8 @@ H  = 0.0
 nu = 0.3
 
 mapper = RegionMapper()
-add_mapping(mapper, "concrete", MechBulk, LinearElastic, E=E, nu=nu)
-# add_mapping(mapper, "concrete", MechBulk, UCP, E=Ec, nu=0.25, alpha=0.66, beta=1.15, fc=fc, epsc=-0.002, eta=2.2, ft=ft, wc=0.0001) 
+add_mapping(mapper, "concrete", MechSolid, LinearElastic, E=E, nu=nu)
+# add_mapping(mapper, "concrete", MechSolid, UCP, E=Ec, nu=0.25, alpha=0.66, beta=1.15, fc=fc, epsc=-0.002, eta=2.2, ft=ft, wc=0.0001) 
 # UCP is not fully working in tension yet
 add_mapping(mapper, "bars", MechBar, VonMises, E=Es, A=A, fy=fy, H=H)
 add_mapping(mapper, "bond", MechBondSlip, LinearBondSlip, ks=1e7, kn=1e9, p=p)

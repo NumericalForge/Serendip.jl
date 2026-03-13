@@ -268,7 +268,7 @@ function update_elem!(elem::CookShell, U::Vector{Float64}, dt::Float64)
         setB(elem, ip, invJ, N, dNdX, Rrot, Bil, Bi, B)
         Δε = T*B*dU
         Δσ, status = update_state(elem.cmodel, ip.state, Δε)
-        failed(status) && return failure("MechBulk: Error at integration point $(ip.id)")
+        failed(status) && return failure("MechSolid: Error at integration point $(ip.id)")
 
         detJ = det(J)
         coef = detJ*ip.w

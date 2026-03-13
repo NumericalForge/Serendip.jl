@@ -66,7 +66,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{DruckerPrager}, ::Type{MechBulk}) = DruckerPragerState
+compat_state_type(::Type{DruckerPrager}, ::Type{MechSolid}) = DruckerPragerState
 
 
 function yield_func(mat::DruckerPrager, state::DruckerPragerState, σ::AbstractArray, εpa::Float64)

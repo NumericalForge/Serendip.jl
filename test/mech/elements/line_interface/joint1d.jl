@@ -21,12 +21,12 @@ save(mesh, "mesh.vtu")
 
 # FEM analysis
 mapper = RegionMapper()
-add_mapping(mapper, "solids", MechBulk, LinearElastic, E=1.e4, nu=0.)
+add_mapping(mapper, "solids", MechSolid, LinearElastic, E=1.e4, nu=0.)
 add_mapping(mapper, "bars", MechBar, LinearElastic, E=1.e8, A=0.005)
 add_mapping(mapper, "interface", MechBondSlip, LinearBondSlip, ks=1.e5, kn=1.e5, p=0.25)
 
 # mats = [
-    # "solids" => MechBulk => LinearElastic => (E=1.e4, nu=0.),
+    # "solids" => MechSolid => LinearElastic => (E=1.e4, nu=0.),
     # "interface" => MechBondSlip => ElasticRSJoint => (ks=1.e5, kn=1.e5, p=0.25),
     # "bars"   => MechBar => LinearElastic => (E=1.e8, A=0.005),
 # ]

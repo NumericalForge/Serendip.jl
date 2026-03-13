@@ -1,23 +1,23 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export MechCont, MechBulk
+export MechSolid, MechBulk
 
 
-struct MechCont<:MechFormulation
+struct MechSolid<:MechFormulation
     ρ::Float64
     γ::Float64
 
-    function MechCont(;rho=0.0, gamma=0.0)
+    function MechSolid(;rho=0.0, gamma=0.0)
         return new(rho, gamma)
     end
 end
 
-const MechBulk = MechCont
+const MechBulk = MechSolid
 
-compat_role(::Type{MechCont}) = :solid
+compat_role(::Type{MechSolid}) = :solid
 
 
-function elem_init(elem::Element{MechCont})
+function elem_init(elem::Element{MechSolid})
     state_ty = typeof(elem.ips[1].state)
     if :h in fieldnames(state_ty)
         # Volume
@@ -36,12 +36,12 @@ function elem_init(elem::Element{MechCont})
 end
 
 
-function distributed_bc(elem::Element{MechCont}, facet::Cell, t::Float64, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
+function distributed_bc(elem::Element{MechSolid}, facet::Cell, t::Float64, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
     return mech_boundary_forces(elem, facet, t, key, val)
 end
 
 
-function body_load(elem::Element{MechCont}, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
+function body_load(elem::Element{MechSolid}, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
     return mech_solid_body_forces(elem, key, val)
 end
 
@@ -88,7 +88,7 @@ function setB(elem::Element, ip::Ip, dNdX::Matx, B::Matx)
 end
 
 
-function elem_stiffness(elem::Element{MechCont})
+function elem_stiffness(elem::Element{MechSolid})
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
@@ -129,7 +129,7 @@ function elem_stiffness(elem::Element{MechCont})
 end
 
 
-function elem_mass(elem::Element{MechCont})
+function elem_mass(elem::Element{MechSolid})
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
@@ -168,7 +168,7 @@ function elem_mass(elem::Element{MechCont})
 end
 
 
-function elem_internal_forces(elem::Element{MechCont}, ΔU::Vector{Float64}=Float64[], dt::Float64=0.0)
+function elem_internal_forces(elem::Element{MechSolid}, ΔU::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim   = elem.ctx.ndim
     th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
@@ -214,7 +214,7 @@ function elem_internal_forces(elem::Element{MechCont}, ΔU::Vector{Float64}=Floa
 end
 
 
-function elem_vals(elem::Element{MechCont})
+function elem_vals(elem::Element{MechSolid})
     vals = OrderedDict{Symbol,Float64}()
 
     if haskey(state_values(elem.cmodel, elem.ips[1].state), :damt)

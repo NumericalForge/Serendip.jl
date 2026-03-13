@@ -7,7 +7,7 @@ add_block(geo, [0,0,0], 7, 0.7, 0.0, nx=60, ny=30, shape=TRI3)
 mesh = Mesh(geo)
 
 mapper = RegionMapper()
-add_mapping(mapper, :bulk, MechBulk, LinearElastic, E=25e6, nu=0.25)
+add_mapping(mapper, :bulk, MechSolid, LinearElastic, E=25e6, nu=0.25)
 
 model = FEModel(mesh, mapper, stress_state=:plane_stress, thickness=1.0)
 ana   = MechAnalysis(model)

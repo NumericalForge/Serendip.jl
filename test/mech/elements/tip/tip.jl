@@ -21,7 +21,7 @@ save(mesh, "mesh.vtk")
 
 # Finite elements:
 mapper = RegionMapper()
-add_mapping(mapper, "solids", MechBulk, LinearElastic, E=24e3, nu=0.2)
+add_mapping(mapper, "solids", MechSolid, LinearElastic, E=24e3, nu=0.2)
 add_mapping(mapper, "bars", MechBar, LinearElastic, E=200e6, A=0.00011)
 add_mapping(mapper, "joints", MechBondSlip, CebBondSlip, taumax=12, taures=3, s1=0.001, s2=0.0011, s3=0.004, alpha=0.5, ks=(12/0.001)*5, kn=5000, p=0.25)
 add_mapping(mapper, "tips", MechBondTip, LinearTip, k=1e8)

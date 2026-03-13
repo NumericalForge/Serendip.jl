@@ -33,7 +33,7 @@ alpha = 1.5
 GF    = 0.07
 
 mapper = RegionMapper()
-add_mapping(mapper, "bulk", MechBulk, LinearElastic, E=E, nu=0.2)
+add_mapping(mapper, "bulk", MechSolid, LinearElastic, E=E, nu=0.2)
 add_mapping(mapper, "cohesive", MechCohesive, MohrCoulombCohesive, E=E, nu=0.2, ft=ft, GF=GF, mu=1.5)
 add_mapping(mapper, "bar", MechBar, LinearElastic, E=2e5, A=0.005)
 add_mapping(mapper, "bar-interface", MechBondSlip, LinearBondSlip, ks=1e10, kn=1e9, p=0.01) 

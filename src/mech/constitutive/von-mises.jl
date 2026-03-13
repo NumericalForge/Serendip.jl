@@ -7,9 +7,9 @@ Linear-elastic constitutive model with Von Mises yield criterion and linear isot
 Implements J2 (pressure-insensitive) plasticity with associated flow rule.
 
 # Arguments
-- `E::Float64`: Young’s modulus (must be > 0.0).
+- `E::Float64`: Young’s modulus (> 0.0).
 - `nu::Float64`: Poisson’s ratio (0.0 ≤ ν < 0.5).
-- `fy::Float64`: Initial yield stress (must be > 0.0).
+- `fy::Float64`: Initial yield stress (> 0.0).
 - `H::Float64`: Hardening modulus (≥ 0.0). A value of 0.0 corresponds to perfect plasticity.
 
 # State Variables
@@ -103,7 +103,7 @@ mutable struct VonMisesBarState<:ConstState
 end
 
 
-compat_state_type(::Type{VonMises}, ::Type{MechBulk}) = VonMisesState
+compat_state_type(::Type{VonMises}, ::Type{MechSolid}) = VonMisesState
 compat_state_type(::Type{VonMises}, ::Type{MechShell}) = VonMisesState
 
 compat_state_type(::Type{VonMises}, ::Type{MechBeam}) = VonMisesBeamState

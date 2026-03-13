@@ -1,7 +1,7 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 abstract type MechFormulation<:ElementFormulation end
-# abstract type Element{<:MechFormulation})<:Element{MechBulk} end
+# abstract type Element{<:MechFormulation})<:Element{MechSolid} end
 
 
 """

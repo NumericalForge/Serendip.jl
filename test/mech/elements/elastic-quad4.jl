@@ -11,7 +11,7 @@ geo = GeoModel()
 add_block(geo, [0, 0], 1, 1, 0, nx=1, ny=1, shape=QUAD4)
 mesh = Mesh(geo, quiet=true)
 
-mapper = RegionModel(MechBulk, LinearElastic, E=1.0, nu=0.25)
+mapper = RegionModel(MechSolid, LinearElastic, E=1.0, nu=0.25)
 
 model = FEModel(mesh, mapper, stress_state=:plane_strain)
 ana = MechAnalysis(model)

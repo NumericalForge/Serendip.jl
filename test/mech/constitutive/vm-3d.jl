@@ -14,7 +14,7 @@ mesh = Mesh(geo)
 
 
 mapper = RegionMapper()
-add_mapping(mapper, "beam", MechBulk, VonMises, E=E, nu=nu, fy=fy, H=H)
+add_mapping(mapper, "beam", MechSolid, VonMises, E=E, nu=nu, fy=fy, H=H)
 model = FEModel(mesh, mapper)
 
 ana = MechAnalysis(model)

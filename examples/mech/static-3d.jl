@@ -12,7 +12,7 @@ select(mesh, :element, tag="solids")
 # ❱❱❱ Finite element modeling
 
 mapper= RegionMapper()
-add_mapping(mapper, "solids", MechBulk, LinearElastic, E=2e3, nu=0.2)
+add_mapping(mapper, "solids", MechSolid, LinearElastic, E=2e3, nu=0.2)
 
 model = FEModel(mesh, mapper)
 ana = MechAnalysis(model, outdir="static-3d", outkey="static-3d")
