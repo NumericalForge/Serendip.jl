@@ -63,28 +63,6 @@ mutable struct MechModalAnalysis<:Analysis
 end
 
 
-# mech_modal_solver_params = [
-#     FunInfo( :mech_modal_solver!, "Finds the frequencies and vibration modes of a mechanical system."),
-#     ArgInfo( :model, "FEModel object"),
-#     # ArgInfo( :stage, "Stage object"),
-#     KwArgInfo( :nmodes, "Number of modes to be calculated", 5),
-#     KwArgInfo( :rayleigh, "Flag to use Rayleigh-Ritz method for damping", false),
-#     KwArgInfo( :quiet, "Flag to set silent mode", false),
-# ]
-# @doc docstring(mech_modal_solver_params) solve!(::MechModalAnalysis; args...)
-
-# function solve!(ana::MechModalAnalysis; args...)
-#     args = checkargs(args, mech_modal_solver_params)
-#     if !args.quiet
-#         printstyled("Solver for mechanical modal analyses", "\n", bold=true, color=:cyan)
-#         println("  stress model: ", ana.ctx.stress_state)
-#     end
-
-#     status = stage_iterator(mech_modal_solver!, ana; args...)
-#     return status
-# end
-
-
 function stage_solver(ana::MechModalAnalysis, stage::Stage, solver_settings::SolverSettings; quiet=quiet)
     # stage::Stage; kwargs...)
     # args = checkargs(kwargs, mech_modal_solver_params)
