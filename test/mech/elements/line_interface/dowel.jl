@@ -21,8 +21,8 @@ save(mesh, "dowel.vtu")
 
 # FEM
 mapper = RegionMapper()
-add_mapping(mapper, :bulk, MechBulk, LinearElastic, E=24e2, nu=0.2)
-add_mapping(mapper, "lines", MechBeam, LinearElastic, E=200e6, A=0.00011)
+add_mapping(mapper, :bulk, MechSolid, LinearElastic, E=24e2, nu=0.2)
+add_mapping(mapper, "lines", MechBeam, LinearElastic, E=200e6, d=0.01)
 add_mapping(mapper, "linejoints", MechBondSlip, LinearBondSlip, kn=5000, ks=6000, p=0.25)
 
 model = FEModel(mesh, mapper, stress_state=:plane_stress, thickness=0.1)

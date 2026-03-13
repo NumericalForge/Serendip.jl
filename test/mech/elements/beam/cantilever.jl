@@ -17,7 +17,8 @@ I = b*h^3/12
 u_rect = P*ℓ^3/(3*E*I) + P*ℓ/(αs*G*b*h)
 
 # ❱❱❱ Circular section
-r = 0.1
+d = 0.2
+r = d/2
 I = π*r^4/4
 A = π*r^2
 αs = 9/10
@@ -38,7 +39,7 @@ for section in (:rectangular,:circular)
             if section == :rectangular
                 add_map(mapper, "beam", MechBeam, LinearElastic, E=E, nu=0.0, b=b, h=h)
             else
-                add_map(mapper, "beam", MechBeam, LinearElastic, E=E, nu=0.0, A=A)
+                add_map(mapper, "beam", MechBeam, LinearElastic, E=E, nu=0.0, d=d)
             end
 
             model = FEModel(mesh, mapper)

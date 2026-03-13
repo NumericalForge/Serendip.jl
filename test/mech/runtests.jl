@@ -44,4 +44,5 @@ using Serendip
     # "elements/joint/joint2d.jl",
     "constitutive/cohesive.jl",
     "constitutive/contact.jl",
+    "constitutive/coulomb-contact.jl",
 ]
