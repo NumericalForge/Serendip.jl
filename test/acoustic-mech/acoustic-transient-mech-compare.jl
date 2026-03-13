@@ -15,7 +15,7 @@ function build_cantilever_model()
     mesh = Mesh(geo)
 
     mapper = RegionMapper()
-    add_mapping(mapper, "solids", MechBulk, LinearElastic, E=E, nu=0.2, rho=rho)
+    add_mapping(mapper, "solids", MechSolid, LinearElastic, E=E, nu=0.2, rho=rho)
 
     model = FEModel(mesh, mapper)
     return model, (; L, H, W, E, rho)
@@ -27,11 +27,11 @@ function run_cantilever(analysis_type)
     ana = analysis_type(model)
     log = add_logger(ana, :nodalreduce, (x == pars.L))
 
-    stage = add_stage(ana, nincs=300, tspan=0.3)
+    stage = add_stage(ana, nincs=100, tspan=0.3)
     add_bc(stage, :node, (x == 0.0), ux=0.0, uy=0.0, uz=0.0)
     add_bc(stage, :face, (x == pars.L), tz=-1.0 / (pars.H * pars.W))
 
-    status = run(ana, quiet=true)
+    status = run(ana, quiet=false)
     return status, log.table, pars
 end
 

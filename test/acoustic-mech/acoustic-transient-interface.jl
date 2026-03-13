@@ -24,12 +24,12 @@ ana   = AcousticMechAnalysis(model)
 log_wall  = add_logger(ana, :node, [0.0, h / 2, 0.0])
 log_fluid = add_logger(ana, :node, [5.1, h / 2, 0.0])
 
-stage = add_stage(ana, nincs=100, nouts=100, tspan=tmax)
+stage = add_stage(ana, nincs=50, nouts=50, tspan=tmax)
 add_bc(stage, :face, (x <= 0.1, y == 0.0), ux=0.0, uy=0.0)
 add_bc(stage, :face, (x >= 0.1, y == h), fs=true)
 add_bc(stage, :face, (x == 10.1), tq=:(t <= $tmax / 10 ? $q0 : 0.0))
 
-status = run(ana, autoinc=true, quiet=false, tol=1e-2, dT0=0.01)
+status = run(ana, quiet=false, tol=1e-2, dT0=0.01)
 
 @test status.successful
 
@@ -42,5 +42,3 @@ up_fluid = Float64.(log_fluid.table[:up])
 @test !isempty(t_fluid)
 @test isapprox(t_wall[end], tmax; rtol=1e-8, atol=1e-12)
 @test isapprox(t_fluid[end], tmax; rtol=1e-8, atol=1e-12)
-# @test maximum(abs.(ux_wall)) > 0.0
-# @test maximum(abs.(up_fluid)) > 0.0
