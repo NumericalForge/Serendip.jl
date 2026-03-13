@@ -6,7 +6,7 @@ export CebBondSlip, CebBondSlip
 
 
 """
-    CebBondSlip(; taumax, taures=0.0, s1, s2, s3, alpha=0.4, ks=taumax/s1, kn)
+    CebBondSlip(; taumax, taures=0.0, s1, s2, s3, alpha=0.4, ks=10*taumax/s1, kn=100*ks)
 
 Constitutive model for bond–slip behavior of a reinforcing bar embedded in a solid,
 according to the CEB (Comité Euro-International du Béton) formulation.
@@ -18,13 +18,13 @@ according to the CEB (Comité Euro-International du Béton) formulation.
 - `s2::Float64` : Characteristic slip at the start of the softening branch (> 0).
 - `s3::Float64` : Characteristic slip where residual shear stress is reached (> 0).
 - `alpha::Float64` : Curvature parameter for the ascending branch (0 ≤ α ≤ 1, default 0.4).
-- `ks::Float64` : Initial shear stiffness (default = τmax/s1, must satisfy ks ≥ τmax/s₁).
-- `kn::Float64` : Normal stiffness of the interface (> 0).
+- `ks::Float64` : Initial shear stiffness (default = `10*τmax/s1`, must satisfy `ks ≥ τmax/s1`).
+- `kn::Float64` : Normal stiffness of the interface (> 0, default = `100*ks`).
 
 # Notes
 - The model defines the shear stress–slip relation in three branches:
   ascending (0–s1), softening (s2–s3), and residual plateau (≥ s3).
-- Default `ks` ensures consistency with the initial slope of the bond law.
+- Default `ks` and `kn` are assigned when omitted (`ks = 10*taumax/s1`, `kn = 100*ks`).
 - The normal stiffness `kn` penalizes opening displacement at the interface.
 
 # References
@@ -192,4 +192,3 @@ function state_values(mat::CebBondSlip, state::CebBondSlipState)
         :τ => state.σ[1] ,
     )
 end
-

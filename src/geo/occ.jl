@@ -44,7 +44,7 @@ end
 # """
 
 """
-    add_line(geo, p1, p2; tag="")
+    add_line(geo, p1, p2, tag="")
 
 Add a straight line connecting points `p1` and `p2` to the geometric model `geo`.
 
@@ -377,7 +377,7 @@ end
 
 
 """
-    add_cylinder(geo, X, A, r; angle=2π, tag="")
+    add_cylinder(geo, X, A, r, angle=2π; tag="")
 
 Create a cylindrical volume in the geometric model `geo`, with base center `X`, axis vector `A`, radius `r`, and optional angular span `angle`.
 
@@ -879,7 +879,7 @@ end
 
 
 """
-    revolve(geo, ents, X, A, angle; num_elements=[], heights=[], recombine=false)
+    revolve(geo, ents, X, A, angle, num_elements=[], heights=[], recombine=false)
 
 Revolve one or more entities `ents` in the geometric model `geo` by `angle` radians
 around the axis defined by point `X` and direction `A`.
@@ -1090,7 +1090,7 @@ end
 
 
 """
-    fillet(geo, volumes, curves, radii; remove_volume=true)
+    fillet(geo, volumes, curves, radii, remove_volume=true)
 
 Apply edge fillets of given `radii` to `curves` on `volumes` in the geometric model `geo`.
 

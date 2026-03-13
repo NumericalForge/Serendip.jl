@@ -397,7 +397,7 @@ end
 
 
 """
-    save(mesh, filename, quiet=true)
+    save(mesh, filename; compress=true, quiet=false)
 
 Saves a mesh object into a file. Available formats are vtu and vtk.
 """

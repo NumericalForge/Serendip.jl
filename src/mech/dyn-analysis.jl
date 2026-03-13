@@ -4,7 +4,7 @@ export DynamicAnalysis
 
 
 """
-    DynamicAnalysis(model::FEModel; outdir="", outkey="")
+    DynamicAnalysis(model::FEModel; outdir="./output", outkey="out")
 
 Create a dynamic mechanical analysis for the given finite element model.
 

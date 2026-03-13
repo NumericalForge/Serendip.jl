@@ -1237,7 +1237,9 @@ end
 
 
 """
-laplacian_smooth!(mesh; maxit, verbose, mintol, tol, savesteps, savedata, filekey, smart, weighted)
+laplacian_smooth!(mesh; maxit=20, quiet=true, fixed=false, mintol=1e-2, tol=1e-4,
+                  facetol=1e-5, savesteps=false, savedata=false, binsize=0.05,
+                  filekey=\"smooth\", smart=false, weighted=false)
 
 Smooths a finite element mesh using Laplacian smoothing (standard, weighted, smart).
 """
