@@ -36,7 +36,11 @@ function solve_system!(
 
             # LUfact = lu(K11)
             # U1 = LUfact\RHS
+
             ps = MKLPardisoSolver()
+            np = get_nprocs(ps)
+            nj = Threads.nthreads()
+            set_nprocs!(ps, min(np, nj))
             U1 = solve(ps, K11, RHS)
 
             F2 += K21*U1
@@ -78,6 +82,7 @@ struct SolverSettings
     alpha::Float64
     beta::Float64
     nmodes::Float64
+    eig_method::Symbol
     rayleigh::Bool
 
     @doc """
@@ -99,6 +104,7 @@ struct SolverSettings
     - `alpha::Float64`: Damping coefficient for the mass matrix used in dynamic analyses.
     - `beta::Float64`: Damping coefficient for the stiffness matrix used in dynamic analyses.
     - `nmodes::Int`: Number of modes to compute in modal analysis .
+    - `eig_method::Symbol`: Modal eigensolver selector (`:auto`, `:arpack`, `:dense`).
 
     # Example
     ```julia
@@ -107,8 +113,8 @@ struct SolverSettings
     """
     function SolverSettings(;
         tol=0.01, rtol=0.01, autoinc=false, dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01,
-        tangent_scheme=:forward_euler, maxits=15, alpha=0.0, beta=0.0, nmodes=5, rayleigh=false)
-        return new(tol, rtol, autoinc, dT0, dTmin, dTmax, tangent_scheme, maxits, rspan, alpha, beta, nmodes, rayleigh)
+        tangent_scheme=:forward_euler, maxits=15, alpha=0.0, beta=0.0, nmodes=5, eig_method=:auto, rayleigh=false)
+        return new(tol, rtol, autoinc, dT0, dTmin, dTmax, tangent_scheme, maxits, rspan, alpha, beta, nmodes, eig_method, rayleigh)
     end
 end
 
@@ -129,13 +135,7 @@ function stage_iterator(ana::Analysis, solver_settings::SolverSettings; quiet::B
         mkpath(outdir)
     end
 
-
-    if cstage==1
-        data.log = open("$outdir/solve.log", "w")
-    else
-        data.log = open("$outdir/solve.log", "a")
-    end
-
+    data.log = open("$outdir/analysis.log", "a")
 
     for stage in ana.data.stages[cstage:end]
         stage.status = :solving
@@ -229,7 +229,7 @@ end
         tol=0.01, rtol=0.01, autoinc=false,
         dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01,
         tangent_scheme=:forward_euler, maxits=5,
-        alpha=0.0, beta=0.0, nmodes=5, rayleigh=false,
+        alpha=0.0, beta=0.0, nmodes=5, eig_method=:auto, rayleigh=false,
         quiet=false)
 
 Execute a finite-element analysis and return the solver status.
@@ -250,6 +250,7 @@ Execute a finite-element analysis and return the solver status.
 - `alpha::Float64`: Mass matrix coefficient to compute damping in dynamic analyses.
 - `beta::Float64`: Stiffness matrix coefficient to compute damping in dynamic analyses.
 - `nmodes::Int`: number of modes in modal analysis.
+- `eig_method::Symbol`: modal eigensolver selector (`:auto`, `:arpack`, `:dense`).
 - `rayleigh::Bool`: enable Rayleigh damping.
 - `quiet::Bool`: suppress console output.
 
@@ -266,7 +267,7 @@ status = run(analysis;
              tol=1e-3, rtol=1e-3, autoinc=true,
              dT0=0.02, dTmin=1e-6, dTmax=0.1,
              tangent_scheme=:rk2, maxits=10, alpha=0.0, beta=0.25,
-             nmodes=8, rayleigh=true)
+             nmodes=8, eig_method=:auto, rayleigh=true)
 ```
 """
 function Base.run(ana::Analysis;
@@ -283,6 +284,7 @@ function Base.run(ana::Analysis;
     alpha   ::Real         = 0.0,
     beta    ::Real         = 0.0,
     nmodes  ::Int          = 5,
+    eig_method::Symbol     = :auto,
     rayleigh::Bool         = false,
     quiet   ::Bool         =false
 )
@@ -297,6 +299,7 @@ function Base.run(ana::Analysis;
     @check nmodes>0 "run: solver paramter `nmodes` must be positive"
     @check alpha>=0 "run: solver paramter `alpha` must be positive"
     @check beta>=0 "run: solver paramter `beta` must be positive"
+    @check eig_method in (:auto, :arpack, :dense) "run: unknown eig_method $eig_method"
 
     if scheme != :none # for backward compatibility
         alert("run: 'scheme' keyword is deprecated; use 'tangent_scheme' with options :forward_euler, :forward_euler, :heun, :ralston")
@@ -310,7 +313,7 @@ function Base.run(ana::Analysis;
         println("  type: ", ana.name)
         ctx.stress_state != :auto && println("  stress model: ", ctx.stress_state)
         println("  solver: Newton-Raphson")
-        println("  tangent rule: ", tangent_scheme)
+        # println("  tangent rule: ", tangent_scheme)
         print("  output dir: ")
         printstyled(ana.data.outdir, "\n", color=:cyan)
         print("  output key: ")
@@ -327,7 +330,7 @@ function Base.run(ana::Analysis;
 
     solver_settings = SolverSettings(
         tol=tol, rtol=rtol, autoinc=autoinc, dT0=dT0, dTmin=dTmin, dTmax=dTmax,
-        rspan=rspan, tangent_scheme=tangent_scheme, maxits=maxits, alpha=alpha, beta=beta, nmodes=nmodes, rayleigh=rayleigh,
+        rspan=rspan, tangent_scheme=tangent_scheme, maxits=maxits, alpha=alpha, beta=beta, nmodes=nmodes, eig_method=eig_method, rayleigh=rayleigh,
     )
 
     status = stage_iterator(ana, solver_settings; quiet=quiet)
@@ -426,7 +429,6 @@ function print_alerts(ana::Analysis, alerts::Vector{String})
     if str!=""
         list = split(str, "\n")
         # list = String[ string("  ", Time(now()), "  ", m) for m in list ]
-        list = String[ string("  ", round(T*100,digits=2), "%  ", m) for m in list ]
         append!(alerts, list)
     end
 
