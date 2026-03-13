@@ -1,5 +1,26 @@
 export MechBeam
 
+"""
+    MechBeam(; d=0.0, b=0.0, h=0.0, rho=0.0, gamma=0.0)
+
+Beam element formulation with geometric section properties.
+Supports rectangular (`b`, `h`) and circular (`d`) cross sections.
+
+# Keyword arguments
+- `d::Real=0.0`: Diameter for circular sections (`d > 0` when used).
+- `b::Real=0.0`: Width for rectangular sections (`b > 0` when used).
+- `h::Real=0.0`: Height for rectangular sections (`h > 0` when used).
+- `rho::Real=0.0`: Mass density (`rho >= 0`).
+- `gamma::Real=0.0`: Unit weight (`gamma >= 0`).
+
+# Stored fields
+- `b::Float64`: Section width (rectangular sections).
+- `h::Float64`: Section height (rectangular sections).
+- `r::Float64`: Section radius (`d/2` for circular sections; `0` for rectangular).
+- `αs::Float64`: Shear correction factor (`9/10` circular, `5/6` rectangular).
+- `ρ::Float64`: Mass density.
+- `γ::Float64`: Unit weight.
+"""
 struct MechBeam<:MechFormulation
     b::Float64
     h::Float64
@@ -8,22 +29,22 @@ struct MechBeam<:MechFormulation
     ρ::Float64
     γ::Float64
 
-    function MechBeam(;r=0.0, b=0.0, h=0.0, A=0.0, rho=0.0, gamma=0.0)
-        if r>0 || A>0 # circular section
-            if A>0
-                r = √(A/π)
-            end
+    function MechBeam(;d=0.0, b=0.0, h=0.0, rho=0.0, gamma=0.0)
+        if d!=0.0 # circular section
+            @check d > 0.0 "MechBeam: diameter d must be > 0 for circular sections"
+            @check b==0 && h==0 "MechBeam: for circular sections, b and h must be 0"
             αs = 9/10 # shear correction factor for circular sections
         else
             @check b>0.0 "MechBeam: b (width) must be > 0 for rectangular sections"
             @check h>0.0 "MechBeam: h (height) must be > 0 for rectangular sections"
+            @check d==0.0 "MechBeam: for rectangular sections, d must be 0"
             αs = 5/6 # shear correction factor for rectangular sections
         end
 
         @check rho >= 0.0
         @check gamma >= 0.0
 
-        return new(b, h, r, αs, rho, gamma)
+        return new(b, h, d/2, αs, rho, gamma)
     end
 end
 

@@ -3,21 +3,31 @@
 export MechBar
 
 """
-    MechBar(; A)
+    MechBar(; d=0.0, A=0.0)
 
 Mechanical formulation for axial bar elements.
+Defines uniaxial axial behavior along the element length for truss/rod analyses.
 
-This formulation defines uniaxial axial behavior along the element length. It is typically used for truss or rod elements in 1D, 2D, or 3D analyses.
+# Keyword arguments
+- `d::Float64=0.0`: Circular section diameter (`d > 0`). When provided, it is used to compute the section area `A`.
+- `A::Float64=0.0`: Cross-sectional area (`A > 0`) for direct area-based definition.
 
-# Parameters
-- `A::Float64`: *Cross-sectional area* of the bar. Must be strictly positive.
+# Stored fields
+- `A::Float64`: Cross-sectional area used by stiffness/mass routines.
 
 """
 struct MechBar<:MechFormulation
     A::Float64
 
-    function MechBar(;A::Float64=NaN)
-        @check A > 0.0
+    function MechBar(; d::Float64=0.0, A::Float64=0.0)
+        if d > 0.0
+            @check d > 0.0 "MechBar: diameter d must be > 0 for circular sections"
+            @check A == 0.0 "MechBar: if diameter d is specified, A must be 0"
+            A = π*(d/2)^2
+        else
+            @check A > 0.0 "MechBar: cross-sectional area A must be > 0"
+        end
+
         return new(A)
     end
 end
