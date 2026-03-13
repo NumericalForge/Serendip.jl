@@ -1,23 +1,10 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-include("elem/thermomech.jl")
-export elem_config_dofs, elem_init, elem_stiffness, update_elem!, elem_vals
-export set_state
+include("elements/thermomech.jl")
+include("elements/thermo-solid.jl")
+include("elements/thermomech-solid.jl")
 
-# ThermoMech Elements
-include("elem/thermomech-solid.jl")
-include("elem/thermo-solid.jl")
-include("elem/thermo-shell.jl")
-include("elem/thermomech-shell.jl")
+include("constitutive/const-conductivity.jl")
+include("constitutive/elastic-solid-thermo.jl")
 
-# Models for solid elements (2D and 3D)
-#include("mat/elastic-solid-lin-cond.jl")
-include("mat/tm-combined.jl")
-include("mat/const-conductivity.jl")
-include("mat/nl-conductivity.jl")
-include("mat/elastic-solid-thermo.jl")
-include("mat/elastic-shell-thermo.jl")
-
-include("thermomech-solver.jl")
-
-export tm_solve!
+include("thermomech-analysis.jl")

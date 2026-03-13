@@ -120,7 +120,7 @@ include("mech/include.jl")
 # include("hydromech/include.jl")
 
 # ThermoMech module
-# include("thermomech/include.jl")
+include("thermomech/include.jl")
 
 # Acoustic module
 include("acousticmech/include.jl")

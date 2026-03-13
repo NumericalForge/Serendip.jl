@@ -27,17 +27,7 @@ mutable struct LinearElasticThermo<:Constitutive
     k ::Float64 # thermal conductivity  w/m/k
     α ::Float64 # thermal expansion coefficient  1/K or 1/°C
 
-    function LinearElasticThermo(; params...)
-        names = (E="Young modulus", nu="Poisson ratio", k="Conductivity", alpha="Thermal expansion coefficient")
-        required = (:E, :k, :nu, :alpha)
-        @checkmissing params required names
-
-        params = (; params...)
-        E      = params.E
-        nu     = params.nu
-        k      = params.k
-        alpha  = params.alpha
-
+    function LinearElasticThermo(; E, nu, k, alpha)
         @check E>=0.0
         @check 0<=nu<0.5
         @check k>0

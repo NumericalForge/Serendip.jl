@@ -1,36 +1,35 @@
 using Serendip
-#using Test
+using Test
 
-# Mesh generation
-blocks = [Block([0 0; 1 2], nx=10, ny=10, tag="solids")]
+geo = GeoModel()
+add_block(geo, [0.0, 0.0, 0.0], 1.0, 2.0, 0.0, nx=10, ny=10, shape=QUAD4, tag="solids")
+mesh = Mesh(geo)
 
-msh = Mesh(blocks)
+k = 0.0502
+rho = 7.8
+cv = 486.0
+E = 200e6
+nu = 0.3
+alpha = 1.2e-5
 
-# Finite element analysis
+mapper = RegionMapper()
+add_mapping(mapper, "solids", TMSolid, LinearElasticThermo; E=E, nu=nu, k=k, alpha=alpha, rho=rho, cv=cv)
 
-# Analysis data
-k     = 0.0502 # thermal conductivity kW/m/K
-rho   = 7.8    # material specific weight Ton/m3
-cv    = 486.0  # specific heat (capacity) kJ/Ton/K
-E     = 200e6  # kPa
-nu    = 0.3
-alpha = 1.2e-5 # thermal expansion coefficient  1/K or 1/°C
+model = FEModel(mesh, mapper, T0=0.0, stress_state=:plane_strain)
 
-# materials = ["solids" => TMSolid => LinearElasticThermo => (E=E, nu=nu, k=k, alpha = alpha, rho=rho, cv=cv) ]
-materials = ["solids" => TMSolid => TMCombined{ConstConductivity,LinearElastic} => (E=E, nu=nu, k=k, alpha=alpha, rho=rho, cv=cv) ]
+mktempdir() do outdir
+    ana = ThermoMechAnalysis(model; outdir=outdir)
 
-model = FEModel(msh, materials, T0=0.0, stress_state=:plane_strain)
-ana = ThermoMechAnalysis(model)
+    stage = add_stage(ana; tspan=3_000_000.0, nincs=10, nouts=2)
+    add_bc(stage, :node, (x == 0), ut=10.0)
+    add_bc(stage, :node, (y == 2), ut=20.0)
+    add_bc(stage, :node, (y == 0), ux=0.0, uy=0.0)
+    add_bc(stage, :node, (x == 1), fx=100.0)
 
-loggers = [y==1 => NodeGroupLogger("book3.dat")]
-setloggers!(ana, loggers)
+    status = run(ana; tol=0.1, quiet=true)
 
-bcs = [
-    :(x == 0) => NodeBC(ut = 10.0),
-    :(y == 2) => NodeBC(ut = 20.0),
-    :(y == 0) => NodeBC(ux = 0, uy = 0),
-    :(x == 1) => NodeBC(fx = 100.0),
-]
-addstage!(ana, bcs, tspan=3000000, nincs=10, nouts=2)
-
-solve!(ana, tol=0.1)
+    @test status.successful
+    @test isfinite(maximum(abs, model.node_fields["ux"]))
+    @test minimum(model.node_fields["ut"]) >= 10.0 - 1e-8
+    @test maximum(model.node_fields["ut"]) <= 20.0 + 1e-8
+end

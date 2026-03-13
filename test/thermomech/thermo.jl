@@ -1,49 +1,27 @@
 using Serendip
 using Test
 
-# Mesh generation
+geo = GeoModel()
+add_block(geo, [0.0, 0.0, 0.0], 1.0, 2.0, 0.0, nx=1, ny=4, shape=QUAD4, tag="solids")
+mesh = Mesh(geo)
 
-blocks = [
-    Block( [0 0; 1 2], nx=1, ny=4, tag="solids"),
-]
+k = 100.62
+rho = 1.6
+cv = 486e3
 
-msh = Mesh(blocks)
-# Finite element analysis
+mapper = RegionMapper()
+add_mapping(mapper, "solids", ThermoSolid, ConstConductivity; k=k, rho=rho, cv=cv)
 
-# Analysis data
-k    = 100.62  # thermal conductivity w/m/k
-rho  = 1.6   # water specific weight Ton/m3
-cv   = 486e3  # specific heat (capacity) J/Ton/k
+model = FEModel(mesh, mapper, T0=0.0)
 
-materials = [
-             "solids" => ThermoSolid => ConstConductivity => (k=k, rho=rho, cv=cv)
-]
+ana = ThermoAnalysis(model)
 
-model = FEModel(msh, materials, T0=0)
-ana   = ThermoAnalysis(model)
+stage = add_stage(ana; tspan=10_000.0, nincs=5, nouts=1)
+add_bc(stage, :node, (y == 0), ut=10.0)
+add_bc(stage, :node, (y == 2), ut=20.0)
 
-log1 = NodeGroupLogger()
-loggers = [
-    :(x==0) => log1
-]
-addloggers!(ana, loggers)
+status = run(ana; tol=0.1, quiet=true)
 
-
-bcs = [
-       :(y==0) => NodeBC(ut=10.0),
-       :(y==2) => NodeBC(ut=20.0),
-]
-addstage!(ana, bcs, tspan=10000, nincs=5, nouts=1)
-solve!(ana, tol=0.1)
-
-# Output
-if @isdefined(makeplots) && makeplots
-    using PyPlot
-
-    book = log1.book
-    for (i,table) in enumerate(log1.book.tables)
-        plot(table[:ut], table[:y], "-o")
-    end
-    show()
-end
-
+@test status.successful
+@test minimum(model.node_fields["ut"]) ≈ 10.0 atol=1e-8
+@test maximum(model.node_fields["ut"]) ≈ 20.0 atol=1e-8

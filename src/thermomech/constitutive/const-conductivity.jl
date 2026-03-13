@@ -16,28 +16,23 @@ mutable struct ConstConductivityState<:ConstState
 end
 
 
-ConstConductivity_params = [
-    FunInfo(:ConstConductivity, "Constant thermal conductivity material model"),
-    KwArgInfo(:k, "Conductivity", cond=:(k>=0)),
-    KwArgInfo(:cv, "Specific heat", 0.0, cond=:(cv>=0))
-]
-@doc docstring(ConstConductivity_params) ConstConductivity(; kwargs...)
-
-
 mutable struct ConstConductivity<:Constitutive
     k ::Float64 # thermal conductivity with/m/K
     cv::Float64
 
-    function ConstConductivity(; kwargs...)
-        args = checkargs(kwargs, ConstConductivity_params)
-        return new(args.k, args.cv)
+    function ConstConductivity(; k, cv=0.0)
+        k >= 0 || error("ConstConductivity: `k` must be nonnegative.")
+        cv >= 0 || error("ConstConductivity: `cv` must be nonnegative.")
+        return new(k, cv)
     end
 end
 
 
 # Type of corresponding state structure
 compat_state_type(::Type{ConstConductivity}, ::Type{ThermoSolid}) = ConstConductivityState
-compat_state_type(::Type{ConstConductivity}, ::Type{ThermoShell}) = ConstConductivityState
+if isdefined(@__MODULE__, :ThermoShell)
+    @eval compat_state_type(::Type{ConstConductivity}, ::Type{ThermoShell}) = ConstConductivityState
+end
 
 
 function calc_cv(mat::ConstConductivity, ut::Float64) # Specific heat
