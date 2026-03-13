@@ -37,6 +37,21 @@ function J3(σ::Vec6)
 end
 
 
+function adj(T::Vec6)
+    t11, t22, t33 = T[1], T[2], T[3]
+    t23, t13, t12 = T[4]/SR2, T[5]/SR2, T[6]/SR2
+
+    a11 = t22*t33 - t23^2
+    a22 = t11*t33 - t13^2
+    a33 = t11*t22 - t12^2
+    a23 = t12*t13 - t11*t23
+    a13 = t12*t23 - t13*t22
+    a12 = t13*t23 - t12*t33
+
+    return Vec6(a11, a22, a33, SR2*a23, SR2*a13, SR2*a12)
+end
+
+
 # """
 # This function is not precise enouugh...
 # """
@@ -106,26 +121,6 @@ end
 #     return Vec3(λ1, λ2, λ3)
 # end
 
-
-
-# """
-# Computes the eigenvalues of a second order tensor written in Mandel notation.
-# The eigenvalues are sorted from highest to lowest
-# """
-# function eigvals(T::Vec6; sort=true)
-#     t11, t22, t33, t23, t13, t12 = T[1], T[2], T[3], T[4]/SR2, T[5]/SR2, T[6]/SR2
-
-#     # full notation
-#     F = @SArray[ t11  t12  t13
-#                  t12  t22  t23
-#                  t13  t23  t33 ]
-
-#     L, _ = eigen(F, permute=false, scale=false)
-
-#     # put biggest eigenvalue first
-#     sort && return Base.sort(L, rev=true)
-#     return L
-# end
 
 
 """
