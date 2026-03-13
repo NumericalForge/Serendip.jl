@@ -67,24 +67,37 @@ end
 """
     select(elems::Vector{<:AbstractCell}, selectors...; invert=false, tag="")
 
-Filters a list of finite element cells (`elems`) based on one or more `selectors`.
+Select entities from an element list using one or more filters. By default this
+function filters cells, but `:node` and `:ip` can redirect selection to nodes or
+integration points. Filters are applied sequentially (logical AND), starting
+from all indices. Tuple selectors are flattened and applied as independent
+filters.
 
-Selectors can be:
-- `:all`             → select all elements (no filtering)
-- `:solid`, `:bulk`, `:line`, `:contact`, `:cohesive`, `:line_interface`, `:tip` → select by element role
-- `:active`          → select only active elements
-- `:embedded`        → select embedded line elements (with couplings)
-- `String`           → match element tag
-- `Expr` or `Symbolic` → spatial condition using coordinates `x`, `y`, `z`
-- `Vector{Int}`      → list of element indices to select
-- `NTuple{N, Symbolic}` → multiple symbolic coordinate conditions
+Supported selectors:
+- `Symbol`:
+  - `:all` keeps the current selection unchanged.
+  - `:none` clears the selection.
+  - `:solid`, `:bulk` (alias of `:solid`), `:line`, `:surface`, `:contact`,
+    `:cohesive`, `:line_interface`, `:tip` filter by `cell.role`.
+  - `:node` returns `select(get_nodes(elems), ...)` using the remaining selectors.
+  - `:ip` returns `select(get_ips(elems), ...)` using the remaining selectors.
+  - `:active` keeps only active cells.
+  - `:embedded` keeps embedded line cells (`role == :line` with couplings).
+- `String`: keep cells whose `tag` matches exactly.
+- `Expr` or `Symbolic`: keep cells whose nodes all satisfy the coordinate
+  expression (variables `x`, `y`, `z`).
+- `Vector{Int}`: intersect the current selection with explicit element indices.
+- `NTuple{N,Symbolic}`: accepted and flattened into individual symbolic filters.
 
 # Keyword Arguments
-- `invert::Bool`: If `true`, returns the complement of the selected set.
-- `tag::String`: If non-empty, assigns this tag to all selected elements.
+- `invert::Bool=false`: if `true`, returns the complement of the final selection.
+- `tag::String=""`: if non-empty, assigns this tag to the selected cells.
 
 # Returns
-- A filtered list of elements matching the criteria.
+- A vector of selected entities:
+  - cells for standard element filtering;
+  - nodes if redirected with `:node`;
+  - integration points if redirected with `:ip`.
 """
 function select(
     elems::Vector{<:AbstractCell},
@@ -107,9 +120,9 @@ function select(
                 selector = selector==:bulk ? :solid : selector # fix for :bulk => :solid
                 selected = Int[ i for i in selected if elems[i].role==selector ]
             elseif selector == :ip
-                return select(get_ips(elems), selectors[i+1:end]...; invert=invert, nearest=nearest, tag=tag)
+                return select(get_ips(elems[selected]), selectors[i+1:end]...; invert=invert, nearest=nearest, tag=tag)
             elseif selector == :node
-                return select(get_nodes(elems), selectors[i+1:end]...; invert=invert, nearest=nearest, tag=tag)
+                return select(get_nodes(elems[selected]), selectors[i+1:end]...; invert=invert, nearest=nearest, tag=tag)
             elseif selector == :active
                 selected = Int[ i for i in selected if elems[i].active ]
             elseif selector == :embedded
@@ -161,12 +174,17 @@ Filters entities from a finite element domain (`domain`) by type and selection c
 
 # Arguments
 - `domain::AbstractDomain`: The mesh or domain containing entities.
-- `kind::Symbol`: One of `:element`, `:face`, `:edge`, or `:node` to specify which entity to select.
+- `kind::Symbol`: Entity family to start from:
+  - `:element` (domain elements),
+  - `:face` (domain faces),
+  - `:edge` (domain edges),
+  - `:node` (domain nodes),
+  - `:ip` (all integration points from elements that expose `ips`).
 - `selectors`: One or more selectors.
 
 Selectors can be:
-- `:all`             → select all elements (no filtering)
-- `:bulk`, `:line`, `:contact`, `:cohesive`, `:line_interface`, `:tip` → select by element role
+- `:all`             → select all entities in the current family
+- `:bulk`, `:line`, `:surface`, `:contact`, `:cohesive`, `:line_interface`, `:tip` → select by element role (when selecting cells)
 - `:active`          → select only active elements
 - `:embedded`        → select embedded line elements (with couplings)
 - `String`           → match element tag
@@ -174,12 +192,18 @@ Selectors can be:
 - `Vector{Int}`      → list of element indices to select
 - `NTuple{N, Symbolic}` → multiple symbolic coordinate conditions
 
+When `kind == :element`, selectors may include `:node` or `:ip` to redirect
+the selection to nodes or integration points of the currently selected elements
+for the remaining selectors (for example: `select(mesh, :element, :solid, :node, x>0)`).
+
 # Keyword Arguments
 - `invert::Bool`: If `true`, returns the entities not matching the selectors.
-- `tag::String`: If non-empty, assigns this tag to all selected entities.
+- `nearest::Bool`: Forwarded to node/IP selection overloads when applicable.
+- `tag::String`: If non-empty, assigns this tag to selected entities.
 
 # Returns
-- A list of selected entities of the specified kind.
+- A vector of selected entities. The entity type follows `kind`, except when
+  `kind == :element` and selectors redirect with `:node` or `:ip`.
 """
 function select(
     domain::AbstractDomain,
@@ -521,5 +545,3 @@ end
 
 #     return coords[i,:]*(1-t) + coords[i+1,:]*t
 # end
-
-
