@@ -36,33 +36,38 @@ An `MohrCoulombContact` object.
 - `kn` and `ks` control the elastic response before reaching the strength envelope.
 """
 mutable struct MohrCoulombContact<:Constitutive
+    kn ::Float64
+    ks ::Float64
     ft ::Float64
     wc ::Float64
     μ  ::Float64
+    ψ  ::Float64
     ft_law::Symbol
     ft_fun::Union{AbstractSpline,Nothing}
-    kn ::Float64
-    ks ::Float64
 
     function MohrCoulombContact(; 
-            ft::Real=NaN,
-            wc::Real=NaN,
-            GF::Real=NaN,
-            mu::Real=NaN,
-            kn::Real=NaN,
-            ks::Real=NaN,
-            ft_law::Union{Symbol,AbstractSpline} = :hordijk,
+        kn::Real = NaN,
+        ks::Real = NaN,
+        ft::Real = NaN,
+        wc::Real = NaN,
+        GF::Real = NaN,
+        mu::Real = NaN,
+        psi::Real = NaN,
+        ft_law::Union{Symbol,AbstractSpline} = :hordijk,
         )
 
-        @check ft>=0 "MohrCoulombContact: Tensile strength ft must be >= 0. Got $(repr(ft))."
-        @check mu>0 "MohrCoulombContact: Friction coefficient mu must be non-negative. Got $(repr(mu))."
         @check kn>0 "MohrCoulombContact: Normal stiffness per area kn must be non-negative. Got $(repr(kn))."
         @check ks>0 "MohrCoulombContact: Shear stiffness per area ks must be non-negative. Got $(repr(ks))."
+        @check ft>=0 "MohrCoulombContact: Tensile strength ft must be >= 0. Got $(repr(ft))."
+        @check mu>0 "MohrCoulombContact: Friction coefficient mu must be non-negative. Got $(repr(mu))."
+
+        isnan(psi) && (psi = mu)
+        @check psi>0 "MohrCoulombCohesive: Dilatancy coefficient psi must be non-negative. Got $(repr(psi))."
 
         wc, ft_law, ft_fun, status = setup_tensile_strength(ft, GF, wc, ft_law)
         failed(status) && throw(ArgumentError("MohrCoulombContact: " * status.message))
 
-        this = new(ft, wc, mu, ft_law, ft_fun, kn, ks)
+        this = new(kn, ks, ft, wc, mu, psi, ft_law, ft_fun)
         return this
     end
 end
@@ -90,7 +95,7 @@ compat_state_type(::Type{MohrCoulombContact}, ::Type{MechContact}) = MohrCoulomb
 
 
 function yield_func(mat::MohrCoulombContact, σ::Vec3, σmax::Float64)
-        σn, τ1, τ2 = σ
+    σn, τ1, τ2 = σ
     return √(τ1^2 + τ2^2) + (σn - σmax)*mat.μ
 end
 
@@ -111,8 +116,7 @@ function potential_derivs(mat::MohrCoulombContact, σ::Vec3)
     if σn < 0.0 
         return Vec3( 0.0, τ1, τ2 )
     else
-        μ = mat.μ
-        return Vec3( μ^2*σn + eps()^0.5, τ1, τ2 )
+        return Vec3( mat.ψ^2*σn + eps(), τ1, τ2 )
     end
 end
 
@@ -128,9 +132,23 @@ function deriv_σmax_up(mat::MohrCoulombContact, up::Float64)
 end
 
 
+function calc_kn_ks(mat::MohrCoulombContact, state::MohrCoulombContactState)
+    # limits for stiffness degradation
+    ζmax = 1.0
+    ζmin = 0.1 # minimum value to prevent excessive stiffness degradation
+
+    wn = state.w[1]
+    w0 = 0.3*mat.wc # characteristic relative displacement for stiffness degradation
+
+    ζ  = clamp(ζmax - (ζmax-ζmin)*wn/w0, ζmin, ζmax) # linear degradation of stiffness with opening displacement
+
+    return mat.kn*ζ, mat.ks*ζ
+end
+
+
 function calcD(mat::MohrCoulombContact, state::MohrCoulombContactState)
     σmax   = calc_σmax(mat, state.up)
-    kn, ks = mat.kn, mat.ks
+    kn, ks = calc_kn_ks(mat, state)
     tiny   = 1e-6*mat.ft
 
     De = @SMatrix [ kn   0.0  0.0
@@ -139,9 +157,9 @@ function calcD(mat::MohrCoulombContact, state::MohrCoulombContactState)
 
     if state.Δλ == 0.0  # Elastic 
         return De
-    elseif σmax <= tiny && state.w[1] >= 0.0
-        Dep = De*1e-3
-        return Dep
+    # elseif σmax <= tiny && state.w[1] >= 0.0
+    #     Dep = De*1e-3
+    #     return Dep
     else
         n, ∂f∂σmax = yield_derivs(mat, state.σ)
         m = potential_derivs(mat, state.σ)
@@ -158,23 +176,26 @@ end
 
 
 function plastic_update(mat::MohrCoulombContact, state::MohrCoulombContactState, cstate::MohrCoulombContactState, σtr::Vec3)
-    kn, ks = mat.kn, mat.ks
+    kn, ks = calc_kn_ks(mat, state)
     σntr, τ1tr, τ2tr = σtr
 
     μ = mat.μ
+    ψ = mat.ψ
 
     τtr = √(τ1tr^2 + τ2tr^2 + eps())
 
-    maxits    = 30
+    maxits    = 50
     converged = false
     Δλ        = 0.0
     up        = cstate.up
     σ         = cstate.σ
     σmax      = calc_σmax(mat, up)
-    tol       = mat.ft*1e-6
+    tol       = mat.ft*1e-8
+    σtol      = mat.ft*1e-6
+    σ0        = copy(σ)
 
     for i in 1:maxits
-        den_σn = 1.0 + Δλ*kn*μ^2
+        den_σn = 1.0 + Δλ*kn*ψ^2
         den_τ  = 1.0 + Δλ*ks
 
         # stresses at current iterate
@@ -196,18 +217,20 @@ function plastic_update(mat::MohrCoulombContact, state::MohrCoulombContactState,
 
         # residual
         f = τ + μ*(σn - σmax)
-        if abs(f) < tol
+        if abs(f) < tol && maximum(abs, σ-σ0) < σtol
             converged = true
             break
         end
+
+        σ0 = copy(σ)
 
         # derivatives
         if σntr<0
             ∂σn∂Δλ = 0.0
             ∂m∂Δλ  = Vec3( 0.0, -τ1tr*ks/den_τ^2, -τ2tr*ks/den_τ^2 )
         else
-            ∂σn∂Δλ = -σntr*kn*μ^2/den_σn^2
-            ∂m∂Δλ  = Vec3( -σntr*kn*μ^4/den_σn^2, -τ1tr*ks/den_τ^2, -τ2tr*ks/den_τ^2 )
+            ∂σn∂Δλ = -σntr*kn*ψ^2/den_σn^2
+            ∂m∂Δλ  = Vec3( -σntr*kn*ψ^4/den_σn^2, -τ1tr*ks/den_τ^2, -τ2tr*ks/den_τ^2 )
         end
 
         ∂τ∂Δλ    = -τtr*ks/den_τ^2
@@ -224,34 +247,35 @@ function plastic_update(mat::MohrCoulombContact, state::MohrCoulombContactState,
         state.up = up
         return success()
     else
-        failure("MohrCoulombCohesive: plastic update failed.")
+        failure("MohrCoulombContact: plastic update failed.")
     end
 end
 
 
 function update_state(mat::MohrCoulombContact, state::MohrCoulombContactState, cstate::MohrCoulombContactState, Δw::Vector{Float64})
-    ks, kn = mat.ks, mat.kn
+    kn, ks = calc_kn_ks(mat, state)
     De = @SMatrix [ kn   0.0  0.0
                     0.0  ks   0.0
                     0.0  0.0  ks ]
 
-    σmax   = calc_σmax(mat, cstate.up)  
+    σmax = calc_σmax(mat, cstate.up)
 
     if isnan(Δw[1]) || isnan(Δw[2])
-        alert("MohrCoulombCohesive: Invalid value for joint displacement: Δw = $Δw")
+        alert("MohrCoulombContact: Invalid value for relative displacement: Δw = $Δw")
     end
 
-    # σ trial and F trial
+    # σ trial and f trial
     σtr = cstate.σ + De*Δw
     ftr = yield_func(mat, σtr, σmax)
 
     # Elastic and EP integration
-    if σmax == 0.0 && cstate.w[1] + Δw[1] >= 0.0
-        # traction-free after full decohesion
-        state.σ   = Vec3(0.0, 0.0, 0.0)
-        state.Δλ  = 1.0
-        state.up  = max(cstate.up, norm(cstate.w + Δw))
-    elseif ftr <= 0.0
+    # if σmax == 0.0 && cstate.w[1] + Δw[1] >= 0.0
+    #     # traction-free after full decohesion
+    #     state.σ   = Vec3(0.0, 0.0, 0.0)
+    #     state.Δλ  = 1.0
+    #     state.up  = max(cstate.up, norm(cstate.w + Δw))
+    # else
+    if ftr <= 0.0
         # Pure elastic increment
         state.Δλ = 0.0
         state.σ  = σtr

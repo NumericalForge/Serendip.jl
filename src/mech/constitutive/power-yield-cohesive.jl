@@ -4,48 +4,29 @@ export PowerYieldCohesive
 
 
 """
-    PowerYieldCohesive(; E, nu=0.0, ft, fc, zeta=5.0, wc, GF, ft_law=:hordijk, alpha=1.5, gamma=0.1, theta=1.5)
+    PowerYieldCohesive(; E, nu=0.0, fc, ft, wc=NaN, GF=NaN, psi=1.5,
+                       ft_law=:hordijk, alpha=1.5, gamma=0.1, theta=1.5, zeta=10.0)
 
-Constitutive model for cohesive elements with a power-lay yield surface ans ft_law in tension.  
-The tensile ft_law branch is regularized through a measure of the
-bulk element size `h` to ensure mesh-objective fracture energy dissipation.
+Cohesive constitutive model with a power-type yield surface and tensile softening.
+Tensile regularization is controlled by `wc`/`GF` and element characteristic length.
 
 # Keyword arguments
-- `E::Real`:  
-  Young’s modulus from the bulk material (must be > 0).
-- `nu::Real`:  
-  Poisson’s ratio (0 ≤ ν < 0.5).
-- `fc::Real`:  
-  Compressive strength (< 0).
-  - `ft::Real`:  
-  Tensile strength (> 0).
-- `wc::Real`:  
-  Critical crack opening (must be > 0 if given). Can be specified alternatively to `GF`.
-- `mu::Real`:  
-  Friction coefficient (> 0).
-- `GF::Real`:  
-  Fracture energy (must be > 0 if given). Can be specified alternatively to `wc`.
-- `ft_law::Union{Symbol,AbstractSpline} = :hordijk`:  
-  Softening law for post-peak tensile response. Options are:
-  `:linear`, `:bilinear`, `:hordijk`, `:soft` or a custom function.
-- `alpha::Real = 1.5`:  
-  Parameter to control the shape of the yield surface (α > 0.5).
-- `gamma::Real = 0.1`:  
-  Parameter to control the residual shear strength (γ ≥ 0).
-- `theta::Real = 1.5`:  
-  Parameter to control the rate of reduction of shear strength (θ ≥ 0).
-- `zeta::Real = 10.0`:  
-  Factor to control elastic relative displacements in cohesive formulations (≥ 0).
-
-# Returns
-A `PowerYieldCohesive` object.
+- `E::Real`: Young's modulus (`E > 0`).
+- `nu::Real`: Poisson ratio (`0 ≤ nu < 0.5`).
+- `fc::Real`: Compressive strength (`fc < 0`).
+- `ft::Real`: Tensile strength (`ft > 0`).
+- `wc::Real`: Critical crack opening. Provide with `wc > 0` or use `GF`.
+- `GF::Real`: Fracture energy. Provide with `GF > 0` or use `wc`.
+- `psi::Real=1.5`: Dilatancy coefficient (`psi > 0`).
+- `ft_law::Union{Symbol,AbstractSpline}=:hordijk`: Tensile softening law (`:linear`, `:bilinear`, `:hordijk`, or a spline).
+- `alpha::Real=1.5`: Yield-surface exponent (`alpha > 0.5`).
+- `gamma::Real=0.1`: Residual factor (`gamma ≥ 0`).
+- `theta::Real=1.5`: Softening exponent (`theta ≥ 0`).
+- `zeta::Real=10.0`: Elastic displacement scaling factor (`zeta ≥ 0`).
 
 # Notes
-- Either `wc` or `GF` must be provided. If only `GF` is given, `wc` is computed
-  internally based on the chosen ft_law law.
-- The frictional contribution is governed by `mu`.
-- Normal and shear stiffnesses (`kn`, `ks`) are computed from the mechanical properties of
-  the bulk material and the characteristic length `h` of the adjacent bulk elements.
+- `setup_tensile_strength` resolves `wc`, `ft_law`, and optional spline from `ft`, `GF`, and `wc`.
+- Interface elastic stiffness is computed later from bulk properties and local characteristic length `h`.
 """
 mutable struct PowerYieldCohesive<:Constitutive
     E ::Float64
@@ -237,8 +218,10 @@ function calcD(mat::PowerYieldCohesive, state::PowerYieldCohesiveState)
         return Dep
     else
         n, ∂f∂σmax = yield_derivs(mat, state.σ, σmax)
-        m = potential_derivs(mat, state.σ)
-        H = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
+        m    = potential_derivs(mat, state.σ)
+        H    = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
+        Hcap = -mat.ft/(0.5*mat.wc)
+        H    = max(H, Hcap) # cap degradation to prevent numerical issues
         
         De_m  = De*m
         nT_De = n'*De

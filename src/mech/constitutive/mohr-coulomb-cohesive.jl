@@ -58,7 +58,6 @@ mutable struct MohrCoulombCohesive<:Constitutive
         mu::Real = NaN,
         psi::Real = NaN,
         ft_law::Union{Symbol,AbstractSpline} = :hordijk,
-
         zeta::Real=5.0
     )
         @check E>0 "MohrCoulombCohesive: Young's modulus E must be > 0. Got $(repr(E))."
@@ -140,8 +139,7 @@ function potential_derivs(mat::MohrCoulombCohesive, σ::Vec3)
     if σn < 0.0 
         return Vec3( 0.0, τ1, τ2 )
     else
-        ψ = mat.ψ
-        return Vec3( ψ^2*σn + eps(), τ1, τ2 )
+        return Vec3( mat.ψ^2*σn + eps(), τ1, τ2 )
     end
 end
 
@@ -192,6 +190,8 @@ function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
         n, ∂f∂σmax = yield_derivs(mat, state.σ)
         m = potential_derivs(mat, state.σ)
         H = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
+        Hcap = -mat.ft/(0.5*mat.wc)
+        H    = max(H, Hcap) # cap degradation to prevent numerical issues
         
         De_m  = De*m
         nT_De = n'*De
@@ -287,10 +287,6 @@ function update_state(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState,
                     0.0  0.0  ks ]
 
     σmax = calc_σmax(mat, cstate.up)
-
-    if isnan(Δw[1]) || isnan(Δw[2])
-        alert("MohrCoulombCohesive: Invalid value for relative displacement: Δw = $Δw")
-    end
 
     # σ trial and f trial
     σtr = cstate.σ + De*Δw

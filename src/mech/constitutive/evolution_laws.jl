@@ -54,7 +54,7 @@ function setup_compressive_strength(E::Float64, fc::Float64, εc::Float64, fc_la
         fc_fun.X[1]!=0.0 && return fc_law, fc_fun, failure("fc_fun must start at (0, fc0). Got ($x0, $y0)")
 
         # check wether extreme matches fc
-        values  = minimum(fc_fun.(range(0.0, fc_fun.X[end], length=40)))
+        values  = fc_fun.(range(0.0, fc_fun.X[end], length=40))
         min_idx = argmin(values)
         fc_     = values[min_idx]
         εc_     = fc_fun.X[min_idx]
@@ -72,7 +72,7 @@ function calc_compressive_strength(mat::Constitutive, fc0::Float64, fcr::Float64
     # εcp: compressive plastic strain
 
     if mat.fc_law == :constant
-        return matfc
+        return mat.fc
     elseif mat.fc_law in (:custom, :popovics)
         return mat.fc_fun(εcp)
     end
@@ -81,6 +81,18 @@ function calc_compressive_strength(mat::Constitutive, fc0::Float64, fcr::Float64
 
 end
 
+
+function calc_compressive_strength_derivative(mat::Constitutive, fc0::Float64, fcr::Float64, εcp::Float64)
+    # ∂σmax/∂εp = dfc_dεp
+
+    if mat.fc_law == :constant
+        return 0.0
+    elseif mat.fc_law in (:custom, :popovics)
+        return derive(mat.fc_fun, εcp)
+    end
+
+    error("Unknown fc_law: $(mat.fc_law).")
+end
 
 
 function setup_tensile_strength(ft::Float64, GF::Float64, wc::Float64, ft_law::Union{Symbol,AbstractSpline})
@@ -167,6 +179,7 @@ function calc_tensile_strength(mat::Constitutive, w::Float64)
         return a - b*w
     elseif ft_law == :bilinear
         σs = 0.25*ft 
+        ws = wc*0.15
         if w < ws
             a  = ft  
             b  = (ft  - σs)/ws
@@ -192,7 +205,7 @@ function calc_tensile_strength_derivative(mat::Constitutive, w::Float64)
     wc     = mat.wc
     ft_law = mat.ft_law
 
-    @assert w >= 0.0
+    # @assert w >= 0.0
 
     if ft_law == :linear
         if w < wc
@@ -203,6 +216,7 @@ function calc_tensile_strength_derivative(mat::Constitutive, w::Float64)
         dft_dw = -b
     elseif ft_law == :bilinear
         σs = 0.25*ft 
+        ws = wc*0.15
         if w < ws
             b  = (ft  - σs)/ws
         elseif w < wc
@@ -215,7 +229,7 @@ function calc_tensile_strength_derivative(mat::Constitutive, w::Float64)
         if w < wc
             e = exp(1.0)
             dz = ((81*w^2*e^(-6.93*w/wc)/wc^3) - (6.93*(1 + 27*w^3/wc^3)*e^(-6.93*w/wc)/wc) - 0.02738402432/wc)
-            dz = max(dz, 0.0) 
+            # dz = max(dz, 0.0) 
         else
             dz = 0.0
         end
