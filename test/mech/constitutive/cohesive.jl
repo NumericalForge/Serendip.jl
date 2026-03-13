@@ -65,7 +65,7 @@ for (cmodel, props) in models_props_d
     add_bc(stage, :node, x==0.2, ux=0.00025)
     # add_bc(stage, :node, x==0.2, ux=0.000025)
     
-    status = run(ana, autoinc=true, maxits=10, tol=0.01, rspan=0.03, dTmax=0.1, tangent_scheme=:ralston, quiet=true)
+    status = run(ana, autoinc=true, maxits=10, tol=0.01, rspan=0.03, dTmax=0.1, quiet=true)
     
     # add line plot
     add_series(chart1, log1.table["σn"], log1.table["τ"], label=string(cmodel), mark=:circle)

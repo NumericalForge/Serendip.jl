@@ -54,7 +54,7 @@ for (cmodel, props) in models_props_d
     add_bc(stage, :node, x==0, ux=0)
     add_bc(stage, :node, x==0.2, ux=0.0001)
     
-    status = run(ana, autoinc=true, tol=0.05, rspan=0.02, dTmax=0.03, tangent_scheme=:ralston, quiet=false)
+    status = run(ana, autoinc=true, tol=0.05, rspan=0.02, dTmax=0.03, quiet=false)
     add_series(chart, log1.table["σn"], log1.table["τ"], label=string(cmodel), mark=:circle)
 
     # break

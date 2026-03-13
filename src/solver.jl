@@ -76,7 +76,6 @@ struct SolverSettings
     dT0::Float64
     dTmin::Float64
     dTmax::Float64
-    tangent_scheme::Symbol
     maxits::Int
     rspan::Float64
     alpha::Float64
@@ -87,7 +86,7 @@ struct SolverSettings
 
     @doc """
         SolverSettings(; tol=0.01, rtol=0.01, dT0=0.01, dTmin=1e-7, dTmax=0.1,
-                          rspan=0.01, tangent_scheme=:forward_euler, maxits=15, autoinc=false, quiet=false)
+                          rspan=0.01, maxits=15, autoinc=false, quiet=false)
 
     Defines configuration parameters for controlling the analysis process.
 
@@ -98,7 +97,6 @@ struct SolverSettings
     - `dT0::Float64`: Initial increment of pseudo-time.
     - `dTmin::Float64`: Minimum allowed increment of pseudo-time.
     - `dTmax::Float64`: Maximum allowed increment of pseudo-time.
-    - `tangent_scheme::Symbol`: Tangent update approach (`:forward_euler`, `:heun`, `:ralston`, `:backward_euler`).
     - `maxits::Int`: Maximum number of iterations per increment .
     - `rspan::Float64`: Pseudo-time window for reapplying residuals in nonlinear iterations.
     - `alpha::Float64`: Damping coefficient for the mass matrix used in dynamic analyses.
@@ -113,8 +111,8 @@ struct SolverSettings
     """
     function SolverSettings(;
         tol=0.01, rtol=0.01, autoinc=false, dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01,
-        tangent_scheme=:forward_euler, maxits=15, alpha=0.0, beta=0.0, nmodes=5, eig_method=:auto, rayleigh=false)
-        return new(tol, rtol, autoinc, dT0, dTmin, dTmax, tangent_scheme, maxits, rspan, alpha, beta, nmodes, eig_method, rayleigh)
+        maxits=15, alpha=0.0, beta=0.0, nmodes=5, eig_method=:auto, rayleigh=false)
+        return new(tol, rtol, autoinc, dT0, dTmin, dTmax, maxits, rspan, alpha, beta, nmodes, eig_method, rayleigh)
     end
 end
 
@@ -228,7 +226,7 @@ end
     run(ana;
         tol=0.01, rtol=0.01, autoinc=false,
         dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01,
-        tangent_scheme=:forward_euler, maxits=5,
+        maxits=5,
         alpha=0.0, beta=0.0, nmodes=5, eig_method=:auto, rayleigh=false,
         quiet=false)
 
@@ -245,7 +243,6 @@ Execute a finite-element analysis and return the solver status.
 - `dTmin::Real`: minimum allowed increment.
 - `dTmax::Real`: maximum allowed increment.
 - `rspan::Real`: span parameter for the auto-increment controller.
-- `tangent_scheme::Symbol`: global tangent computation approach (`:forward_euler`, `:heun`, `:ralston`).
 - `maxits::Int`: maximum nonlinear iterations per step.
 - `alpha::Float64`: Mass matrix coefficient to compute damping in dynamic analyses.
 - `beta::Float64`: Stiffness matrix coefficient to compute damping in dynamic analyses.
@@ -266,7 +263,7 @@ Execute a finite-element analysis and return the solver status.
 status = run(analysis;
              tol=1e-3, rtol=1e-3, autoinc=true,
              dT0=0.02, dTmin=1e-6, dTmax=0.1,
-             tangent_scheme=:rk2, maxits=10, alpha=0.0, beta=0.25,
+             maxits=10, alpha=0.0, beta=0.25,
              nmodes=8, eig_method=:auto, rayleigh=true)
 ```
 """
@@ -278,8 +275,6 @@ function Base.run(ana::Analysis;
     dTmin   ::Real         = 1e-7,
     dTmax   ::Real         = 0.2,
     rspan   ::Real         = 0.01,
-    scheme  ::Symbol       = :none,
-    tangent_scheme::Symbol = :forward_euler,
     maxits  ::Int          = 5,
     alpha   ::Real         = 0.0,
     beta    ::Real         = 0.0,
@@ -301,19 +296,12 @@ function Base.run(ana::Analysis;
     @check beta>=0 "run: solver paramter `beta` must be positive"
     @check eig_method in (:auto, :arpack, :dense) "run: unknown eig_method $eig_method"
 
-    if scheme != :none # for backward compatibility
-        alert("run: 'scheme' keyword is deprecated; use 'tangent_scheme' with options :forward_euler, :forward_euler, :heun, :ralston")
-        tangent_scheme == scheme==:ME ? :heun : scheme == :FE ? :forward_euler : tangent_scheme
-    end
-    @check tangent_scheme in (:forward_euler, :backward_euler, :heun, :ralston) "run: unknown tangent_scheme $tangent_scheme"
-
     if !quiet
         ctx = ana.model.ctx
         printstyled("FE analisys\n", bold=true, color=:cyan)
         println("  type: ", ana.name)
         ctx.stress_state != :auto && println("  stress model: ", ctx.stress_state)
         println("  solver: Newton-Raphson")
-        # println("  tangent rule: ", tangent_scheme)
         print("  output dir: ")
         printstyled(ana.data.outdir, "\n", color=:cyan)
         print("  output key: ")
@@ -330,7 +318,7 @@ function Base.run(ana::Analysis;
 
     solver_settings = SolverSettings(
         tol=tol, rtol=rtol, autoinc=autoinc, dT0=dT0, dTmin=dTmin, dTmax=dTmax,
-        rspan=rspan, tangent_scheme=tangent_scheme, maxits=maxits, alpha=alpha, beta=beta, nmodes=nmodes, eig_method=eig_method, rayleigh=rayleigh,
+        rspan=rspan, maxits=maxits, alpha=alpha, beta=beta, nmodes=nmodes, eig_method=eig_method, rayleigh=rayleigh,
     )
 
     status = stage_iterator(ana, solver_settings; quiet=quiet)

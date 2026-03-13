@@ -257,7 +257,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     ΔTmin   = solver_settings.dTmin
     ΔTmax   = solver_settings.dTmax
     rspan   = solver_settings.rspan
-    tangent_scheme  = solver_settings.tangent_scheme
     maxits  = solver_settings.maxits
     autoinc = solver_settings.autoinc
 
@@ -283,11 +282,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     end
     active_elems = filter(elem -> elem.active, model.elems)
     
-    # Check for cohesive elements
-    # has_cohesive_elems = any( elem -> elem isa Element{MechCohesive}, active_elems )
-    # cohesive_schemes = (:backward_euler, :heun, :ralston)
-    # has_cohesive_elems && !(tangent_scheme in cohesive_schemes) && alert("Using cohesive elements requires an implicit tangent scheme for stability $(repr(cohesive_schemes)). Current scheme: $(repr(tangent_scheme))")
-
     # Get dofs organized according to boundary conditions
     dofs, nu = configure_dofs(model, bcs) # unknown dofs first
     ndofs = length(dofs)
@@ -347,16 +341,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         Fex[map] .-= Fe
     end
 
-    if tangent_scheme==:forward_euler
-        p1=1.0; q11=1.0
-    elseif tangent_scheme==:backward_euler
-        p1=1.0; q11=1.0; a1=0.0; a2=1.0
-    elseif tangent_scheme==:heun
-        p1=1.0; q11=1.0; a1=0.5; a2=0.5
-    elseif tangent_scheme==:ralston
-        p1=2/3; q11=2/3; a1=1/4; a2=3/4
-    end
-
     local K::SparseMatrixCSC{Float64,Int64}
     data.ΔT = ΔT
 
@@ -378,8 +362,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         ΔUi .= ΔUex  # essential values at iteration i
 
         # Newton Rapshon iterations
-        nits      = 0
-        # err       = 0.0
         res       = 0.0
         res1      = 0.0
         converged = false
@@ -388,39 +370,15 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         for it in 1:maxits
             yield()
 
-            nits += 1
             it>1 && (ΔUi.=0.0) # essential values are applied only at first iteration
             lastres = res # residue from last iteration
 
-            # Predictor step
             K = mount_K(active_elems, ndofs)
-
-            ΔUitr = p1*ΔUi
-            Rtr   = q11*R
-            sysstatus = solve_system!(K, ΔUitr, Rtr, nu)   # Changes unknown positions in ΔUi and R
+            sysstatus = solve_system!(K, ΔUi, R, nu)   # Changes unknown positions in ΔUi and R
             failed(sysstatus) && (syserror=true; break)
-            # reset_state(active_elems)
-            ΔUt   = ΔUa .+ ΔUitr
+            ΔUt   = ΔUa .+ ΔUi
             ΔFin, sysstatus = update_state(active_elems, ΔUt, 0.0)
             failed(sysstatus) && (syserror=true; break)
-
-            # Corrector step
-            if tangent_scheme==:forward_euler
-                ΔUi = ΔUitr
-            else
-                K2 = mount_K(active_elems, ndofs)
-                if tangent_scheme==:backward_euler
-                    K = K2
-                else
-                    K = a1*K + a2*K2
-                end
-                sysstatus = solve_system!(K, ΔUi, R, nu)   # Changes unknown positions in ΔUi and R
-                failed(sysstatus) && (syserror=true; break)
-                # reset_state(active_elems)
-                ΔUt   = ΔUa .+ ΔUi
-                ΔFin, sysstatus = update_state(active_elems, ΔUt, 0.0)
-                failed(sysstatus) && (syserror=true; break)
-            end
 
             # Update accumulated displacement
             ΔUa .+= ΔUi
@@ -431,7 +389,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             res = norm(R, Inf)
             @printf(data.log, "    it %d  residue: %-10.4e\n", it, res)
             
-            err = norm(ΔUi, Inf)/norm(ΔUa, Inf)
             if it==1
                 res1 = res
                 # res > 0.5*norm(ΔFin[umap], Inf) && (converged=false; break)

@@ -30,6 +30,5 @@ bcs = [
        :(y==0.3) => SurfaceBC(ty=100)
       ]
 
-@test solve!(model, autoinc=true, nincs=20, maxits=3, tol=0.01, quiet=true, scheme=:FE, nouts=10).successful
-
+@test solve!(model, autoinc=true, nincs=20, maxits=3, tol=0.01, quiet=true, nouts=10).successful
 

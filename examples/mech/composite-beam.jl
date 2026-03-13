@@ -116,7 +116,7 @@ add_bc(stage, :node, (x==0, z==0), ux=0, uy=0, uz=0) # fixed support
 add_bc(stage, :node, (x==ℓ, z==0), uy=0, uz=0)       # roller support
 add_bc(stage, :face, (z==0.180), tz=-20)             # surface load (Z normal remains same)
 
-run(ana, autoinc=true, tol=5.0, tangent_scheme=:ralston, rspan=0.03)
+run(ana, autoinc=true, tol=5.0, rspan=0.03)
 save(model, "medium-model.vtu")
 
 # ❱❱❱ Post-processing

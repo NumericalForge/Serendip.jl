@@ -41,7 +41,7 @@ bcs = [
        #:(x==0.1 && y==0.1 && z==0.1) => NodeBC(ux=0.0001),
       ]
 
-solve!(model, autoinc=true, tangent_scheme=:heun, nincs=nincs, nouts=5, tol=tol, maxits=2).success
+solve!(model, autoinc=true, nincs=nincs, nouts=5, tol=tol, maxits=2).success
 
 t = get_segment_data(model, [0,0,0], [0.1,0.0,0.0], "data.dat")
 using PyPlot
@@ -58,5 +58,4 @@ if @isdefined(makeplots) && makeplots
     #plot(tab2[:ux], tab2[:fx], "-o")
     plot(tab1[:w], tab2[:fx], "-o")
 end
-
 
