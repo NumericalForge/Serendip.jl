@@ -281,7 +281,8 @@ function Base.run(ana::Analysis;
     nmodes  ::Int          = 5,
     eig_method::Symbol     = :auto,
     rayleigh::Bool         = false,
-    quiet   ::Bool         =false
+    quiet   ::Bool         = false,
+    kwargs...,
 )
     @check tol>0 "run: solver paramter `tol` must be positive"
     @check rtol>0 "run: solver paramter `rtol` must be positive"
@@ -314,6 +315,10 @@ function Base.run(ana::Analysis;
         else
             printstyled(Threads.nthreads(), "\n", color=:green)
         end
+    end
+
+    for (key, value) in kwargs
+        notify("run: unknown keyword argument $key with value $(repr(value))")
     end
 
     solver_settings = SolverSettings(
