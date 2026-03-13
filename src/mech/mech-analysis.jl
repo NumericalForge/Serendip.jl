@@ -3,7 +3,7 @@
 export MechAnalysis
 
 """
-    MechAnalysis(model::FEModel; outdir="", outkey="")
+    MechAnalysis(model::FEModel; outdir="./output", outkey="out")
 
 Create a static mechanical analysis for the given finite element model.
 
@@ -362,7 +362,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
     while T < 1.0-ΔTmin
 
-        println(data.log, "inc $(inc)  ΔT=$ΔT")
+        println(data.log, "inc $(inc)   T=$(round(T, digits=4))   ΔT=$(round(ΔT, sigdigits=4))")
 
         ΔUex, ΔFex = ΔT*Uex, ΔT*Fex     # increment of external vectors
 
@@ -451,7 +451,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         q = 0.0 # increment size factor for autoinc
         
         if syserror
-            println(data.alerts, sysstatus.message)
+            println(data.alerts, "$(round(T*100,digits=2))%  " * sysstatus.message)
             println(data.log, sysstatus.message)
             converged = false
         end
