@@ -157,6 +157,7 @@ function compute_bc_values(ana::Analysis, bc::BoundaryCondition, t::Float64, U::
             nat_keys = get_natural_keys(node)
             x, y, z = node.coord
             for (key,cond) in bc.conds
+                key == :fs && continue
                 if key in ess_keys
                     dof = get_dof(node, key)
                     U[dof.eq_id] = evaluate(cond, x=x, y=y, z=z, t=t)
@@ -173,6 +174,7 @@ function compute_bc_values(ana::Analysis, bc::BoundaryCondition, t::Float64, U::
         essential_keys = Set( dof.name for facet in facets for node in facet.nodes for dof in node.dofs )
 
         for (key,cond) in bc.conds
+            key == :fs && continue
             if key in essential_keys
                 for facet in facets
                     for node in facet.nodes
@@ -192,6 +194,7 @@ function compute_bc_values(ana::Analysis, bc::BoundaryCondition, t::Float64, U::
     elseif bc.kind == :body
         for elem in bc.target
             for (key,val) in bc.conds
+                key == :fs && continue
                 Fd, map = body_load(elem, key, val)
                 F[map] += Fd
             end

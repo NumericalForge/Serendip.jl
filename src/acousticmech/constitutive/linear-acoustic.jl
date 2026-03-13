@@ -4,7 +4,7 @@ export LinearAcousticFluid
 
 mutable struct LinearAcousticFluidState<:ConstState
     ctx::Context
-    up ::Float64          # pressure
+    up ::Float64          # acoustic pressure perturbation (compression is negative)
     # V  ::Vector{Float64} # fluid velocity?
 
     function LinearAcousticFluidState(ctx::Context)
@@ -26,7 +26,7 @@ end
 
 
 # Type of corresponding state structure
-compat_state_type(::Type{LinearAcousticFluid}, ::Type{AcousticFluid}) = LinearAcousticFluidState
+compat_state_type(::Type{LinearAcousticFluid}, ::Type{<:AcousticFluid}) = LinearAcousticFluidState
 
 
 function update_state(mat::LinearAcousticFluid, state::LinearAcousticFluidState, Δup::Float64, G::Vector{Float64}, Δt::Float64)

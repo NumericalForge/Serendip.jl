@@ -1,24 +1,27 @@
 using Serendip
+using Test
 
-# Mesh generation
-L = 4.0
-c = 1500
+ℓ = 10.0
+c = 1500.0
 
-bl   = Block( [0 0; L 1], shape=QUAD4, nx=4, ny=2, tag="fluido" )
-mesh = Mesh(bl)
+geo = GeoModel()
+add_block(geo, [0.0, 0.0], ℓ, ℓ, 0.0, nx=10, ny=10, shape=QUAD4, tag="fluid")
+mesh = Mesh(geo)
 
-# Finite element analysis
-mats = [
-    "fluido" => AcousticFluid => LinearAcousticFluid => (rho=1000.0, c=c)
-]
+mapper = RegionMapper()
+add_mapping(mapper, "fluid", AcousticFluid, LinearAcousticFluid, rho=1.0, c=c)
 
-model = FEModel(mesh, mats, thickness=1.0)
+model = FEModel(mesh, mapper, thickness=1.0)
 ana = AcousticModalAnalysis(model)
 
-bcs = [
-    :(x==0) => SurfaceBC(up=0)   # tq.  [kN/m/m2] [kg/s2/m2]
-]
+stage = add_stage(ana)
+add_bc(stage, :face, (y==ℓ), up=0.0)
 
-addstage!(ana, bcs)
+run(ana, nmodes=10, quiet=false)
 
-solve!(ana, nmodes=10, quiet=false)
+@test length(ana.frequencies) >= 3
+# @test isapprox(ana.frequencies[1], 235.861759691578; rtol=1e-8)
+# @test isapprox(ana.frequencies[2], 528.7052455577332; rtol=1e-8)
+# @test isapprox(ana.frequencies[3], 713.4155966354814; rtol=1e-8)
+
+ana.frequencies

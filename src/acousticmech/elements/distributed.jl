@@ -54,7 +54,7 @@ function acoustic_mech_bc(elem::Element, facet::Cell, t::Float64, key::Symbol, v
     end
 
     # generate a map
-    map  = [ node.dofdict[:up].eq_id for node in facet.nodes ]
+    map  = [ get_dof(node, :up).eq_id for node in facet.nodes ]
 
     return F, map
 end

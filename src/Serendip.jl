@@ -123,7 +123,7 @@ include("mech/include.jl")
 # include("thermomech/include.jl")
 
 # Acoustic module
-# include("acousticmech/include.jl")
+include("acousticmech/include.jl")
 
 include("deprecated.jl")
 

@@ -1,12 +1,12 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 # Pressure Elements
-include("elem/acousticmech.jl")
-include("elem/distributed.jl")
+include("elements/acousticmech.jl")
+include("elements/distributed.jl")
 
-include("elem/acoustic-fluid.jl")
-include("mat/linear-acoustic.jl")
-include("acousticmech-solver.jl")
-include("acoustic-modal-solver.jl")
-
-# export am_solve!
+include("elements/acoustic-fluid.jl")
+include("elements/acousticmech-interface.jl")
+include("constitutive/acousticmech-interface-coupling.jl")
+include("constitutive/linear-acoustic.jl")
+include("acousticmech-analysis.jl")
+include("acoustic-modal-analysis.jl")
