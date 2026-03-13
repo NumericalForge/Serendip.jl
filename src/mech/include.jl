@@ -7,7 +7,7 @@ include("elements/distributed.jl")
 
 # Elements
 include("elements/mech-frame.jl")
-include("elements/mech-bulk.jl")
+include("elements/mech-solid.jl")
 # include("elements/mech-fluid.jl")
 include("elements/mech-bar.jl")
 include("elements/mech-embtruss.jl")
@@ -37,6 +37,7 @@ include("constitutive/linear-spring.jl")
 # Models for interface, interface and coohesive elements
 include("constitutive/elastic-interface.jl") # includes: LinearIntertace, LinearContact
 include("constitutive/mohr-coulomb-contact.jl")
+include("constitutive/coulomb-contact.jl")
 include("constitutive/linear-cohesive.jl")
 include("constitutive/mohr-coulomb-cohesive.jl")
 include("constitutive/power-yield-cohesive.jl")
