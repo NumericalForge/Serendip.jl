@@ -106,7 +106,7 @@ function select(
     tag::String = "",
     )
 
-    selectors = flatten(selectors)
+    selectors = _flatten(selectors)
     selected = collect(1:length(elems)) # selected indexes
 
     for (i,selector) in enumerate(selectors)
