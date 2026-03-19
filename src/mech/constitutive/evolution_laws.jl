@@ -7,6 +7,8 @@ const _compressive_evolution_laws = ( :constant, :popovics )
 function setup_compressive_strength(E::Float64, fc::Float64, εc::Float64, fc_law::Union{Symbol,AbstractSpline})
     # fc_law: :constant, :popovics, or custom function (Spline)
 
+    abs(εc)>abs(fc)/E || return :none, nothing, failure("epsc should be greater than fc/E.")
+
     fc < 0.0 || return :none, nothing, failure("fc must be negative. Got fc=$fc)")
     εc < 0.0 || return :none, nothing, failure("εc must be negative. Got εc=$εc)")
     (fc_law in _compressive_evolution_laws || fc_law isa AbstractSpline) || return :none, nothing, failure("fc_law must be :constant, :popovics, or a custom function (Spline). Got $(repr(fc_law)).")
