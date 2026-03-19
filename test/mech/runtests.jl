@@ -39,6 +39,7 @@ using Serendip
     "constitutive/vm-beam-3d.jl",
     "constitutive/ceb.jl",
     "constitutive/dp.jl",
+    "constitutive/ecp-uniaxial-biaxial.jl",
     "constitutive/bondslip-monotonic.jl",
 
     # "elements/joint/joint2d.jl",
