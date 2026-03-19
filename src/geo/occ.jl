@@ -684,21 +684,25 @@ function _common_nonempty_tag(ents)
 end
 
 
-function _tag_maxdim_outputs!(geo::GeoModel, out_dimids, tag::String)
-    tag == "" && return
-    length(out_dimids) == 0 && return
+function _maxdim_dimids(dimids)
+    isempty(dimids) && return dimids
+    maxdim = maximum(Int(dimid[1]) for dimid in dimids)
+    return [dimid for dimid in dimids if Int(dimid[1]) == maxdim]
+end
 
-    maxdim = maximum(Int(dimid[1]) for dimid in out_dimids)
-    for out_dimid0 in out_dimids
-        out_dimid = (Int(out_dimid0[1]), Int(out_dimid0[2]))
-        out_dimid[1] == maxdim || continue
+
+function _ensure_entities(geo::GeoModel, dimids)
+    entities = GeoEntity[]
+    for dimid0 in dimids
+        out_dimid = (Int(dimid0[1]), Int(dimid0[2]))
         out_ent = get(geo.entities, out_dimid, nothing)
         if out_ent === nothing
             out_ent = _get_entities_from_dimids(geo, [out_dimid])[1]
         end
-        out_ent.tag = tag
         geo.entities[out_dimid] = out_ent
+        push!(entities, out_ent)
     end
+    return entities
 end
 
 
@@ -865,7 +869,8 @@ Extrude one or more entities `ents` in the geometric model `geo` along vector `A
 - `recombine::Bool=false`: If `true`, recombine into quads/hexas where possible.
 
 # Returns
-- `Vector`: Newly created entities resulting from the extrusion.
+- `Vector`: Newly created entities of the highest dimension resulting from the extrusion
+  (for example, only `Volume` objects when extruding surfaces).
 """
 function extrude(geo::GeoModel, ents, A; num_elements=[], heights=[], recombine=false)
     ents = _flatten(ents, GeoEntity)
@@ -874,8 +879,14 @@ function extrude(geo::GeoModel, ents, A; num_elements=[], heights=[], recombine=
     dimids = _get_dimids_from_entities(ents)
     out_dimids = gmsh.model.occ.extrude(dimids, A..., num_elements, heights, recombine)
     gmsh.model.occ.synchronize()
-    _tag_maxdim_outputs!(geo, out_dimids, common_tag)
-    return _get_entities_from_dimids(geo, out_dimids)
+    maxdim_out_dimids = _maxdim_dimids(out_dimids)
+    entities = _ensure_entities(geo, maxdim_out_dimids)
+    if common_tag != ""
+        for ent in entities
+            ent.tag = common_tag
+        end
+    end
+    return entities
 end
 
 
@@ -905,8 +916,14 @@ function revolve(geo::GeoModel, ents, X, A, angle, num_elements=[], heights=[], 
     dimids = _get_dimids_from_entities(ents)
     out_dimids = gmsh.model.occ.revolve(dimids, X..., A..., angle, num_elements, heights, recombine)
     gmsh.model.occ.synchronize()
-    _tag_maxdim_outputs!(geo, out_dimids, common_tag)
-    return _get_entities_from_dimids(geo, out_dimids)
+    maxdim_out_dimids = _maxdim_dimids(out_dimids)
+    entities = _ensure_entities(geo, maxdim_out_dimids)
+    if common_tag != ""
+        for ent in entities
+            ent.tag = common_tag
+        end
+    end
+    return entities
 end
 
 
