@@ -4,7 +4,7 @@ include("aliases.jl")
 
 include("error.jl")
 include("returnstatus.jl")
-include("iteration.jl")
+include("flatten.jl")
 
 include("show.jl")
 

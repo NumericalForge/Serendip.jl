@@ -1,17 +1,3 @@
-# flattens an array of nested arrays
-function flatten(x, y)
-    ty = typeof(x)
-    if ty <: Tuple || ty <: Array
-        for item in x
-            flatten(item, y)
-        end
-    else
-        push!(y, x)
-    end
-    return y
-end
-flatten(x)=flatten(x, [])
-
 
 function mesh_structured(geo::GeoModel, ndim::Int=0)
     # check ndim
@@ -23,12 +9,11 @@ function mesh_structured(geo::GeoModel, ndim::Int=0)
         end
     end
     
-    blocks  = flatten(geo.blocks)
+    blocks  = _flatten(geo.blocks, Block)
     cells   = Cell[]
     nodes_d = NodePosMap()
     
     for b in blocks
-        b isa Block || error("mesh_structured: expected Block or Array{Block}, got $(typeof(b))")
         # split_block!(mesh, b)
         split_block!(cells, nodes_d, b)
     end

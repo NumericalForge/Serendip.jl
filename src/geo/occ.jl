@@ -583,7 +583,7 @@ end
 
 
 function get_points(geo, ents=[])
-    ents = ents isa Vector ? ents : [ents]
+    ents = _flatten(ents, GeoEntity)
 
     length(ents) == 0 && return get_entities(0)
 
@@ -661,6 +661,7 @@ end
 
 
 function _get_dimids_from_entities(entities)
+    entities = _flatten(entities, GeoEntity)
     dimids = []
     for e in entities
         if e isa Volume
@@ -768,15 +769,15 @@ end
 
 
 """
-    Base.copy(geo, ents::Vector{<:GeoEntity})
+    Base.copy(geo, ents)
 
 Copy a list of geometric entities in the geometry model `geo`. Synchronizes OCC before and after copying.
 
 # Returns
 - `Vector{GeoEntity}`: The copied entities.
 """
-function Base.copy(geo::GeoModel, ents::Vector{<:GeoEntity})
-    ents = ents isa Vector ? ents : [ents]
+function Base.copy(geo::GeoModel, ents)
+    ents = _flatten(ents, GeoEntity)
     gmsh.model.occ.synchronize()
     dimids = _get_dimids_from_entities(ents)
     dimids = gmsh.model.occ.copy(dimids)
@@ -817,7 +818,7 @@ Translate one or more entities `ents` in the geometric model `geo` by the displa
 - `Nothing`
 """
 function translate(geo::GeoModel, ents, dx, dy, dz)
-    ents = ents isa Vector ? ents : [ents]
+    ents = _flatten(ents, GeoEntity)
     gmsh.model.occ.synchronize()
     dimids = _get_dimids_from_entities(ents)
     gmsh.model.occ.translate(dimids, dx, dy, dz)
@@ -842,7 +843,7 @@ around the axis defined by point `X` and direction `A`.
 - `Nothing`
 """
 function rotate(geo::GeoModel, ents, X, A, angle)
-    ents = ents isa Vector ? ents : [ents]
+    ents = _flatten(ents, GeoEntity)
     gmsh.model.occ.synchronize()
     dimids = _get_dimids_from_entities(ents)
     gmsh.model.occ.rotate(dimids, X..., A..., angle)
@@ -867,7 +868,7 @@ Extrude one or more entities `ents` in the geometric model `geo` along vector `A
 - `Vector`: Newly created entities resulting from the extrusion.
 """
 function extrude(geo::GeoModel, ents, A; num_elements=[], heights=[], recombine=false)
-    ents = ents isa Vector ? ents : [ents]
+    ents = _flatten(ents, GeoEntity)
     common_tag = _common_nonempty_tag(ents)
     gmsh.model.occ.synchronize()
     dimids = _get_dimids_from_entities(ents)
@@ -898,7 +899,7 @@ around the axis defined by point `X` and direction `A`.
 - `Vector`: Newly created entities resulting from the revolution.
 """
 function revolve(geo::GeoModel, ents, X, A, angle, num_elements=[], heights=[], recombine=false)
-    ents = ents isa Vector ? ents : [ents]
+    ents = _flatten(ents, GeoEntity)
     common_tag = _common_nonempty_tag(ents)
     gmsh.model.occ.synchronize()
     dimids = _get_dimids_from_entities(ents)
@@ -925,7 +926,7 @@ Mirror one or more entities `ents` with respect to the plane `a*x + b*y + c*z + 
 - `Nothing`
 """
 function mirror(ents, a, b, c, d)
-    ents = ents isa Vector ? ents : [ents]
+    ents = _flatten(ents, GeoEntity)
     gmsh.model.occ.synchronize()
     dimids = _get_dimids_from_entities(ents)
     gmsh.model.occ.mirror(dimids, a, b, c, d)
@@ -953,8 +954,8 @@ All entities in each set must have the same topological dimension.
 - `Vector`: Resulting entities from the cut.
 """
 function cut(geo::GeoModel, ents1, ents2; remove_object=true, remove_tool=true, tag::String="")
-    ents1 = ents1 isa Vector ? ents1 : [ents1]
-    ents2 = ents2 isa Vector ? ents2 : [ents2]
+    ents1 = _flatten(ents1, GeoEntity)
+    ents2 = _flatten(ents2, GeoEntity)
     gmsh.model.occ.synchronize()
 
     dim1 = ents1[1] isa Volume ? 3 : ents1[1] isa Surface ? 2 : 1
@@ -993,8 +994,8 @@ All entities in each set must have the same topological dimension.
 - `Vector`: Resulting fused entities.
 """
 function fuse(geo::GeoModel, ents1, ents2; remove_object=true, remove_tool=true, tag::String="")
-    ents1 = ents1 isa Vector ? ents1 : [ents1]
-    ents2 = ents2 isa Vector ? ents2 : [ents2]
+    ents1 = _flatten(ents1, GeoEntity)
+    ents2 = _flatten(ents2, GeoEntity)
     gmsh.model.occ.synchronize()
 
     dim1 = ents1[1] isa Volume ? 3 : ents1[1] isa Surface ? 2 : 1
@@ -1033,8 +1034,8 @@ All entities in each set must have the same topological dimension.
 - `Vector`: Resulting intersection entities.
 """
 function Base.intersect(geo::GeoModel, ents1, ents2; remove_object=true, tag::String="")
-    ents1 = ents1 isa Vector ? ents1 : [ents1]
-    ents2 = ents2 isa Vector ? ents2 : [ents2]
+    ents1 = _flatten(ents1, GeoEntity)
+    ents2 = _flatten(ents2, GeoEntity)
     gmsh.model.occ.synchronize()
 
     dim1 = ents1[1] isa Volume ? 3 : ents1[1] isa Surface ? 2 : 1
@@ -1073,8 +1074,8 @@ Mutually fragment `ents1` and `ents2` in the geometric model `geo`, splitting th
 - `Vector`: All resulting fragmented entities.
 """
 function fragment(geo::GeoModel, ents1, ents2; remove_object=true, remove_tool=true, tag::String="")
-    ents1 = ents1 isa Vector ? ents1 : [ents1]
-    ents2 = ents2 isa Vector ? ents2 : [ents2]
+    ents1 = _flatten(ents1, GeoEntity)
+    ents2 = _flatten(ents2, GeoEntity)
     gmsh.model.occ.synchronize()
 
     dimids1 = _get_dimids_from_entities(ents1)
@@ -1105,8 +1106,8 @@ Apply edge fillets of given `radii` to `curves` on `volumes` in the geometric mo
 - `Vector`: Resulting modified entities after filleting.
 """
 function fillet(geo::GeoModel, volumes, curves, radii, remove_volume=true)
-    volumes = volumes isa Vector ? volumes : [volumes]
-    curves = curves isa Vector ? curves : [curves]
+    volumes = _flatten(volumes, GeoEntity)
+    curves = _flatten(curves, GeoEntity)
     radii = radii isa Vector ? radii : [radii]
     gmsh.model.occ.synchronize()
 
