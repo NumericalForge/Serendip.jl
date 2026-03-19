@@ -65,6 +65,7 @@ mutable struct AnalysisData
     inc    ::Int      # Current increment
     out    ::Int      # Current output file number
     nu     ::Int      # Current number of unknown dofs
+    nfails ::Int      # Current number of failed increments in the stage
 
     residue::Float64  # Residue
 
@@ -92,6 +93,7 @@ mutable struct AnalysisData
         this.inc       = 0
         this.out       = 0
         this.nu        = 0
+        this.nfails    = 0
         this.residue   = 0.0
 
         return this

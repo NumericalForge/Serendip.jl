@@ -448,7 +448,7 @@ function print_summary(ana::Analysis, sw::StopWatch)
     T  = data.T
     ΔT = data.ΔT
     # println("  unknown dofs: ", data.nu, "\e[K")
-    printstyled("  inc $(data.inc)  output $(data.out)  udofs $(data.nu)\e[K\n", bold=true, color=:light_blue)
+    printstyled("  inc $(data.inc)  output $(data.out)  udofs $(data.nu)  nf $(data.nfails)\e[K\n", bold=true, color=:light_blue)
     # printstyled("  udofs $(data.nu)", bold=true, color=:light_blue)
     if data.transient
         t = round(data.t, sigdigits=3)
@@ -457,7 +457,7 @@ function print_summary(ana::Analysis, sw::StopWatch)
     dT  = round(ΔT,sigdigits=4)
     res_str = data.residue>=0 ? string(round(data.residue,sigdigits=4)) : "…" #"⋯"
 
-    printstyled("  dT=$dT  res=$res_str\e[K\n", bold=true, color=:light_blue)
+    printstyled("  dT $dT  res $res_str\e[K\n", bold=true, color=:light_blue)
 
     # line 2:
     bar = progress_bar(T)
