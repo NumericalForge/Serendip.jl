@@ -7,8 +7,64 @@ mutable struct Monitor{T}
     target  ::Vector{T}
     stops   ::Vector
     filename::String
+    helper_values::OrderedDict{Symbol, Number}
     values  ::OrderedDict{Union{Symbol,Expr}, Number}
     table   ::DataTable
+end
+
+_monitor_expr_name(expr::Symbol) = expr
+_monitor_expr_name(expr::Expr) = expr.head == :(=) ? expr.args[1] : expr
+
+function _monitor_expr_value(expr, state)
+    if expr isa Expr && expr.head == :(=)
+        var = expr.args[1]
+        val = evaluate(expr.args[2]; state...)
+        state[var] = val
+        return val
+    end
+    return evaluate(expr; state...)
+end
+
+function _monitor_vars(exprs)
+    vars = Symbol[]
+    for expr in exprs
+        append!(vars, getvars(expr))
+    end
+    return unique(vars)
+end
+
+function _monitor_minmax_base(var::Symbol)
+    name = String(var)
+    if endswith(name, "_min")
+        return Symbol(replace(name, r"_min$" => "")), min
+    elseif endswith(name, "_max")
+        return Symbol(replace(name, r"_max$" => "")), max
+    else
+        return nothing, nothing
+    end
+end
+
+function _monitor_minmax_values!(state, monitor::Monitor)
+    vars = union(_monitor_vars(monitor.exprs), _monitor_vars(monitor.stops))
+    vals = OrderedDict{Symbol, Number}()
+
+    for var in vars
+        base, fun = _monitor_minmax_base(var)
+        fun === nothing && continue
+
+        haskey(state, base) || error("Monitor: Value `$(base)` required by `$(var)` was not found. Available values are: $(join(keys(state), ", ")).")
+        current = state[base]
+
+        if !(var in keys(monitor.helper_values))
+            monitor.helper_values[var] = current
+        else
+            monitor.helper_values[var] = fun(current, monitor.helper_values[var])
+        end
+        state[var] = monitor.helper_values[var]
+        vals[var] = monitor.helper_values[var]
+    end
+
+    return vals
 end
 
 """
@@ -86,7 +142,7 @@ function add_monitor(
     ana::Analysis,
     kind::Symbol,
     selector,
-    expr::Union{Symbol,Expr,Tuple,Array},
+    expr::Union{Symbol,Expr,Tuple,Array,Nothing} = nothing,
     filename="";
     stop::Union{Expr,Tuple,Array,Nothing} = nothing,
     )
@@ -105,7 +161,9 @@ function add_monitor(
     # get filename
     filename = getfullpath(ana.data.outdir, filename)
 
-    exprs = if expr isa Symbol
+    exprs = if expr === nothing
+        Any[]
+    elseif expr isa Symbol
         [ expr ]
     elseif expr isa Expr 
         if expr.head == :tuple
@@ -116,6 +174,8 @@ function add_monitor(
     else        
         vec(collect(expr))
     end 
+
+    isempty(exprs) && stop === nothing && error("add_monitor: provide at least one expression or one stop condition")
 
     all(typeof(ex) in (Symbol, Expr) for ex in exprs) || error("add_monitor: expr must be a Symbol or Expr or a collection of them")
 
@@ -130,8 +190,14 @@ function add_monitor(
     all(stop isa Expr for stop in stops) || error("add_monitor: stop must be a condition Expr or a collection of Exprs")
 
     for (i,expr) in enumerate(stops)
-        ex = round_floats!(ex)
+        ex = round_floats!(expr)
         ex = fix_expr_maximum_minimum!(ex)
+        if ex isa Expr && ex.head == :(=)
+            lhs = ex.args[1]
+            rhs = ex.args[2]
+            notify("add_monitor: Ignoring alias `$(lhs)` in stop condition")
+            ex = rhs
+        end
         stops[i] = ex
     end
 
@@ -154,7 +220,7 @@ function add_monitor(
             target = target[1:1] # take the first
         end
 
-        mon = Monitor{target_type}(kind, exprs, selector, target, stops, filename, OrderedDict{Symbol, Vector{Float64}}(), DataTable())
+        mon = Monitor{target_type}(kind, exprs, selector, target, stops, filename, OrderedDict{Symbol, Number}(), OrderedDict{Union{Symbol,Expr}, Number}(), DataTable())
         update_monitor!(ana, mon)
         push!(ana.data.monitors, mon)
         return mon
@@ -168,7 +234,7 @@ function add_monitor(
         n >= 1 && (target = target[1:1])
     end
 
-    mon = Monitor{target_type}(kind, exprs, selector, target, stops, filename, OrderedDict{Symbol, Vector{Float64}}(), DataTable())
+    mon = Monitor{target_type}(kind, exprs, selector, target, stops, filename, OrderedDict{Symbol, Number}(), OrderedDict{Union{Symbol,Expr}, Number}(), DataTable())
     update_monitor!(ana, mon)
     push!(ana.data.monitors, mon)
     return mon
@@ -180,33 +246,18 @@ function update_monitor!(ana::Analysis, monitor::Monitor)
 
     if monitor.kind in (:node, :ip)
         state = get_values(monitor.target[1])
+        empty!(monitor.values)
 
-        # update state with _max and _min
-        vars = union(getvars(monitor.exprs)..., getvars(monitor.stops))
-        minmax_vals = OrderedDict()
-        for var in vars
-            contains(string(var), r"_max|_min") || continue
-            keystr, optstr = split(string(var), '_')
-            key = Symbol(keystr)
-
-            if size(monitor.table,1) == 0
-                state[var] = state[key]
-            else
-                fun = optstr=="min" ? min : max
-                state[var] = fun(state[key], monitor.table[var][end])
-            end
-            minmax_vals[var] = state[var]
-        end
+        _monitor_minmax_values!(state, monitor)
 
         
         for expr in monitor.exprs
             if expr isa Symbol && !(expr in keys(state))
                 error("Monitor: Value `$(expr)` not found at $(monitor.kind) $(monitor.target[1].id). Available values for monitoring are: $(join(keys(state), ", ")).")
             end
-            monitor.values[expr] = evaluate(expr; state...)
+            monitor.values[_monitor_expr_name(expr)] = _monitor_expr_value(expr, state)
         end
 
-        merge!(monitor.values, minmax_vals)
         monitor.values[:stage] = ana.data.stage
         monitor.values[:T]     = ana.data.T
         ana.data.transient && (monitor.values[:t]=ana.data.t)
@@ -215,24 +266,27 @@ function update_monitor!(ana::Analysis, monitor::Monitor)
         # eval stop expressions
         for expr in monitor.stops
             if evaluate(expr; state...)
-                return failure("Stop condition reached: ($expr)")
+                return failure("Analysis stopped by monitor condition: ($expr)")
             end
         end
     elseif monitor.kind in (:ipgroup, :nodegroup)
+        empty!(monitor.values)
         for expr in monitor.exprs
             vals = []
             for item in monitor.target
                 state = get_values(item)
-                val = evaluate(expr; state...)
+                _monitor_minmax_values!(state, monitor)
+                val = _monitor_expr_value(expr, state)
                 push!(vals, val)
             end
-            if expr isa Symbol
+            name = _monitor_expr_name(expr)
+            if name isa Symbol && expr isa Symbol
                 lo, hi = round.(extrema(vals), sigdigits=5)
-                monitor.values[Symbol(:(min($expr)))] = lo
-                monitor.values[Symbol(:(max($expr)))] = hi
+                monitor.values[Symbol("$(name)_min")] = lo
+                monitor.values[Symbol("$(name)_max")] = hi
             else
                 val = any(vals) # TODO ?
-                monitor.values[expr] = val
+                monitor.values[name] = val
             end
         end
 
@@ -256,40 +310,14 @@ function update_monitor!(ana::Analysis, monitor::Monitor)
         valsF = OrderedDict( Symbol(key) => sum(tableF[key])  for key in keys(tableF) ) # gets the sum for each component
         state = merge(valsU, valsF)
 
-        # update state with definitinos
-        for ex in monitor.exprs
-            if ex isa Expr && ex.head == :(=)
-                var = ex.args[1]
-                state[var] = evaluate(ex.args[2]; state...)
-            end
-        end
-
-        # update state with _max and _min
-        vars = union(getvars(monitor.exprs), getvars(monitor.stops))
-        minmax_vals = OrderedDict()
-        for var in vars
-            contains(string(var), r"_max|_min") || continue
-            keystr, optstr = split(string(var), '_')
-            key = Symbol(keystr)
-
-            if size(monitor.table)[1] == 0
-                state[var] = state[key]
-            else
-                fun = optstr=="min" ? min : max
-                state[var] = fun(state[key], monitor.table[var][end])
-            end
-            minmax_vals[var] = state[var]
-        end
+        empty!(monitor.values)
+        _monitor_minmax_values!(state, monitor)
 
         # eval expressions
         for expr in monitor.exprs
-            if expr isa Expr && expr.head == :(=)
-                expr = expr.args[1]
-            end
-            monitor.values[expr] = evaluate(expr; state...)
+            monitor.values[_monitor_expr_name(expr)] = _monitor_expr_value(expr, state)
         end
 
-        merge!(monitor.values, minmax_vals)
         monitor.values[:stage] = ana.data.stage
         monitor.values[:T]     = ana.data.T
         ana.data.transient && (monitor.values[:t]=ana.data.t)
