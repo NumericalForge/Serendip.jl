@@ -287,7 +287,8 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     ndofs = length(dofs)
     umap  = 1:nu         # map for unknown displacements
     pmap  = nu+1:ndofs   # map for prescribed displacements
-    data.nu  = nu
+    data.nu     = nu
+    data.nfails = 0
 
     println(data.log, "unknown dofs: $nu")
 
@@ -537,6 +538,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
             if autoinc
                 println(data.log, "      increment failed")
+                data.nfails += 1
 
                 q = 1+tanh(log10(ftol/(res1+eps())))
                 q = clamp(q, 0.2, 0.9)
