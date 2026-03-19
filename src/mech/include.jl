@@ -27,6 +27,7 @@ include("constitutive/drucker-prager.jl")
 include("constitutive/von-mises.jl")
 include("constitutive/willam-warnke.jl")
 include("constitutive/UCP.jl")
+include("constitutive/ECP.jl")
 
 # Spring, dumper, lumped mass
 include("elements/mech-lumpedmass.jl")
