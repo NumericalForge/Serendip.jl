@@ -8,6 +8,8 @@ mesh = Mesh(geo)
 mapper = RegionMapper()
 add_mapping(mapper, "solids", MechSolid, LinearElastic, E=100.0, nu=0.2)
 
+# ❱❱❱ Test monitor kinds
+
 model = FEModel(mesh, mapper)
 ana = MechAnalysis(model)
 
@@ -24,3 +26,19 @@ add_bc(stage, :node, z==0, ux=0, uy=0, uz=0 )
 add_bc(stage, :face, z==1, tz=-10.0)
 
 @test run(ana).successful
+
+# ❱❱❱ Test monitor stop condition
+
+model = FEModel(mesh, mapper)
+ana = MechAnalysis(model)
+
+mon = add_monitor(ana, :node, (x==1, y==1, z==1), :(deflected = uz < 0); stop=:(uz < -1e-4))
+
+stage = add_stage(ana, nincs=4, nouts=4)
+add_bc(stage, :node, z==0, ux=0, uy=0, uz=0)
+add_bc(stage, :face, z==1, tz=-10.0)
+
+status = run(ana, quiet=true)
+@test !status.successful
+@test occursin("monitor condition", lowercase(status.message))
+@test mon.table[:deflected][end]
