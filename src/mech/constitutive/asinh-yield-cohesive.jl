@@ -22,7 +22,7 @@ Tensile regularization is controlled by `wc`/`GF` and element characteristic len
 - `alpha::Real=0.6`: Yield-surface parameter (`alpha > 0.5`).
 - `gamma::Real=0.1`: Residual factor (`gamma ≥ 0`).
 - `theta::Real=1.5`: Softening exponent (`theta ≥ 0`).
-- `zeta::Real=5.0`: Elastic displacement scaling factor (`zeta ≥ 0`).
+- `zeta::Real=10.0`: Elastic displacement scaling factor (`zeta ≥ 0`).
 
 # Notes
 - `setup_tensile_strength` resolves `wc`, `ft_law`, and optional spline from `ft`, `GF`, and `wc`.
@@ -190,7 +190,7 @@ function potential_derivs(mat::AsinhYieldCohesive, σ::Vec3)
         return Vec3( 0.0, τ1, τ2 )
     else
         ψ = mat.ψ
-        return Vec3( ψ^2*σn + eps()^0.5, τ1, τ2 )
+        return Vec3( ψ^2*σn, τ1, τ2 )
     end
 end
 
@@ -207,9 +207,22 @@ end
 
 
 function calc_kn_ks(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
-    kn = mat.E*mat.ζ/state.h
-    G  = mat.E/(2*(1+mat.ν))
-    ks = G*mat.ζ/state.h
+    # kn = mat.E*mat.ζ/state.h
+    # G  = mat.E/(2*(1+mat.ν))
+    # ks = G*mat.ζ/state.h
+    # return kn, ks
+    ζmax = mat.ζ
+    ζmin = 0.1*ζmax # minimum value to prevent excessive stiffness degradation
+
+    wn = state.w[1]
+    w0 = 0.3*mat.wc # characteristic relative displacement for stiffness degradation
+
+    ζ  = clamp(ζmax - (ζmax-ζmin)*wn/w0, ζmin, ζmax) # linear degradation of stiffness with opening displacement
+    
+    kn = mat.E*ζ/state.h
+    G  = mat.E/(2*(1 + mat.ν))
+    ks = G*ζ/state.h
+
     return kn, ks
 end
 
@@ -226,12 +239,14 @@ function calcD(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
     if state.Δλ == 0.0  # Elastic 
         return De
     elseif σmax <= tiny && state.w[1] >= 0.0
-        Dep = De*1e-8
+        Dep = De*1e-6
         return Dep
     else
         n, ∂f∂σmax = yield_derivs(mat, state.σ, σmax)
-        m = potential_derivs(mat, state.σ)
-        H = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
+        m    = potential_derivs(mat, state.σ)
+        H    = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
+        Hcap = -mat.ft/(0.5*mat.wc)
+        H    = max(H, Hcap) # cap degradation to prevent numerical issues
         
         De_m  = De*m
         nT_De = n'*De
@@ -249,15 +264,17 @@ function plastic_update(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState,
 
     ψ = mat.ψ
 
-    τtr = √(τ1tr^2 + τ2tr^2 + eps())
+    τtr = √(τ1tr^2 + τ2tr^2)
 
-    maxits    = 30
+    maxits    = 50
     converged = false
     Δλ        = 0.0
     up        = cstate.up
     σ         = cstate.σ
     σmax      = calc_σmax(mat, up)
-    tol       = mat.ft*1e-6
+    tol       = mat.ft*1e-8
+    σtol      = mat.ft*1e-6
+    σ0        = copy(σ)
 
     for i in 1:maxits
         den_σn = 1.0 + Δλ*kn*ψ^2
@@ -281,10 +298,12 @@ function plastic_update(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState,
 
         # residual
         f = yield_func(mat, σ, σmax)
-        if abs(f) < tol
+        if abs(f) < tol && maximum(abs, σ-σ0) < σtol
             converged = true
             break
         end
+
+        σ0 = copy(σ)
 
         # derivatives
         if σntr<0
@@ -324,7 +343,7 @@ function update_state(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, c
                     0.0  ks   0.0
                     0.0  0.0  ks ]
 
-    σmax   = calc_σmax(mat, cstate.up)  
+    σmax = calc_σmax(mat, cstate.up)
 
     if isnan(Δw[1]) || isnan(Δw[2])
         alert("AsinhYieldCohesive: Invalid value for relative displacement: Δw = $Δw")
@@ -335,12 +354,13 @@ function update_state(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, c
     ftr = yield_func(mat, σtr, σmax)
 
     # Elastic and EP integration
-    if σmax == 0.0 && cstate.w[1] + Δw[1] >= 0.0
-        # traction-free after full decohesion
-        state.σ   = Vec3(0.0, 0.0, 0.0)
-        state.Δλ  = 1.0
-        state.up  = max(cstate.up, norm(cstate.w + Δw))
-    elseif ftr <= 0.0
+    # if σmax == 0.0 && cstate.w[1] + Δw[1] >= 0.0
+    #     # traction-free after full decohesion
+    #     state.σ   = Vec3(0.0, 0.0, 0.0)
+    #     state.Δλ  = 1.0
+    #     state.up  = max(cstate.up, norm(cstate.w + Δw))
+    # else
+    if ftr <= 0.0
         # Pure elastic increment
         state.Δλ = 0.0
         state.σ  = σtr
