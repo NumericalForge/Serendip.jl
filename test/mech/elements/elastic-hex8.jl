@@ -8,7 +8,7 @@ using Test
 # Mesh generation
 
 geo = GeoModel()
-add_block(geo, [0, 0, 0], 1, 1, 1, nx=1, ny=1, nz=1, shape=HEX8)
+add_block(geo, [0, 0, 0], 1, 1, 1, nx=1, ny=1, nz=1, shape=:hex8)
 mesh = Mesh(geo, quiet=true)
 
 # Model definition
@@ -85,5 +85,4 @@ for (lc, bcs, dis) in zip(lc_list, bcs_list, dis_list)
     F = get_values(select(model, :node, z==0))[[:fx, :fy, :fz]]
     println(F)
 end
-
 

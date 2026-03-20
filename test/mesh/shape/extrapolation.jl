@@ -3,8 +3,8 @@ using Test
 
 printstyled("\nShape extrapolation\n", color=:blue, bold=true)
 
-for shape in ALL_ISO_SHAPES
-    println("shape : ", shape.name)
+for shape in Serendip.ALL_ISO_SHAPES
+    println("shape : ", shape.kind)
     C = shape.nat_coords
     n = shape.npoints
     ndim = shape.ndim
@@ -20,7 +20,7 @@ for shape in ALL_ISO_SHAPES
     for (nip, Cip) in shape.quadrature
         # Cases with too few ip points for a linear field
         nip <=1 && continue
-        (nip ==2 && shape.base_shape == WED6) && continue
+        (nip == 2 && shape.base_shape == get_shape(:wed6)) && continue
 
         # Exception
         #(nip ==18 && shape == WED15) && continue  # WED15 does not work with nip=18 !
@@ -41,4 +41,3 @@ for shape in ALL_ISO_SHAPES
         println(TR)
     end
 end
-

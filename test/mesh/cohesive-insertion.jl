@@ -5,7 +5,7 @@ printstyled("\nCohesive insertion (implicit/explicit, whole/partial)\n", color=:
 
 function initial_mesh()
     geo = GeoModel()
-    add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=4, ny=4, shape=QUAD4)
+    add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=4, ny=4, shape=:quad4)
     return Mesh(geo)
 end
 

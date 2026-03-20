@@ -38,7 +38,7 @@ end
 # constructor
 function MakeTET4()
     shape             = CellShape()
-    shape.name        = "TET4"
+    shape.kind        = :tet4
     shape.ndim        = 3
     shape.npoints     = 4
     shape.base_shape = shape
@@ -55,8 +55,7 @@ end
 
 
 # Registration
-const  TET4 = MakeTET4()
-export TET4
+const TET4 = _register_shape(MakeTET4())
 
 
 
@@ -183,7 +182,7 @@ end
 # constructor
 function MakeTET10()
     shape             = CellShape()
-    shape.name        = "TET10"
+    shape.kind        = :tet10
     shape.ndim        = 3
     shape.npoints     = 10
     shape.base_shape = TET4
@@ -200,8 +199,7 @@ end
 
 
 # Registration
-const  TET10 = MakeTET10()
-export TET10
+const TET10 = _register_shape(MakeTET10())
 
 # PYR5 shape
 
@@ -247,7 +245,7 @@ end
 # constructor
 function MakePYR5()
     shape             = CellShape()
-    shape.name        = "PYR5"
+    shape.kind        = :pyr5
     shape.ndim        = 3
     shape.npoints     = 5
     shape.base_shape = shape
@@ -263,8 +261,7 @@ function MakePYR5()
 end
 
 # Registration
-const  PYR5 = MakePYR5()
-export PYR5
+const PYR5 = _register_shape(MakePYR5())
 
 
 # PYR13 shape
@@ -389,7 +386,7 @@ end
 # constructor
 function MakePYR13()
     shape             = CellShape()
-    shape.name        = "PYR13"
+    shape.kind        = :pyr13
     shape.ndim        = 3
     shape.npoints     = 13
     shape.base_shape = PYR5
@@ -406,8 +403,7 @@ end
 
 
 # Registration
-const  PYR13 = MakePYR13()
-export PYR13
+const PYR13 = _register_shape(MakePYR13())
 
 # HEX8 shape
 
@@ -481,7 +477,7 @@ end
 # constructor
 function MakeHEX8()
     shape             = CellShape()
-    shape.name        = "HEX8"
+    shape.kind        = :hex8
     shape.ndim        = 3
     shape.npoints     = 8
     shape.base_shape = shape
@@ -498,8 +494,7 @@ end
 
 
 # Registration
-const  HEX8 = MakeHEX8()
-export HEX8
+const HEX8 = _register_shape(MakeHEX8())
 
 
 
@@ -665,7 +660,7 @@ end
 # constructor
 function MakeHEX20()
     shape             = CellShape()
-    shape.name        = "HEX20"
+    shape.kind        = :hex20
     shape.ndim        = 3
     shape.npoints     = 20
     shape.base_shape = HEX8
@@ -682,8 +677,7 @@ end
 
 
 # Registration
-const  HEX20 = MakeHEX20()
-export HEX20
+const HEX20 = _register_shape(MakeHEX20())
 
 
 
@@ -925,7 +919,7 @@ end
 # constructor
 function MakeHEX27()
     shape             = CellShape()
-    shape.name        = "HEX27"
+    shape.kind        = :hex27
     shape.ndim        = 3
     shape.npoints     = 27
     shape.base_shape = HEX8
@@ -942,8 +936,7 @@ end
 
 
 # Registration
-const  HEX27 = MakeHEX27()
-export HEX27
+const HEX27 = _register_shape(MakeHEX27())
 
 
 
@@ -989,7 +982,7 @@ end
 # constructor
 function MakeWED6()
     shape             = CellShape()
-    shape.name        = "WED6"
+    shape.kind        = :wed6
     shape.ndim        = 3
     shape.npoints     = 6
     shape.base_shape = shape
@@ -1006,8 +999,7 @@ end
 
 
 # Registration
-const  WED6 = MakeWED6()
-export WED6
+const WED6 = _register_shape(MakeWED6())
 
 
 
@@ -1117,7 +1109,7 @@ end
 # constructor
 function MakeWED15()
     shape             = CellShape()
-    shape.name        = "WED15"
+    shape.kind        = :wed15
     shape.ndim        = 3
     shape.npoints     = 15
     shape.base_shape = WED6
@@ -1134,5 +1126,4 @@ end
 
 
 # Registration
-const  WED15 = MakeWED15()
-export WED15
+const WED15 = _register_shape(MakeWED15())

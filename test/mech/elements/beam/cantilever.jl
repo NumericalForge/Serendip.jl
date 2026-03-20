@@ -28,8 +28,8 @@ u_circ = P*ℓ^3/(3*E*I) + P*ℓ/(αs*G*A)
 for section in (:rectangular,:circular)
     for ndim in (2,3)
 
-        for shape in (LIN2, LIN3)
-            printstyled("section: ", section, "  ndim: ", ndim, "  shape: ", shape.name, "\n", color= :yellow)
+        for shape in (:lin2, :lin3)
+            printstyled("section: ", section, "  ndim: ", ndim, "  shape: ", shape, "\n", color= :yellow)
 
             geo = GeoModel()
             add_block(geo, [0,0,0], ℓ, 0, 0, n=n, shape=shape, tag="beam")

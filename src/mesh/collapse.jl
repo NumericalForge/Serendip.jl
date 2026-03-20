@@ -14,8 +14,8 @@ function collapse!(elem::AbstractCell)
     nunodes = length(uniquenodes)
     length(elem.nodes)==length(uniquenodes) && return
 
-    collapse_error(shape, nnodes) = error("collapse: cannot collapse $(shape.name) element to $nnodes nodes.")
-    shape.ndim==1 && error("collapse: cannot collapse $(shape.name) element.")
+    collapse_error(shape, nnodes) = error("collapse: cannot collapse $(shape.kind) element to $nnodes nodes.")
+    shape.ndim==1 && error("collapse: cannot collapse $(shape.kind) element.")
 
     if shape.ndim==2
         if shape==QUAD4
@@ -42,7 +42,7 @@ function collapse!(elem::AbstractCell)
             end
 
         else
-            error("collapse: cannot collapse $(shape.name) element.")
+            error("collapse: cannot collapse $(shape.kind) element.")
         end
 
     elseif shape.ndim==3
@@ -242,7 +242,7 @@ function collapse!(elem::AbstractCell)
             collapse_error(shape, nunodes)
         end
     else
-        error("collapse: cannot collapse $(shape.name) element.")
+        error("collapse: cannot collapse $(shape.kind) element.")
     end
 
     return elem

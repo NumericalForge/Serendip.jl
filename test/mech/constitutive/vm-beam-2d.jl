@@ -12,7 +12,7 @@ nu = 0.3
 # ❱❱❱ Geometry and mesh
 
 geo  = GeoModel()
-bl   = add_block(geo, [0.0, 0.0], L, 0, 0, nx=50, shape=LIN3, tag="beam")
+bl   = add_block(geo, [0.0, 0.0], L, 0, 0, nx=50, shape=:lin3, tag="beam")
 mesh = Mesh(geo, ndim=2)
 save(mesh, "vm-beam-2d.vtu")
 

@@ -275,7 +275,7 @@ function save_json(mesh::AbstractDomain, filename::String; desc::String="")
 
     # for (i, cell) in enumerate(mesh.elems)
     #     out[i] = Dict(
-    #         "type" => cell.shape.name,
+    #         "type" => cell.shape.kind,
     #         "connectivity" => [n.id for n in cell.nodes]
     #     )
     # end
@@ -284,14 +284,14 @@ function save_json(mesh::AbstractDomain, filename::String; desc::String="")
 
     cells_obj = [
         Dict(
-            "type" => cell.shape.name,
+            "type" => cell.shape.kind,
             "conn" => [n.id for n in cell.nodes]
         ) for cell in mesh.elems
     ]
 
     faces_obj = [
         Dict(
-            "type" => cell.shape.name,
+            "type" => cell.shape.kind,
             "conn" => [n.id for n in cell.nodes]
         ) for cell in mesh.faces
     ]

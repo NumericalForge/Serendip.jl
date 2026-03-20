@@ -18,7 +18,9 @@ using Serendip
     
     # beam
     "elements/beam/cantilever.jl",
-    
+    "elements/beam/simple-beam.jl",
+    "elements/beam/curved-beam.jl",
+
     # shell
     "elements/shell/shell.jl",
     

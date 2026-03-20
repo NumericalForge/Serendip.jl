@@ -50,7 +50,7 @@ compat_elem_props(::Type{TMShell}) = TMShellProps
 
 function elem_init(elem::TMShell)
     # check element dimension
-    elem.shape.ndim==2 || throw(SerendipException("TMShell: Invalid element shape. Got $(elem.shape.name)"))
+    elem.shape.ndim==2 || throw(SerendipException("TMShell: Invalid element shape. Got $(elem.shape.kind)"))
 
     # Compute nodal rotation matrices
     nnodes = length(elem.nodes)

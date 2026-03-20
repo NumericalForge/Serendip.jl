@@ -36,7 +36,7 @@ end
 # constructor
 function MakeLIN2()
     shape             = CellShape()
-    shape.name        = "LIN2"
+    shape.kind        = :lin2
     # shape.family      = LINE_CELL
     shape.ndim        = 1
     shape.npoints     = 2
@@ -55,8 +55,7 @@ end
 
 
 # Registration
-const LIN2 = MakeLIN2()
-export LIN2
+const LIN2 = _register_shape(MakeLIN2())
 
 
 # LIN3 shape
@@ -93,7 +92,7 @@ end
 # constructor
 function MakeLIN3()
     shape             = CellShape()
-    shape.name        = "LIN3"
+    shape.kind        = :lin3
     # shape.family      = LINE_CELL
     shape.ndim        = 1
     shape.npoints     = 3
@@ -112,8 +111,7 @@ end
 
 
 # Registration
-const LIN3 = MakeLIN3()
-export LIN3
+const LIN3 = _register_shape(MakeLIN3())
 
 
 
@@ -165,7 +163,7 @@ end
 # constructor
 function MakeLIN4()
     shape             = CellShape()
-    shape.name        = "LIN4"
+    shape.kind        = :lin4
     # shape.family      = LINE_CELL
     shape.ndim        = 1
     shape.npoints     = 4
@@ -184,5 +182,4 @@ end
 
 
 # Registration
-const LIN4 = MakeLIN4()
-export LIN4
+const LIN4 = _register_shape(MakeLIN4())

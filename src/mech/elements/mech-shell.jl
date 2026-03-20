@@ -18,7 +18,7 @@ compat_role(::Type{MechShell}) = :surface
 
 function elem_init(elem::Element{MechShell})
     # check element dimension
-    elem.shape.ndim==2 || throw(SerendipException("MechShell: Invalid element shape. Got $(elem.shape.name)"))
+    elem.shape.ndim==2 || throw(SerendipException("MechShell: Invalid element shape. Got $(elem.shape.kind)"))
 
     # Compute nodal rotation matrices
     nnodes = length(elem.nodes)

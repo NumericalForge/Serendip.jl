@@ -81,24 +81,24 @@ mutable struct Block
 
         nz==0 && ndim==3 && (nz=1)
         ny==0 && ndim>=2 && (ny=1)
-        shape in shapes3d && (ndim==3 || error("Block: 3d points and nx, ny and nz are required for cell blockshape $(shape.name)"))
+        shape in shapes3d && (ndim==3 || error("Block: 3d points and nx, ny and nz are required for cell blockshape $(shape.kind)"))
 
         npoints = length(points)
 
         if ndim==1
             npoints in (2, 3) || error("Block: invalid number of points ($npoints) for dimension $ndim or chord.")
             shape===nothing && (shape = quadratic ? LIN3 : LIN2)
-            shape in shapes1d || error("Block: invalid cell type $(shape.name) for dimension $ndim or chord.")
+            shape in shapes1d || error("Block: invalid cell type $(shape.kind) for dimension $ndim or chord.")
             blockshape = npoints==2 ? LIN2 : LIN3
         elseif ndim==2
             npoints in (4, 8) || error("Block: invalid number of points ($npoints) for dimension $ndim or surface.")
             shape===nothing && (shape = quadratic ? QUAD8 : QUAD4)
-            shape in shapes2d || error("Block: invalid cell type $(shape.name) for dimension $ndim or surface.")
+            shape in shapes2d || error("Block: invalid cell type $(shape.kind) for dimension $ndim or surface.")
             blockshape = npoints==4 ? QUAD4 : QUAD8
         else
             npoints in (8, 20) || error("Block: invalid number of points ($npoints) for dimension $ndim.")
             shape===nothing && (shape = quadratic ? HEX20 : HEX8)
-            shape in shapes3d || error("Block: invalid cell type $(shape.name) for dimension $ndim.")
+            shape in shapes3d || error("Block: invalid cell type $(shape.kind) for dimension $ndim.")
             blockshape = npoints==8 ? HEX8 : HEX20
         end
 
@@ -207,4 +207,3 @@ function BlockGrid(
     end
     return blocks
 end
-

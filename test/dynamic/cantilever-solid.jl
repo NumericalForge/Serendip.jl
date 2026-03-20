@@ -13,7 +13,7 @@ A = W*H
 
 # Mesh generation
 geo = GeoModel()
-add_block(geo, [0.0, 0.0, 0.0], L, W, H, nx=10, ny=1, nz=1, shape=HEX20, tag="solids")
+add_block(geo, [0.0, 0.0, 0.0], L, W, H, nx=10, ny=1, nz=1, shape=:hex20, tag="solids")
 mesh = Mesh(geo)
 
 # Model definition

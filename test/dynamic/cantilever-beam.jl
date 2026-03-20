@@ -13,7 +13,7 @@ A = W*H
 
 # Mesh generation
 geo = GeoModel()
-add_block(geo, [0.0, 0.0, 0.0], L, 0.0, 0.0, n=10, shape=LIN2, tag="beam")
+add_block(geo, [0.0, 0.0, 0.0], L, 0.0, 0.0, n=10, shape=:lin2, tag="beam")
 mesh = Mesh(geo, ndim=3)
 
 # Model definition

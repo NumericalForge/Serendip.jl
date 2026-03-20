@@ -3,11 +3,11 @@ using Test
 
 printstyled("\nMesh revolve\n", color=:blue, bold=true)
 
-shapes = (LIN2, LIN3)
+shapes = (:lin2, :lin3)
 data = ((48,49),(48,145))
 for i in eachindex(shapes)
     shape = shapes[i]
-    println("\nrevolving $(shape.name)")
+    println("\nrevolving $(shape)")
     geo = GeoModel()
     add_block(geo, [0, 0, 0], 1, 1, 0; n=4, shape=shape, tag="solids")
     mesh = Mesh(geo)
@@ -16,11 +16,11 @@ for i in eachindex(shapes)
     println(TR)
 end
 
-shapes = (TRI3, TRI6, QUAD4, QUAD8)
+shapes = (:tri3, :tri6, :quad4, :quad8)
 data = ((768,437), (384,1113), (192,245), (192,921))
 for i in eachindex(shapes)
     shape = shapes[i]
-    println("\nrevolving $(shape.name)")
+    println("\nrevolving $(shape)")
     geo = GeoModel()
     add_block(geo, [0, 0, 0], 1, 1, 0; nx=4, ny=4, shape=shape, tag="solids")
     mesh = Mesh(geo)

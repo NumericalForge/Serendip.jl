@@ -522,5 +522,5 @@ function split_block!(cells::Vector{Cell}, nodes_d::NodePosMap, bl::Block)
         end
         return
     end
-    error("block: Can not discretize using shape $(shape.name)")
+    error("block: Can not discretize using shape $(shape.kind)")
 end

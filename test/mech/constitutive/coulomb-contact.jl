@@ -8,8 +8,8 @@ ks = 1.8e8
 mu = 0.9
 
 geo = GeoModel()
-add_block(geo, [0.0, 0.0], 0.1, 0.1, 0.0; nx=1, ny=1, shape=QUAD4, tag="bulk")
-add_block(geo, [0.1, 0.0], 0.1, 0.1, 0.0; nx=1, ny=1, shape=QUAD4, tag="bulk")
+add_block(geo, [0.0, 0.0], 0.1, 0.1, 0.0; nx=1, ny=1, shape=:quad4, tag="bulk")
+add_block(geo, [0.1, 0.0], 0.1, 0.1, 0.0; nx=1, ny=1, shape=:quad4, tag="bulk")
 mesh = Mesh(geo)
 
 # Split regions so contact is created between left and right blocks.

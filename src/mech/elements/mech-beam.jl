@@ -208,13 +208,18 @@ function set_quadrature(elem::Element{MechBeam}, n::Int=0; state::NamedTuple=Nam
 end
 
 
-function distributed_bc(elem::Element{MechBeam}, facet::Cell, key::Symbol, val::Union{Real,Symbol,Expr})
-    return mech_line_distributed_forces(elem, key, val)
+function distributed_bc(elem::Element{MechBeam}, facet::Cell, t::Float64, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
+    return mech_line_distributed_forces(elem, t, key, val)
 end
 
 
-function body_c(elem::Element{MechBeam}, key::Symbol, val::Union{Real,Symbol,Expr})
-    return mech_line_distributed_forces(elem, key, val)
+function distributed_bc(elem::Element{MechBeam}, facet::Cell, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
+    return distributed_bc(elem, facet, 0.0, key, val)
+end
+
+
+function body_load(elem::Element{MechBeam}, key::Symbol, val::Union{Real,Symbol,Expr})
+    return mech_line_distributed_forces(elem, 0.0, key, val)
 end
 
 

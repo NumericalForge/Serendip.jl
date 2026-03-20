@@ -515,7 +515,7 @@ function isinverted(elem::AbstractCell)
         elseif elem.shape.base_shape == QUAD4
             nidx = [1,2,4]
         else
-            error("isinverted: Cell shape $(elem.shape.name) is not supported")
+            error("isinverted: Cell shape $(elem.shape.kind) is not supported")
         end
 
         X1, X2, X3 = getfield.(elem.nodes[nidx], :coord)
@@ -528,7 +528,7 @@ function isinverted(elem::AbstractCell)
         elseif elem.shape.base_shape in (PYR5,HEX8)
             nidx = [1,2,4,5]
         else
-            error("isinverted: Cell shape $(elem.shape.name) is not supported")
+            error("isinverted: Cell shape $(elem.shape.kind) is not supported")
         end
 
         X1, X2, X3, X4 = getfield.(elem.nodes[nidx], :coord)
@@ -536,7 +536,7 @@ function isinverted(elem::AbstractCell)
         V2 = X3-X1
         V3 = X4-X1
     else
-        error("isinverted: Cell shape $(elem.shape.name) is not supported")
+        error("isinverted: Cell shape $(elem.shape.kind) is not supported")
     end
 
     return dot(cross(V1,V2),V3)<0
@@ -571,7 +571,7 @@ function flip(elem::AbstractCell)
     elseif elem.shape==HEX20
         nidx = [1,4,3,2,5,8,7,6, 12,11,10,9, 16,15,14,13, 17,20,19,18]
     else
-        error("flip: Cell shape $(elem.shape.name) is not supported")
+        error("flip: Cell shape $(elem.shape.kind) is not supported")
     end
 
     elem.nodes = elem.nodes[nidx]

@@ -46,7 +46,7 @@ end
 # constructor
 function MakeTRI3()
     shape             = CellShape()
-    shape.name        = "TRI3"
+    shape.kind        = :tri3
     shape.ndim        = 2
     shape.npoints     = 3
     shape.base_shape = shape
@@ -63,8 +63,7 @@ end
 
 
 # Registration
-const  TRI3 = MakeTRI3()
-export TRI3
+const TRI3 = _register_shape(MakeTRI3())
 
 
 
@@ -130,7 +129,7 @@ end
 # constructor
 function MakeTRI6()
     shape             = CellShape()
-    shape.name        = "TRI6"
+    shape.kind        = :tri6
     shape.ndim        = 2
     shape.npoints     = 6
     shape.base_shape = TRI3
@@ -147,8 +146,7 @@ end
 
 
 # Registration
-const  TRI6 = MakeTRI6()
-export TRI6
+const TRI6 = _register_shape(MakeTRI6())
 
 
 # TRI9 shape
@@ -186,7 +184,7 @@ end
 # constructor
 function MakeTRI9()
     shape             = CellShape()
-    shape.name        = "TRI9"
+    shape.kind        = :tri9
     shape.ndim        = 2
     shape.npoints     = 9
     shape.base_shape = TRI3
@@ -202,8 +200,7 @@ function MakeTRI9()
 end
 
 # Registration
-const  TRI9 = MakeTRI9()
-export TRI9
+const TRI9 = _register_shape(MakeTRI9())
 
 
 # TRI10 shape
@@ -233,7 +230,7 @@ end
 # constructor
 function MakeTRI10()
     shape             = CellShape()
-    shape.name        = "TRI10"
+    shape.kind        = :tri10
     shape.ndim        = 2
     shape.npoints     = 10
     shape.base_shape = TRI3
@@ -250,8 +247,7 @@ end
 
 
 # Registration
-const  TRI10 = MakeTRI10()
-export TRI10
+const TRI10 = _register_shape(MakeTRI10())
 
 
 # QUAD4 shape
@@ -301,7 +297,7 @@ end
 # constructor
 function MakeQUAD4()
     shape             = CellShape()
-    shape.name        = "QUAD4"
+    shape.kind        = :quad4
     shape.ndim        = 2
     shape.npoints     = 4
     shape.base_shape = shape
@@ -318,8 +314,7 @@ end
 
 
 # Registration
-const QUAD4 = MakeQUAD4()
-export QUAD4
+const QUAD4 = _register_shape(MakeQUAD4())
 
 
 # QUAD8 shape
@@ -399,7 +394,7 @@ end
 # constructor
 function MakeQUAD8()
     shape             = CellShape()
-    shape.name        = "QUAD8"
+    shape.kind        = :quad8
     # shape.family      = :bulk
     shape.ndim        = 2
     shape.npoints     = 8
@@ -417,8 +412,7 @@ end
 
 
 # Registration
-const QUAD8 = MakeQUAD8()
-export QUAD8
+const QUAD8 = _register_shape(MakeQUAD8())
 
 
 # QUAD9 shape
@@ -504,7 +498,7 @@ end
 # constructor
 function MakeQUAD9()
     shape             = CellShape()
-    shape.name        = "QUAD9"
+    shape.kind        = :quad9
     # shape.family      = :bulk
     shape.ndim        = 2
     shape.npoints     = 9
@@ -521,8 +515,7 @@ function MakeQUAD9()
 end
 
 # Registration
-const QUAD9 = MakeQUAD9()
-export QUAD9
+const QUAD9 = _register_shape(MakeQUAD9())
 
 
 
@@ -627,7 +620,7 @@ end
 # constructor
 function MakeQUAD12()
     shape             = CellShape()
-    shape.name        = "QUAD12"
+    shape.kind        = :quad12
     # shape.family      = :bulk
     shape.ndim        = 2
     shape.npoints     = 12
@@ -644,8 +637,7 @@ function MakeQUAD12()
 end
 
 # Registration
-const QUAD12 = MakeQUAD12()
-export QUAD12
+const QUAD12 = _register_shape(MakeQUAD12())
 
 
 
@@ -675,7 +667,7 @@ end
 # constructor
 function MakeQUAD16()
     shape             = CellShape()
-    shape.name        = "QUAD16"
+    shape.kind        = :quad16
     # shape.family      = :bulk
     shape.ndim        = 2
     shape.npoints     = 16
@@ -692,5 +684,4 @@ function MakeQUAD16()
 end
 
 # Registration
-const QUAD16 = MakeQUAD16()
-export QUAD16
+const QUAD16 = _register_shape(MakeQUAD16())

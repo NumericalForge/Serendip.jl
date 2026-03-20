@@ -5,7 +5,7 @@ using Test
 c = 1500.0
 
 geo = GeoModel()
-add_block(geo, [0.0, 0.0], ℓ, ℓ, 0.0, nx=10, ny=10, shape=QUAD4, tag="fluid")
+add_block(geo, [0.0, 0.0], ℓ, ℓ, 0.0, nx=10, ny=10, shape=:quad4, tag="fluid")
 mesh = Mesh(geo)
 
 mapper = RegionMapper()

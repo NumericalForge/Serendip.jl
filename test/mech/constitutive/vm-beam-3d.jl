@@ -10,7 +10,7 @@ H  = 0.0
 nu = 0.3
 
 geo = GeoModel()
-add_block(geo, [0, 0, 0], L, 0, 0, nx=50, shape=LIN3, tag="beam")
+add_block(geo, [0, 0, 0], L, 0, 0, nx=50, shape=:lin3, tag="beam")
 mesh = Mesh(geo, ndim=3)
 
 mapper = RegionMapper()

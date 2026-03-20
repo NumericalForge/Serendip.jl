@@ -10,7 +10,7 @@ H  = 0.0
 nu = 0.3
 
 geo = GeoModel()
-add_block(geo, [0.0, 0.0], L, h, 0, nx=25, ny=2, shape=QUAD8, tag="beam")
+add_block(geo, [0.0, 0.0], L, h, 0, nx=25, ny=2, shape=:quad8, tag="beam")
 mesh = Mesh(geo, ndim=3)
 
 mapper = RegionMapper()
@@ -33,5 +33,4 @@ save(model, "vm-beam-shell.vtu")
 chart = Chart(xlabel="uy", ylabel="fy")
 add_line(chart, -log.table["uy"], -log.table["fy"], mark=:circle)
 save(chart, "vm-beam-shell.pdf")
-
 

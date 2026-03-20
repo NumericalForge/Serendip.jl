@@ -3,8 +3,8 @@ using Test
 
 printstyled("\nShape functions\n", color=:blue, bold=true)
 
-for shape in ALL_ISO_SHAPES
-    print("shape : ", shape.name)
+for shape in Serendip.ALL_ISO_SHAPES
+    print("shape : ", shape.kind)
     n  = shape.npoints
     ndim = shape.ndim
 
@@ -29,8 +29,8 @@ end
 
 printstyled("\nShape functions derivatives\n", color=:blue, bold=true)
 
-for shape in ALL_ISO_SHAPES
-    print("shape : ", shape.name)
+for shape in Serendip.ALL_ISO_SHAPES
+    print("shape : ", shape.kind)
     n    = shape.npoints
     ndim = shape.ndim
     RR = [ shape.nat_coords[i,:] for i in 1:n ]

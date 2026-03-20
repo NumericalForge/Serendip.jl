@@ -10,7 +10,7 @@ using LinearAlgebra: norm
 
     build_mesh(tips) = begin
         geo = GeoModel(quiet=true)
-        add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=8, ny=8, shape=QUAD4)
+        add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=8, ny=8, shape=:quad4)
 
         p1 = add_point(geo, Xstart)
         p2 = add_point(geo, Xmid)

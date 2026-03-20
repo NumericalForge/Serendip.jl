@@ -5,8 +5,8 @@ dis = [ -0.012, -0.095 ]
 
 top_node = nothing
 
-for shape in (TRI3, TRI6, QUAD4, QUAD8, QUAD9)
-    printstyled(shape.name, color=:cyan); println()
+for shape in (:tri3, :tri6, :quad4, :quad8, :quad9)
+    printstyled(shape, color=:cyan); println()
     geo = GeoModel()
     add_block(geo, [0, 0], 1, 1, 0, nx=2, ny=2, shape=shape)
     mesh = Mesh(geo)
@@ -33,8 +33,8 @@ for shape in (TRI3, TRI6, QUAD4, QUAD8, QUAD9)
 end
 
 #for shape in (TET4, TET10, HEX8, HEX20, HEX27)
-for shape in (TET4, TET10, HEX8, HEX20, HEX27)
-    printstyled(shape.name, color=:cyan); println()
+for shape in (:tet4, :tet10, :hex8, :hex20, :hex27)
+    printstyled(shape, color=:cyan); println()
     geo = GeoModel()
     add_block(geo, [0, 0, 0], 1, 1, 1, nx=2, ny=2, nz=2, shape=shape)
     mesh = Mesh(geo)

@@ -13,7 +13,6 @@ function mech_line_distributed_forces(elem::Element, t::Float64, key::Symbol, va
 
     nodes  = elem.nodes
     nnodes = length(nodes)
-    # t      = elem.ctx.t
     A      = isedgebc ? 1.0 :  elem.etype.A
 
     # Calculate the elem coordinates matrix
@@ -67,7 +66,6 @@ function mech_line_distributed_forces(elem::Element, t::Float64, key::Symbol, va
     # generate a map
     keys = [:ux, :uy, :uz][1:ndim]
     map  = [ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]
-    # map  = Int[ node.dofdict[key].eq_id for node in elem.nodes for key in keys ]
 
     return reshape(F', nnodes*ndim), map
 end

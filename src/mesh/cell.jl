@@ -208,7 +208,7 @@ for the remaining selectors (for example: `select(mesh, :element, :solid, :node,
 function select(
     domain::AbstractDomain,
     kind::Symbol,
-    selectors::Union{Symbol,Expr,Symbolic,String,CellShape,Vector{<:Real},NTuple{N, Symbolic} where N}...;
+    selectors::Union{Symbol,Expr,Symbolic,String,Vector{<:Real},NTuple{N, Symbolic} where N}...;
     invert = false,
     nearest = true,
     tag::String = "",
@@ -320,7 +320,7 @@ function cell_extent(c::AbstractCell)
         @mul J = C'*dNdR
         normJ = norm2(J)
         #if normJ<0
-            #error("cell_extent: Negative Jacobian while calculating cell volume/area/length id=$(c.id) shape=$(c.shape.name) ")
+            #error("cell_extent: Negative Jacobian while calculating cell volume/area/length id=$(c.id) shape=$(c.shape.kind) ")
         #end
         vol += normJ*w
     end
@@ -360,7 +360,7 @@ function regular_surface(metric::Float64, shape::CellShape)
         a2 = (16.0/3.0*V^2)^(1.0/3.0)
         return (3.0 + √3.0/2.0)*a2
     end
-    error("No regular surface/perimeter value for shape $(shape.name)")
+    error("No regular surface/perimeter value for shape $(shape.kind)")
 end
 
 

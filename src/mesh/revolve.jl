@@ -152,7 +152,7 @@ function revolve(
                     push!(nodes, Node(coord))
                 end
             else
-                error("revolve: Cell shape $(cell.shape.name) is not supported")
+                error("revolve: Cell shape $(cell.shape.kind) is not supported")
             end
 
             role = cell.shape in (LIN2, LIN3, LIN4) ? :surface : :solid

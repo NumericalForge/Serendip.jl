@@ -10,7 +10,7 @@ H  = 0
 nu = 0.3
 
 geo = GeoModel()
-add_block(geo, [0.0, 0.0], L, h, 0, nx=50, ny=2, shape=QUAD8, tag="beam")
+add_block(geo, [0.0, 0.0], L, h, 0, nx=50, ny=2, shape=:quad8, tag="beam")
 mesh = Mesh(geo)
 
 mapper = RegionMapper()
@@ -41,4 +41,3 @@ if @isdefined(makeplots) && makeplots
     add_series(chart, -tab["uy"], -tab["fy"], mark=:circle)
     save(chart, "vm-2d.pdf")
 end
-

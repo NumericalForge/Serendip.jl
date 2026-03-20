@@ -57,7 +57,7 @@ function extrude(block::Block; axis=[0,0,1], length::Number=1.0, n::Int=1, quiet
         nidx = [1:4;1:4;5:8;5:8;1:4]
         lidx = [1,1,1,1,3,3,3,3,1,1,1,1,3,3,3,3,2,2,2,2]
     else
-        error("extrude: Block shape $(block.shape.name) is not supported")
+        error("extrude: Block shape $(block.shape.kind) is not supported")
     end
 
     points = Point[]
@@ -104,8 +104,8 @@ function extrude(mesh::Mesh; length::Real=1.0, n::Int=1, axis=nothing, quiet=tru
     # check cells
     for cell in mesh.elems
         celldim = cell.shape.ndim
-        celldim==1 && mesh.ctx.ndim==3 && axis===nothing && error("extrude: cannot extrude cell of shape $(cell.shape.name) in dimension 3 using normal")
-        celldim==3 && error("extrude: cannot extrude cell of shape $(cell.shape.name)")
+        celldim==1 && mesh.ctx.ndim==3 && axis===nothing && error("extrude: cannot extrude cell of shape $(cell.shape.kind) in dimension 3 using normal")
+        celldim==3 && error("extrude: cannot extrude cell of shape $(cell.shape.kind)")
     end
 
     # compute normals
@@ -185,7 +185,7 @@ function extrude(mesh::Mesh; length::Real=1.0, n::Int=1, axis=nothing, quiet=tru
                 nidx = [1:4;1:4;5:8;5:8;1:4; 8;6;5;7;9;9;9]
                 lidx = [1,1,1,1,3,3,3,3,1,1,1,1,3,3,3,3,2,2,2,2, 2,2,2,2,1,3,2]
             else
-                error("extrude: Cell shape $(cell.shape.name) is not supported")
+                error("extrude: Cell shape $(cell.shape.kind) is not supported")
             end
 
             nodes = Node[]

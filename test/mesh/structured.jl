@@ -4,10 +4,10 @@ using Test
 printstyled("\nMesh generation on solids\n", color=:blue, bold=true)
 
 nodes_count = [ 221, 441, 121, 341, 441 ]
-shapes = [TRI3, TRI6, QUAD4, QUAD8, QUAD9]
+shapes = [:tri3, :tri6, :quad4, :quad8, :quad9]
 
 for (n, shape) in zip(nodes_count, shapes)
-    println("Generating mesh using ", shape.name)
+    println("Generating mesh using ", String(shape))
     geo = GeoModel()
     add_block(geo, [0,0,0], 1,1,0, nx=10, ny=10, shape=shape)
     mesh = Mesh(geo)
@@ -16,10 +16,10 @@ for (n, shape) in zip(nodes_count, shapes)
 end
 
 nodes_count = [ 1331, 4961, 9261, 1331, 9261 ]
-shapes = [HEX8, HEX20, HEX27, TET4, TET10]
+shapes = [:hex8, :hex20, :hex27, :tet4, :tet10]
 
 for (n, shape) in zip(nodes_count, shapes)
-    println("Generating mesh using ", shape.name)
+    println("Generating mesh using ", String(shape))
     geo = GeoModel()
     add_block(geo, [0,0,0], 1,1,1, nx=10, ny=10, nz=10, shape=shape)
     mesh = Mesh(geo)
@@ -48,10 +48,10 @@ println(TR)
 
 printstyled("\nMesh generation with insets\n", color=:blue, bold=true)
 
-shapes = [ HEX8, HEX20 ]
+shapes = [:hex8, :hex20]
 
 for shape in shapes
-    println("\nGenerating mesh using ", shape.name)
+    println("\nGenerating mesh using ", String(shape))
     geo = GeoModel()
     add_block(geo, [0, 0, 0], 1, 1, 1, nx=8, ny=8, nz=8, shape=shape)
 
@@ -72,12 +72,13 @@ printstyled("\nMesh generation of cohesive elements\n", color=:blue, bold=true)
 # nodes_count = [ 108, 108, 36, 72, 648, 1620, 216, 540]
 nodes_count = [ 25, 49, 16, 40, 64, 343, 64, 208]
 elems_count = [ 84, 39, 21, 21, 432, 432, 81, 81 ]
-shapes = [ TRI3, TRI6, QUAD4, QUAD8, TET4, TET10, HEX8, HEX20 ]
+shapes = [:tri3, :tri6, :quad4, :quad8, :tet4, :tet10, :hex8, :hex20]
 
 for (n, e, shape) in zip(nodes_count, elems_count, shapes)
-    println("\nGenerating mesh using ", shape.name)
+    shapeobj = get_shape(shape)
+    println("\nGenerating mesh using ", shapeobj.kind)
     geo = GeoModel()
-    if shape.ndim==2
+    if shapeobj.ndim == 2
         add_block(geo, [0,0,0], 1,1,0, nx=3, ny=3, shape=shape)
     else
         add_block(geo, [0,0,0], 1,1,1, nx=3, ny=3, nz=3, shape=shape)
@@ -95,12 +96,13 @@ printstyled("\nMesh generation of joint cells with insets\n", color=:blue, bold=
 # nodes_count = [ 121, 43, 661, 223 ]
 nodes_count = [ 38, 23, 77, 71 ]
 elems_count = [ 96, 27, 444, 87 ]
-shapes = [ TRI3, QUAD4, TET4, HEX8 ]
+shapes = [:tri3, :quad4, :tet4, :hex8]
 
 for (n, e, shape) in zip(nodes_count, elems_count, shapes)
-    println("\nGenerating mesh using ", shape.name)
+    shapeobj = get_shape(shape)
+    println("\nGenerating mesh using ", shapeobj.kind)
     geo = GeoModel()
-    if shape.ndim==2
+    if shapeobj.ndim == 2
         add_block(geo, [0,0,0], 1,1,0, nx=3, ny=3, shape=shape)
         p1 = add_point(geo, [0, 0, 0])
         p2 = add_point(geo, [1, 1, 0])

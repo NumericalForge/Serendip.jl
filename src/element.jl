@@ -97,7 +97,7 @@ end
 function set_quadrature(elem::Element, n::Int=0; state::NamedTuple=NamedTuple())
 
     if !(n in keys(elem.shape.quadrature))
-        alert("set_quadrature: cannot set $n integration points for shape $(elem.shape.name)")
+        alert("set_quadrature: cannot set $n integration points for shape $(elem.shape.kind)")
         return
     end
 
@@ -232,4 +232,3 @@ function get_values(elem::Element)
 
     return table
 end
-

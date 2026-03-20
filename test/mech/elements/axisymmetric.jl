@@ -1,9 +1,9 @@
 using Serendip
 using Test
 
-for shape in (TRI3, TRI6, QUAD4, QUAD8)
+for shape in (:tri3, :tri6, :quad4, :quad8)
     # Axisymmetric
-    printstyled("$(shape.name)\n", color=:cyan)
+    printstyled("$(shape)\n", color=:cyan)
     printstyled("axisymmetric\n", color=:cyan)
 
     geo = GeoModel()

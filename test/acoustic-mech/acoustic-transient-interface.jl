@@ -7,8 +7,8 @@ tmax = 0.1
 q0   = -1.0e-5
 
 geo = GeoModel()
-add_block(geo, [0.0, 0.0], 0.1, h, 0.0, nx=1, ny=10, shape=QUAD4, tag="wall")
-add_block(geo, [0.1, 0.0], 10.0, h, 0.0, nx=20, ny=10, shape=QUAD4, tag="fluid")
+add_block(geo, [0.0, 0.0], 0.1, h, 0.0, nx=1, ny=10, shape=:quad4, tag="wall")
+add_block(geo, [0.1, 0.0], 10.0, h, 0.0, nx=20, ny=10, shape=:quad4, tag="fluid")
 
 mesh = Mesh(geo)
 add_contact_elements(mesh, "wall", "fluid", tag="interface")

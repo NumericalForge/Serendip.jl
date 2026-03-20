@@ -92,7 +92,7 @@ function hrefine(mesh::Mesh; n=2, quiet=true)
             continue
         end
 
-        error("hrefine: Cannot refine mesh containing elements of type $(cell.shape.name)")
+        error("hrefine: Cannot refine mesh containing elements of type $(cell.shape.kind)")
 
     end
 

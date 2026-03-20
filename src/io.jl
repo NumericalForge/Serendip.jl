@@ -69,7 +69,7 @@ function save_xml(model::FEModel, filename::String)
     for elem in model.elems
         atts = OrderedDict(
                            "id"=>string(elem.id),
-                           "shape"=>string(elem.shape.name),
+                           "shape"=>string(elem.shape.kind),
                            "tag"=>string(elem.tag),
                            "material"=>string(mat_idx_dict[hash(elem.cmodel)]),
                            "active"=>string(elem.active),

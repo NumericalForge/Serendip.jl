@@ -2,8 +2,7 @@
 
 
 mutable struct CellShape
-    name       ::String
-    # family     ::CellFamily
+    kind       ::Symbol
     ndim       ::Int
     npoints    ::Int
     base_shape::CellShape
@@ -21,6 +20,24 @@ mutable struct CellShape
     end
 end
 
+const SHAPE_BY_SYMBOL = Dict{Symbol,CellShape}()
+
+function get_shape(shape::Symbol)::CellShape
+    key = Symbol(lowercase(String(shape)))
+    if !haskey(SHAPE_BY_SYMBOL, key)
+        available = join(string.(sort!(collect(keys(SHAPE_BY_SYMBOL)))), ", ")
+        error("get_shape: unsupported shape $(repr(shape)). Available shapes are $available.")
+    end
+    return SHAPE_BY_SYMBOL[key]
+end
+
+get_shape(shape::CellShape) = shape
+
+function _register_shape(shape::CellShape)
+    SHAPE_BY_SYMBOL[shape.kind] = shape
+    return shape
+end
+
 
 include("1d.jl")
 include("2d.jl")
@@ -29,8 +46,7 @@ include("3d.jl")
 # Shape for unknown polyvertex
 function MakePOLYVERTEX()
     shape             = CellShape()
-    shape.name        = "POLYVERTEX"
-    # shape.family      = VERTEX_CELL
+    shape.kind        = :polyvertex
     shape.ndim        = 0
     shape.npoints     = 0
     shape.vtk_type    = VTK_POLY_VERTEX
@@ -40,11 +56,11 @@ function MakePOLYVERTEX()
     return shape
 end
 const POLYVERTEX = MakePOLYVERTEX()
-export POLYVERTEX
+_register_shape(POLYVERTEX)
 
 
 function get_ip_coords(shape::CellShape, nips=0)
-    !haskey(shape.quadrature, nips) && error("Cell shape $(shape.name) cannot use $nips integration points. Available values are $(collect(keys(shape.quadrature))).")
+    !haskey(shape.quadrature, nips) && error("Cell shape $(shape.kind) cannot use $nips integration points. Available values are $(collect(keys(shape.quadrature))).")
     return shape.quadrature[nips]
 end
 

@@ -159,7 +159,7 @@ function FEModel(
             end
 
             if compat_role(etype) != cell.role
-                error("FEModel: Element formulation $(etype) is not compatible with elements type $(repr(cell.role)) (selector: $(repr(selector)), shape: $(cell.shape.name))\n")
+                error("FEModel: Element formulation $(etype) is not compatible with elements type $(repr(cell.role)) (selector: $(repr(selector)), shape: $(cell.shape.kind))\n")
             end
 
             conn = [ p.id for p in cell.nodes ]
@@ -186,7 +186,7 @@ function FEModel(
     undefined_elem_tags   = Set{String}()
     for i in 1:ncells
         if !isassigned(model.elems, i)
-            push!(undefined_elem_shapes, mesh.elems[i].shape.name)
+            push!(undefined_elem_shapes, string(mesh.elems[i].shape.kind))
             push!(undefined_elem_tags, repr(mesh.elems[i].tag))
         end
     end
@@ -750,5 +750,4 @@ function nodal_local_recovery(model::FEModel)
 
     return V_vals, collect(all_fields_set)
 end
-
 

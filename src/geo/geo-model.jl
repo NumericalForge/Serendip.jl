@@ -41,7 +41,7 @@ function Path(edges::Vector{Edge})
 end
 
 """
-    GPath(path; embedded=false, shape=LIN3, tag="", interface_tag="", tip_tag="", tips=:none)
+    GPath(path; embedded=false, shape=:lin3, tag="", interface_tag="", tip_tag="", tips=:none)
 
 Creates a geometric path (`GPath`) entity, which represents a curve (typically a sequence of connected edges) embedded or placed in the geometry model.
 This structure is typically used to represent linear inclusions such as reinforcements, drains, etc.
@@ -51,7 +51,7 @@ If `tips` is not `:none`, tip elements will be created at the endpoints of the p
 # Arguments
 - `path::Path`: The geometric path (sequence of edges and points) to be wrapped as a GPath.
 - `embedded::Bool=false`: Whether this path should be embedded in the bulk mesh during meshing (e.g. cracks, reinforcements).
-- `shape::CellShape=LIN3`: Shape function used for discretizing the path (e.g., quadratic line `LIN3`, cubic, etc.).
+- `shape::Symbol=:lin3`: Shape symbol used for discretizing the path (e.g., `:lin2`, `:lin3`).
 - `tag::String=""`: Optional label or name for this path (e.g. to identify or filter later).
 - `interface_tag::String=""`: Optional tag for use when interface elements are generated from the path.
 - `tips::Symbol=:none`: Specify witch tips are considered (:start, :end, :both, :none) for the generation of tip interface elements.
@@ -68,14 +68,17 @@ struct GPath<:GeoEntity
     tip_tag::String
     tips::Symbol
 
-    function GPath(path::Path; embedded::Bool=false, shape::CellShape=LIN3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
+    function GPath(path::Path; embedded::Bool=false, shape::Union{Symbol,CellShape}=:lin3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
         @check tips in (:none, :start, :end, :both)
-        this = new(path, embedded, shape, tag, interface_tag, tip_tag, tips)
+        this = new(path, embedded, get_shape(shape), tag, interface_tag, tip_tag, tips)
         return this
     end
 end
 
 export add_path, add_array, add_block, set_size, set_refinement, set_transfinite_curve, set_transfinite_surface, set_recombine, set_transfinite_volume
+
+_resolve_geo_shape(shape::Nothing) = nothing
+_resolve_geo_shape(shape::Union{Symbol,CellShape}) = get_shape(shape)
 
 
 function Base.copy(p::GPath)
@@ -189,15 +192,15 @@ Adds a 1D, 2D or 3D block (`Block`) to the geometric model using two opposite co
 - `n::Int=0`: Number of mesh divisions for 1D blocks (overrides `nx`).
 - `rx::Real=1.0, ry::Real=1.0, rz::Real=1.0`: Element size grading ratios along x, y, and z.
 - `r::Real=0.0`: Element size grading ratio for 1D blocks (overrides `rx`).
-- `shape`: Optional finite element cell type (`HEX8`, `HEX20`, `QUAD4`, `LIN2`, etc.).  
+- `shape`: Optional finite element shape symbol (`:hex8`, `:hex20`, `:quad4`, `:lin2`, etc.).
   If omitted, it is inferred from the number of points and dimension.
 - `tag::String=""`: Optional tag identifier for the block.
 
 # Behavior
 - The block dimension (`ndim`) is inferred from the number of nonzero coordinate components:
-  - 1D → line block (`LIN2`, `LIN3`)
-  - 2D → surface block (`QUAD4`, `QUAD8`)
-  - 3D → volume block (`HEX8`, `HEX20`)
+  - 1D → line block (`:lin2`, `:lin3`)
+  - 2D → surface block (`:quad4`, `:quad8`)
+  - 3D → volume block (`:hex8`, `:hex20`)
 - The `shape` argument must match the inferred dimension.
 
 # Returns
@@ -214,7 +217,7 @@ X2 = [2.0, 1.0, 1.0]
 # Add a hexahedral block with graded mesh along z
 blk = add_block(geo, X1, X2;
 nx=8, ny=4, nz=4, rz=1.3,
-shape=HEX8,
+shape=:hex8,
 tag="foundation")
 ```
 """
@@ -225,10 +228,10 @@ function add_block(geometry::GeoModel,
     quadratic=false,
     shape=nothing, tag="")
 
-    bl = Block(X, float(dx), float(dy), float(dz); 
+    bl = Block(X, float(dx), float(dy), float(dz);
         nx=nx, ny=ny, nz=nz, n=n,
         rx=rx, ry=ry, rz=rz, r=r,
-        quadratic=quadratic, shape=shape, tag=tag )
+        quadratic=quadratic, shape=_resolve_geo_shape(shape), tag=tag )
     # bl = Block(X1, X2; nx=nx, ny=ny, nz=nz, n=n, rx=rx, ry=ry, rz=rz, r=r, shape=shape, tag=tag)
     push!(geometry.blocks, bl)
     return bl
@@ -236,7 +239,7 @@ end
 
 
 """
-    add_path(geometry, edges; embedded=false, shape=LIN3, tag="", interface_tag="", tip_tag="", tips=:none)
+    add_path(geometry, edges; embedded=false, shape=:lin3, tag="", interface_tag="", tip_tag="", tips=:none)
 
 Adds a logical path structure (`GPath`) to the geometric model from a sequence of connected `Edge` objects.
 This is useful for modeling discrete and embedded 1D elements such as reinforcement bars, drains, or inclusions.
@@ -245,7 +248,7 @@ This is useful for modeling discrete and embedded 1D elements such as reinforcem
 - `geometry::GeoModel`: Target geometric model.
 - `edges::Vector{Edge}`: Sequence of connected edges that define the path.
 - `embedded::Bool=false`: Whether the path is embedded into a solid domain. If embedded is `false`, interface elements will be created.
-- `shape::CellShape=LIN3`: Finite element shape for discretization of the path (LIN2 or LIN3).
+- `shape::Symbol=:lin3`: Finite element shape symbol for discretization of the path (`:lin2` or `:lin3`).
 - `tag::String=""`: Identifier tag for the path.
 - `interface_tag::String=""`: Optional tag used for interface elements.
 - `tip_tag::String=""`: Optional tag for used for tip elements at endpoints.
@@ -268,11 +271,11 @@ edge2 = add_line(geo, p2, p3)
 path = add_path(geo, [edge1, edge2]; tag="reinforcement", interface_tag="contact")
 ```
 """
-function add_path(geometry::GeoModel, edges::Vector{Edge}; embedded::Bool=false, shape::CellShape=LIN3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
+function add_path(geometry::GeoModel, edges::Vector{Edge}; embedded::Bool=false, shape::Union{Symbol,CellShape}=:lin3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
     @check tips in (:none, :start, :end, :both) "'tips' must be one of :none, :start, :end, :both"
 
     path = Path(edges)
-    gpath = GPath(path; tag=tag, embedded=embedded, shape=shape, interface_tag=interface_tag, tip_tag=tip_tag, tips=tips)
+    gpath = GPath(path; tag=tag, embedded=embedded, shape=get_shape(shape), interface_tag=interface_tag, tip_tag=tip_tag, tips=tips)
     push!(geometry.gpaths, gpath)
 
     # remove edges from the geometry model
@@ -287,13 +290,13 @@ function add_path(geometry::GeoModel, edges::Vector{Edge}; embedded::Bool=false,
 end
 
 
-function add_path(geometry::GeoModel, coords::Vector{<:Real}...; embedded::Bool=false, shape::CellShape=LIN3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
+function add_path(geometry::GeoModel, coords::Vector{<:Real}...; embedded::Bool=false, shape::Union{Symbol,CellShape}=:lin3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
     @check tips in (:none, :start, :end, :both)
     embedded && interface_tag!="" && warn("add_path: 'interface_tag' is ignored when 'embedded=true'")
 
     path = Path(coords...)
 
-    gpath = GPath(path; tag=tag, embedded=embedded, shape=shape, interface_tag=interface_tag, tip_tag=tip_tag, tips=tips)
+    gpath = GPath(path; tag=tag, embedded=embedded, shape=get_shape(shape), interface_tag=interface_tag, tip_tag=tip_tag, tips=tips)
     push!(geometry.gpaths, gpath)
 
     return gpath

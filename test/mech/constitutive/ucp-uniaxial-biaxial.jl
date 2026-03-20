@@ -7,7 +7,7 @@ using Test
 h = 0.2
 
 geo = GeoModel()
-add_block(geo, [0, 0, 0], ℓ, ℓ, h, shape=HEX8, nx=2, ny=2, nz=2)
+add_block(geo, [0, 0, 0], ℓ, ℓ, h, shape=:hex8, nx=2, ny=2, nz=2)
 mesh = Mesh(geo, quadratic=true)
 select(mesh, :element, :bulk, tag="solids")
 

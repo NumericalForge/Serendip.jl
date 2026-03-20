@@ -56,6 +56,10 @@ struct TSFraction <: TypesetNode
     den::TypesetNode
 end
 
+struct TSOverbar <: TypesetNode
+    body::TypesetNode
+end
+
 struct GlyphElem
     text::String
     x::Float64
@@ -87,6 +91,7 @@ end
 const _paren_xscale_regular = 0.85
 const _paren_xscale_min = 0.6
 const _paren_outer_pad_factor = 0.06
+const _overbar_length_factor = 0.68
 
 @inline function _paren_xscale_for_height(body_h::Float64, fontsize::Float64)
     ratio = body_h / max(fontsize, 1e-9)
@@ -224,6 +229,33 @@ function _parse_sqrt_call(s::AbstractString, i::Int)
     return TSSqrt(_nodes_to_node(body_nodes)), _next(s, pos)
 end
 
+function _parse_macron_call(s::AbstractString, i::Int)
+    i = _skip_spaces(s, i)
+    if i > lastindex(s) || s[i] != '('
+        return nothing, i
+    end
+
+    start = _next(s, i)
+    pos = start
+    depth = 1
+    while pos <= lastindex(s)
+        c = s[pos]
+        if c == '('
+            depth += 1
+        elseif c == ')'
+            depth -= 1
+            depth == 0 && break
+        end
+        pos = _next(s, pos)
+    end
+
+    depth != 0 && return nothing, i
+
+    body_str = strip(s[start:prevind(s, pos)])
+    body_nodes, _ = isempty(body_str) ? (TypesetNode[], 1) : _parse_math_seq(body_str, firstindex(body_str))
+    return TSOverbar(_nodes_to_node(body_nodes)), _next(s, pos)
+end
+
 function _set_bold(node::TypesetNode)::TypesetNode
     if node isa TSAtom
         a = node::TSAtom
@@ -242,6 +274,9 @@ function _set_bold(node::TypesetNode)::TypesetNode
     elseif node isa TSSqrt
         sq = node::TSSqrt
         return TSSqrt(_set_bold(sq.body))
+    elseif node isa TSOverbar
+        ob = node::TSOverbar
+        return TSOverbar(_set_bold(ob.body))
     else
         f = node::TSFraction
         return TSFraction(_set_bold(f.num), _set_bold(f.den))
@@ -331,6 +366,14 @@ function _parse_math_seq(s::AbstractString, i::Int; stopchars::Set{Char}=Set{Cha
                     append!(nodes, _identifier_nodes(name))
                 else
                     push!(nodes, bold_node)
+                    i = j
+                end
+            elseif name == "macron"
+                macron_node, j = _parse_macron_call(s, i)
+                if macron_node === nothing
+                    append!(nodes, _identifier_nodes(name))
+                else
+                    push!(nodes, macron_node)
                     i = j
                 end
             else
@@ -539,6 +582,11 @@ function _node_width(cc::CairoContext, node::TypesetNode, font::String, fontsize
         sup_x = base_anchor + 0.07 * fontsize
         sub_x = sup_x + sub_adjust
         return max(base_w, max(sup_x + sup_w, sub_x + sub_w))
+    elseif node isa TSOverbar
+        ob = node::TSOverbar
+        body_w = _node_width(cc, ob.body, font, fontsize)
+        pad = 0.04 * fontsize
+        return body_w + 2 * pad
     elseif node isa TSSqrt
         sqrt_node = node::TSSqrt
         body_w = _node_width(cc, sqrt_node.body, font, fontsize)
@@ -717,6 +765,26 @@ function _layout_node!(cc::CairoContext, node::TypesetNode, font::String, glyphs
         min_y[] = min(min_y[], bar_y - 0.5 * bar_thickness)
 
         return root_w + 0.08 * fontsize + body_w
+    end
+
+    if node isa TSOverbar
+        ob = node::TSOverbar
+        body_min, _ = _node_bounds(cc, ob.body, font, fontsize)
+        body_ascent = max(-body_min, 0.0)
+        body_w = _node_width(cc, ob.body, font, fontsize)
+        pad = 0.04 * fontsize
+        body_x = x + pad
+
+        _layout_node!(cc, ob.body, font, glyphs, rules, body_x, y, fontsize, min_y, max_y)
+
+        bar_y = y - body_ascent - 0.12 * fontsize
+        bar_thickness = max(0.045 * fontsize, 0.2)
+        bar_w = _overbar_length_factor * (body_w + 2 * pad)
+        bar_x = x + 0.5 * ((body_w + 2 * pad) - bar_w)
+        push!(rules, RuleElem(bar_x, bar_y, bar_w, bar_thickness))
+        min_y[] = min(min_y[], bar_y - 0.5 * bar_thickness)
+
+        return body_w + 2 * pad
     end
 
     frac = node::TSFraction

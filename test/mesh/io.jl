@@ -4,7 +4,7 @@ using Test
 printstyled("\nWriting and loading vtk format\n", color=:blue, bold=true)
 
 geo = GeoModel()
-add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 1.0, nx=10, ny=10, nz=10, shape=HEX8)
+add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 1.0, nx=10, ny=10, nz=10, shape=:hex8)
 m1 = Mesh(geo)
 m1.elems[1].tag = "outer-tag"
 m1.elems[end].tag = "inner-tag-123456"

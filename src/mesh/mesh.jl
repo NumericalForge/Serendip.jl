@@ -541,7 +541,7 @@ end
 
 
 """
-    Mesh(coordinates, connectivities, cellshapes=CellShape[]; tag="", quiet=true)
+    Mesh(coordinates, connectivities, cellshapes=Symbol[]; tag="", quiet=true)
 
 Creates a `Mesh` from a nodal `coordinates` matrix,
 an array of `connectivities` and a list of `cellshapes`.
@@ -554,7 +554,7 @@ A `tag` string for all generated cells can be provided optionally.
 julia> using Serendip;
 julia> C = [ 0 0; 1 0; 1 1; 0 1 ];
 julia> L = [ [ 1, 2, 3 ], [ 1, 3, 4 ] ];
-julia> S = [ TRI3, TRI3 ];
+julia> S = [ :tri3, :tri3 ];
 julia> Mesh(C, L, S, tag="triangle")
 
 Mesh
@@ -588,7 +588,7 @@ Mesh
 
 
 """
-    Mesh(coordinates, connectivities, cellshapes=CellShape[]; tag="", quiet=true) -> Mesh
+    Mesh(coordinates, connectivities, cellshapes=Symbol[]; tag="", quiet=true) -> Mesh
 
 Construct a `Mesh` object directly from nodal coordinates and element connectivities.
 
@@ -596,7 +596,7 @@ Construct a `Mesh` object directly from nodal coordinates and element connectivi
 - `coordinates::Matrix{<:Real}`: Node coordinate matrix of size `(nnodes, ndim)`.
 - `connectivities::Vector{Vector{Int}}`: Connectivity list, where each entry is a vector
   of node indices (1-based) defining an element.
-- `cellshapes::Vector{CellShape}=CellShape[]`: Optional vector of element shapes (LIN2, QUAD4, etc.).  
+- `cellshapes::Vector{Symbol}=Symbol[]`: Optional vector of element shape symbols (e.g. `:lin2`, `:quad4`).
   If not provided, shapes are inferred automatically from the number of nodes and
   spatial dimension.
 - `tag::String=""`: Optional tag applied to all created elements.
@@ -617,7 +617,7 @@ coordinates = [ 0.0 0.0;
                 0.0 1.0 ]
 
 connectivities = [ [1, 2, 3], [1, 3, 4] ]
-cellshapes     = [ TRI3, TRI3 ]
+cellshapes     = [ :tri3, :tri3 ]
 
 mesh = Mesh(coordinates, connectivities, cellshapes; tag="tri")
 println(mesh)
@@ -626,7 +626,7 @@ println(mesh)
 function Mesh(
               coordinates::Matrix{<:Real},
               connectivities::Vector{Vector{Int64}},
-              cellshapes ::Vector{CellShape}=CellShape[];
+              cellshapes = Symbol[];
               tag        ::String="",
               quiet      ::Bool=false,
              )
@@ -644,12 +644,13 @@ function Mesh(
     # Get ndim
     ndim = size(coordinates,2)
     ctx  = MeshContext(ndim)
+    shapevec = isempty(cellshapes) ? CellShape[] : CellShape[get_shape(shape) for shape in cellshapes]
 
     cells = Cell[]
     for i in 1:m
         pts = nodes[connectivities[i]]
-        if length(cellshapes)>0
-            shape = cellshapes[i]
+        if length(shapevec)>0
+            shape = shapevec[i]
         else
             shape = get_shape_from_ndim_npoints(length(pts), ndim)
         end
@@ -857,8 +858,8 @@ Generate a random structured mesh of unit size in 2D or 3D.
   - For 3D: `(nx, ny, nz)`
 - `shape`: Optional element type.  
   If not provided, a random element shape is chosen among  
-  `(TRI3, TRI6, QUAD4, QUAD8)` for 2D, or  
-  `(TET4, TET10, HEX8, HEX20)` for 3D.
+  `(:tri3, :tri6, :quad4, :quad8)` for 2D, or
+  `(:tet4, :tet10, :hex8, :hex20)` for 3D.
 
 # Returns
 - `Mesh`: A randomly generated finite element mesh.
@@ -869,12 +870,12 @@ function rand_mesh(n::Int...; shape=nothing)
     if ndim==2
         lx, ly = (1.0, 1.0)
         nx, ny = n
-        isnothing(shape) && (shape=rand((TRI3, TRI6, QUAD4, QUAD8)))
+        isnothing(shape) && (shape=rand((:tri3, :tri6, :quad4, :quad8)))
         add_block(geo, [0.0, 0.0, 0.0], lx, ly, 0.0, nx=nx, ny=ny, shape=shape)
     else
         lx, ly, lz = (1.0, 1.0, 1.0)
         nx, ny, nz = n
-        isnothing(shape) && (shape=rand((TET4, TET10, HEX8, HEX20)))
+        isnothing(shape) && (shape=rand((:tet4, :tet10, :hex8, :hex20)))
         add_block(geo, [0.0, 0.0, 0.0], lx, ly, lz, nx=nx, ny=ny, nz=nz, shape=shape)
     end
     return Mesh(geo; quiet=true)
