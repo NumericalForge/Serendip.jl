@@ -1,7 +1,7 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export DataTable, save, split_by, randtable
-export compress, resize, filter, cut!, clamp!, denoise!
+export resize, filter, cut!, clamp!, denoise!
 export getheader, get_frequency
 
 

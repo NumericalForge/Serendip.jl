@@ -1,4 +1,4 @@
-export Path, addinset!
+export Path
 
 mutable struct PathCmd
     key::Symbol
@@ -260,4 +260,3 @@ function evaluate(path::Path, t::Float64)
         return evaluate(path, path.cmds[i], tt)
     end
 end
-

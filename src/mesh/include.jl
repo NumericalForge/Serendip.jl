@@ -5,7 +5,7 @@ export Cell, select
 include("cell.jl")
 include("collapse.jl")
 
-export get_coords, get_node, get_nodes, get_facets, getfaces, getedges, get_patches, cell_extent, cell_quality, cell_aspect_ratio
+export get_coords, get_nodes, get_facets, get_patches, cell_extent, cell_quality, cell_aspect_ratio
 include("partition.jl")
 
 include("mesh.jl")
@@ -41,5 +41,4 @@ export add_cohesive_elements, add_contact_elements, add_boundary_contact_element
 
 include("outline.jl")
 export get_feature_edges, get_feature_mesh
-
 

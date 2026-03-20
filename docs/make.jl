@@ -1,18 +1,29 @@
-# Inside make.jl
-push!(LOAD_PATH,"../src/")
-using Serendip, Documenter, Literate
+import Pkg
 
-root = joinpath(dirname(pathof(Serendip)), "..", "docs")
+const root = @__DIR__
+const repo_root = normpath(joinpath(root, ".."))
+
+# Keep the docs environment in sync with the working tree so local builds
+# do not depend on a previously-resolved manifest or a machine-specific path.
+Pkg.activate(root)
+Pkg.develop(Pkg.PackageSpec(path = repo_root))
+Pkg.resolve()
+Pkg.instantiate()
+
+using Documenter, Literate, Serendip
+
+include("generate_api_pages.jl")
+generate_api_pages(root)
 
 Literate.markdown(
-    joinpath(dirname(pathof(Serendip)), "..", "examples", "docs", "simple-truss.jl"),
+    joinpath(repo_root, "examples", "docs", "simple-truss.jl"),
     joinpath(root, "src", "examples");
     name = "simple-truss",
     documenter = true,
 )
 
 Literate.markdown(
-    joinpath(dirname(pathof(Serendip)), "..", "examples", "docs", "static-2d.jl"),
+    joinpath(repo_root, "examples", "docs", "static-2d.jl"),
     joinpath(root, "src", "examples");
     name = "static-2d",
     documenter = true,
@@ -43,11 +54,17 @@ makedocs(
             "Static 2D" => "examples/static-2d.md",
         ],
         "API Reference" => [
-            "Reference" => "api/reference.md",
+            "Overview" => "api/reference.md",
+            "Core Structures" => "api/core.md",
+            "Geometry" => "api/geometry.md",
+            "Shape Functions" => "api/shapes.md",
+            "Mesh" => "api/mesh.md",
+            "Analyses" => "api/analyses.md",
+            "Plotting and Data" => "api/plotting-data.md",
         ]
     ],
     doctest = true,
-    repo = "https://github.com/NumericalForge/Serendip.jl",
+    repo = Documenter.Remotes.GitHub("NumericalForge", "Serendip.jl"),
     # edit_branch = "main",
 
     # repo = "github.com/JuliaGraphics/LuxorManual.git"

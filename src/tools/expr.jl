@@ -1,7 +1,7 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 export Symbolic
-export symbols, evaluate
+export evaluate
 
 mutable struct Symbolic
     sym::Symbol

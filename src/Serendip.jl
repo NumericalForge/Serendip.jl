@@ -47,7 +47,7 @@ include("dof.jl")
 export Dof
 
 include("node.jl")
-export Node, add_dof, get_dof, get_values, setvalue!
+export Node, add_dof, get_dof, get_values
 
 # Shapes
 include("shape/include.jl")
@@ -58,7 +58,7 @@ export GeoModel, Block, Path, GPath, Point, Edge, Surface, Volume
 
 # Mesh
 include("mesh/include.jl")
-export getcoords
+export get_coords
 
 include("context.jl")
 export Context
@@ -67,18 +67,18 @@ include("constitutive.jl")
 export Constitutive
 
 include("ip.jl")
-export Ip, ip_vals, maximum, minimum, sort, get_ips
+export Ip, maximum, minimum, sort, get_ips
 
 include("element.jl")
 export Element
-export get_nodes, change_quadrature, get_ips, elems_ip_vals, update_material!, set_state
+export get_nodes, change_quadrature, get_ips
 
 # Plotting
 include("plot/include.jl")
-export Chart, LineChart, DataSeries, Legend, Colormap, DomainPlot, GeometryPlot, Annotation
-export add_series!, add_line, add_scatter, add_bar, add_bars!, addlegend!, add_annotation
+export Chart, DataSeries, Legend, Colormap, DomainPlot, Annotation
+export add_line, add_scatter, add_bar, add_annotation
 # Deprecated/Aliases
-export add_series, addannotation!
+export add_series
 
 include("region-mapper.jl")
 export RegionMapper, RegionModel, add_mapping, add_map
@@ -90,7 +90,7 @@ export Stage, add_stage
 
 # Boundary conditions
 include("bc.jl")
-export add_bc, add_body_load
+export add_bc
 
 include("logger.jl")
 export add_logger
@@ -101,11 +101,7 @@ export add_monitor
 include("analysis.jl")
 
 include("fe-model.jl")
-export Model
 export FEModel
-export Domain
-export addlogger!, addmonitor!, addloggers!, addmonitors!
-export setloggers!, setmonitors!
 
 include("solver.jl")
 export SolverSettings, run

@@ -1,6 +1,6 @@
 # This file ips part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export CyclicRSJoint, CyclicBondSlip
+export CyclicBondSlip
 
 mutable struct CyclicBondSlipState<:ConstState
     ctx::Context

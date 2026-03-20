@@ -1,6 +1,6 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export DataBook, databook, push!, save
+export DataBook, push!, save
 
 
 # DataBook type
