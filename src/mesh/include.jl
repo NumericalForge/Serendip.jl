@@ -33,7 +33,7 @@ include("slice.jl")
 export slice
 
 include("smooth.jl")
-export smooth!, laplacian_smooth!, fast_smooth!
+export smooth
 
 include("gen-cohesive-elems.jl")
 include("gen-contact-elems.jl")
@@ -41,4 +41,3 @@ export add_cohesive_elements, add_contact_elements, add_boundary_contact_element
 
 include("outline.jl")
 export get_feature_edges, get_feature_mesh
-

@@ -11,6 +11,6 @@ using Serendip
          "io.jl",
         #  "operations.jl",
          "extrude.jl",
-        #  "smoothing.jl",
+         "smoothing.jl",
          "revolve.jl",
         ]

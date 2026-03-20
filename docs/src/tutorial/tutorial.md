@@ -149,7 +149,7 @@ nothing # hide
 
 Finally, a `smooth` operation can be applied to improve the cells quality.
 ```@example 2
-smooth_mesh = smooth!(mesh)
+smooth_mesh = smooth(mesh)
 mplot(smooth_mesh, "smooth_mesh.svg", dist=13)
 nothing # hide
 ```

@@ -505,65 +505,14 @@ Filter = x -> x === Serendip.slice
 
 ```@raw html
 <details>
-<summary><code>smooth!</code></summary>
+<summary><code>smooth</code></summary>
 ```
 
 ```@autodocs
 Modules = [Serendip]
 Private = false
 Public = true
-Filter = x -> x === Serendip.smooth!
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>laplacian_smooth!</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.laplacian_smooth!
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>fast_smooth!</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.fast_smooth!
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>fast_smooth2!</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.fast_smooth2!
+Filter = x -> x === Serendip.smooth
 ```
 
 ```@raw html
@@ -688,4 +637,3 @@ Filter = x -> x === Serendip.save
 ```@raw html
 </details>
 ```
-
