@@ -54,11 +54,15 @@ function _show(io::IO, x, maxdepth::Int, indent::String="", tab::String="    ")
         return
     end
     
-    summ = summary(x)
+    summ = split(summary(x), ".")[end]
+
     print(io, summ)
     pnames = propertynames(x)
 
     if maxdepth==0 && !contains(summ, " ")
+        if :kind in pnames && isdefined(x, :kind)
+            print(io, " ", repr(getfield(x, :kind)))
+        end
         if :name in pnames && isdefined(x, :name)
             print(io, "  name=", repr(getfield(x, :name)))
         end
@@ -89,10 +93,10 @@ function _show(io::IO, x, maxdepth::Int, indent::String="", tab::String="    ")
         if name in fnames && !isdefined(x, name)
             print(io, "#undef")
         else
-            # fieldvalue = getfield(x, name)
             fieldvalue = getproperty(x, name)
+            type_str = split(string(typeof(fieldvalue)), ".")[end]
 
-            if string(typeof(fieldvalue)) in not_unrolling_typenames_in_show
+            if type_str in not_unrolling_typenames_in_show
                 _show(io, fieldvalue, 0, indent*tab, tab)
                 continue
             end
@@ -123,7 +127,6 @@ function _show(io::IO, x::AbstractDict, maxdepth::Int, indent::String="", tab::S
     end
 
     s = split(summary(x), ".")[end]
-    #print(io, summary(x))
     print(io, s)
     maxdepth==0 && return
 
