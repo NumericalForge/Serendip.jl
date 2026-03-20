@@ -9,7 +9,7 @@ files = [
     "composite-beam.jl",
     "beam-crack-2d.jl",
     "beam-crack-3d.jl",
-    # "dynamic.jl",
+    "dynamic.jl",
 ]
 
 for file in files
@@ -20,5 +20,4 @@ for file in files
     rm.(glob("*.vt?"), force=true)
     rm.(glob("*.log"), force=true)
     rm.(glob("*.pdf"), force=true)
-    rm("output", recursive=true, force=true)
 end
