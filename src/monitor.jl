@@ -95,9 +95,10 @@ Monitors are used to evaluate expressions at selected nodes or integration point
 
 - `selector`:
     Defines how to select the items to monitor. Can be:
-    - A **vector** `[x, y, z]` specifying coordinates (the nearest matching item will be used if no exact match is found).
+    - A **vector** `[x, y, z]` specifying coordinates.
     - A **logical expression** (e.g., `x > 0 && y < 1`).
-    - A predefined tag or list of items.
+    - A predefined tag.
+    - A **tuple** of selectors applied in sequence, such as `("left_ips", [x, y, z])`.
 
 - `expr`:
     One or more expressions to monitor. Can be a single `Symbol` (e.g., `:ux`), or a collection (e.g., `[:ux, :uy]`, a tuple, or an array).
@@ -122,9 +123,11 @@ Monitors are used to evaluate expressions at selected nodes or integration point
 
 # Notes
 
-- If `kind` is `:node` or `:ip` and the selector matches multiple items, only the **first match** will be monitored.
+- `add_monitor` delegates selection to `select`.
+- For `:node` and `:ip`, coordinate-vector selectors use nearest fallback internally (`nearest=true`).
+- If a coordinate selector matches multiple items exactly, only the **first** one is monitored and a notification is displayed.
 - For `:nodegroup` and `:ipgroup`, the selected items are sorted automatically by coordinate sum.
-- If no items match the selector, the nearest item is chosen and a notification is displayed.
+- If no items match the selector, a notification is displayed.
 
 # Example
 ```julia

@@ -62,6 +62,34 @@ function get_values(ip::Ip)
 end
 
 
+"""
+    select(ips::Vector{Ip}, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag="")
+
+Select integration points from a collection using one or more filters. Filters
+are applied sequentially (logical AND), starting from all integration points.
+Tuple selectors are flattened and applied in order.
+
+Supported selectors:
+- `:all` keeps the current selection unchanged.
+- `:none` clears the selection.
+- `String` matches `ip.tag`.
+- `Expr` or `Symbolic` evaluates a coordinate condition using `x`, `y`, `z`.
+- `AbstractVector{<:Real}` selects by point coordinates.
+
+Point-coordinate selection behavior:
+- If one or more exact matches exist within tolerance `1e-8`, all exact matches
+  are returned.
+- If no exact match exists and `nearest=true`, the nearest integration point in
+  the current candidate set is returned.
+- If no exact match exists and `nearest=false`, the result is empty.
+
+# Keyword Arguments
+- `invert::Bool=false`: return the complement of the final selection.
+- `nearest::Bool=false`: enable nearest fallback for coordinate-vector selectors.
+- `quiet::Bool=false`: suppress point-selection notifications.
+- `prefix::AbstractString="select"`: prefix used in point-selection notifications.
+- `tag=""`: if non-empty, assign this tag to all selected integration points.
+"""
 function select(
     ips::Vector{Ip},
     selectors...;

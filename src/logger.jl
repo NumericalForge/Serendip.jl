@@ -42,9 +42,10 @@ Adds a logger to an analysis, allowing you to record data during simulation.
 
 - `selector::Any`:
     Defines how to select the items to log. Can be:
-    - A **vector** `[x, y, z]` specifying coordinates (the nearest matching item will be used if no exact match is found).
+    - A **vector** `[x, y, z]` specifying coordinates.
     - A **logical expression** (e.g., `x > 0`).
-    - A **predefined tag** or list of items.
+    - A **predefined tag**.
+    - A **tuple** of selectors applied in sequence, such as `("left_ips", [x, y, z])`.
 
 - `filename::String` (optional):
     Name of the file where the log will be saved. If not provided, the logger will use the default output directory in `ana.data.outdir`.
@@ -56,7 +57,9 @@ Adds a logger to an analysis, allowing you to record data during simulation.
 
 # Notes
 
-- If `kind` is `:node` or `:ip` and the selector matches multiple items, only the **first match** will be logged.
+- `add_logger` delegates selection to `select`.
+- For `:node` and `:ip`, coordinate-vector selectors use nearest fallback internally (`nearest=true`).
+- If a coordinate selector matches multiple items exactly, only the **first** one is logged and a notification is displayed.
 - For `:nodegroup` and `:ipgroup`, the selected items are automatically sorted based on coordinates.
 - If no items match the selector, a notification is displayed.
 """

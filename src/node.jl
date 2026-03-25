@@ -152,6 +152,34 @@ function get_ndim(nodes::Vector{Node})
 end
 
 
+"""
+    select(nodes::Vector{Node}, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag="")
+
+Select nodes from a collection using one or more filters. Filters are applied
+sequentially (logical AND), starting from all nodes. Tuple selectors are
+flattened and applied in order.
+
+Supported selectors:
+- `:all` keeps the current selection unchanged.
+- `:none` clears the selection.
+- `String` matches `node.tag`.
+- `Expr` or `Symbolic` evaluates a coordinate condition using `x`, `y`, `z`.
+- `AbstractVector{<:Real}` selects by point coordinates.
+
+Point-coordinate selection behavior:
+- If one or more exact matches exist within tolerance `1e-8`, all exact matches
+  are returned.
+- If no exact match exists and `nearest=true`, the nearest node in the current
+  candidate set is returned.
+- If no exact match exists and `nearest=false`, the result is empty.
+
+# Keyword Arguments
+- `invert::Bool=false`: return the complement of the final selection.
+- `nearest::Bool=false`: enable nearest fallback for coordinate-vector selectors.
+- `quiet::Bool=false`: suppress point-selection notifications.
+- `prefix::AbstractString="select"`: prefix used in point-selection notifications.
+- `tag=""`: if non-empty, assign this tag to all selected nodes.
+"""
 function select(
     nodes::Vector{Node},
     selectors...;

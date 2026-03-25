@@ -65,7 +65,7 @@ end
 
 
 """
-    select(elems::Vector{<:AbstractCell}, selectors...; invert=false, tag="")
+    select(elems::Vector{<:AbstractCell}, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag="")
 
 Select entities from an element list using one or more filters. By default this
 function filters cells, but `:node` and `:ip` can redirect selection to nodes or
@@ -87,10 +87,16 @@ Supported selectors:
 - `Expr` or `Symbolic`: keep cells whose nodes all satisfy the coordinate
   expression (variables `x`, `y`, `z`).
 - `Vector{Int}`: intersect the current selection with explicit element indices.
-- `NTuple{N,Symbolic}`: accepted and flattened into individual symbolic filters.
+- `Tuple`: flattened into individual selectors and applied in order.
+
+Point-coordinate selectors are not applied directly to cells, but they are
+supported after redirection with `:node` or `:ip`.
 
 # Keyword Arguments
 - `invert::Bool=false`: if `true`, returns the complement of the final selection.
+- `nearest::Bool=false`: forwarded to redirected node/IP selection.
+- `quiet::Bool=false`: forwarded to redirected node/IP selection.
+- `prefix::AbstractString="select"`: forwarded to redirected node/IP selection.
 - `tag::String=""`: if non-empty, assigns this tag to the selected cells.
 
 # Returns
@@ -173,7 +179,7 @@ end
 
 
 """
-    select(domain::AbstractDomain, kind::Symbol, selectors...; invert=false, tag="")
+    select(domain::AbstractDomain, kind::Symbol, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag="")
 
 Filters entities from a finite element domain (`domain`) by type and selection criteria.
 
@@ -194,16 +200,20 @@ Selectors can be:
 - `:embedded`        → select embedded line elements (with couplings)
 - `String`           → match element tag
 - `Expr` or `Symbolic` → spatial condition using coordinates `x`, `y`, `z`
+- `Vector{<:Real}`   → point coordinates for `:node` and `:ip` selection
 - `Vector{Int}`      → list of element indices to select
-- `NTuple{N, Symbolic}` → multiple symbolic coordinate conditions
+- `Tuple`            → multiple selectors applied in sequence
 
 When `kind == :element`, selectors may include `:node` or `:ip` to redirect
 the selection to nodes or integration points of the currently selected elements
-for the remaining selectors (for example: `select(mesh, :element, :solid, :node, x>0)`).
+for the remaining selectors (for example: `select(mesh, :element, :solid, :node, x>0)` or
+`select(mesh, :element, "left", :ip, [0.25, 0.5, 0.5], nearest=true)`).
 
 # Keyword Arguments
 - `invert::Bool`: If `true`, returns the entities not matching the selectors.
-- `nearest::Bool`: Forwarded to node/IP selection overloads when applicable.
+- `nearest::Bool`: Enables nearest fallback for point-coordinate selectors.
+- `quiet::Bool`: Suppresses point-selection notifications.
+- `prefix::AbstractString`: Prefix used in point-selection notifications.
 - `tag::String`: If non-empty, assigns this tag to selected entities.
 
 # Returns

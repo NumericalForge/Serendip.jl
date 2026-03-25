@@ -21,11 +21,12 @@ This function attaches a boundary condition to a specific set of entities in the
     - `:node` – apply on nodes.
     - `:face` – apply on faces (in 3D) or edges (in 2D).
     - `:edge` – apply on edges explicitly.
-- `selector`: A filtering expression or array of coordinates to select entities for the BC. If a coordinate array is provided for `:node`, it is converted into an equality selector.
+- `selector`: A filtering expression or array of coordinates to select entities for the BC. If a coordinate array is provided for `:node`, it is converted into an exact coordinate-equality selector.
 - `conds...`: Named keyword arguments specifying the boundary conditions to apply (e.g., `ux=0`, `uy=0`, `tz=-5`).
 
 # Behavior
 - Resolves the target entities (`nodes`, `faces`, or `edges`) in the finite element model using the provided `selector`.
+- For `kind == :node`, an array selector like `[x, y, z]` is treated as an exact point lookup, not a nearest search.
 - If `kind == :face` in a 2D model, surface BCs are automatically mapped to edges with a notification.
 - Adds the resulting `BoundaryCondition` to `stage.bcs`.
 
@@ -100,4 +101,3 @@ end
 
 #     return BoundaryCondition(:body, selector, conds, target)
 # end
-
