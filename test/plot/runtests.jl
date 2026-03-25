@@ -3,4 +3,6 @@ using Serendip
     "chart.jl",
     "bar-chart.jl",
     "mesh.jl",
+    "domainplot-colorbar-locations.jl",
+    "chart-grid.jl",
 ]

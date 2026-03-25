@@ -7,6 +7,7 @@ Y2 = cos.(X)
 Y3 = sin.(X) .* cos.(X)
 
 chart = Chart(
+    title="Trigonometric Responses",
     xlabel=t"$x$ coordinate [mm]",
     ylabel=t"$y$ coordinate [mm]",
     legend=:bottom_right
@@ -20,5 +21,6 @@ add_annotation(chart, Annotation(t" $-2 + bold(A)^(1/2) - (A^2/B_3^2 + x^2/y^2 )
 add_annotation(chart, Annotation(t"A $+ sigma$", 0.1, 0.2, target=[4.0, 0], alignment=:top))
 add_annotation(chart, Annotation(t"$A_2^2 F_2^2 T_2^2$", 0.15, 0.3))
 add_annotation(chart, Annotation(t"$a_2^2 f_2^2 a^2 f t_2^2$", 0.15, 0.4))
+add_annotation(chart, Annotation("Legend overlap", 0.88, 0.08, alignment=:right))
 
 save(chart, "chart.pdf")

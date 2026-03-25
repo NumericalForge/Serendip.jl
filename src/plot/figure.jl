@@ -6,6 +6,22 @@ end
 abstract type FigureComponent end
 # abstract type DataSeries end
 
+mutable struct Frame
+    x::Float64
+    y::Float64
+    width::Float64
+    height::Float64
+
+    function Frame(x::Real=0.0, y::Real=0.0, width::Real=0.0, height::Real=0.0)
+        return new(float(x), float(y), float(width), float(height))
+    end
+end
+
+xmin(frame::Frame) = frame.x
+ymin(frame::Frame) = frame.y
+xmax(frame::Frame) = frame.x + frame.width
+ymax(frame::Frame) = frame.y + frame.height
+
 const _available_formats = [
     ".pdf",
     ".png",

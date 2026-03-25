@@ -17,3 +17,4 @@ include("colorbar.jl")
 
 include("axis-widget.jl")
 include("domain-plot.jl")
+include("chart-grid.jl")

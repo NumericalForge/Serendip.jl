@@ -32,6 +32,7 @@ mutable struct Legend<:FigureComponent
     outer_pad::Float64      # padding outside the legend box
     width::Float64          # width of the legend box
     height::Float64         # height of the legend box
+    frame::Frame
 
     function Legend(;
         location::Symbol = :top_right,
@@ -49,7 +50,14 @@ mutable struct Legend<:FigureComponent
             font,
             font_size,
             ncols,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            Frame(),
         )
     end
 end
-

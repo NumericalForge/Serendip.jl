@@ -12,6 +12,7 @@ mutable struct AxisWidget<:FigureComponent
     arrow_length::Float64
     width::Float64
     height::Float64
+    frame::Frame
 
     function AxisWidget(;
         location::Symbol = :bottom_left,
@@ -36,7 +37,7 @@ mutable struct AxisWidget<:FigureComponent
         #     aliens=false,
         # )
 
-        this = new(location, labels, font, font_size, azimuth, elevation, arrow_length)
+        this = new(location, labels, font, font_size, azimuth, elevation, arrow_length, 0.0, 0.0, Frame())
         return this
     end
 end
@@ -84,7 +85,8 @@ end
 function draw!(ctx::CairoContext, aw::AxisWidget)
 
     Cairo.save(ctx)
-    x0, y0 = get_current_point(ctx)
+    x0 = aw.frame.x
+    y0 = aw.frame.y
 
     font = get_font(aw.font)
     select_font_face(ctx, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL )

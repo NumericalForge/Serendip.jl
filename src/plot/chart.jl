@@ -5,6 +5,7 @@
         size=(220,150), font="NewComputerModern", font_size=7.0,
         xlimits, ylimits, aspect_ratio=:auto,
         xmult=1.0, ymult=1.0, xbins=7, ybins=6,
+        title="",
         xlabel="\$x\$", ylabel="\$y\$",
         xticks=Float64[], yticks=Float64[],
         xtick_labels=String[], ytick_labels=String[],
@@ -21,6 +22,7 @@ Construct a 2D chart figure with axes, legend, and optional tick customization.
 - `aspect_ratio::Symbol`: `:auto` or `:equal`.
 - `xmult::Real`, `ymult::Real`: multiplicative factors applied to tick values.
 - `xbins::Int`, `ybins::Int`: target number of major ticks.
+- `title::AbstractString`: chart title, centered above the plot area.
 - `xlabel::AbstractString`, `ylabel::AbstractString`: axis labels.
 - `xticks::Vector{<:Real}`, `yticks::Vector{<:Real}`: explicit tick positions; empty vectors enable auto ticks.
 - `xtick_labels::Vector{<:AbstractString}`, `ytick_labels::Vector{<:AbstractString}`: custom tick labels; if provided, lengths must match the corresponding tick arrays.
@@ -30,6 +32,8 @@ Construct a 2D chart figure with axes, legend, and optional tick customization.
 
 # Notes
 - Use `add_series` to append data series to the chart.
+- Use `add_annotation` to add plot-relative overlay annotations.
+- The legend is drawn after annotations.
 - Use `save` to export the chart to a file.
 
 # Returns
@@ -38,6 +42,7 @@ Construct a 2D chart figure with axes, legend, and optional tick customization.
 # Example
 ```julia
 ch = Chart(size=(300,200),
+           title="Response History",
            xlabel="Time [s]",
            ylabel="Displacement [mm]",
            xlimits=[0.0,10.0],
@@ -48,6 +53,9 @@ ch = Chart(size=(300,200),
 mutable struct Chart <: Figure
     width::Float64
     height::Float64
+    figure_frame::Frame
+    title::AbstractString
+    title_frame::Frame
     canvas::Canvas
     xaxis::Axis
     yaxis::Axis
@@ -57,10 +65,11 @@ mutable struct Chart <: Figure
 
     aspect_ratio::Symbol
     outerpad::Float64
-    leftpad::Float64
-    rightpad::Float64
-    toppad::Float64
-    bottompad::Float64
+    left_items::Vector{FigureComponent}
+    right_items::Vector{FigureComponent}
+    top_items::Vector{FigureComponent}
+    bottom_items::Vector{FigureComponent}
+    overlay_items::Vector{FigureComponent}
     icolor::Int
     iorder::Int
 
@@ -77,6 +86,7 @@ mutable struct Chart <: Figure
         ymult::Real=1.0,
         xbins::Int=7,
         ybins::Int=6,
+        title::AbstractString="",
         xlabel::AbstractString="\$x\$",
         ylabel::AbstractString="\$y\$",
         xticks::Vector{<:Real}=Float64[],
@@ -106,12 +116,13 @@ mutable struct Chart <: Figure
         xaxis = Axis(direction=:horizontal, limits=xlimits, label=xlabel, font=font, font_size=font_size, ticks=xticks, tick_labels=xtick_labels, mult=xmult, bins=xbins)
         yaxis = Axis(direction=:vertical, limits=ylimits, label=ylabel, font=font, font_size=font_size, ticks=yticks, tick_labels=ytick_labels, mult=ymult, bins=ybins)
 
-        this = new(width, height, Canvas(), xaxis, yaxis, [], the_legend, [],
-            aspect_ratio, outerpad, outerpad, outerpad, outerpad, outerpad, 1, 1, quiet)
+        this = new(width, height, Frame(0.0, 0.0, width, height), title, Frame(), Canvas(), xaxis, yaxis, [], the_legend, [],
+            aspect_ratio, outerpad, FigureComponent[], FigureComponent[], FigureComponent[], FigureComponent[], FigureComponent[], 1, 1, quiet)
 
         if !quiet
             printstyled("Chart figure\n", bold=true, color=:cyan)
             println("  size: $(this.width) x $(this.height) pt")
+            title != "" && println("  title: $(title)")
             println("  axes: $(xlabel) vs $(ylabel)")
         end
 
@@ -239,56 +250,33 @@ function configure!(c::Chart)
     length(c.dataseries) > 0 || throw(SerendipException("No dataseries added to the chart"))
 
     c.outerpad = 0.01 * min(c.width, c.height)
-    c.leftpad = c.outerpad
-    c.rightpad = c.outerpad
-    c.toppad = c.outerpad
-    c.bottompad = c.outerpad
+    c.figure_frame = Frame(c.figure_frame.x, c.figure_frame.y, c.width, c.height)
 
-    # configure legend
-    if any(ds.label != "" for ds in c.dataseries)
-        configure!(c, c.legend)
-    end
-
-    # configure axes, may change chart pads
     configure!(c, c.xaxis, c.yaxis)
 
-    # configure the canvas
-    configure!(c, c.canvas)
+    if c.aspect_ratio == :equal
+        plot_frame = _chart_plot_frame(c)
+        xmin, xmax = c.xaxis.limits
+        ymin, ymax = c.yaxis.limits
+        r = min(plot_frame.width / (xmax - xmin), plot_frame.height / (ymax - ymin))
+        dx = 0.5 * (plot_frame.width / r - (xmax - xmin))
+        dy = 0.5 * (plot_frame.height / r - (ymax - ymin))
+
+        c.xaxis.limits = [xmin - dx, xmax + dx]
+        c.yaxis.limits = [ymin - dy, ymax + dy]
+        c.xaxis.ticks = []
+        c.yaxis.ticks = []
+
+        configure!(c, c.xaxis, c.yaxis)
+    end
+
+    _assign_chart_frames!(c)
 
 end
 
 
 function configure!(c::Chart, canvas::Canvas)
-    xmin, xmax = c.xaxis.limits
-    ymin, ymax = c.yaxis.limits
-
-    if c.aspect_ratio == :equal
-        # compute extra limits
-        width = c.width - c.yaxis.width - c.leftpad - c.rightpad
-        height = c.height - c.xaxis.height - c.toppad - c.bottompad
-        r = min(width / (xmax - xmin), height / (ymax - ymin))
-        dx = 0.5 * (width / r - (xmax - xmin))
-        dy = 0.5 * (height / r - (ymax - ymin))
-
-        # update limits
-        c.xaxis.limits = [xmin - dx, xmax + dx]
-        c.yaxis.limits = [ymin - dy, ymax + dy]
-
-        # force recompute ticks
-        c.xaxis.ticks = []
-        c.yaxis.ticks = []
-
-        # reconfigure axes
-        configure!(c, c.xaxis, c.yaxis)
-        xmin, xmax = c.xaxis.limits
-        ymin, ymax = c.yaxis.limits
-
-    end
-
-    canvas.width = c.width - c.yaxis.width - c.leftpad - c.rightpad
-    canvas.height = c.height - c.xaxis.height - c.toppad - c.bottompad
-    canvas.box = [c.leftpad + c.yaxis.width, c.toppad, c.width - c.rightpad, c.height - c.xaxis.height - c.bottompad]
-    canvas.limits = [xmin, ymin, xmax, ymax]
+    canvas.limits = [c.xaxis.limits[1], c.yaxis.limits[1], c.xaxis.limits[2], c.yaxis.limits[2]]
 end
 
 
@@ -356,27 +344,6 @@ function configure!(chart::Chart, xax::Axis, yax::Axis)
     configure!(xax)
     configure!(yax)
 
-    # set width and height of axes
-    width, height = chart.width, chart.height
-    xax.width = width - yax.width - chart.leftpad - chart.rightpad
-    yax.height = height - xax.height - chart.toppad - chart.bottompad
-
-    # update chart.rightpad if required
-    label_width = getsize(xax.tick_labels[end], xax.font_size)[1]
-    xdist = xax.width * (xax.limits[2] - xax.ticks[end]) / (xax.limits[2] - xax.limits[1]) # distance of the right most tick to the right side of axis
-    if xdist - label_width / 2 < 0
-        chart.rightpad += label_width / 2 - xdist
-        xax.width = width - yax.width - chart.leftpad - chart.rightpad
-    end
-
-    # update chart.toppad if required
-    label_height = getsize(yax.tick_labels[end], yax.font_size)[2]
-    ydist = yax.height * (yax.limits[2] - yax.ticks[end]) / (yax.limits[2] - yax.limits[1]) # distance of the upper most tick to the top side of axis
-    if ydist - label_height / 2 < 0
-        chart.toppad += label_height / 2 - ydist
-        yax.height = height - xax.height - chart.toppad - chart.bottompad
-    end
-
 end
 
 
@@ -411,16 +378,154 @@ function configure!(c::Chart, legend::Legend)
     legend.height = nrows * label_heigh + (nrows - 1) * row_sep + 2 * inner_pad
     legend.width = sum(col_witdhs) + (ncols - 1) * col_sep + 2 * inner_pad
 
-    if legend.location in (:outer_top_right, :outer_right, :outer_bottom_right)
-        c.rightpad += legend.width + c.outerpad
-    elseif legend.location in (:outer_top_left, :outer_left, :outer_bottom_left)
-        c.leftpad += legend.width + c.outerpad
-    elseif legend.location == :outer_top
-        c.toppad += legend.height + 2 * c.outerpad
-    elseif legend.location == :outer_bottom
-        c.bottompad += legend.height + 2 * c.outerpad
+end
+
+
+function _chart_title_font_size(c::Chart)
+    return 1.2 * c.xaxis.font_size
+end
+
+
+function _chart_title_height(c::Chart)
+    c.title == "" && return 0.0
+    surf = CairoImageSurface(4, 4, Cairo.FORMAT_ARGB32)
+    cc = CairoContext(surf)
+    select_font_face(cc, get_font(c.xaxis.font), Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
+    set_font_size(cc, _chart_title_font_size(c))
+    return getsize(cc, c.title, _chart_title_font_size(c))[2]
+end
+
+
+function _chart_has_legend(c::Chart)
+    return any(ds.label != "" for ds in c.dataseries)
+end
+
+
+function _chart_plot_frame(c::Chart)
+    left_margin = c.outerpad + c.yaxis.width
+    right_margin = c.outerpad
+    top_margin = c.outerpad
+    bottom_margin = c.outerpad + c.xaxis.height
+    title_height = _chart_title_height(c)
+    title_gap = c.title == "" ? 0.0 : 0.6 * c.xaxis.font_size
+
+    top_margin += title_height + title_gap
+
+    if _chart_has_legend(c)
+        legend = c.legend
+        if legend.location in (:outer_top_right, :outer_right, :outer_bottom_right)
+            right_margin += c.outerpad + legend.width
+        elseif legend.location in (:outer_top_left, :outer_left, :outer_bottom_left)
+            left_margin += c.outerpad + legend.width
+        elseif legend.location == :outer_top
+            top_margin += legend.height + c.outerpad
+        elseif legend.location == :outer_bottom
+            bottom_margin += legend.height + c.outerpad
+        end
     end
 
+    width = c.width - left_margin - right_margin
+    height = c.height - top_margin - bottom_margin
+    frame = Frame(c.figure_frame.x + left_margin, c.figure_frame.y + top_margin, width, height)
+
+    # Ensure the last horizontal tick label fits inside the figure frame.
+    right_gap = minimum((frame.x + frame.width) - (frame.x + frame.width / (c.xaxis.limits[2] - c.xaxis.limits[1]) * (tick - c.xaxis.limits[1])) for tick in c.xaxis.ticks)
+    extra_right = max(0.0, getsize(c.xaxis.tick_labels[end], c.xaxis.font_size)[1] / 2 - right_gap)
+
+    # Ensure the top-most vertical tick label fits inside the figure frame.
+    top_gap = minimum(frame.y + frame.height / (c.yaxis.limits[2] - c.yaxis.limits[1]) * (c.yaxis.limits[2] - tick) - frame.y for tick in c.yaxis.ticks)
+    extra_top = max(0.0, getsize(c.yaxis.tick_labels[end], c.yaxis.font_size)[2] / 2 - top_gap)
+
+    return Frame(c.figure_frame.x + left_margin, c.figure_frame.y + top_margin + extra_top, width - extra_right, height - extra_top)
+end
+
+
+function _assign_chart_frames!(c::Chart)
+    _chart_has_legend(c) && configure!(c, c.legend)
+
+    plot_frame = _chart_plot_frame(c)
+    @check plot_frame.width > 0 && plot_frame.height > 0 "Chart: insufficient space for plot area"
+
+    c.canvas.frame = plot_frame
+    configure!(c, c.canvas)
+
+    c.xaxis.width = plot_frame.width
+    c.xaxis.frame = Frame(plot_frame.x, plot_frame.y + plot_frame.height, plot_frame.width, c.xaxis.height)
+
+    c.yaxis.height = plot_frame.height
+    c.yaxis.frame = Frame(plot_frame.x - c.yaxis.width, plot_frame.y, c.yaxis.width, plot_frame.height)
+
+    c.left_items = FigureComponent[c.yaxis]
+    c.right_items = FigureComponent[]
+    c.top_items = FigureComponent[]
+    c.bottom_items = FigureComponent[c.xaxis]
+    c.overlay_items = FigureComponent[a for a in c.annotations]
+
+    if c.title != ""
+        title_height = _chart_title_height(c)
+        y = c.figure_frame.y + c.outerpad
+        c.title_frame = Frame(plot_frame.x, y, plot_frame.width, title_height)
+    else
+        c.title_frame = Frame()
+    end
+
+    if _chart_has_legend(c)
+        _assign_legend_frame!(c, c.legend)
+    else
+        c.legend.frame = Frame()
+    end
+end
+
+
+function _assign_legend_frame!(c::Chart, legend::Legend)
+    plot = c.canvas.frame
+    outer_pad = legend.outer_pad
+
+    if legend.location in (:top_right, :right, :bottom_right)
+        x1 = plot.x + plot.width - outer_pad - legend.width
+    elseif legend.location in (:top, :bottom, :outer_top, :outer_bottom)
+        x1 = plot.x + 0.5 * (plot.width - legend.width)
+    elseif legend.location in (:top_left, :left, :bottom_left)
+        x1 = plot.x + outer_pad
+    elseif legend.location in (:outer_top_left, :outer_left, :outer_bottom_left)
+        x1 = c.figure_frame.x + c.outerpad
+    elseif legend.location in (:outer_top_right, :outer_right, :outer_bottom_right)
+        x1 = c.figure_frame.x + c.width - legend.width - c.outerpad
+    else
+        error("Chart: unsupported legend location $(legend.location)")
+    end
+
+    if legend.location in (:top_left, :top, :top_right)
+        y1 = plot.y + outer_pad
+    elseif legend.location in (:left, :right, :outer_left, :outer_right)
+        y1 = plot.y + 0.5 * (plot.height - legend.height)
+    elseif legend.location in (:bottom_left, :bottom, :bottom_right)
+        y1 = plot.y + plot.height - outer_pad - legend.height
+    elseif legend.location == :outer_top
+        y1 = c.figure_frame.y + c.outerpad + _chart_title_height(c) + (c.title == "" ? 0.0 : 0.6 * c.xaxis.font_size)
+    elseif legend.location == :outer_bottom
+        y1 = c.figure_frame.y + c.height - legend.height - c.outerpad
+    elseif legend.location in (:outer_top_left, :outer_top_right)
+        y1 = plot.y
+    elseif legend.location in (:outer_bottom_left, :outer_bottom_right)
+        y1 = plot.y + plot.height - legend.height
+    else
+        error("Chart: unsupported legend location $(legend.location)")
+    end
+
+    legend.frame = Frame(x1, y1, legend.width, legend.height)
+
+    if legend.location in (:outer_top_right, :outer_right, :outer_bottom_right)
+        push!(c.right_items, legend)
+    elseif legend.location in (:outer_top_left, :outer_left, :outer_bottom_left)
+        push!(c.left_items, legend)
+    elseif legend.location in (:outer_top,)
+        push!(c.top_items, legend)
+    elseif legend.location in (:outer_bottom,)
+        push!(c.bottom_items, legend)
+    else
+        push!(c.overlay_items, legend)
+    end
 end
 
 
@@ -428,35 +533,33 @@ function draw!(c::Chart, ctx::CairoContext, canvas::Canvas)
     # draw grid
     set_source_rgb(ctx, 0.9, 0.9, 0.9) # gray
     set_line_width(ctx, 0.2)
+    x0 = canvas.frame.x
+    y0 = canvas.frame.y
+    x1 = canvas.frame.x + canvas.frame.width
+    y1 = canvas.frame.y + canvas.frame.height
 
     xmin, xmax = c.xaxis.limits
     for x in c.xaxis.ticks
         min(xmax, xmin) <= x <= max(xmax, xmin) || continue
-        x1 = canvas.box[1] + c.xaxis.width / (xmax - xmin) * (x - xmin)
-        y1 = canvas.box[2]
-        y2 = canvas.box[4]
-        move_to(ctx, x1, y1)
-        line_to(ctx, x1, y2)
+        xc = x0 + canvas.frame.width / (xmax - xmin) * (x - xmin)
+        move_to(ctx, xc, y0)
+        line_to(ctx, xc, y1)
         stroke(ctx)
     end
 
     ymin, ymax = c.yaxis.limits
     for y in c.yaxis.ticks
         min(ymax, ymin) <= y <= max(ymax, ymin) || continue
-        y1 = canvas.box[2] + c.yaxis.height / (ymax - ymin) * (ymax - y)
-        x1 = canvas.box[1]
-        x2 = canvas.box[3]
-        move_to(ctx, x1, y1)
-        line_to(ctx, x2, y1)
+        yc = y0 + canvas.frame.height / (ymax - ymin) * (ymax - y)
+        move_to(ctx, x0, yc)
+        line_to(ctx, x1, yc)
         stroke(ctx)
     end
 
     # draw border
     set_source_rgb(ctx, 0.0, 0.0, 0.0)
     set_line_width(ctx, 0.5)
-    x, y = canvas.box[1:2]
-    w, h = canvas.box[3:4] - canvas.box[1:2]
-    rectangle(ctx, x, y, w, h)
+    rectangle(ctx, x0, y0, canvas.frame.width, canvas.frame.height)
     stroke(ctx)
 end
 
@@ -505,8 +608,8 @@ function draw!(chart::Chart, ctx::CairoContext, p::DataSeries)
             rect_x, rect_y = data2user(chart.canvas, xleft, ytop)
             xden = abs(chart.xaxis.limits[2] - chart.xaxis.limits[1])
             yden = abs(chart.yaxis.limits[2] - chart.yaxis.limits[1])
-            rect_w = xden > 0 ? chart.canvas.width / xden * w : 0.0
-            rect_h = yden > 0 ? chart.canvas.height / yden * abs(h) : 0.0
+            rect_w = xden > 0 ? chart.canvas.frame.width / xden * w : 0.0
+            rect_h = yden > 0 ? chart.canvas.frame.height / yden * abs(h) : 0.0
 
             rectangle(ctx, rect_x, rect_y, rect_w, rect_h)
             fill_preserve(ctx)
@@ -645,40 +748,15 @@ function draw!(c::Chart, ctx::CairoContext, legend::Legend)
     # legend.height = nrows*label_heigh + (nrows-1)*row_sep + 2*inner_pad
     legend.width = sum(col_witdhs) + (ncols - 1) * col_sep + 2 * inner_pad
 
-    # set legend location
-    if legend.location in (:top_right, :right, :bottom_right)
-        x1 = c.canvas.box[3] - outer_pad - legend.width
-    elseif legend.location in (:top, :bottom, :outer_top, :outer_bottom)
-        x1 = 0.5 * (c.canvas.box[1] + c.canvas.box[3]) - legend.width / 2
-    elseif legend.location in (:top_left, :left, :bottom_left)
-        x1 = c.canvas.box[1] + outer_pad
-    elseif legend.location in (:outer_top_left, :outer_left, :outer_bottom_left)
-        x1 = c.outerpad
-    elseif legend.location in (:outer_top_right, :outer_right, :outer_bottom_right)
-        x1 = c.width - legend.width - c.outerpad
-    end
-
-    if legend.location in (:top_left, :top, :top_right)
-        y1 = c.canvas.box[2] + outer_pad
-    elseif legend.location in (:left, :right, :outer_left, :outer_right)
-        y1 = 0.5 * (c.canvas.box[2] + c.canvas.box[4]) - legend.height / 2
-    elseif legend.location in (:bottom_left, :bottom, :bottom_right)
-        y1 = c.canvas.box[4] - outer_pad - legend.height
-    elseif legend.location == :outer_top
-        y1 = c.outerpad
-    elseif legend.location == :outer_bottom
-        y1 = c.height - legend.height - c.outerpad
-    elseif legend.location in (:outer_top_left, :outer_top_right)
-        y1 = c.canvas.box[2]
-    elseif legend.location in (:outer_bottom_left, :outer_bottom_right)
-        y1 = c.canvas.box[4] - legend.height
-    end
-    x2, y2 = x1 + legend.width, y1 + legend.height
+    x1 = legend.frame.x
+    y1 = legend.frame.y
+    x2 = legend.frame.x + legend.frame.width
+    y2 = legend.frame.y + legend.frame.height
 
     set_matrix(ctx, CairoMatrix([1, 0, 0, 1, 0, 0]...))
 
     # draw rounded rectangle
-    r = 0.02 * min(c.canvas.width, c.canvas.height)
+    r = 0.02 * min(c.canvas.frame.width, c.canvas.frame.height)
     move_to(ctx, x1, y1 + r)
     line_to(ctx, x1, y2 - r)
     curve_to(ctx, x1, y2, x1, y2, x1 + r, y2)
@@ -745,20 +823,12 @@ function draw!(c::Chart, ctx::CairoContext)
     draw!(c, ctx, c.canvas)
 
     # draw axes
-    x = c.leftpad + c.yaxis.width
-    y = c.toppad + c.yaxis.height
-    move_to(ctx, x, y)
     draw!(ctx, c.xaxis)
 
-    x = c.leftpad
-    y = c.toppad
-    move_to(ctx, x, y)
     draw!(ctx, c.yaxis)
 
     # draw plots
-    x, y = c.canvas.box[1:2]
-    w, h = c.canvas.box[3:4] - c.canvas.box[1:2]
-    rectangle(ctx, x, y, w, h)
+    rectangle(ctx, c.canvas.frame.x, c.canvas.frame.y, c.canvas.frame.width, c.canvas.frame.height)
     Cairo.clip(ctx)
 
     # draw dataseries
@@ -768,13 +838,31 @@ function draw!(c::Chart, ctx::CairoContext)
     end
     reset_clip(ctx)
 
-    # draw annotations
-    for a in c.annotations
-        draw!(c, ctx, a)
+    if c.title != ""
+        set_matrix(ctx, CairoMatrix([1, 0, 0, 1, 0, 0]...))
+        select_font_face(ctx, get_font(c.xaxis.font), Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
+        set_font_size(ctx, _chart_title_font_size(c))
+        set_source_rgb(ctx, 0.0, 0.0, 0.0)
+        x = c.title_frame.x + 0.5 * c.title_frame.width
+        y = c.title_frame.y + 0.5 * c.title_frame.height
+        draw_text(ctx, x, y, c.title, halign="center", valign="center", angle=0)
     end
 
-    # draw legend
-    if any(map(s -> s.label != "", c.dataseries))
+    # draw overlay annotations before legend
+    for item in c.overlay_items
+        item isa Annotation || continue
+        draw!(c, ctx, item)
+    end
+
+    # draw legend last
+    if _chart_has_legend(c)
         draw!(c, ctx, c.legend)
     end
+end
+
+
+function add_annotation(c::Chart, a::Annotation)
+    push!(c.annotations, a)
+    push!(c.overlay_items, a)
+    return a
 end

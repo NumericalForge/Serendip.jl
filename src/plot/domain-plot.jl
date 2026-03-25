@@ -38,7 +38,7 @@ Create a customizable domain plot for meshes and FE models.
 - `label::AbstractString`: colorbar label.
 - `colormap::Union{Symbol,Colormap}`: e.g. `:viridis`, `:coolwarm`, or a `Colormap`.
 - `diverging::Bool`: center colormap at zero.
-- `colorbar::Symbol`: `:none | :right | :bottom`.
+- `colorbar::Symbol`: `:none | :left | :right | :top | :bottom`.
 - `colorbar_ratio::Real`: colorbar length scale (> 0).
 - `bins::Int`: number of colorbar bins.
 - `font::AbstractString`: font family.
@@ -69,6 +69,7 @@ save(plt, "model_plot.pdf")
 """
 mutable struct DomainPlot<:Figure
     mesh::AbstractDomain
+    figure_frame::Frame
     canvas::FigureComponent
     colorbar::FigureComponent
     axes::FigureComponent
@@ -195,7 +196,7 @@ mutable struct DomainPlot<:Figure
             field != "" && println("  field: $(field)")
         end
 
-        return new(mesh, canvas, the_colorbar, axes_widget, nodes, elems, 
+        return new(mesh, Frame(0.0, 0.0, width, height), canvas, the_colorbar, axes_widget, nodes, elems, 
             feature_edges_d, values, outerpad, shades,
             azimuth, elevation, distance,
             interpolation, light_vector,
@@ -427,11 +428,13 @@ function configure!(mplot::DomainPlot)
     mplot.elems = elems
 
     # Canvas
-    # mplot.canvas = Canvas()
     width, height = mplot.width, mplot.height
+    mplot.figure_frame = Frame(mplot.figure_frame.x, mplot.figure_frame.y, width, height)
     mplot.outerpad = max(0.01*min(width, height), mplot.outerpad)
 
+    lpane = 0.0
     rpane = 0.0
+    tpane = 0.0
     bpane = 0.0
 
     # Colorbar
@@ -448,37 +451,43 @@ function configure!(mplot::DomainPlot)
         )
         configure!(mplot, mplot.colorbar)
 
-        if mplot.colorbar.location==:right
+        if mplot.colorbar.location==:left
+            lpane = mplot.colorbar.width
+        elseif mplot.colorbar.location==:right
             rpane = mplot.colorbar.width
+        elseif mplot.colorbar.location==:top
+            tpane = mplot.colorbar.height
         elseif mplot.colorbar.location==:bottom
             bpane = mplot.colorbar.height
         end
+    else
+        mplot.colorbar = Colorbar(location=:none)
     end
 
-    # Canvas box
+    # Canvas frame
     canvas = mplot.canvas
 
-    canvas.width = width - rpane - 2*mplot.outerpad
-    canvas.height = height - bpane - 2*mplot.outerpad
-    Xmin = mplot.outerpad
-    Ymin = mplot.outerpad
-    Xmax = width - rpane - mplot.outerpad
-    Ymax = height - bpane - mplot.outerpad
-    canvas.box = [ Xmin, Ymin, Xmax, Ymax ] # in user coordinates
+    base_x = mplot.figure_frame.x
+    base_y = mplot.figure_frame.y
+    Xmin = base_x + mplot.outerpad + lpane
+    Ymin = base_y + mplot.outerpad + tpane
+    Xmax = base_x + width - rpane - mplot.outerpad
+    Ymax = base_y + height - bpane - mplot.outerpad
+    canvas.frame = Frame(Xmin, Ymin, Xmax - Xmin, Ymax - Ymin)
 
-    xmin, xmax = extrema( node.coord[1] for node in mplot.nodes)
-    ymin, ymax = extrema( node.coord[2] for node in mplot.nodes)
+    xmin_data, xmax_data = extrema( node.coord[1] for node in mplot.nodes)
+    ymin_data, ymax_data = extrema( node.coord[2] for node in mplot.nodes)
 
-    ratio = min((Xmax-Xmin)/(xmax-xmin), (Ymax-Ymin)/(ymax-ymin) )
-    dX = 0.5*((Xmax-Xmin)-ratio*(xmax-xmin))
-    dY = 0.5*((Ymax-Ymin)-ratio*(ymax-ymin))
+    ratio = min((Xmax-Xmin)/(xmax_data-xmin_data), (Ymax-Ymin)/(ymax_data-ymin_data) )
+    dX = 0.5*((Xmax-Xmin)-ratio*(xmax_data-xmin_data))
+    dY = 0.5*((Ymax-Ymin)-ratio*(ymax_data-ymin_data))
 
-    xmin = xmin - dX/ratio
-    xmax = xmax + dX/ratio
-    ymin = ymin - dY/ratio
-    ymax = ymax + dY/ratio
+    xmin_data = xmin_data - dX/ratio
+    xmax_data = xmax_data + dX/ratio
+    ymin_data = ymin_data - dY/ratio
+    ymax_data = ymax_data + dY/ratio
 
-    mplot.canvas.limits = [xmin, ymin, xmax, ymax] # in data coordinates
+    mplot.canvas.limits = [xmin_data, ymin_data, xmax_data, ymax_data] # in data coordinates
 
     # Axes widget
     if mplot.axes_loc != :none
@@ -491,6 +500,32 @@ function configure!(mplot::DomainPlot)
             labels    = mplot.axis_labels[1:ndim],
         )
         configure!(mplot.axes)
+        if mplot.axes_loc == :bottom_left
+            mplot.axes.frame = Frame(canvas.frame.x, canvas.frame.y + canvas.frame.height - mplot.axes.height, mplot.axes.width, mplot.axes.height)
+        elseif mplot.axes_loc == :top_left
+            mplot.axes.frame = Frame(canvas.frame.x, canvas.frame.y, mplot.axes.width, mplot.axes.height)
+        elseif mplot.axes_loc == :bottom_right
+            mplot.axes.frame = Frame(canvas.frame.x + canvas.frame.width - mplot.axes.width, canvas.frame.y + canvas.frame.height - mplot.axes.height, mplot.axes.width, mplot.axes.height)
+        elseif mplot.axes_loc == :top_right
+            mplot.axes.frame = Frame(canvas.frame.x + canvas.frame.width - mplot.axes.width, canvas.frame.y, mplot.axes.width, mplot.axes.height)
+        else
+            error("DomainPlot: axes location $(mplot.axes_loc) not implemented")
+        end
+    else
+        mplot.axes = AxisWidget(location=:none)
+    end
+
+    if has_field && mplot.colorbar.location != :none
+        cb = mplot.colorbar
+        if cb.location == :right
+            cb.frame = Frame(canvas.frame.x + canvas.frame.width, canvas.frame.y + 0.5 * (canvas.frame.height - cb.height), cb.width, cb.height)
+        elseif cb.location == :left
+            cb.frame = Frame(canvas.frame.x - cb.width, canvas.frame.y + 0.5 * (canvas.frame.height - cb.height), cb.width, cb.height)
+        elseif cb.location == :bottom
+            cb.frame = Frame(canvas.frame.x + 0.5 * (canvas.frame.width - cb.width), canvas.frame.y + canvas.frame.height, cb.width, cb.height)
+        elseif cb.location == :top
+            cb.frame = Frame(canvas.frame.x + 0.5 * (canvas.frame.width - cb.width), canvas.frame.y - cb.height, cb.width, cb.height)
+        end
     end
 end
 
@@ -520,7 +555,10 @@ function draw!(mplot::DomainPlot, ctx::CairoContext)
     # has_field = mplot.field != ""
     # is_nodal_field = has_field && haskey(mplot.mesh.node_fields, mplot.field)
 
-    Xmin, Ymin, Xmax, Ymax = mplot.canvas.box
+    Xmin = mplot.canvas.frame.x
+    Ymin = mplot.canvas.frame.y
+    Xmax = mplot.canvas.frame.x + mplot.canvas.frame.width
+    Ymax = mplot.canvas.frame.y + mplot.canvas.frame.height
     xmin, ymin, xmax, ymax = mplot.canvas.limits
 
     ratio = (Xmax-Xmin)/(xmax-xmin) # == (Ymax-Ymin)/(ymax-ymin)
@@ -577,16 +615,6 @@ function draw!(mplot::DomainPlot, ctx::CairoContext)
 
     # draw axes
     if mplot.axes_loc != :none
-        if mplot.axes_loc == :bottom_left
-            x = mplot.outerpad
-            y = mplot.canvas.box[4] - mplot.axes.height
-        elseif mplot.axes_loc == :top_left
-            x = mplot.outerpad
-            y = mplot.canvas.box[2]
-        else
-            error("DomainPlot: axes location $(mplot.axes_loc) not implemented")
-        end
-        move_to(ctx, x, y)
         draw!(ctx, mplot.axes)
     end
 

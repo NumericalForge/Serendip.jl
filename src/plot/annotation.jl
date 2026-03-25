@@ -52,8 +52,8 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
     set_matrix(cc, CairoMatrix([1, 0, 0, 1, 0, 0]...))
 
     # convert from axes to Cairo coordinates
-    x = c.canvas.box[1] + a.x * c.canvas.width
-    y = c.canvas.box[2] + (1 - a.y) * c.canvas.height
+    x = c.canvas.frame.x + a.x * c.canvas.frame.width
+    y = c.canvas.frame.y + (1 - a.y) * c.canvas.frame.height
     halign = a.alignment == :right ? "right" : "left"
     valign = a.alignment == :top ? "top" : "bottom"
     set_source_rgb(cc, 0, 0, 0)

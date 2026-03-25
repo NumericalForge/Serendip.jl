@@ -41,6 +41,7 @@ mutable struct Axis<:FigureComponent
     inner_sep  ::Float64
     width      ::Float64
     height     ::Float64
+    frame      ::Frame
 
     function Axis(;
         direction::Symbol=:horizontal,
@@ -72,7 +73,7 @@ mutable struct Axis<:FigureComponent
         auto_limits = length(limits) == 0
         limits = auto_limits ? [0.0, 0.0] : collect(float.(limits))
 
-        return new(direction, location, limits, auto_limits, label, font, font_size, ticks, tick_labels, tick_length, bins, mult, 3)
+        return new(direction, location, limits, auto_limits, label, font, font_size, ticks, tick_labels, tick_length, bins, mult, 3.0, 0.0, 0.0, Frame())
     end
 end
 
@@ -210,7 +211,8 @@ end
 function draw!(cc::CairoContext, ax::Axis)
 
     Cairo.save(cc)
-    x0, y0 = get_current_point(cc)
+    x0 = ax.frame.x
+    y0 = ax.frame.y
 
     font = get_font(ax.font)
     select_font_face(cc, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL )
@@ -224,19 +226,22 @@ function draw!(cc::CairoContext, ax::Axis)
         tk_lbs_height = maximum( getsize(lbl, ax.font_size)[2] for lbl in ax.tick_labels )
         label_height = getsize(ax.label, ax.font_size)[2]
         xmin, xmax = ax.limits
+        baseline = ax.location == :top ? y0 + ax.frame.height : y0
 
         # draw tick labels
         for (x,label) in zip(ax.ticks, ax.tick_labels)
             min(xmin, xmax) <= x <=max(xmin, xmax) || continue
-            x1 = x0 + ax.width/(xmax-xmin)*(x-xmin)
+            x1 = x0 + ax.frame.width/(xmax-xmin)*(x-xmin)
 
-            move_to(cc, x1, y0); rel_line_to(cc, 0, -ax.tick_length); stroke(cc)
-            draw_text(cc, x1, y0+ax.tick_length+tk_lbs_height/2, label, halign="center", valign="center")
+            move_to(cc, x1, baseline)
+            rel_line_to(cc, 0, ax.location == :top ? ax.tick_length : -ax.tick_length)
+            stroke(cc)
+            ytext = ax.location == :top ? baseline - ax.tick_length - tk_lbs_height / 2 : baseline + ax.tick_length + tk_lbs_height / 2
+            draw_text(cc, x1, ytext, label, halign="center", valign="center")
         end
 
-        x = x0 + ax.width/2
-        y = y0 + ax.height - label_height/2
-        # y = y0 + ax.tick_length + ax.inner_sep + label_height
+        x = x0 + ax.frame.width / 2
+        y = ax.location == :top ? y0 + label_height / 2 : y0 + ax.frame.height - label_height / 2
         draw_text(cc, x, y, ax.label, halign="center", valign="center", angle=0)
 
     else # :vertical ax
@@ -247,7 +252,7 @@ function draw!(cc::CairoContext, ax::Axis)
         if ax.location==:left
             halign="right"
             tick_length = ax.tick_length
-            x1 = x0 + ax.width
+            x1 = x0 + ax.frame.width
         else
             halign="left"
             tick_length = -ax.tick_length
@@ -257,7 +262,7 @@ function draw!(cc::CairoContext, ax::Axis)
         # draw tick labels
         for (y,label) in zip(ax.ticks, ax.tick_labels)
             min(ymin, ymax) <= y <=max(ymin, ymax) || continue
-            y1 = y0 + ax.height/(ymax-ymin)*(ymax-y)
+            y1 = y0 + ax.frame.height/(ymax-ymin)*(ymax-y)
 
             move_to(cc, x1, y1); rel_line_to(cc, tick_length, 0); stroke(cc)
 
@@ -266,13 +271,11 @@ function draw!(cc::CairoContext, ax::Axis)
 
         # draw label
         if ax.location==:left
-            # x = x0 + label_height/2
-            x = x0 + ax.width - ax.tick_length - tk_lbs_width - ax.inner_sep - label_height/2
-            # x = x0 + ax.width - tick_length - tk_lbs_width - tick_length
+            x = x0 + ax.frame.width - ax.tick_length - tk_lbs_width - ax.inner_sep - label_height/2
         else
             x = x0 + ax.tick_length + tk_lbs_width + ax.inner_sep + label_height/2
         end
-        y = y0 + ax.height/2
+        y = y0 + ax.frame.height/2
 
         draw_text(cc, x, y, ax.label, halign="center", valign="center", angle=90)
     end
