@@ -78,7 +78,7 @@ end
 @test occursin("custom: No ip found", out)
 
 
-printstyled("Chained Point Selection", color=:yellow, bold=true)
+printstyled("\nChained Point Selection\n", color=:yellow, bold=true)
 
 model, _ = make_point_test_model()
 
@@ -100,7 +100,7 @@ right_candidates = select(model, :element, "right", :ip, :all)
 @test !(selected_ips[1] in right_candidates)
 
 
-printstyled("Logger and Monitor Point Selectors", color=:yellow, bold=true)
+printstyled("\nLogger and Monitor Point Selectors\n", color=:yellow, bold=true)
 
 model, ana = make_point_test_model()
 select(model, :element, "left", :ip, tag="left_ips")
