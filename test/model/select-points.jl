@@ -122,3 +122,14 @@ out = capture_stdout() do
     add_monitor(ana, :ip, ("left_ips", [0.75, 0.5, 0.5]), :σyy)
 end
 @test occursin("add_monitor: No ip found", out)
+
+
+printstyled("\nBoundary Condition Point Selector\n", color=:yellow, bold=true)
+
+model, ana = make_point_test_model()
+stage = add_stage(ana)
+
+bc = add_bc(stage, :node, [0.0, 0.0, 0.0], ux=0.0)
+@test length(bc.target) == 1
+@test bc.target[1].coord == Serendip.Vec3(0.0, 0.0, 0.0)
+@test bc.selector == :(x == 0.0 && y == 0.0 && z == 0.0)
