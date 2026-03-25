@@ -201,36 +201,14 @@ function add_monitor(
         stops[i] = ex
     end
 
-    items = target_type == :node ? ana.model.nodes : select(ana.model, :ip, :all)
-
     selector_str = selector isa String || selector isa Symbol ? repr(selector) : replace(string(selector), r"(?<!\,)\s+" => "")
 
-    # setup if selector is an array
-    if kind in (:node, :ip) && selector isa AbstractArray
-        X = Vec3(selector)
-        x, y, z = X
-        target = select(ana.model, item_kind, :(x==$x && y==$y && z==$z), nearest=false)
-
-        n = length(target)
-        if n==0
-            target = [ nearest(items, X) ]
-            X = round.(target[1].coord, sigdigits=4)
-            notify("add_monitor: No $kind found at $selector_str. Picking nearest at $X")
-        else
-            target = target[1:1] # take the first
-        end
-
-        mon = Monitor{target_type}(kind, exprs, selector, target, stops, filename, OrderedDict{Symbol, Number}(), OrderedDict{Union{Symbol,Expr}, Number}(), DataTable())
-        update_monitor!(ana, mon)
-        push!(ana.data.monitors, mon)
-        return mon
-    end
-
-    target = select(ana.model, item_kind, selector)
+    use_nearest = kind in (:node, :ip)
+    target = select(ana.model, item_kind, selector; nearest=use_nearest, prefix="add_monitor")
     n = length(target)
-    n == 0 && notify("setup_monitor: No $(item_kind)s match: $selector_str")
+    n == 0 && notify("add_monitor: No $(item_kind)s match: $selector_str")
     if kind in (:node, :ip)
-        n >  1 && notify("setup_monitor: Multiple $(item_kind)s match: $selector_str. Picking one")
+        n >  1 && notify("add_monitor: Multiple $(item_kind)s match: $selector_str. Picking one")
         n >= 1 && (target = target[1:1])
     end
 

@@ -101,12 +101,15 @@ Supported selectors:
 """
 function select(
     elems::Vector{<:AbstractCell},
-    selectors::Union{Symbol,Expr,Symbolic,String,Vector{Int},NTuple{N, Symbolic} where N}...;
+    selectors...;
     invert = false,
+    nearest = false,
+    quiet = false,
+    prefix::AbstractString = "select",
     tag::String = "",
     )
 
-    selectors = _flatten(selectors)
+    selectors = _flatten_selectors(selectors)
     selected = collect(1:length(elems)) # selected indexes
 
     for (i,selector) in enumerate(selectors)
@@ -120,9 +123,9 @@ function select(
                 selector = selector==:bulk ? :solid : selector # fix for :bulk => :solid
                 selected = Int[ i for i in selected if elems[i].role==selector ]
             elseif selector == :ip
-                return select(get_ips(elems[selected]), selectors[i+1:end]...; invert=invert, nearest=nearest, tag=tag)
+                return select(get_ips(elems[selected]), selectors[i+1:end]...; invert=invert, nearest=nearest, quiet=quiet, prefix=prefix, tag=tag)
             elseif selector == :node
-                return select(get_nodes(elems[selected]), selectors[i+1:end]...; invert=invert, nearest=nearest, tag=tag)
+                return select(get_nodes(elems[selected]), selectors[i+1:end]...; invert=invert, nearest=nearest, quiet=quiet, prefix=prefix, tag=tag)
             elseif selector == :active
                 selected = Int[ i for i in selected if elems[i].active ]
             elseif selector == :embedded
@@ -147,6 +150,8 @@ function select(
             selected = Int[ i for i in selected if all( T[pointmap[node.id]] for node in elems[i].nodes ) ]
         elseif isa(selector, Vector{Int}) # selector is a vector of indexes
             selected = intersect(selected, selector)
+        else
+            error("select: unknown selector type $(typeof(selector))")
         end
     end
 
@@ -208,24 +213,26 @@ for the remaining selectors (for example: `select(mesh, :element, :solid, :node,
 function select(
     domain::AbstractDomain,
     kind::Symbol,
-    selectors::Union{Symbol,Expr,Symbolic,String,Vector{<:Real},NTuple{N, Symbolic} where N}...;
+    selectors...;
     invert = false,
-    nearest = true,
+    nearest = false,
+    quiet = false,
+    prefix::AbstractString = "select",
     tag::String = "",
     )
 
     if kind == :element
-        return select(domain.elems, selectors...; invert=invert, tag=tag)
+        return select(domain.elems, selectors...; invert=invert, nearest=nearest, quiet=quiet, prefix=prefix, tag=tag)
     elseif kind == :face
-        return select(domain.faces, selectors...; invert=invert, tag=tag)
+        return select(domain.faces, selectors...; invert=invert, nearest=nearest, quiet=quiet, prefix=prefix, tag=tag)
     elseif kind == :edge
-        return select(domain.edges, selectors...; invert=invert, tag=tag)
+        return select(domain.edges, selectors...; invert=invert, nearest=nearest, quiet=quiet, prefix=prefix, tag=tag)
     elseif kind == :node
-        return select(domain.nodes, selectors...; invert=invert, nearest=nearest, tag=tag)
+        return select(domain.nodes, selectors...; invert=invert, nearest=nearest, quiet=quiet, prefix=prefix, tag=tag)
     elseif kind == :ip
         length(domain.elems)>0 && hasfield(typeof(domain.elems[1]), :ips) || return []
         ips = [ ip for elem in domain.elems for ip in elem.ips ]
-        return select(ips, selectors...; invert=invert, nearest=nearest, tag=tag)
+        return select(ips, selectors...; invert=invert, nearest=nearest, quiet=quiet, prefix=prefix, tag=tag)
     else
         error("select: unknown kind $(repr(kind))")
     end

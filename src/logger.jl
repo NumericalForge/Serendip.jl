@@ -73,12 +73,10 @@ function add_logger(
         _, format = splitext(filename)
         @check format in formats "Loggers must have one of the following extensions: $(join(formats, ", ", " and ")). Got $(repr(format))."
     end
-8
     item_name = kind in (:node, :nodegroup, :nodalreduce) ? :node : :ip
     target_type = item_name == :node ? Node : Ip
 
     filename = getfullpath(ana.data.outdir, filename)
-    items = item_name == :node ? ana.model.nodes : select(ana.model, :ip, :all)
 
     if kind == :node
         name = "Node logger"
@@ -92,25 +90,8 @@ function add_logger(
 
     selector_str = selector isa String || selector isa Symbol ? repr(selector) : replace(string(selector), r"(?<!\,)\s+" => "")
 
-    if kind in (:node, :ip) && selector isa AbstractArray
-        X = Vec3(selector)
-        x, y, z = X
-        target = select(ana.model, item_name, :(x==$x && y==$y && z==$z), nearest=false)
-        n = length(target)
-        if n==0
-            target = [ nearest(items, X) ]
-            X = round.(target[1].coord, sigdigits=4)
-            notify("add_logger: No $kind found at $selector_str. Picking nearest at $X")
-        else
-            target = target[1:1] # take the first
-        end
-
-        log = Logger{target_type}(kind, selector, target, filename, DataTable(name=name))
-        push!(ana.data.loggers, log)
-        return log
-    end
-
-    target = select(ana.model, item_name, selector)
+    use_nearest = kind in (:node, :ip)
+    target = select(ana.model, item_name, selector; nearest=use_nearest, prefix="add_logger")
     n = length(target)
     n == 0 && notify("add_logger: No $(item_name)s match: ", selector_str)
     if kind in (:node, :ip)

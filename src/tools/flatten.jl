@@ -12,6 +12,18 @@ function _flatten(x, out=Any[])
 end
 
 
+function _flatten_selectors(x, out=Any[])
+    if x isa Tuple
+        for item in x
+            _flatten_selectors(item, out)
+        end
+    else
+        push!(out, x)
+    end
+    return out
+end
+
+
 function _flatten(x, ::Type{T}, out=T[]) where {T}
     if x isa Tuple || x isa AbstractArray
         for item in x

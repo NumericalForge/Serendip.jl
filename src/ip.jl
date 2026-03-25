@@ -64,33 +64,29 @@ end
 
 function select(
     ips::Vector{Ip},
-    selectors::Union{Symbol, Symbolic, Expr, String, Vector{<:Real}, NTuple{N, Symbolic} where N}...;
+    selectors...;
     invert = false,
-    nearest = true,
+    nearest = false,
+    quiet = false,
+    prefix::AbstractString = "select",
     tag = ""
     )
 
-    buffer = []
-    for selector in selectors
-        if selector isa NTuple
-            append!(buffer, selector)
-        else
-            push!(buffer, selector)
-        end
-    end
-    selectors = buffer
+    selectors = _flatten_selectors(selectors)
 
     selected = collect(1:length(ips))
 
     for selector in selectors
 
-        if typeof(selector) == Symbol
+        if selector isa Symbol
             if selector == :all
                 continue
+            elseif selector == :none
+                selected = Int[]
             else
                 error("select: unknown symbol selector $(repr(selector))")
             end
-        elseif typeof(selector) in (Expr, Symbolic)
+        elseif selector isa Expr || selector isa Symbolic
             fips = ips[selected]
 
             T = Bool[]
@@ -102,21 +98,30 @@ function select(
             selected = selected[T]
         elseif selector isa String
             selected = [ i for i in selected if ips[i].tag==selector ]
-        # elseif selector isa Vector{Int} # selector is a vector of indexes
-            # selected = intersect(selected, selector)
-        elseif selector isa Vector{<:Real}
+        elseif selector isa AbstractVector{<:Real}
             X = Vec3(selector)
-            if nearest
+            exact = Int[ i for i in selected if norm(ips[i].coord-X) < 1e-8 ]
+
+            if !isempty(exact)
+                selected = exact
+            elseif nearest && !isempty(selected)
                 ip = Serendip.nearest(ips[selected], X)
-                i = findfirst(isequal(ip), ips)
-                selected = [ i ]
-            else
-                R = Bool[]
-                for i in selected
-                    push!(R, norm(ips[i].coord-X) < 1e-8)
+                i = findfirst(isequal(ip), ips[selected])
+                selected = [ selected[i] ]
+                if !quiet
+                    selector_str = replace(string(selector), r"(?<!\,)\s+" => "")
+                    Xn = round.(ips[selected[1]].coord, sigdigits=4)
+                    notify("$prefix: No ip found at $selector_str. Picking nearest at $Xn")
                 end
-                selected = selected[R]
+            else
+                selected = Int[]
+                if !quiet
+                    selector_str = replace(string(selector), r"(?<!\,)\s+" => "")
+                    notify("$prefix: No ip found at $selector_str")
+                end
             end
+        else
+            error("select: unknown selector type $(typeof(selector))")
         end
     end
 

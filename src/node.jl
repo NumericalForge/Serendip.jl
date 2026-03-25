@@ -154,26 +154,28 @@ end
 
 function select(
     nodes::Vector{Node},
-    selectors::Union{Symbolic, Expr, String, Vector{Int}, Vector{<:Real}, NTuple{N, Symbolic} where N}...;
+    selectors...;
     invert = false,
-    nearest = true,
+    nearest = false,
+    quiet = false,
+    prefix::AbstractString = "select",
     tag = ""
     )
 
-    buffer = []
-    for selector in selectors
-        if selector isa NTuple
-            append!(buffer, selector)
-        else
-            push!(buffer, selector)
-        end
-    end
-    selectors = buffer
+    selectors = _flatten_selectors(selectors)
 
     selected = collect(1:length(nodes))
 
     for selector in selectors
-        if typeof(selector) in (Expr, Symbolic)
+        if selector isa Symbol
+            if selector == :all
+                continue
+            elseif selector == :none
+                selected = Int[]
+            else
+                error("select: unknown symbol selector $(repr(selector))")
+            end
+        elseif typeof(selector) in (Expr, Symbolic)
             fnodes = nodes[selected]
 
             T = Bool[]
@@ -185,20 +187,27 @@ function select(
             selected = selected[T]
         elseif selector isa String
             selected = [ i for i in selected if nodes[i].tag==selector ]
-        elseif selector isa Vector{Int} # selector is a vector of indexes
-            selected = intersect(selected, selector)
-        elseif selector isa Vector{<:Real}
+        elseif selector isa AbstractVector{<:Real}
             X = Vec3(selector)
-            if nearest
+            exact = Int[ i for i in selected if norm(nodes[i].coord-X) < 1e-8 ]
+
+            if !isempty(exact)
+                selected = exact
+            elseif nearest && !isempty(selected)
                 node = Serendip.nearest(nodes[selected], X)
-                i = findfirst(isequal(node), ips)
-                selected = [ i ]
-            else
-                R = Bool[]
-                for i in selected
-                    push!(R, norm(nodes[i].coord-X) < 1e-8)
+                i = findfirst(isequal(node), nodes[selected])
+                selected = [ selected[i] ]
+                if !quiet
+                    selector_str = replace(string(selector), r"(?<!\,)\s+" => "")
+                    Xn = round.(nodes[selected[1]].coord, sigdigits=4)
+                    notify("$prefix: No node found at $selector_str. Picking nearest at $Xn")
                 end
-                selected = selected[R]
+            else
+                selected = Int[]
+                if !quiet
+                    selector_str = replace(string(selector), r"(?<!\,)\s+" => "")
+                    notify("$prefix: No node found at $selector_str")
+                end
             end
         else
             error("select: unknown selector type $(typeof(selector))")
