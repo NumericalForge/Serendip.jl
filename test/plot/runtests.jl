@@ -5,4 +5,5 @@ using Serendip
     "mesh.jl",
     "domainplot-colorbar-locations.jl",
     "chart-grid.jl",
+    "units.jl",
 ]

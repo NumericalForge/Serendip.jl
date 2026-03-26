@@ -6,6 +6,8 @@ end
 abstract type FigureComponent end
 # abstract type DataSeries end
 
+const cm = 72.0 / 2.54
+
 mutable struct Frame
     x::Float64
     y::Float64
@@ -14,6 +16,17 @@ mutable struct Frame
 
     function Frame(x::Real=0.0, y::Real=0.0, width::Real=0.0, height::Real=0.0)
         return new(float(x), float(y), float(width), float(height))
+    end
+end
+
+mutable struct TextBox
+    text::AbstractString
+    frame::Frame
+    angle::Float64
+    visible::Bool
+
+    function TextBox(text::AbstractString=""; frame::Frame=Frame(), angle::Real=0.0, visible::Bool=!isempty(text))
+        return new(text, frame, float(angle), visible)
     end
 end
 
@@ -28,6 +41,38 @@ const _available_formats = [
     ".svg",
     ".ps",
 ]
+
+function _draw_figure_background!(ctx::CairoContext, frame::Frame, color)
+    color === nothing && return
+
+    set_matrix(ctx, CairoMatrix([1, 0, 0, 1, 0, 0]...))
+    rectangle(ctx, frame.x, frame.y, frame.width, frame.height)
+    set_source_rgba(ctx, rgba(color)...)
+    fill(ctx)
+end
+
+_has_text(box::TextBox) = box.visible && !isempty(box.text)
+
+function _measure_text_box(box::TextBox, cc::CairoContext, fontsize::Float64)
+    _has_text(box) || return 0.0, 0.0
+    return getsize(cc, box.text, fontsize)
+end
+
+function _measure_text_box_extent(box::TextBox, cc::CairoContext, fontsize::Float64)
+    width, height = _measure_text_box(box, cc, fontsize)
+    angle = mod(box.angle, 180.0)
+    if isapprox(angle, 90.0; atol=1e-8)
+        return height, width
+    end
+    return width, height
+end
+
+function _draw_text_box!(ctx::CairoContext, box::TextBox)
+    _has_text(box) || return
+    x = box.frame.x + 0.5 * box.frame.width
+    y = box.frame.y + 0.5 * box.frame.height
+    draw_text(ctx, x, y, box.text, halign="center", valign="center", angle=box.angle)
+end
 
 
 function save(figure::Figure, files::String...)
@@ -46,7 +91,7 @@ function save(figure::Figure, files::String...)
         elseif fmt==".ps"
             surf = CairoPSSurface(file, width, height)
         elseif fmt==".png"
-            surf = CairoImageSurface(width, height, Cairo.FORMAT_ARGB32)
+            surf = CairoImageSurface(round(Int, width), round(Int, height), Cairo.FORMAT_ARGB32)
         else
             formats = join(_available_formats, ", ", " and ")
             throw(SerendipException("Cannot save image to format $fmt. Available formats are: $formats"))
@@ -55,11 +100,6 @@ function save(figure::Figure, files::String...)
         ctx = CairoContext(surf)
         set_antialias(ctx, Cairo.ANTIALIAS_NONE) # ANTIALIAS_DEFAULT, ANTIALIAS_NONE, ANTIALIAS_GRAY, ANTIALIAS_SUBPIXEL
         # set_operator(ctx, Cairo.OPERATOR_SOURCE) # makes to look rasterized
-
-        if fmt==".png"
-            set_source_rgb(ctx, 1.0, 1.0, 1.0) # RGB values for white
-            paint(ctx)
-        end
 
         draw!(figure, ctx)
 

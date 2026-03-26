@@ -5,17 +5,17 @@
         size=(220,150), font="NewComputerModern", font_size=7.0,
         xlimits, ylimits, aspect_ratio=:auto,
         xmult=1.0, ymult=1.0, xbins=7, ybins=6,
-        title="",
+        title="", background=nothing,
         xlabel="\$x\$", ylabel="\$y\$",
         xticks=Float64[], yticks=Float64[],
         xtick_labels=String[], ytick_labels=String[],
-        legend=:top_right, legend_font_size=0,
+        legend=:top_right, legend_font_size=0, legend_background=nothing,
         quiet=false)
 
 Construct a 2D chart figure with axes, legend, and optional tick customization.
 
 # Arguments
-- `size::Tuple{Int,Int}`: width × height in points. 1 cm = 28.35 points.
+- `size::Tuple{<:Real,<:Real}`: width × height in points. Use `cm` as a convenience helper, e.g. `size=(8cm, 6cm)`.
 - `font::AbstractString`: font family for axes and legend.
 - `font_size::Real`: base font size.
 - `xlimits::Vector{<:Real}`, `ylimits::Vector{<:Real}`: axis limits `[min,max]`; use empty vectors for auto scaling.
@@ -23,17 +23,20 @@ Construct a 2D chart figure with axes, legend, and optional tick customization.
 - `xmult::Real`, `ymult::Real`: multiplicative factors applied to tick values.
 - `xbins::Int`, `ybins::Int`: target number of major ticks.
 - `title::AbstractString`: chart title, centered above the plot area.
+- `background`: full-figure background fill; `nothing` leaves the figure unfilled.
 - `xlabel::AbstractString`, `ylabel::AbstractString`: axis labels.
 - `xticks::Vector{<:Real}`, `yticks::Vector{<:Real}`: explicit tick positions; empty vectors enable auto ticks.
 - `xtick_labels::Vector{<:AbstractString}`, `ytick_labels::Vector{<:AbstractString}`: custom tick labels; if provided, lengths must match the corresponding tick arrays.
 - `legend::Symbol`: legend location (e.g., `:top_right`, `:top_left`, `:bottom_left`, `:outer_right`).
 - `legend_font_size::Real`: legend font size; `0` uses `font_size`.
+- `legend_background`: legend box fill color; if unset it defaults to white standalone and follows the grid background when drawn inside a `ChartGrid`.
 - `quiet::Bool`: suppress constructor log.
 
 # Notes
 - Use `add_series` to append data series to the chart.
 - Use `add_annotation` to add plot-relative overlay annotations.
 - The legend is drawn after annotations.
+- `background=nothing` leaves the chart background transparent in PNG and unfilled in vector outputs.
 - Use `save` to export the chart to a file.
 
 # Returns
@@ -41,7 +44,9 @@ Construct a 2D chart figure with axes, legend, and optional tick customization.
 
 # Example
 ```julia
-ch = Chart(size=(300,200),
+using Serendip: Chart, cm
+
+ch = Chart(size=(8cm, 6cm),
            title="Response History",
            xlabel="Time [s]",
            ylabel="Displacement [mm]",
@@ -54,8 +59,8 @@ mutable struct Chart <: Figure
     width::Float64
     height::Float64
     figure_frame::Frame
-    title::AbstractString
-    title_frame::Frame
+    background::Union{Nothing,Color}
+    title_box::TextBox
     canvas::Canvas
     xaxis::Axis
     yaxis::Axis
@@ -87,6 +92,7 @@ mutable struct Chart <: Figure
         xbins::Int=7,
         ybins::Int=6,
         title::AbstractString="",
+        background=nothing,
         xlabel::AbstractString="\$x\$",
         ylabel::AbstractString="\$y\$",
         xticks::Vector{<:Real}=Float64[],
@@ -95,6 +101,7 @@ mutable struct Chart <: Figure
         ytick_labels::Vector{<:AbstractString}=String[],
         legend::Symbol=:top_right,
         legend_font_size::Real=0,
+        legend_background=nothing,
         # colorbar=:right,
         # colorbar_scale=0.9,
         # colorbar_label="",
@@ -112,17 +119,20 @@ mutable struct Chart <: Figure
 
         width, height = size
         outerpad = 0.01 * min(width, height)
-        the_legend = Legend(; location=legend, font=font, font_size=legend_font_size, ncols=1)
+        the_legend = Legend(; location=legend, font=font, font_size=legend_font_size, background=legend_background, ncols=1)
         xaxis = Axis(direction=:horizontal, limits=xlimits, label=xlabel, font=font, font_size=font_size, ticks=xticks, tick_labels=xtick_labels, mult=xmult, bins=xbins)
         yaxis = Axis(direction=:vertical, limits=ylimits, label=ylabel, font=font, font_size=font_size, ticks=yticks, tick_labels=ytick_labels, mult=ymult, bins=ybins)
+        background = resolve_color(background)
+        title_box = TextBox(title)
 
-        this = new(width, height, Frame(0.0, 0.0, width, height), title, Frame(), Canvas(), xaxis, yaxis, [], the_legend, [],
+        this = new(width, height, Frame(0.0, 0.0, width, height), background, title_box, Canvas(), xaxis, yaxis, [], the_legend, [],
             aspect_ratio, outerpad, FigureComponent[], FigureComponent[], FigureComponent[], FigureComponent[], FigureComponent[], 1, 1, quiet)
 
         if !quiet
             printstyled("Chart figure\n", bold=true, color=:cyan)
             println("  size: $(this.width) x $(this.height) pt")
             title != "" && println("  title: $(title)")
+            background !== nothing && println("  background: $(repr(background))")
             println("  axes: $(xlabel) vs $(ylabel)")
         end
 
@@ -387,12 +397,12 @@ end
 
 
 function _chart_title_height(c::Chart)
-    c.title == "" && return 0.0
+    !_has_text(c.title_box) && return 0.0
     surf = CairoImageSurface(4, 4, Cairo.FORMAT_ARGB32)
     cc = CairoContext(surf)
     select_font_face(cc, get_font(c.xaxis.font), Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
     set_font_size(cc, _chart_title_font_size(c))
-    return getsize(cc, c.title, _chart_title_font_size(c))[2]
+    return getsize(cc, c.title_box.text, _chart_title_font_size(c))[2]
 end
 
 
@@ -407,7 +417,8 @@ function _chart_plot_frame(c::Chart)
     top_margin = c.outerpad
     bottom_margin = c.outerpad + c.xaxis.height
     title_height = _chart_title_height(c)
-    title_gap = c.title == "" ? 0.0 : 0.6 * c.xaxis.font_size
+    title_gap = _has_text(c.title_box) ? 0.0 : 0.0
+    title_gap = _has_text(c.title_box) ? 0.6 * c.xaxis.font_size : 0.0
 
     top_margin += title_height + title_gap
 
@@ -461,12 +472,15 @@ function _assign_chart_frames!(c::Chart)
     c.bottom_items = FigureComponent[c.xaxis]
     c.overlay_items = FigureComponent[a for a in c.annotations]
 
-    if c.title != ""
+    if _has_text(c.title_box)
         title_height = _chart_title_height(c)
         y = c.figure_frame.y + c.outerpad
-        c.title_frame = Frame(plot_frame.x, y, plot_frame.width, title_height)
+        c.title_box.frame = Frame(plot_frame.x, y, plot_frame.width, title_height)
+        c.title_box.angle = 0.0
+        c.title_box.visible = true
     else
-        c.title_frame = Frame()
+        c.title_box.frame = Frame()
+        c.title_box.visible = false
     end
 
     if _chart_has_legend(c)
@@ -502,7 +516,7 @@ function _assign_legend_frame!(c::Chart, legend::Legend)
     elseif legend.location in (:bottom_left, :bottom, :bottom_right)
         y1 = plot.y + plot.height - outer_pad - legend.height
     elseif legend.location == :outer_top
-        y1 = c.figure_frame.y + c.outerpad + _chart_title_height(c) + (c.title == "" ? 0.0 : 0.6 * c.xaxis.font_size)
+        y1 = c.figure_frame.y + c.outerpad + _chart_title_height(c) + (_has_text(c.title_box) ? 0.6 * c.xaxis.font_size : 0.0)
     elseif legend.location == :outer_bottom
         y1 = c.figure_frame.y + c.height - legend.height - c.outerpad
     elseif legend.location in (:outer_top_left, :outer_top_right)
@@ -767,7 +781,8 @@ function draw!(c::Chart, ctx::CairoContext, legend::Legend)
     line_to(ctx, x1 + r, y1)
     curve_to(ctx, x1, y1, x1, y1, x1, y1 + r)
     close_path(ctx)
-    set_source_rgb(ctx, 1, 1, 1) # white
+    legend_background = something(legend.background, Color(:white))
+    set_source_rgba(ctx, rgba(legend_background)...)
     fill_preserve(ctx)
     set_source_rgb(ctx, 0, 0, 0) # black
     set_line_width(ctx, 0.4)
@@ -819,6 +834,8 @@ end
 
 
 function draw!(c::Chart, ctx::CairoContext)
+    _draw_figure_background!(ctx, c.figure_frame, c.background)
+
     # draw canvas grid
     draw!(c, ctx, c.canvas)
 
@@ -838,14 +855,12 @@ function draw!(c::Chart, ctx::CairoContext)
     end
     reset_clip(ctx)
 
-    if c.title != ""
+    if _has_text(c.title_box)
         set_matrix(ctx, CairoMatrix([1, 0, 0, 1, 0, 0]...))
         select_font_face(ctx, get_font(c.xaxis.font), Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
         set_font_size(ctx, _chart_title_font_size(c))
         set_source_rgb(ctx, 0.0, 0.0, 0.0)
-        x = c.title_frame.x + 0.5 * c.title_frame.width
-        y = c.title_frame.y + 0.5 * c.title_frame.height
-        draw_text(ctx, x, y, c.title, halign="center", valign="center", angle=0)
+        _draw_text_box!(ctx, c.title_box)
     end
 
     # draw overlay annotations before legend

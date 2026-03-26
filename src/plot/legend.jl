@@ -24,6 +24,7 @@ mutable struct Legend<:FigureComponent
     location::Symbol
     font::String
     font_size::Float64
+    background::Union{Nothing,Color}
     ncols::Int
     handle_length::Float64  # length of the line
     row_sep::Float64      # separation between labels
@@ -38,6 +39,7 @@ mutable struct Legend<:FigureComponent
         location::Symbol = :top_right,
         font::String = "NewComputerModern",
         font_size::Float64 = 7.0,
+        background=nothing,
         ncols::Int = 1,
         # title::String = ""
     )
@@ -49,6 +51,7 @@ mutable struct Legend<:FigureComponent
             location,
             font,
             font_size,
+            resolve_color(background),
             ncols,
             0.0,
             0.0,

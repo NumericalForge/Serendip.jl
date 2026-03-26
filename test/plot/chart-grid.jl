@@ -1,9 +1,12 @@
 using Serendip
+using Test
 
 X = collect(0:0.25:2π)
 
 chart1 = Chart(
     title="Sine Curve",
+    background=:white,
+    legend_background=:old_paper,
     xlabel=t"$x$",
     ylabel=t"$sin(x)$",
     legend=:outer_right,
@@ -44,8 +47,11 @@ plot_top = DomainPlot(model,
 )
 
 grid = ChartGrid(
-    title="Composed Figure With Charts",
-    size=(520, 420),
+    title=t"Composed Figure With $sigma_n$ Charts",
+    size=(18cm, 14cm),
+    background=:old_paper,
+    column_headers=[t"$sin(x)$", "Bar Plot", "Ignored"],
+    row_headers=[t"$u_x$", "Temperature", "Ignored"],
     quiet=true,
 )
 
@@ -54,5 +60,11 @@ add_chart(grid, chart2, (1, 2))
 add_chart(grid, plot_left, (2, 1))
 add_chart(grid, plot_top, (2, 2))
 
+Serendip.configure!(grid)
+temp_header_width = Serendip.getsize("Temperature", grid.font_size)[1]
+@test grid.row_header_boxes[2].frame.width < temp_header_width
+
 save(grid, "output/chart-grid.pdf")
+save(grid, "output/chart-grid.png")
 save(chart1, "output/chart-grid-child.pdf")
+@test chart1.background == Color(:white)

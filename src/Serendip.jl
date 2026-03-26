@@ -75,6 +75,7 @@ export get_nodes, change_quadrature, get_ips
 
 # Plotting
 include("plot/include.jl")
+export cm
 export Chart, ChartGrid, DataSeries, Legend, Colormap, DomainPlot, Annotation
 export add_line, add_scatter, add_bar, add_annotation
 export add_chart

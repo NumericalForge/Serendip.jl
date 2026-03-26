@@ -24,7 +24,7 @@ Create a customizable domain plot for meshes and FE models.
 - `mesh::Union{AbstractDomain,FEModel}`: object to plot.
 
 # Keywords
-- `size::Tuple{Int,Int}`: figure size in pt. (1 cm = 28.35 pt).
+- `size::Tuple{<:Real,<:Real}`: figure size in points. Use `cm` as a convenience helper, e.g. `size=(8cm, 6cm)`.
 - `face_color::Symbol`: surface color for area/surface elements.
 - `warp::Real`: displacement scale factor for warped views.
 - `edge_width::Real`: internal edge width for area/surface cells.
@@ -56,11 +56,15 @@ Create a customizable domain plot for meshes and FE models.
 - `quiet::Bool`: suppress constructor log.
 
 # Notes
+- Figure sizes are stored internally in points; vector outputs keep those physical dimensions, while PNG uses the same numeric width and height as raster dimensions.
 - Use `save` to export the figure to a file.
 
 # Example
 ```julia
+using Serendip: DomainPlot, cm
+
 plt = DomainPlot(model;
+                 size=(8cm, 6cm),
                  field="ux", field_kind=:node, warp=50.0,
                  colormap=:viridis, colorbar=:right, label="uₓ [mm]",
                  view_mode=:surface_with_edges, feature_edges=true)
@@ -116,7 +120,7 @@ mutable struct DomainPlot<:Figure
     quiet::Bool
 
     function DomainPlot(mesh;
-        size::Tuple{Int,Int}=(220,150),
+        size::Tuple{<:Real,<:Real}=(220,150),
         face_color::Symbol=:aliceblue,
         warp::Real=0.0,
         edge_width::Real=0.3,

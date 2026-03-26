@@ -49,23 +49,9 @@ mutable struct DataSeries
         @check bar_width >= 0 "Bar width must be non-negative"
 
 
-        if color != :default && color isa Symbol
-            color = Color(color)
-        elseif color isa Tuple
-            color = Color(color)
-        end
-
-        if mark_color != :default && mark_color isa Symbol
-            mark_color = Color(mark_color)
-        elseif mark_color isa Tuple
-            mark_color = Color(mark_color)
-        end
-
-        if mark_stroke_color != :default && mark_stroke_color isa Symbol
-            mark_stroke_color = Color(mark_stroke_color)
-        elseif mark_stroke_color isa Tuple
-            mark_stroke_color = Color(mark_stroke_color)
-        end
+        color = color === :default ? color : resolve_color(color)
+        mark_color = mark_color === :default ? mark_color : resolve_color(mark_color)
+        mark_stroke_color = mark_stroke_color === :default ? mark_stroke_color : resolve_color(mark_stroke_color)
 
         n = min(length(X), length(Y))
 

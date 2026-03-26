@@ -1,6 +1,6 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export Color, lighten, darken
+export Color, lighten, darken, resolve_color
 
 _colors_dict = Dict(
     :c1          => (0.769, 0.306, 0.322), # red
@@ -35,6 +35,7 @@ _colors_dict = Dict(
     :aliceblue   => (0.941, 0.973, 1.0),
     :blue        => (0.0, 0.0, 1.0),
     :black       => (0.0, 0.0, 0.0),
+    :bone        => (227/255, 218/255, 201/255),
     :brown       => (0.647, 0.165, 0.165),
     :cadetblue   => (0.373, 0.62, 0.627),
     :cyan        => (0.0, 1.0, 1.0),
@@ -54,6 +55,7 @@ _colors_dict = Dict(
     :lightblue   => (0.678, 0.847, 0.902),
     :lightgreen  => (0.565, 0.933, 0.565),
     :magenta     => (1.0, 0.0, 1.0),
+    :old_paper   => (242/255, 232/255, 203/255),
     :olive       => (0.502, 0.502, 0.0),
     :orange      => (1.0, 0.647, 0.0),
     :pink        => (1.0, 0.753, 0.796),
@@ -101,6 +103,11 @@ end
 
 rgb(c::Color)  = (c.r, c.g, c.b)
 rgba(c::Color) = (c.r, c.g, c.b, c.a)
+
+resolve_color(color::Nothing) = nothing
+resolve_color(color::Color) = Color(color)
+resolve_color(color::Symbol) = Color(color)
+resolve_color(color::Tuple) = Color(color)
 
 
 const _default_colors = [ Color(:c1), Color(:c2), Color(:c3), Color(:c4), Color(:c5), Color(:c6), Color(:c7), Color(:c8), Color(:c9), Color(:c10), Color(:c11), Color(:c12) ]

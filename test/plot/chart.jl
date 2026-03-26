@@ -8,6 +8,7 @@ Y3 = sin.(X) .* cos.(X)
 
 chart = Chart(
     title="Trigonometric Responses",
+    background=:white,
     xlabel=t"$x$ coordinate [mm]",
     ylabel=t"$y$ coordinate [mm]",
     legend=:bottom_right
@@ -24,3 +25,7 @@ add_annotation(chart, Annotation(t"$a_2^2 f_2^2 a^2 f t_2^2$", 0.15, 0.4))
 add_annotation(chart, Annotation("Legend overlap", 0.88, 0.08, alignment=:right))
 
 save(chart, "chart.pdf")
+
+transparent_chart = Chart(title="Transparent PNG", quiet=true)
+add_line(transparent_chart, [0.0, 1.0], [0.0, 1.0]; label="diag")
+save(transparent_chart, "output/chart-transparent.png")
