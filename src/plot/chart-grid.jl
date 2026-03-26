@@ -23,7 +23,8 @@ Create a composed figure that arranges child figures in a uniform grid.
 # Notes
 - Add child figures with `add_chart`.
 - The grid can contain any `Figure`, including `Chart`, `DomainPlot`, or another `ChartGrid`.
-- `background=nothing` leaves the grid background transparent in PNG and unfilled in vector outputs.
+- Inline math in titles and headers may be delimited with either `\$...\$` or `` `...` ``.
+- `background=nothing` leaves the grid background unfilled in vector outputs and uses a white page background in PNG.
 - Child chart backgrounds are ignored when charts are rendered inside a grid.
 - Headers and titles use the same math-aware text rendering as the rest of the plotting API.
 """
@@ -89,6 +90,8 @@ mutable struct ChartGrid <: Figure
         )
     end
 end
+
+_figure_background(grid::ChartGrid) = grid.background
 
 
 """
@@ -159,7 +162,7 @@ function configure!(grid::ChartGrid)
 
     title_width, title_height = _measure_grid_title(grid)
     column_header_height, row_header_width = _measure_grid_headers(grid)
-    title_gap = _has_text(grid.title_box) ? 0.6 * grid.font_size : 0.0
+    title_gap = isempty(grid.title_box.text) ? 0.0 : 0.6 * grid.font_size
     column_header_gap = column_header_height > 0 ? 0.5 * grid.font_size : 0.0
     row_header_gap = row_header_width > 0 ? 0.5 * grid.font_size : 0.0
 
@@ -177,7 +180,6 @@ function configure!(grid::ChartGrid)
 
     grid.title_box.frame = Frame(content_x, grid.figure_frame.y + grid.outerpad, content_width, title_height)
     grid.title_box.angle = 0.0
-    grid.title_box.visible = !isempty(grid.title_box.text)
     empty!(grid.cell_frames)
 
     for i in 1:grid.nrows, j in 1:grid.ncols
@@ -194,7 +196,6 @@ function configure!(grid::ChartGrid)
             box = grid.column_header_boxes[j]
             box.frame = Frame(x, y, cell_width, column_header_height)
             box.angle = 0.0
-            box.visible = !isempty(box.text)
         end
     end
 
@@ -206,7 +207,6 @@ function configure!(grid::ChartGrid)
             box = grid.row_header_boxes[i]
             box.frame = Frame(x, y, row_header_width, cell_height)
             box.angle = 90.0
-            box.visible = !isempty(box.text)
         end
     end
 end
@@ -233,23 +233,19 @@ function _set_grid_frame!(child::ChartGrid, frame::Frame)
 end
 
 
-function _draw_grid_child!(ctx::CairoContext, child::Figure, frame::Frame, parent_background=nothing)
+function _draw_grid_child!(ctx::RenderContext, child::Figure, frame::Frame)
     old_width = child.width
     old_height = child.height
     old_frame = Frame(child.figure_frame.x, child.figure_frame.y, child.figure_frame.width, child.figure_frame.height)
     old_background = child isa Union{Chart,ChartGrid} ? child.background : nothing
-    old_legend_background = child isa Chart ? child.legend.background : nothing
 
     try
         _set_grid_frame!(child, frame)
         if child isa Union{Chart,ChartGrid}
             child.background = nothing
         end
-        if child isa Chart && child.legend.background === nothing && parent_background !== nothing
-            child.legend.background = parent_background
-        end
         configure!(child)
-        draw!(child, ctx)
+        draw_contents!(child, ctx)
     finally
         child.width = old_width
         child.height = old_height
@@ -257,20 +253,20 @@ function _draw_grid_child!(ctx::CairoContext, child::Figure, frame::Frame, paren
         if child isa Union{Chart,ChartGrid}
             child.background = old_background
         end
-        if child isa Chart
-            child.legend.background = old_legend_background
-        end
     end
 end
 
 
-function draw!(grid::ChartGrid, ctx::CairoContext)
-    _draw_figure_background!(ctx, grid.figure_frame, grid.background)
+function draw_background!(grid::ChartGrid, ctx::RenderContext)
+    _draw_figure_background!(ctx, grid.figure_frame, ctx.background)
+end
 
-    set_matrix(ctx, CairoMatrix([1, 0, 0, 1, 0, 0]...))
-    select_font_face(ctx, get_font(grid.font), Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
-    set_font_size(ctx, grid.font_size)
-    set_source_rgb(ctx, 0.0, 0.0, 0.0)
+function draw_contents!(grid::ChartGrid, ctx::RenderContext)
+    cairo_ctx = ctx.cairo_ctx
+    reset_matrix!(ctx)
+    select_font_face(cairo_ctx, get_font(grid.font), Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
+    set_font_size(cairo_ctx, grid.font_size)
+    set_source_rgb(cairo_ctx, 0.0, 0.0, 0.0)
 
     _draw_text_box!(ctx, grid.title_box)
 
@@ -283,6 +279,6 @@ function draw!(grid::ChartGrid, ctx::CairoContext)
     end
 
     for pos in sort(collect(keys(grid.children)))
-        _draw_grid_child!(ctx, grid.children[pos], grid.cell_frames[pos], grid.background)
+        _draw_grid_child!(ctx, grid.children[pos], grid.cell_frames[pos])
     end
 end

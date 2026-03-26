@@ -43,21 +43,22 @@ function add_annotation(c::Figure, a::Annotation)
 end
 
 
-function draw!(c::Figure, cc::CairoContext, a::Annotation)
+function draw!(c::Figure, ctx::RenderContext, a::Annotation)
+    cairo_ctx = ctx.cairo_ctx
 
-    set_font_size(cc, a.font_size)
+    set_font_size(cairo_ctx, a.font_size)
     font = get_font(a.font)
-    select_font_face(cc, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
+    select_font_face(cairo_ctx, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
 
-    set_matrix(cc, CairoMatrix([1, 0, 0, 1, 0, 0]...))
+    reset_matrix!(ctx)
 
     # convert from axes to Cairo coordinates
     x = c.canvas.frame.x + a.x * c.canvas.frame.width
     y = c.canvas.frame.y + (1 - a.y) * c.canvas.frame.height
     halign = a.alignment == :right ? "right" : "left"
     valign = a.alignment == :top ? "top" : "bottom"
-    set_source_rgb(cc, 0, 0, 0)
-    draw_text(cc, x, y, a.text, halign=halign, valign=valign, angle=0)
+    set_source_rgb(cairo_ctx, 0, 0, 0)
+    draw_text(cairo_ctx, x, y, a.text, halign=halign, valign=valign, angle=0)
 
     if a.alignment == :auto
         a.alignment = :left
@@ -67,7 +68,7 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
     if a.has_target
 
         # compute text size
-        w, h = getsize(cc, a.text, a.font_size)
+        w, h = getsize(cairo_ctx, a.text, a.font_size)
         text_outerpad = 0.1 * min(w, h)
 
         x = halign == "left" ? x + w/2 : x - w/2
@@ -118,37 +119,37 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
             end
         end
 
-        set_source_rgb(cc, _colors_dict[a.color]...)
+        set_source_rgb(cairo_ctx, _colors_dict[a.color]...)
 
-        set_line_join(cc, Cairo.CAIRO_LINE_JOIN_ROUND)
-        set_line_width(cc, a.line_width)
+        set_line_join(cairo_ctx, Cairo.CAIRO_LINE_JOIN_ROUND)
+        set_line_width(cairo_ctx, a.line_width * ctx.width_scale)
 
         # update deltas
         dx = xa - x
         dy = ya - y
 
         # Draw line 1
-        move_to(cc, x, y)
+        move_to(cairo_ctx, x, y)
         if lines[1] == '|'
-            rel_line_to(cc, 0, dy)
+            rel_line_to(cairo_ctx, 0, dy)
             y += dy
         else
-            rel_line_to(cc, dx, 0)
+            rel_line_to(cairo_ctx, dx, 0)
             x += dx
         end
 
         # Draw line 2
         x_prev, y_prev = x, y
-        move_to(cc, x, y)
+        move_to(cairo_ctx, x, y)
         if lines[2] == '|'
-            rel_line_to(cc, 0, dy)
+            rel_line_to(cairo_ctx, 0, dy)
             y += dy
         else
-            rel_line_to(cc, dx, 0)
+            rel_line_to(cairo_ctx, dx, 0)
             x += dx
         end
 
-        stroke(cc)
+        stroke(cairo_ctx)
 
         # Draw a concave (chevron/notched) arrowhead at target.
         vx = xa - x_prev
@@ -179,12 +180,12 @@ function draw!(c::Figure, cc::CairoContext, a::Annotation)
             notchx = tipx - (head_len - notch_depth) * ux
             notchy = tipy - (head_len - notch_depth) * uy
 
-            move_to(cc, tipx, tipy)
-            line_to(cc, leftx, lefty)
-            line_to(cc, notchx, notchy)
-            line_to(cc, rightx, righty)
-            close_path(cc)
-            fill(cc)
+            move_to(cairo_ctx, tipx, tipy)
+            line_to(cairo_ctx, leftx, lefty)
+            line_to(cairo_ctx, notchx, notchy)
+            line_to(cairo_ctx, rightx, righty)
+            close_path(cairo_ctx)
+            fill(cairo_ctx)
         end
     end
 end

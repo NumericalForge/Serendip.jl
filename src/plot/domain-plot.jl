@@ -56,7 +56,7 @@ Create a customizable domain plot for meshes and FE models.
 - `quiet::Bool`: suppress constructor log.
 
 # Notes
-- Figure sizes are stored internally in points; vector outputs keep those physical dimensions, while PNG uses the same numeric width and height as raster dimensions.
+- Figure sizes are stored internally in points; vector outputs keep those physical dimensions, and PNG is rendered to a higher-density raster internally.
 - Use `save` to export the figure to a file.
 
 # Example
@@ -546,15 +546,16 @@ function iscounterclockwise(points::Vector{Node})
 end
 
 
-function draw!(mplot::DomainPlot, ctx::CairoContext)
+function draw_contents!(mplot::DomainPlot, ctx::RenderContext)
+    cairo_ctx = ctx.cairo_ctx
     # Cairo.push_group(ctx)
     # set_operator(ctx, Cairo.OPERATOR_SOURCE)
 
-    set_line_join(ctx, Cairo.CAIRO_LINE_JOIN_ROUND)
-    set_line_cap(ctx, Cairo.CAIRO_LINE_CAP_ROUND)
+    set_line_join(cairo_ctx, Cairo.CAIRO_LINE_JOIN_ROUND)
+    set_line_cap(cairo_ctx, Cairo.CAIRO_LINE_CAP_ROUND)
     font = get_font(mplot.font)
-    select_font_face(ctx, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL )
-    set_font_size(ctx, mplot.font_size)
+    select_font_face(cairo_ctx, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL )
+    set_font_size(cairo_ctx, mplot.font_size)
 
     # has_field = mplot.field != ""
     # is_nodal_field = has_field && haskey(mplot.mesh.node_fields, mplot.field)
@@ -566,7 +567,7 @@ function draw!(mplot::DomainPlot, ctx::CairoContext)
     xmin, ymin, xmax, ymax = mplot.canvas.limits
 
     ratio = (Xmax-Xmin)/(xmax-xmin) # == (Ymax-Ymin)/(ymax-ymin)
-    set_matrix(ctx, CairoMatrix([ratio, 0, 0, -ratio, Xmin-xmin*ratio, Ymax+ymin*ratio]...))
+    set_local_matrix!(ctx, CairoMatrix([ratio, 0, 0, -ratio, Xmin-xmin*ratio, Ymax+ymin*ratio]...))
 
     # Draw elements
     for (i,elem) in enumerate(mplot.elems)
@@ -583,7 +584,7 @@ function draw!(mplot::DomainPlot, ctx::CairoContext)
 
         if elem.role==:line
             x, y = elem.nodes[1].coord
-            move_to(ctx, x, y)
+            move_to(cairo_ctx, x, y)
             color = Vec3(0.8, 0.2, 0.1)
             # if has_field && !is_nodal_field
             if mplot.field_kind == :element
@@ -591,27 +592,28 @@ function draw!(mplot::DomainPlot, ctx::CairoContext)
             end
 
             pts = bezier_points(elem)
-            curve_to(ctx, pts[2]..., pts[3]..., pts[4]...)
-            set_line_width(ctx, mplot.line_elem_width)
-            set_source_rgb(ctx, color...)
-            stroke(ctx)
+            curve_to(cairo_ctx, pts[2]..., pts[3]..., pts[4]...)
+            set_line_width(cairo_ctx, mplot.line_elem_width * ctx.width_scale)
+            set_source_rgb(cairo_ctx, color...)
+            stroke(cairo_ctx)
         else
             shade = mplot.mesh.ctx.ndim==3 ? mplot.shades[i] : 1.0
             draw_surface_cell!(ctx, mplot, elem, shade)
         end
 
         # point labels
-        Cairo.save(ctx)
-        set_matrix(ctx, CairoMatrix([1, 0, 0, 1, 0, 0]...))
+        Cairo.save(cairo_ctx)
+        reset_matrix!(ctx)
         if mplot.node_labels
             for node in elem.nodes
                 x, y = data2user(mplot.canvas, node.coord[1], node.coord[2])
                 y += mplot.font_size
-                set_source_rgb(ctx, _colors_dict[:blue]...)
-                draw_text(ctx, x, y, string(node.id), halign="center", valign="center", angle=0)
+                set_source_rgb(cairo_ctx, _colors_dict[:blue]...)
+                draw_text(cairo_ctx, x, y, string(node.id), halign="center", valign="center", angle=0)
             end
         end
-        Cairo.restore(ctx)
+        Cairo.restore(cairo_ctx)
+        set_local_matrix!(ctx, CairoMatrix([ratio, 0, 0, -ratio, Xmin-xmin*ratio, Ymax+ymin*ratio]...))
     end
 
     # draw colorbar
@@ -619,14 +621,20 @@ function draw!(mplot::DomainPlot, ctx::CairoContext)
 
     # draw axes
     if mplot.axes_loc != :none
-        draw!(ctx, mplot.axes)
+        draw!(mplot.axes, ctx)
     end
 
 end
 
 
-function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::AbstractCell, shade::Float64)
-    set_line_cap(ctx, Cairo.CAIRO_LINE_CAP_ROUND)
+function draw_background!(mplot::DomainPlot, ctx::RenderContext)
+    _draw_figure_background!(ctx, mplot.figure_frame, ctx.background)
+end
+
+
+function draw_surface_cell!(ctx::RenderContext, mplot::DomainPlot, elem::AbstractCell, shade::Float64)
+    cairo_ctx = ctx.cairo_ctx
+    set_line_cap(cairo_ctx, Cairo.CAIRO_LINE_CAP_ROUND)
 
     function get_edge_color(face_color, edge_color)
         if mplot.view_mode == :surface # disguise edges in surface view
@@ -709,7 +717,6 @@ function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::Abstract
         factor = 0.65
         if mplot.view_mode == :surface # disguise edges in surface view
             factor = 1.0
-            # mplot.edge_width = 0.1
         end
 
         edge_pat = pattern_create_linear(0, 0, V[1], V[2])
@@ -743,48 +750,48 @@ function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::Abstract
         if constant_color
             # draw element
             x, y = edges[1].nodes[1].coord
-            new_path(ctx)
-            move_to(ctx, x, y)
+            new_path(cairo_ctx)
+            move_to(cairo_ctx, x, y)
             for edge in edges
                 pts = bezier_points(edge)
-                curve_to(ctx, pts[2]..., pts[3]..., pts[4]...)
+                curve_to(cairo_ctx, pts[2]..., pts[3]..., pts[4]...)
             end
 
-            close_path(ctx)
+            close_path(cairo_ctx)
 
             if show_surface
-                set_source_rgb(ctx, color...)
-                fill_preserve(ctx)
+                set_source_rgb(cairo_ctx, color...)
+                fill_preserve(cairo_ctx)
             end
 
             if show_edges
-                set_source_rgb(ctx, edge_color...)
-                set_line_width(ctx, mplot.edge_width)
-                stroke(ctx)
+                set_source_rgb(cairo_ctx, edge_color...)
+                set_line_width(cairo_ctx, mplot.edge_width * ctx.width_scale)
+                stroke(cairo_ctx)
             end
         elseif mplot.interpolation==:linear
 
             # draw element
             x, y = edges[1].nodes[1].coord
-            new_path(ctx)
-            move_to(ctx, x, y)
+            new_path(cairo_ctx)
+            move_to(cairo_ctx, x, y)
             for edge in edges
                 pts = bezier_points(edge)
                 # mplot.view_mode == :surface && expand_points!(center, pts)
-                curve_to(ctx, pts[2]..., pts[3]..., pts[4]...)
+                curve_to(cairo_ctx, pts[2]..., pts[3]..., pts[4]...)
             end
 
-            close_path(ctx)
+            close_path(cairo_ctx)
 
             if show_surface
-                set_source(ctx, pat)
-                fill_preserve(ctx)
+                set_source(cairo_ctx, pat)
+                fill_preserve(cairo_ctx)
             end
 
             if show_edges
-                set_source(ctx, edge_pat)
-                set_line_width(ctx, mplot.edge_width)
-                stroke(ctx)
+                set_source(cairo_ctx, edge_pat)
+                set_line_width(cairo_ctx, mplot.edge_width * ctx.width_scale)
+                stroke(cairo_ctx)
             end
         else # nonlinear
             # set pattern mesh for nonlinear gradient
@@ -826,41 +833,41 @@ function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::Abstract
 
             # draw element
             x, y = edges[1].nodes[1].coord
-            new_path(ctx)
-            move_to(ctx, x, y)
+            new_path(cairo_ctx)
+            move_to(cairo_ctx, x, y)
             for edge in edges
                 pts = bezier_points(edge)
-                curve_to(ctx, pts[2]..., pts[3]..., pts[4]...)
+                curve_to(cairo_ctx, pts[2]..., pts[3]..., pts[4]...)
             end
 
             if show_surface
-                set_source(ctx, pattern)
-                fill_preserve(ctx)
+                set_source(cairo_ctx, pattern)
+                fill_preserve(cairo_ctx)
                 # paint(ctx) # only if using pattern instead of a path
             end
 
             if show_edges
                 if mplot.view_mode == :surface
-                    set_source(ctx, pattern)
+                    set_source(cairo_ctx, pattern)
                 else
-                    set_source(ctx, edge_pat)
+                    set_source(cairo_ctx, edge_pat)
                 end
-                set_line_width(ctx, mplot.edge_width)
-                stroke(ctx)
+                set_line_width(cairo_ctx, mplot.edge_width * ctx.width_scale)
+                stroke(cairo_ctx)
             end
         end
     end
 
     # draw feature edges
-    set_line_cap(ctx, Cairo.CAIRO_LINE_CAP_ROUND)
+    set_line_cap(cairo_ctx, Cairo.CAIRO_LINE_CAP_ROUND)
 
     if mplot.show_feature_edges
-        new_path(ctx) # clear path, e.g. when last command used preserve
-        set_line_width(ctx, mplot.outline_width)
+        new_path(cairo_ctx) # clear path, e.g. when last command used preserve
+        set_line_width(cairo_ctx, mplot.outline_width * ctx.width_scale)
         if constant_color
-            set_source_rgb(ctx, outline_color...)
+            set_source_rgb(cairo_ctx, outline_color...)
         else
-            set_source(ctx, outline_pat)
+            set_source(cairo_ctx, outline_pat)
         end
 
         for edge in edges
@@ -868,11 +875,11 @@ function draw_surface_cell!(ctx::CairoContext, mplot::DomainPlot, elem::Abstract
             haskey(mplot.feature_edges_d, node_idxs) || continue
 
             x, y = edge.nodes[1].coord
-            move_to(ctx, x, y)
+            move_to(cairo_ctx, x, y)
             pts = bezier_points(edge)
-            curve_to(ctx, pts[2]..., pts[3]..., pts[4]...)
-            set_line_width(ctx, mplot.outline_width)
-            stroke(ctx)
+            curve_to(cairo_ctx, pts[2]..., pts[3]..., pts[4]...)
+            set_line_width(cairo_ctx, mplot.outline_width * ctx.width_scale)
+            stroke(cairo_ctx)
         end
     end
 

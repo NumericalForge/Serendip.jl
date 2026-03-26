@@ -82,32 +82,33 @@ function draw_arrow(ctx::CairoContext, x1, y1, x2, y2; head_length=7)
 end
 
 
-function draw!(ctx::CairoContext, aw::AxisWidget)
+function draw!(aw::AxisWidget, ctx::RenderContext)
+    cairo_ctx = ctx.cairo_ctx
 
-    Cairo.save(ctx)
+    Cairo.save(cairo_ctx)
     x0 = aw.frame.x
     y0 = aw.frame.y
 
     font = get_font(aw.font)
-    select_font_face(ctx, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL )
-    set_font_size(ctx, aw.font_size)
-    set_line_width(ctx, 0.7)
+    select_font_face(cairo_ctx, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL )
+    set_font_size(cairo_ctx, aw.font_size)
+    set_line_width(cairo_ctx, 0.7 * ctx.width_scale)
 
-    set_matrix(ctx, CairoMatrix([1, 0, 0, 1, 0, 0]...))
+    reset_matrix!(ctx)
     head_width = 0.15*aw.arrow_length
 
-    Cairo.translate(ctx, x0+head_width, y0+aw.arrow_length)
+    Cairo.translate(cairo_ctx, x0+head_width, y0+aw.arrow_length)
 
     xlabel_padding = 0.1*aw.arrow_length
     ylabel_padding = 0.18*aw.arrow_length
 
-    set_source_rgb(ctx, _colors_dict[:indianred]...)
-    draw_arrow(ctx, 0, 0, aw.arrow_length, 0)
-    draw_text(ctx, aw.arrow_length, -xlabel_padding, aw.labels[1], halign="right", valign="bottom", angle=0)
+    set_source_rgb(cairo_ctx, _colors_dict[:indianred]...)
+    draw_arrow(cairo_ctx, 0, 0, aw.arrow_length, 0)
+    draw_text(cairo_ctx, aw.arrow_length, -xlabel_padding, aw.labels[1], halign="right", valign="bottom", angle=0)
 
-    set_source_rgb(ctx, _colors_dict[:green]...)
-    draw_arrow(ctx, 0, 0, 0, -aw.arrow_length)
-    draw_text(ctx, ylabel_padding, -aw.arrow_length, aw.labels[2], halign="left", valign="top", angle=0)
+    set_source_rgb(cairo_ctx, _colors_dict[:green]...)
+    draw_arrow(cairo_ctx, 0, 0, 0, -aw.arrow_length)
+    draw_text(cairo_ctx, ylabel_padding, -aw.arrow_length, aw.labels[2], halign="left", valign="top", angle=0)
 
 
 end

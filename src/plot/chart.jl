@@ -35,8 +35,9 @@ Construct a 2D chart figure with axes, legend, and optional tick customization.
 # Notes
 - Use `add_series` to append data series to the chart.
 - Use `add_annotation` to add plot-relative overlay annotations.
+- Inline math in plot text may be delimited with either `\$...\$` or `` `...` ``.
 - The legend is drawn after annotations.
-- `background=nothing` leaves the chart background transparent in PNG and unfilled in vector outputs.
+- `background=nothing` leaves the chart background unfilled in vector outputs and uses a white page background in PNG.
 - Use `save` to export the chart to a file.
 
 # Returns
@@ -138,6 +139,14 @@ mutable struct Chart <: Figure
 
         return this
     end
+end
+
+
+_figure_background(c::Chart) = c.background
+
+function _chart_gridline_color(c::Chart, ctx::RenderContext)
+    background = ctx.background === nothing ? c.background : ctx.background
+    return background === nothing ? Color(0.9, 0.9, 0.9) : darken(grayscale(background), 0.15)
 end
 
 """
@@ -274,10 +283,21 @@ function configure!(c::Chart)
 
         c.xaxis.limits = [xmin - dx, xmax + dx]
         c.yaxis.limits = [ymin - dy, ymax + dy]
-        c.xaxis.ticks = []
-        c.yaxis.ticks = []
+        if !c.xaxis.manual_ticks
+            c.xaxis.ticks = Float64[]
+        end
+        if !c.yaxis.manual_ticks
+            c.yaxis.ticks = Float64[]
+        end
+        if !c.xaxis.manual_tick_labels
+            c.xaxis.tick_labels = String[]
+        end
+        if !c.yaxis.manual_tick_labels
+            c.yaxis.tick_labels = String[]
+        end
 
-        configure!(c, c.xaxis, c.yaxis)
+        configure!(c.xaxis)
+        configure!(c.yaxis)
     end
 
     _assign_chart_frames!(c)
@@ -292,68 +312,64 @@ end
 
 function configure!(chart::Chart, xax::Axis, yax::Axis)
 
-    # check limits
     for ax in (xax, yax)
         if ax.auto_limits
-            if length(ax.ticks) == 0
-                limits = [Inf, -Inf]
-                for p in chart.dataseries
-                    p isa DataSeries || continue
-                    if ax.direction == :horizontal
-                        # if p.x!==nothing
-                        # limits[1] = min(limits[1], p.x)
-                        # limits[2] = max(limits[2], p.x)
-                        # end
-                        if length(p.X) > 0
-                            if p.kind == :bar
-                                w = p.bar_width
-                                if w == 0
-                                    Xu = unique(sort(collect(p.X)))
-                                    if length(Xu) > 1
-                                        w = 0.56 * abs(minimum(diff(Xu)))
-                                    else
-                                        xspan = abs(maximum(p.X) - minimum(p.X))
-                                        w = xspan > 0 ? 0.035 * xspan : 1.0
-                                    end
-                                end
-                                limits[1] = min(limits[1], minimum(p.X) - 0.5 * w)
-                                limits[2] = max(limits[2], maximum(p.X) + 0.5 * w)
-                            else
-                                limits[1] = min(limits[1], minimum(p.X))
-                                limits[2] = max(limits[2], maximum(p.X))
-                            end
-                        end
-                    else
-                        # if p.y!==nothing
-                        # limits[1] = min(limits[1], p.y)
-                        # limits[2] = max(limits[2], p.y)
-                        # end
-                        if length(p.Y) > 0
-                            limits[1] = min(limits[1], minimum(p.Y))
-                            limits[2] = max(limits[2], maximum(p.Y))
-                        end
-
-                    end
-                end
-                if limits[1] == limits[2]
-                    limits = [limits[1] - 0.1, limits[1] + 0.1]
-                end
-            else
-                limits = collect(extrema(ax.ticks))
-            end
-
-            # extend limits
-            f = ax.direction == :horizontal ? 0.03 : 0.03 * chart.width / chart.height
-            dx = f * (limits[2] - limits[1])
-            limits = [limits[1] - dx, limits[2] + dx]
-            limits = [limits[1] * ax.mult, limits[2] * ax.mult]
-            ax.limits = limits
+            extent = ax.manual_ticks ? collect(extrema(ax.ticks)) : _chart_axis_data_extent(chart, ax)
+            ax.limits = compute_auto_limits(extent; mult=ax.mult)
         end
     end
 
     configure!(xax)
     configure!(yax)
 
+end
+
+
+function _chart_bar_width(series::DataSeries)
+    w = series.bar_width
+    if w == 0
+        Xu = unique(sort(collect(series.X)))
+        if length(Xu) > 1
+            w = 0.56 * abs(minimum(diff(Xu)))
+        else
+            xspan = abs(maximum(series.X) - minimum(series.X))
+            w = xspan > 0 ? 0.035 * xspan : 1.0
+        end
+    end
+    return w
+end
+
+
+function _chart_axis_data_extent(chart::Chart, ax::Axis)
+    lower = Inf
+    upper = -Inf
+
+    for series in chart.dataseries
+        series isa DataSeries || continue
+        if ax.direction == :horizontal
+            isempty(series.X) && continue
+            if series.kind == :bar
+                w = _chart_bar_width(series)
+                lower = min(lower, minimum(series.X) - 0.5 * w)
+                upper = max(upper, maximum(series.X) + 0.5 * w)
+            else
+                lower = min(lower, minimum(series.X))
+                upper = max(upper, maximum(series.X))
+            end
+        else
+            isempty(series.Y) && continue
+            if series.kind == :bar
+                base = series.bar_base
+                lower = min(lower, minimum(min.(series.Y, base)))
+                upper = max(upper, maximum(max.(series.Y, base)))
+            else
+                lower = min(lower, minimum(series.Y))
+                upper = max(upper, maximum(series.Y))
+            end
+        end
+    end
+
+    return isfinite(lower) && isfinite(upper) ? [lower, upper] : [0.0, 1.0]
 end
 
 
@@ -397,7 +413,7 @@ end
 
 
 function _chart_title_height(c::Chart)
-    !_has_text(c.title_box) && return 0.0
+    isempty(c.title_box.text) && return 0.0
     surf = CairoImageSurface(4, 4, Cairo.FORMAT_ARGB32)
     cc = CairoContext(surf)
     select_font_face(cc, get_font(c.xaxis.font), Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
@@ -414,11 +430,10 @@ end
 function _chart_plot_frame(c::Chart)
     left_margin = c.outerpad + c.yaxis.width
     right_margin = c.outerpad
-    top_margin = c.outerpad
+    top_margin = c.outerpad + axis_top_overhang(c.yaxis)
     bottom_margin = c.outerpad + c.xaxis.height
     title_height = _chart_title_height(c)
-    title_gap = _has_text(c.title_box) ? 0.0 : 0.0
-    title_gap = _has_text(c.title_box) ? 0.6 * c.xaxis.font_size : 0.0
+    title_gap = isempty(c.title_box.text) ? 0.0 : 0.6 * c.xaxis.font_size
 
     top_margin += title_height + title_gap
 
@@ -472,15 +487,13 @@ function _assign_chart_frames!(c::Chart)
     c.bottom_items = FigureComponent[c.xaxis]
     c.overlay_items = FigureComponent[a for a in c.annotations]
 
-    if _has_text(c.title_box)
+    if !isempty(c.title_box.text)
         title_height = _chart_title_height(c)
         y = c.figure_frame.y + c.outerpad
         c.title_box.frame = Frame(plot_frame.x, y, plot_frame.width, title_height)
         c.title_box.angle = 0.0
-        c.title_box.visible = true
     else
         c.title_box.frame = Frame()
-        c.title_box.visible = false
     end
 
     if _chart_has_legend(c)
@@ -516,7 +529,7 @@ function _assign_legend_frame!(c::Chart, legend::Legend)
     elseif legend.location in (:bottom_left, :bottom, :bottom_right)
         y1 = plot.y + plot.height - outer_pad - legend.height
     elseif legend.location == :outer_top
-        y1 = c.figure_frame.y + c.outerpad + _chart_title_height(c) + (_has_text(c.title_box) ? 0.6 * c.xaxis.font_size : 0.0)
+        y1 = c.figure_frame.y + c.outerpad + _chart_title_height(c) + (isempty(c.title_box.text) ? 0.0 : 0.6 * c.xaxis.font_size)
     elseif legend.location == :outer_bottom
         y1 = c.figure_frame.y + c.height - legend.height - c.outerpad
     elseif legend.location in (:outer_top_left, :outer_top_right)
@@ -543,10 +556,12 @@ function _assign_legend_frame!(c::Chart, legend::Legend)
 end
 
 
-function draw!(c::Chart, ctx::CairoContext, canvas::Canvas)
+function draw!(c::Chart, ctx::RenderContext, canvas::Canvas)
     # draw grid
-    set_source_rgb(ctx, 0.9, 0.9, 0.9) # gray
-    set_line_width(ctx, 0.2)
+    cairo_ctx = ctx.cairo_ctx
+    reset_matrix!(ctx)
+    set_source_rgba(cairo_ctx, rgba(_chart_gridline_color(c, ctx))...)
+    set_line_width(cairo_ctx, 0.2 * ctx.width_scale)
     x0 = canvas.frame.x
     y0 = canvas.frame.y
     x1 = canvas.frame.x + canvas.frame.width
@@ -556,29 +571,30 @@ function draw!(c::Chart, ctx::CairoContext, canvas::Canvas)
     for x in c.xaxis.ticks
         min(xmax, xmin) <= x <= max(xmax, xmin) || continue
         xc = x0 + canvas.frame.width / (xmax - xmin) * (x - xmin)
-        move_to(ctx, xc, y0)
-        line_to(ctx, xc, y1)
-        stroke(ctx)
+        move_to(cairo_ctx, xc, y0)
+        line_to(cairo_ctx, xc, y1)
+        stroke(cairo_ctx)
     end
 
     ymin, ymax = c.yaxis.limits
     for y in c.yaxis.ticks
         min(ymax, ymin) <= y <= max(ymax, ymin) || continue
         yc = y0 + canvas.frame.height / (ymax - ymin) * (ymax - y)
-        move_to(ctx, x0, yc)
-        line_to(ctx, x1, yc)
-        stroke(ctx)
+        move_to(cairo_ctx, x0, yc)
+        line_to(cairo_ctx, x1, yc)
+        stroke(cairo_ctx)
     end
 
     # draw border
-    set_source_rgb(ctx, 0.0, 0.0, 0.0)
-    set_line_width(ctx, 0.5)
-    rectangle(ctx, x0, y0, canvas.frame.width, canvas.frame.height)
-    stroke(ctx)
+    set_source_rgb(cairo_ctx, 0.0, 0.0, 0.0)
+    set_line_width(cairo_ctx, 0.5 * ctx.width_scale)
+    rectangle(cairo_ctx, x0, y0, canvas.frame.width, canvas.frame.height)
+    stroke(cairo_ctx)
 end
 
 
-function draw!(chart::Chart, ctx::CairoContext, p::DataSeries)
+function draw!(chart::Chart, ctx::RenderContext, p::DataSeries)
+    cairo_ctx = ctx.cairo_ctx
 
     p.mark_color = p.mark_color == :default ? p.color : p.mark_color
     p.mark_stroke_color = p.mark_stroke_color == :default ? p.color : p.mark_stroke_color
@@ -586,13 +602,13 @@ function draw!(chart::Chart, ctx::CairoContext, p::DataSeries)
     # p.mark_color = get_color(p.mark_color, p.color)
     # p.mark_stroke_color = get_color(p.mark_stroke_color, p.color)
 
-    set_matrix(ctx, CairoMatrix([1, 0, 0, 1, 0, 0]...))
-    set_source_rgb(ctx, rgb(p.color)...)
-    set_line_width(ctx, p.line_width)
-    set_line_join(ctx, Cairo.CAIRO_LINE_JOIN_ROUND)
+    reset_matrix!(ctx)
+    set_source_rgb(cairo_ctx, rgb(p.color)...)
+    set_line_width(cairo_ctx, p.line_width * ctx.width_scale)
+    set_line_join(cairo_ctx, Cairo.CAIRO_LINE_JOIN_ROUND)
 
     # Draw lines
-    new_path(ctx)
+    new_path(cairo_ctx)
     n = length(p.X)
     X = p.X * chart.xaxis.mult
     Y = p.Y * chart.yaxis.mult
@@ -625,12 +641,12 @@ function draw!(chart::Chart, ctx::CairoContext, p::DataSeries)
             rect_w = xden > 0 ? chart.canvas.frame.width / xden * w : 0.0
             rect_h = yden > 0 ? chart.canvas.frame.height / yden * abs(h) : 0.0
 
-            rectangle(ctx, rect_x, rect_y, rect_w, rect_h)
-            fill_preserve(ctx)
-            set_source_rgb(ctx, 0.0, 0.0, 0.0)
-            set_line_width(ctx, p.line_width)
-            stroke(ctx)
-            set_source_rgb(ctx, rgb(p.color)...)
+            rectangle(cairo_ctx, rect_x, rect_y, rect_w, rect_h)
+            fill_preserve(cairo_ctx)
+            set_source_rgb(cairo_ctx, 0.0, 0.0, 0.0)
+            set_line_width(cairo_ctx, p.line_width * ctx.width_scale)
+            stroke(cairo_ctx)
+            set_source_rgb(cairo_ctx, rgb(p.color)...)
         end
         return
     end
@@ -639,33 +655,33 @@ function draw!(chart::Chart, ctx::CairoContext, p::DataSeries)
         x1, y1 = data2user(chart.canvas, X[1], Y[1])
 
         if p.line_style == :solid
-            move_to(ctx, x1, y1)
+            move_to(cairo_ctx, x1, y1)
             for i in 2:n
                 x, y = data2user(chart.canvas, X[i], Y[i])
-                line_to(ctx, x, y)
+                line_to(cairo_ctx, x, y)
             end
-            stroke(ctx)
+            stroke(cairo_ctx)
         else # dashed
             len = sum(p.dash)
             offset = 0.0
-            set_dash(ctx, p.dash, offset)
-            move_to(ctx, x1, y1)
+            set_dash(cairo_ctx, p.dash, offset)
+            move_to(cairo_ctx, x1, y1)
             for i in 2:n
                 x, y = data2user(chart.canvas, X[i], Y[i])
-                line_to(ctx, x, y)
+                line_to(cairo_ctx, x, y)
                 offset = mod(offset + norm((x1 - x, y1 - y)), len)
-                set_dash(ctx, p.dash, offset)
+                set_dash(cairo_ctx, p.dash, offset)
                 x1, y1 = x, y
             end
-            stroke(ctx)
-            set_dash(ctx, Float64[])
+            stroke(cairo_ctx)
+            set_dash(cairo_ctx, Float64[])
         end
     end
 
     # Draw marks
     for (x, y) in zip(X, Y)
         x, y = data2user(chart.canvas, x, y)
-        draw_mark(ctx, x, y, p.mark, p.mark_size, p.mark_color, p.mark_stroke_color)
+        draw_mark(cairo_ctx, x, y, p.mark, p.mark_size, p.mark_color, p.mark_stroke_color)
     end
 
     # Draw tag
@@ -725,23 +741,24 @@ function draw!(chart::Chart, ctx::CairoContext, p::DataSeries)
             α = 0.0
         end
 
-        set_font_size(ctx, chart.xaxis.font_size * 0.9)
+        set_font_size(cairo_ctx, chart.xaxis.font_size * 0.9)
         font = get_font(chart.xaxis.font)
-        select_font_face(ctx, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
-        set_source_rgb(ctx, 0, 0, 0)
-        draw_text(ctx, x + dx, y + dy, p.tag, halign=ha, valign=va, angle=α)
+        select_font_face(cairo_ctx, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
+        set_source_rgb(cairo_ctx, 0, 0, 0)
+        draw_text(cairo_ctx, x + dx, y + dy, p.tag, halign=ha, valign=va, angle=α)
     end
 
 end
 
 
-function draw!(c::Chart, ctx::CairoContext, legend::Legend)
+function draw!(c::Chart, ctx::RenderContext, legend::Legend)
+    cairo_ctx = ctx.cairo_ctx
 
     plots = [p for p in c.dataseries if p.label != ""]
 
-    set_font_size(ctx, legend.font_size)
+    set_font_size(cairo_ctx, legend.font_size)
     font = get_font(legend.font)
-    select_font_face(ctx, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
+    select_font_face(cairo_ctx, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
 
     handle_length = legend.handle_length
     row_sep = legend.row_sep
@@ -754,7 +771,7 @@ function draw!(c::Chart, ctx::CairoContext, legend::Legend)
     col_witdhs = zeros(ncols)
     for (k, plot) in enumerate(plots)
         j = k % ncols == 0 ? ncols : k % ncols # column
-        label_width = getsize(ctx, plot.label, legend.font_size)[1]
+        label_width = getsize(cairo_ctx, plot.label, legend.font_size)[1]
         item_width = handle_length + 2 * inner_pad + label_width
         col_witdhs[j] = max(col_witdhs[j], item_width)
     end
@@ -767,26 +784,26 @@ function draw!(c::Chart, ctx::CairoContext, legend::Legend)
     x2 = legend.frame.x + legend.frame.width
     y2 = legend.frame.y + legend.frame.height
 
-    set_matrix(ctx, CairoMatrix([1, 0, 0, 1, 0, 0]...))
+    reset_matrix!(ctx)
 
     # draw rounded rectangle
     r = 0.02 * min(c.canvas.frame.width, c.canvas.frame.height)
-    move_to(ctx, x1, y1 + r)
-    line_to(ctx, x1, y2 - r)
-    curve_to(ctx, x1, y2, x1, y2, x1 + r, y2)
-    line_to(ctx, x2 - r, y2)
-    curve_to(ctx, x2, y2, x2, y2, x2, y2 - r)
-    line_to(ctx, x2, y1 + r)
-    curve_to(ctx, x2, y1, x2, y1, x2 - r, y1)
-    line_to(ctx, x1 + r, y1)
-    curve_to(ctx, x1, y1, x1, y1, x1, y1 + r)
-    close_path(ctx)
-    legend_background = something(legend.background, Color(:white))
-    set_source_rgba(ctx, rgba(legend_background)...)
-    fill_preserve(ctx)
-    set_source_rgb(ctx, 0, 0, 0) # black
-    set_line_width(ctx, 0.4)
-    stroke(ctx)
+    move_to(cairo_ctx, x1, y1 + r)
+    line_to(cairo_ctx, x1, y2 - r)
+    curve_to(cairo_ctx, x1, y2, x1, y2, x1 + r, y2)
+    line_to(cairo_ctx, x2 - r, y2)
+    curve_to(cairo_ctx, x2, y2, x2, y2, x2, y2 - r)
+    line_to(cairo_ctx, x2, y1 + r)
+    curve_to(cairo_ctx, x2, y1, x2, y1, x2 - r, y1)
+    line_to(cairo_ctx, x1 + r, y1)
+    curve_to(cairo_ctx, x1, y1, x1, y1, x1, y1 + r)
+    close_path(cairo_ctx)
+    legend_background = something(legend.background, ctx.background, Color(:white))
+    set_source_rgba(cairo_ctx, rgba(legend_background)...)
+    fill_preserve(cairo_ctx)
+    set_source_rgb(cairo_ctx, 0, 0, 0) # black
+    set_line_width(cairo_ctx, 0.4 * ctx.width_scale)
+    stroke(cairo_ctx)
 
     # draw labels
     label_heigh = maximum(getsize(plot.label, legend.font_size)[2] for plot in plots)
@@ -798,68 +815,72 @@ function draw!(c::Chart, ctx::CairoContext, legend::Legend)
 
         y2 = y1 + inner_pad + label_heigh / 2 + (i - 1) * (label_heigh + row_sep)
 
-        set_source_rgb(ctx, rgb(plot.color)...)
+        set_source_rgb(cairo_ctx, rgb(plot.color)...)
         if plot.kind == :bar
             hbar = 0.6 * legend.font_size
-            rectangle(ctx, x2, y2 - 0.5 * hbar, handle_length, hbar)
-            fill_preserve(ctx)
-            set_source_rgb(ctx, 0.0, 0.0, 0.0)
-            set_line_width(ctx, max(plot.line_width, 0.4))
-            stroke(ctx)
-            set_source_rgb(ctx, rgb(plot.color)...)
+            rectangle(cairo_ctx, x2, y2 - 0.5 * hbar, handle_length, hbar)
+            fill_preserve(cairo_ctx)
+            set_source_rgb(cairo_ctx, 0.0, 0.0, 0.0)
+            set_line_width(cairo_ctx, max(plot.line_width, 0.4) * ctx.width_scale)
+            stroke(cairo_ctx)
+            set_source_rgb(cairo_ctx, rgb(plot.color)...)
         elseif plot.line_style != :none
-            move_to(ctx, x2, y2)
-            rel_line_to(ctx, handle_length, 0)
-            set_line_width(ctx, plot.line_width)
-            plot.line_style != :solid && set_dash(ctx, plot.dash)
-            stroke(ctx)
-            set_dash(ctx, Float64[])
+            move_to(cairo_ctx, x2, y2)
+            rel_line_to(cairo_ctx, handle_length, 0)
+            set_line_width(cairo_ctx, plot.line_width * ctx.width_scale)
+            plot.line_style != :solid && set_dash(cairo_ctx, plot.dash)
+            stroke(cairo_ctx)
+            set_dash(cairo_ctx, Float64[])
         end
 
         # draw mark
         if plot.kind != :bar
             x = x2 + handle_length / 2
-            draw_mark(ctx, x, y2, plot.mark, plot.mark_size, plot.mark_color, plot.mark_stroke_color)
+            draw_mark(cairo_ctx, x, y2, plot.mark, plot.mark_size, plot.mark_color, plot.mark_stroke_color)
         end
 
         # draw label
         x = x2 + handle_length + 2 * inner_pad
         y = y2
 
-        set_source_rgb(ctx, 0, 0, 0)
-        draw_text(ctx, x, y, plot.label, halign="left", valign="center", angle=0)
+        set_source_rgb(cairo_ctx, 0, 0, 0)
+        draw_text(cairo_ctx, x, y, plot.label, halign="left", valign="center", angle=0)
     end
 
 end
 
 
-function draw!(c::Chart, ctx::CairoContext)
-    _draw_figure_background!(ctx, c.figure_frame, c.background)
+function draw_background!(c::Chart, ctx::RenderContext)
+    _draw_figure_background!(ctx, c.figure_frame, ctx.background)
+end
 
+function draw_contents!(c::Chart, ctx::RenderContext)
+    cairo_ctx = ctx.cairo_ctx
+    reset_matrix!(ctx)
     # draw canvas grid
     draw!(c, ctx, c.canvas)
 
     # draw axes
-    draw!(ctx, c.xaxis)
+    draw!(c.xaxis, ctx)
 
-    draw!(ctx, c.yaxis)
+    draw!(c.yaxis, ctx)
 
     # draw plots
-    rectangle(ctx, c.canvas.frame.x, c.canvas.frame.y, c.canvas.frame.width, c.canvas.frame.height)
-    Cairo.clip(ctx)
+    rectangle(cairo_ctx, c.canvas.frame.x, c.canvas.frame.y, c.canvas.frame.width, c.canvas.frame.height)
+    Cairo.clip(cairo_ctx)
 
     # draw dataseries
     sorted = sort(c.dataseries, by=x -> x.order)
     for p in sorted
         draw!(c, ctx, p)
     end
-    reset_clip(ctx)
+    reset_clip(cairo_ctx)
 
-    if _has_text(c.title_box)
-        set_matrix(ctx, CairoMatrix([1, 0, 0, 1, 0, 0]...))
-        select_font_face(ctx, get_font(c.xaxis.font), Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
-        set_font_size(ctx, _chart_title_font_size(c))
-        set_source_rgb(ctx, 0.0, 0.0, 0.0)
+    if !isempty(c.title_box.text)
+        reset_matrix!(ctx)
+        select_font_face(cairo_ctx, get_font(c.xaxis.font), Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
+        set_font_size(cairo_ctx, _chart_title_font_size(c))
+        set_source_rgb(cairo_ctx, 0.0, 0.0, 0.0)
         _draw_text_box!(ctx, c.title_box)
     end
 

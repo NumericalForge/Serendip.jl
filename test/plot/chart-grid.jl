@@ -7,12 +7,12 @@ chart1 = Chart(
     title="Sine Curve",
     background=:white,
     legend_background=:old_paper,
-    xlabel=t"$x$",
-    ylabel=t"$sin(x)$",
+    xlabel="`x`",
+    ylabel="`sin(x)`",
     legend=:outer_right,
     quiet=true,
 )
-add_line(chart1, X, sin.(X); label=t"$sin(x)$", mark=:circle)
+add_line(chart1, X, sin.(X); label="`sin(x)`", mark=:circle)
 
 chart2 = Chart(
     title="Bar Values",
@@ -47,11 +47,11 @@ plot_top = DomainPlot(model,
 )
 
 grid = ChartGrid(
-    title=t"Composed Figure With $sigma_n$ Charts",
+    title="Composed Figure With `sigma_n` Charts",
     size=(18cm, 14cm),
     background=:old_paper,
-    column_headers=[t"$sin(x)$", "Bar Plot", "Ignored"],
-    row_headers=[t"$u_x$", "Temperature", "Ignored"],
+    column_headers=["`sin(x)`", "Bar Plot", "Ignored"],
+    row_headers=["`u_x`", "Temperature", "Ignored"],
     quiet=true,
 )
 

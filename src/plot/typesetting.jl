@@ -431,6 +431,14 @@ function _parse_text_chunk(s::AbstractString)
     nodes = TypesetNode[]
     i = firstindex(s)
     while i <= lastindex(s)
+        if s[i] == '\\'
+            j = _next(s, i)
+            if j <= lastindex(s) && s[j] == '`'
+                push!(nodes, TSAtom("`", false, false))
+                i = _next(s, j)
+                continue
+            end
+        end
         push!(nodes, TSAtom(string(s[i]), false, false))
         i = _next(s, i)
     end
@@ -445,14 +453,21 @@ function parse_typeset(s::AbstractString)
     start = i
 
     while i <= lastindex(s)
-        if s[i] == '$'
+        if s[i] == '\\'
+            j = _next(s, i)
+            if j <= lastindex(s) && s[j] == '`'
+                i = _next(s, j)
+                continue
+            end
+        elseif s[i] == '$' || s[i] == '`'
             if start < i
                 append!(nodes, _parse_text_chunk(s[start:prevind(s, i)]))
             end
 
+            delim = s[i]
             j = _next(s, i)
-            math_nodes, k = _parse_math_seq(s, j; stopchars=Set(['$']))
-            if k > lastindex(s) || s[k] != '$'
+            math_nodes, k = _parse_math_seq(s, j; stopchars=Set([delim]))
+            if k > lastindex(s) || s[k] != delim
                 append!(nodes, _parse_text_chunk(s[i:lastindex(s)]))
                 return nodes
             end
@@ -625,6 +640,8 @@ end
         t = (base::TSAtom).text
         if t == "f" || t == "F" || t == "T"
             return -0.25 * fontsize
+        elseif t == "σ"
+            return -0.2 * fontsize
         end
     end
     return 0.0

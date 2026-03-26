@@ -73,8 +73,9 @@ function configure!(fig::Figure, cb::Colorbar)
 end
 
 
-function draw!(fig::Figure, cc::CairoContext, cb::Colorbar)
-    set_matrix(cc, CairoMatrix([1, 0, 0, 1, 0, 0]...))
+function draw!(fig::Figure, ctx::RenderContext, cb::Colorbar)
+    cairo_ctx = ctx.cairo_ctx
+    reset_matrix!(ctx)
     cb.location == :none && return
 
     x0 = cb.frame.x
@@ -88,7 +89,7 @@ function draw!(fig::Figure, cc::CairoContext, cb::Colorbar)
         bar_y = y0 + (cb.frame.height - cb.height) / 2
         cb.axis.frame = Frame(bar_x + cb.thickness + cb.axis.tick_length, bar_y, cb.axis.width, cb.height)
 
-        draw!(cc, cb.axis)
+        draw!(cb.axis, ctx)
 
         pat = pattern_create_linear(0.0, bar_y + cb.height, 0.0, bar_y)
         nstops = length(cb.colormap.stops)
@@ -99,15 +100,15 @@ function draw!(fig::Figure, cc::CairoContext, cb::Colorbar)
             pattern_add_color_stop_rgb(pat, stop, color...)
         end
 
-        set_source(cc, pat)
-        rectangle(cc, bar_x, bar_y, cb.thickness, cb.height)
-        fill(cc)
+        set_source(cairo_ctx, pat)
+        rectangle(cairo_ctx, bar_x, bar_y, cb.thickness, cb.height)
+        fill(cairo_ctx)
     elseif cb.location == :left
         bar_x = x1 - cb.inner_sep - cb.thickness
         bar_y = y0 + (cb.frame.height - cb.height) / 2
         cb.axis.frame = Frame(x0, bar_y, cb.axis.width, cb.height)
 
-        draw!(cc, cb.axis)
+        draw!(cb.axis, ctx)
 
         pat = pattern_create_linear(0.0, bar_y + cb.height, 0.0, bar_y)
         nstops = length(cb.colormap.stops)
@@ -118,15 +119,15 @@ function draw!(fig::Figure, cc::CairoContext, cb::Colorbar)
             pattern_add_color_stop_rgb(pat, stop, color...)
         end
 
-        set_source(cc, pat)
-        rectangle(cc, bar_x, bar_y, cb.thickness, cb.height)
-        fill(cc)
+        set_source(cairo_ctx, pat)
+        rectangle(cairo_ctx, bar_x, bar_y, cb.thickness, cb.height)
+        fill(cairo_ctx)
     elseif cb.location == :bottom
         bar_x = x0 + (cb.frame.width - cb.width) / 2
         bar_y = y0 + cb.inner_sep
         cb.axis.frame = Frame(bar_x, bar_y + cb.thickness + cb.axis.tick_length, cb.width, cb.axis.height)
 
-        draw!(cc, cb.axis)
+        draw!(cb.axis, ctx)
 
         pat = pattern_create_linear(bar_x, 0.0, bar_x + cb.width, 0.0)
         nstops = length(cb.colormap.stops)
@@ -137,15 +138,15 @@ function draw!(fig::Figure, cc::CairoContext, cb::Colorbar)
             pattern_add_color_stop_rgb(pat, stop, color...)
         end
 
-        set_source(cc, pat)
-        rectangle(cc, bar_x, bar_y, cb.width, cb.thickness)
-        fill(cc)
+        set_source(cairo_ctx, pat)
+        rectangle(cairo_ctx, bar_x, bar_y, cb.width, cb.thickness)
+        fill(cairo_ctx)
     elseif cb.location == :top
         bar_x = x0 + (cb.frame.width - cb.width) / 2
         bar_y = y1 - cb.inner_sep - cb.thickness
         cb.axis.frame = Frame(bar_x, y0, cb.width, cb.axis.height)
 
-        draw!(cc, cb.axis)
+        draw!(cb.axis, ctx)
 
         pat = pattern_create_linear(bar_x, 0.0, bar_x + cb.width, 0.0)
         nstops = length(cb.colormap.stops)
@@ -156,8 +157,8 @@ function draw!(fig::Figure, cc::CairoContext, cb::Colorbar)
             pattern_add_color_stop_rgb(pat, stop, color...)
         end
 
-        set_source(cc, pat)
-        rectangle(cc, bar_x, bar_y, cb.width, cb.thickness)
-        fill(cc)
+        set_source(cairo_ctx, pat)
+        rectangle(cairo_ctx, bar_x, bar_y, cb.width, cb.thickness)
+        fill(cairo_ctx)
     end
 end

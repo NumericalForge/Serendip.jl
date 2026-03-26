@@ -113,6 +113,11 @@ resolve_color(color::Tuple) = Color(color)
 const _default_colors = [ Color(:c1), Color(:c2), Color(:c3), Color(:c4), Color(:c5), Color(:c6), Color(:c7), Color(:c8), Color(:c9), Color(:c10), Color(:c11), Color(:c12) ]
 
 
+function grayscale(c::Color)
+    gray = 0.299*c.r + 0.587*c.g + 0.114*c.b
+    return Color(gray, gray, gray, c.a)
+end
+
 
 function lighten(c::Color, ratio::Float64)
     @assert 0.0 ≤ ratio ≤ 1.0 "Ratio must be between 0 and 1"
@@ -124,33 +129,16 @@ function lighten(c::Color, ratio::Float64)
     )
 end
 
+
 function darken(c::Color, ratio::Float64)
     @assert 0.0 ≤ ratio ≤ 1.0 "Ratio must be between 0 and 1"
-    return (
+    return Color(
         c.r * (1.0 - ratio),
         c.g * (1.0 - ratio),
         c.b * (1.0 - ratio),
         c.a
     )
 end
-
-
-# function get_color(color::Tuple, default=:black)
-    # return color
-# end
-
-# function get_color(color::Symbol, default=:black)
-#     if color==:default
-#         if default isa Symbol
-#             color = default
-#         else
-#             return default
-#         end
-#     end
-
-#     color in keys(_colors_dict) || throw(SerendipException("get_color: color must be one of $_colors_list. Got $color"))
-#     return _colors_dict[color]
-# end
 
 
 struct Colormap
@@ -185,6 +173,7 @@ function (cmap::Colormap)(rval)
     return Tuple(c)
 end
 
+
 function resize(cmap::Colormap, min, max; diverging=false)  # diverging from zero
     rmin = cmap.stops[1]
     rmax = cmap.stops[end]
@@ -210,11 +199,13 @@ function resize(cmap::Colormap, min, max; diverging=false)  # diverging from zer
     return Colormap(stops, cmap.colors)
 end
 
+
 function Base.reverse(cmap::Colormap)
     stops = [ round(1-stop, digits=3) for stop in reverse(cmap.stops) ]
     colors = reverse(cmap.colors)
     return Colormap(stops, colors)
 end
+
 
 function clip_colormap(cmap::Colormap, limits=Float64[])
     n = 21
@@ -225,7 +216,6 @@ function clip_colormap(cmap::Colormap, limits=Float64[])
     colors = [ cmap(x) for x in range(minstop,maxstop,n) ]
     return Colormap(stops, colors)
 end
-
 
 
 _colormaps_dict = Dict(
