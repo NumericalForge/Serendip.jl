@@ -10,7 +10,7 @@ add_block(geo, [0.0, 0.0], L, h, 0, nx=50, ny=6, quadratic=true, tag="beam")
 mesh = Mesh(geo)
 
 mapper = RegionMapper()
-add_mapping(mapper, "beam", MechSolid, ECP, 
+add_mapping(mapper, "beam", MechSolid, UCP, 
     E=30e6, nu=0.25, beta=1.15, 
     fc=-30e3, epsc=-0.002, ft=3e3, wc=0.0001)
 

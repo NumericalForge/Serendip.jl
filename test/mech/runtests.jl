@@ -43,10 +43,7 @@ using Serendip
     "constitutive/dp.jl",
     "constitutive/escp-uniaxial-biaxial.jl",
     "constitutive/bondslip-monotonic.jl",
-    "constitutive/asinh-power-cohesive.jl",
-    "constitutive/asinh-yield-cohesive.jl",
 
-    # "elements/joint/joint2d.jl",
     "constitutive/cohesive.jl",
     "constitutive/contact.jl",
     "constitutive/coulomb-contact.jl",

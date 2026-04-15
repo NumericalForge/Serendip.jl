@@ -34,7 +34,7 @@ trajectories = [
 models = (
     (cmodel=MohrCoulombCohesive, props=(E=E, nu=nu, ft=ft, mu=1.4, zeta=zeta, wc=wc), mark=:triangle),
     # (cmodel=PowerYieldCohesive, props=(E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=1.5, gamma=0.05, theta=1.5), mark=:circle),
-    (cmodel=AsinhPowerCohesive, props=(E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=0.5, beta=1.0, theta=1.0, psi=1.4, B=ft), mark=:circle),
+    # (cmodel=AsinhPowerCohesive, props=(E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=0.5, beta=1.0, theta=1.0, psi=1.4, B=ft), mark=:circle),
     (cmodel=AsinhYieldCohesive, props=(E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=0.33, beta=0.2, theta=1.0, psi=1.4), mark=:circle),
 )
 
