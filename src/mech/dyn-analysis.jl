@@ -214,7 +214,7 @@ function stage_solver(ana::DynamicAnalysis, stage::Stage, solver_settings::Solve
         end
 
         M0 = mount_M(active_elems, ndofs)
-        sysstatus = solve_system!(M0, A0, Fex, nu)
+        sysstatus = solve_system(M0, A0, Fex, nu)
         failed(sysstatus) && return sysstatus
 
         # Initial values at dofs
@@ -320,7 +320,7 @@ function stage_solver(ana::DynamicAnalysis, stage::Stage, solver_settings::Solve
             Kp  = K + (4/(Δt^2))*M + (2/Δt)*C # pseudo-stiffness matrix
             ΔFp = Fex_Fin + M*(A + 4*V/Δt - 4*ΔUa/Δt^2) + C*(V - 2*ΔUa/Δt)
 
-            sysstatus = solve_system!(Kp, ΔUi, ΔFp, nu)
+            sysstatus = solve_system(Kp, ΔUi, ΔFp, nu)
             failed(sysstatus) && (syserror=true; break)
 
             ΔUt = ΔUa + ΔUi

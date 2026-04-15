@@ -2,15 +2,18 @@
 
 
 # Solves a system with unknowns in U and F vectors
-function solve_system!(
-                       K ::SparseMatrixCSC{Float64, Int},
-                       U ::Vect,
-                       F ::Vect,
-                       nu::Int,
-                      )
+function solve_system(
+    K ::SparseMatrixCSC{Float64, Int},
+    U ::Vect,
+    F ::Vect,
+    nu::Int,
+    linear_solver::Symbol=:pardiso
+)
     #  ┌  K11   K12 ┐  ┌ U1? ┐    ┌ F1  ┐
     #  │            │  │     │ =  │     │
     #  └  K21   K22 ┘  └ U2  ┘    └ F2? ┘
+
+    linear_solver in (:pardiso, :umfpack) || throw(SerendipException("solve_system: Unknown linear solver $linear_solver"))
 
     msg = ""
 
@@ -33,31 +36,32 @@ function solve_system!(
         RHS = F1 - K12*U2
 
         try
-
-            # LUfact = lu(K11)
-            # U1 = LUfact\RHS
-
-            ps = MKLPardisoSolver()
-            np = get_nprocs(ps)
-            nj = Threads.nthreads()
-            set_nprocs!(ps, min(np, nj))
-            U1 = solve(ps, K11, RHS)
+            if linear_solver == :pardiso
+                ps = MKLPardisoSolver()
+                np = get_nprocs(ps)
+                nj = Threads.nthreads()
+                set_nprocs!(ps, min(np, nj))
+                U1 = solve(ps, K11, RHS)
+            else
+                LUfact = lu(K11)
+                U1 = LUfact\RHS
+            end
 
             F2 += K21*U1
         catch err
             err isa InterruptException && rethrow(err)
             if any(isnan.(K11))
-                msg = "$msg\nsolve_system!: NaN values in coefficients matrix"
+                msg = "$msg\nsolve_system: NaN values in coefficients matrix"
             end
             # U1 .= NaN
-            return failure("$msg\nsolve_system!: $err")
+            return failure("$msg\nsolve_system: $err")
         end
     end
 
     # maxU = 1e8 # maximum essential value
     maxU = 1/eps() # maximum essential value
     if maximum(abs, U1)>maxU
-        return failure("$msg\nsolve_system!: Possible syngular matrix ", string(maximum(abs, U1)))
+        return failure("$msg\nsolve_system: Possible syngular matrix ", string(maximum(abs, U1)))
     end
 
     # Completing vectors
@@ -81,8 +85,9 @@ struct SolverSettings
     alpha::Float64
     beta::Float64
     nmodes::Float64
-    eig_method::Symbol
+    eigen_solver::Symbol
     rayleigh::Bool
+    linear_solver::Symbol
 
     @doc """
         SolverSettings(; tol=0.01, rtol=0.01, dT0=0.01, dTmin=1e-7, dTmax=0.1,
@@ -102,8 +107,9 @@ struct SolverSettings
     - `alpha::Float64`: Damping coefficient for the mass matrix used in dynamic analyses.
     - `beta::Float64`: Damping coefficient for the stiffness matrix used in dynamic analyses.
     - `nmodes::Int`: Number of modes to compute in modal analysis .
-    - `eig_method::Symbol`: Modal eigensolver selector (`:auto`, `:arpack`, `:dense`).
-
+    - `eigen_solver::Symbol`: Modal eigensolver selector (`:auto`, `:arpack`, `:lapack`).
+    - `rayleigh::Bool`: Enable Rayleigh damping in dynamic analyses.
+    - `linear_solver::Symbol`: Linear solver selector (`:pardiso`, `:umfpack`).
     # Example
     ```julia
     settings = SolverSettings(tol=1e-4, rtol=1e-3, autoinc=true)
@@ -111,8 +117,8 @@ struct SolverSettings
     """
     function SolverSettings(;
         tol=0.01, rtol=0.01, autoinc=false, dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01,
-        maxits=15, alpha=0.0, beta=0.0, nmodes=5, eig_method=:auto, rayleigh=false)
-        return new(tol, rtol, autoinc, dT0, dTmin, dTmax, maxits, rspan, alpha, beta, nmodes, eig_method, rayleigh)
+        maxits=15, alpha=0.0, beta=0.0, nmodes=5, eigen_solver=:auto, rayleigh=false, linear_solver=:pardiso)
+        return new(tol, rtol, autoinc, dT0, dTmin, dTmax, maxits, rspan, alpha, beta, nmodes, eigen_solver, rayleigh, linear_solver)
     end
 end
 
@@ -225,10 +231,11 @@ end
 """
     run(ana;
         tol=0.01, rtol=0.01, autoinc=false,
-        dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01,
-        maxits=5,
-        alpha=0.0, beta=0.0, nmodes=5, eig_method=:auto, rayleigh=false,
-        quiet=false)
+        dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01, maxits=5,
+        alpha=0.0, beta=0.0, nmodes=5, eigen_solver=:auto, rayleigh=false,
+        linear_solver=:pardiso,
+        quiet=false,
+        )
 
 Execute a finite-element analysis and return the solver status.
 
@@ -247,8 +254,9 @@ Execute a finite-element analysis and return the solver status.
 - `alpha::Float64`: Mass matrix coefficient to compute damping in dynamic analyses.
 - `beta::Float64`: Stiffness matrix coefficient to compute damping in dynamic analyses.
 - `nmodes::Int`: number of modes in modal analysis.
-- `eig_method::Symbol`: modal eigensolver selector (`:auto`, `:arpack`, `:dense`).
+- `eigen_solver::Symbol`: modal eigensolver selector (`:auto`, `:arpack`, `:lapack`).
 - `rayleigh::Bool`: enable Rayleigh damping.
+- `linear_solver::Symbol`: linear solver selector (`:pardiso`, `:umfpack`).
 - `quiet::Bool`: suppress console output.
 
 # Behavior
@@ -264,7 +272,7 @@ status = run(analysis;
              tol=1e-3, rtol=1e-3, autoinc=true,
              dT0=0.02, dTmin=1e-6, dTmax=0.1,
              maxits=10, alpha=0.0, beta=0.25,
-             nmodes=8, eig_method=:auto, rayleigh=true)
+             nmodes=8, eigen_solver=:auto, rayleigh=true)
 ```
 """
 function Base.run(ana::Analysis;
@@ -279,8 +287,9 @@ function Base.run(ana::Analysis;
     alpha   ::Real         = 0.0,
     beta    ::Real         = 0.0,
     nmodes  ::Int          = 5,
-    eig_method::Symbol     = :auto,
+    eigen_solver::Symbol     = :auto,
     rayleigh::Bool         = false,
+    linear_solver::Symbol  = :pardiso,
     quiet   ::Bool         = false,
     kwargs...,
 )
@@ -295,7 +304,7 @@ function Base.run(ana::Analysis;
     @check nmodes>0 "run: solver paramter `nmodes` must be positive"
     @check alpha>=0 "run: solver paramter `alpha` must be positive"
     @check beta>=0 "run: solver paramter `beta` must be positive"
-    @check eig_method in (:auto, :arpack, :dense) "run: unknown eig_method $eig_method"
+    @check eigen_solver in (:auto, :arpack, :lapack) "run: unknown eigen_solver $eigen_solver"
 
     if !quiet
         ctx = ana.model.ctx
@@ -323,7 +332,8 @@ function Base.run(ana::Analysis;
 
     solver_settings = SolverSettings(
         tol=tol, rtol=rtol, autoinc=autoinc, dT0=dT0, dTmin=dTmin, dTmax=dTmax,
-        rspan=rspan, maxits=maxits, alpha=alpha, beta=beta, nmodes=nmodes, eig_method=eig_method, rayleigh=rayleigh,
+        rspan=rspan, maxits=maxits, alpha=alpha, beta=beta, nmodes=nmodes, 
+        eigen_solver=eigen_solver, rayleigh=rayleigh, linear_solver=linear_solver
     )
 
     status = stage_iterator(ana, solver_settings; quiet=quiet)

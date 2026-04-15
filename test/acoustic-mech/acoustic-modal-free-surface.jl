@@ -20,7 +20,7 @@ ana = AcousticModalAnalysis(model)
 stage = add_stage(ana)
 add_bc(stage, :face, (x==h), fs=true)
 
-run(ana, nmodes=10, eig_method=:arpack)
+run(ana, nmodes=10, eigen_solver=:arpack)
 
 @test length(ana.frequencies) >= 3
 # @test isapprox(ana.frequencies[1], 1.75965313; rtol=1e-8)

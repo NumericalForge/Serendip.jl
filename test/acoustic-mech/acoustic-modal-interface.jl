@@ -26,7 +26,7 @@ stage = add_stage(ana)
 add_bc(stage, :face, (x<=0.1, y==0), ux=0.0, uy=0.0)
 add_bc(stage, :face, (x>=0.1, y==h), fs=true)
 
-run(ana, nmodes=10, eig_method=:dense)
+run(ana, nmodes=10, eigen_solver=:lapack)
 
 ana.frequencies
 

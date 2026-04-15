@@ -339,7 +339,7 @@ function stage_solver(ana::ThermoMechAnalysis, stage::Stage, solver_settings::So
 
             G, RHS = tm_mount_global_matrices(active_elems, ndofs, Δt)
             Rtr = R + RHS
-            sysstatus = solve_system!(G, ΔUi, Rtr, nu)
+            sysstatus = solve_system(G, ΔUi, Rtr, nu)
             failed(sysstatus) && (syserror = true; break)
 
             reset_state(active_elems)

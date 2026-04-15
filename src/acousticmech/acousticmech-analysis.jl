@@ -396,7 +396,7 @@ function stage_solver(ana::AcousticMechAnalysis, stage::Stage, solver_settings::
         end
 
         M0 = am_mount_Ms(active_elems, ndofs) + am_mount_M(active_elems, ndofs) + am_mount_Mfs(bcs, ndofs) + am_mount_Mpu(active_elems, ndofs)
-        sysstatus = solve_system!(M0, A0, Fex0, nu)
+        sysstatus = solve_system(M0, A0, Fex0, nu)
         failed(sysstatus) && return sysstatus
 
         for (i, dof) in enumerate(dofs)
@@ -487,7 +487,7 @@ function stage_solver(ana::AcousticMechAnalysis, stage::Stage, solver_settings::
             Kdyn = K + 4 / Δt^2 * M
             ΔFdyn = ΔF + M * (A + 4 * V / Δt - 4 * ΔUi / Δt^2)
 
-            sysstatus = solve_system!(Kdyn, ΔUk, ΔFdyn, nu)
+            sysstatus = solve_system(Kdyn, ΔUk, ΔFdyn, nu)
             failed(sysstatus) && (syserror = true; break)
 
             ΔUit = ΔUi + ΔUk

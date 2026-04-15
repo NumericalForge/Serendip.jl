@@ -112,7 +112,7 @@ function update_state(elems::Vector{<:Element}, ΔUt::Vector{Float64}, t::Float6
     yield()
 
     length(statuses)>0 && return ΔFin, statuses[1]
-    any(isnan.(ΔFin)) && return ΔFin, failure("solve_system!: NaN values in internal forces vector")
+    any(isnan.(ΔFin)) && return ΔFin, failure("update_state: NaN values in internal forces vector")
     return ΔFin, success()
 end
 
@@ -259,6 +259,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     rspan   = solver_settings.rspan
     maxits  = solver_settings.maxits
     autoinc = solver_settings.autoinc
+    lin_sol = solver_settings.linear_solver
 
     model = ana.model
     data  = ana.data
@@ -375,7 +376,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             lastres = res # residue from last iteration
 
             K = mount_K(active_elems, ndofs)
-            sysstatus = solve_system!(K, ΔUi, R, nu)   # Changes unknown positions in ΔUi and R
+            sysstatus = solve_system(K, ΔUi, R, nu, lin_sol)   # Changes unknown positions in ΔUi and R
             failed(sysstatus) && (syserror=true; break)
             ΔUt   = ΔUa .+ ΔUi
             ΔFin, sysstatus = update_state(active_elems, ΔUt, 0.0)

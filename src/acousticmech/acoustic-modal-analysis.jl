@@ -58,10 +58,10 @@ function lump_modal_mass(M11)
 end
 
 
-function solve_modal_eigenproblem(ana::AcousticModalAnalysis, K11, M11, nmodes::Int, eig_method::Symbol)
+function solve_modal_eigenproblem(ana::AcousticModalAnalysis, K11, M11, nmodes::Int, eigen_solver::Symbol)
     Ks, Ms, D = scale_modal_matrices(K11, M11)
 
-    if eig_method in (:auto, :arpack)
+    if eigen_solver in (:auto, :arpack)
         try
             λ, V = eigs(Ks, Ms; nev=nmodes, which=:SM, ncv=40, tol=1e-4, check=1, maxiter=10000)
             eig_filter = [i for i in eachindex(λ) if isreal(λ[i]) && real(λ[i]) > 0]
@@ -71,13 +71,14 @@ function solve_modal_eigenproblem(ana::AcousticModalAnalysis, K11, M11, nmodes::
             if n >= min(4, nmodes)
                 return λ, D * V
             end
-            eig_method == :arpack && error("solve_modal_eigenproblem: Arpack found only $n valid modes, expected at least $(min(4, nmodes)).")
+            eigen_solver == :arpack && error("solve_modal_eigenproblem: Arpack found only $n valid modes, expected at least $(min(4, nmodes)).")
         catch
-            eig_method == :arpack && rethrow()
+            eigen_solver == :arpack && rethrow()
             println(ana.data.alerts, "Arpack failed, falling back to dense solve.")
         end
     end
 
+    # dense LAPACK eigenvalue solve
     F = eigen(Matrix(Ks), Matrix(Ms))
     λ = ComplexF64.(F.values)
     V = ComplexF64.(D * F.vectors)
@@ -87,7 +88,7 @@ end
 
 function stage_solver(ana::AcousticModalAnalysis, stage::Stage, solver_settings::SolverSettings; quiet=quiet)
     nmodes = Int(solver_settings.nmodes)
-    eig_method = solver_settings.eig_method
+    eigen_solver = solver_settings.eigen_solver
 
     model = ana.model
     ctx = model.ctx
@@ -132,7 +133,7 @@ function stage_solver(ana::AcousticModalAnalysis, stage::Stage, solver_settings:
 
     K11 = K[1:nu, 1:nu]
     M11 = lump_modal_mass(M[1:nu, 1:nu])
-    λ, V = solve_modal_eigenproblem(ana, K11, M11, nmodes, eig_method)
+    λ, V = solve_modal_eigenproblem(ana, K11, M11, nmodes, eigen_solver)
 
     eig_filter = [i for i in eachindex(λ) if isreal(λ[i]) && real(λ[i]) > 0]
     nfound = min(nmodes, length(eig_filter))

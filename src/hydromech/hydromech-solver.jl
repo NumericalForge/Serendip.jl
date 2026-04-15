@@ -222,7 +222,7 @@ function hm_stage_solver!(model::FEModel, stage::Stage; args...)
     println(ctx.info, "unknown dofs: $nu")
     println(ctx.log, "unknown dofs: $nu")
 
-    quiet || nu==ndofs && println(sctx.alerts, "solve_system!: No essential boundary conditions")
+    quiet || nu==ndofs && println(sctx.alerts, "solve_system: No essential boundary conditions")
 
     if stage.id == 1
         # Setup quantities at dofs
@@ -345,7 +345,7 @@ function hm_stage_solver!(model::FEModel, stage::Stage; args...)
                 R .+= RHS
 
                 # Solve
-                status = solve_system!(G, ΔUi, R, nu)   # Changes unknown positions in ΔUi and R
+                status = solve_system(G, ΔUi, R, nu)   # Changes unknown positions in ΔUi and R
                 println(ctx.log, status.message)
 
 
@@ -367,7 +367,7 @@ function hm_stage_solver!(model::FEModel, stage::Stage; args...)
                 elseif scheme=="BE"
                     G = G2
                 end
-                status = solve_system!(G, ΔUi, R, nu)   # Changes unknown positions in ΔUi and R
+                status = solve_system(G, ΔUi, R, nu)   # Changes unknown positions in ΔUi and R
                 failed(status) && (syserror=true; break)
 
                 copyto!.(State, StateBk)
