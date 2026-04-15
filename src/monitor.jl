@@ -209,9 +209,9 @@ function add_monitor(
     use_nearest = kind in (:node, :ip)
     target = select(ana.model, item_kind, selector; nearest=use_nearest, prefix="add_monitor")
     n = length(target)
-    n == 0 && notify("add_monitor: No $(item_kind)s match: $selector_str")
+    n == 0 && notify("add_monitor: No $(item_kind)s for $selector_str")
     if kind in (:node, :ip)
-        n >  1 && notify("add_monitor: Multiple $(item_kind)s match: $selector_str. Picking one")
+        n >  1 && notify("add_monitor: Multiple $(item_kind)s for $selector_str. Using one")
         n >= 1 && (target = target[1:1])
     end
 

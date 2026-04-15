@@ -139,7 +139,7 @@ function select(
                 if !quiet
                     selector_str = replace(string(selector), r"(?<!\,)\s+" => "")
                     Xn = round.(ips[selected[1]].coord, sigdigits=4)
-                    notify("$prefix: No ip found at $selector_str. Picking nearest at $Xn")
+                    notify("$prefix: No ip found at $selector_str. Using nearest at $Xn")
                 end
             else
                 selected = Int[]
