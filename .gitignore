@@ -17,7 +17,9 @@
 sandbox
 **/vault
 **/archive
+**/_archive
 **/output
 **/.vscode
 docs/build/
 Manifest.toml
+AGENTS.md
