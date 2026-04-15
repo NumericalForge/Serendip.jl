@@ -16,6 +16,12 @@ Serendip.configure!(ay)
 @test ay.tick_exponent == -5
 @test !isempty(ay.exponent_box.text)
 
+ax_small = Serendip.Axis(direction=:horizontal, limits=[0.0, 3.1e-3], label="x", ticks=[0.0, 1.0e-3, 2.0e-3, 3.1e-3])
+Serendip.configure!(ax_small)
+@test ax_small.tick_exponent == -3
+@test "3.1" in ax_small.tick_labels
+@test !isempty(ax_small.exponent_box.text)
+
 aint = Serendip.Axis(direction=:horizontal, limits=[1.0e4, 4.0e4], ticks=[1.0e4, 2.0e4, 3.0e4, 4.0e4])
 Serendip.configure!(aint)
 @test all(!occursin(".", lbl) for lbl in aint.tick_labels)
@@ -40,3 +46,21 @@ Serendip.configure!(bar_chart)
 small_span = Serendip.Axis(direction=:horizontal, limits=[1.0e-10, 1.5e-10])
 Serendip.configure!(small_span)
 @test length(small_span.ticks) > 1
+
+aw2d = Serendip.AxesWidget(labels=["x", "y"])
+Serendip.configure!(aw2d)
+@test aw2d.width > 0
+@test aw2d.height > 0
+
+aw3d = Serendip.AxesWidget(labels=["x", "y", "z"], azimuth=30.0, elevation=20.0, distance=10.0, up=:z)
+Serendip.configure!(aw3d)
+@test aw3d.width > 0
+@test aw3d.height > 0
+
+aw3d_x = Serendip.AxesWidget(labels=["x", "y", "z"], azimuth=30.0, elevation=20.0, distance=10.0, up=:x)
+Serendip.configure!(aw3d_x)
+@test any(i -> !isapprox(aw3d.projected_axes[i][1], aw3d_x.projected_axes[i][1]) || !isapprox(aw3d.projected_axes[i][2], aw3d_x.projected_axes[i][2]), eachindex(aw3d.projected_axes))
+
+aw3d_rot = Serendip.AxesWidget(labels=["x", "y", "z"], azimuth=55.0, elevation=20.0, distance=10.0, up=:z)
+Serendip.configure!(aw3d_rot)
+@test any(i -> !isapprox(aw3d.projected_axes[i][1], aw3d_rot.projected_axes[i][1]) || !isapprox(aw3d.projected_axes[i][2], aw3d_rot.projected_axes[i][2]), eachindex(aw3d.projected_axes))

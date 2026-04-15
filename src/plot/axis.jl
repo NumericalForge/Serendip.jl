@@ -161,7 +161,7 @@ function _axis_common_exponent(values; threshold::Int=3)
     maxabs = maximum(abs, values)
     maxabs == 0 && return 0
     exponent = floor(Int, log10(maxabs))
-    return abs(exponent) > threshold ? exponent : 0
+    return abs(exponent) >= threshold ? exponent : 0
 end
 
 

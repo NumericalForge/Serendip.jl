@@ -249,15 +249,72 @@ end
 # Aliases
 const add_series = add_series
 
+"""
+    add_line(chart::Chart, X::AbstractArray, Y::AbstractArray; kwargs...)
+
+Add a line series to `chart`.
+
+# Arguments
+- `chart::Chart`: Target chart (mutated).
+- `X, Y::AbstractArray`: Data vectors.
+- `kwargs...`: Keyword arguments controlling series appearance and metadata.
+
+# Keyword options
+- `line_style::Symbol = :solid`: Line style (e.g. `:solid`, `:dash`, ...).
+- `dash::Vector{Float64} = Float64[]`: Custom dash pattern. If nonempty, overrides `line_style`.
+- `color = :default`: Line/marker color. `:default` selects from the chart palette cyclically.
+- `line_width::Float64 = 0.5`: Line width (> 0).
+- `mark::Symbol = :none`: Mark shape.
+- `mark_size::Float64 = 2.5`: Mark size (> 0).
+- `mark_color = :white`: Mark fill color.
+- `mark_stroke_color = :default`: Mark edge color (`:default` follows `color`).
+- `label::AbstractString = ""`: Legend label.
+- `tag::AbstractString = ""`: On-curve annotation text.
+- `tag_location::Symbol = :top`: Relative location of tag (`:top`, `:bottom`, `:left`, `:right`).
+- `tag_position::Float64 = 0.5`: Position along the curve in [0,1].
+- `tag_alignment::Symbol = :horizontal`: Tag orientation (`:horizontal`, `:vertical`, `:parallel`).
+- `bar_width::Float64 = 0.0`: Bar width in x-data units (`0` enables auto width).
+- `bar_base::Float64 = 0.0`: Bar baseline in y-data units.
+- `order::Int = 0`: Z-order. If `0`, an incremental order is assigned.
+
+# Returns
+- The created series object.
+"""
 function add_line(chart::Chart, X::AbstractArray, Y::AbstractArray; kwargs...)
     return add_series(chart, :line, X, Y; kwargs...)
 end
 
+"""
+    add_scatter(chart::Chart, X::AbstractArray, Y::AbstractArray; kwargs...)
+
+Add a scatter series to `chart`.
+
+# Arguments
+- `chart::Chart`: Target chart (mutated).
+- `X, Y::AbstractArray`: Data vectors.
+- `kwargs...`: Keyword arguments accepted by [`add_line`](@ref); explicit values override the defaults above.
+
+# Returns
+- The created series object.
+"""
 function add_scatter(chart::Chart, X::AbstractArray, Y::AbstractArray; kwargs...)
     defaults = (line_style=:none, mark=:circle)
     return add_series(chart, :scatter, X, Y; merge(defaults, kwargs)...)
 end
 
+"""
+    add_bar(chart::Chart, X::AbstractArray, Y::AbstractArray; kwargs...)
+
+Add a bar series to `chart`.
+
+# Arguments
+- `chart::Chart`: Target chart (mutated).
+- `X, Y::AbstractArray`: Data vectors.
+- `kwargs...`: Keyword arguments accepted by [`add_line`](@ref); explicit values override the defaults above.
+
+# Returns
+- The created series object.
+"""
 function add_bar(chart::Chart, X::AbstractArray, Y::AbstractArray; kwargs...)
     defaults = (line_style=:none, mark=:none)
     return add_series(chart, :bar, X, Y; merge(defaults, kwargs)...)

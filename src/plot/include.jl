@@ -15,6 +15,7 @@ include("chart.jl")
 
 include("colorbar.jl")
 
-include("axis-widget.jl")
+include("view3d.jl")
+include("axes-widget.jl")
 include("domain-plot.jl")
 include("chart-grid.jl")

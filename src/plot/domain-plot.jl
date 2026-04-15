@@ -10,8 +10,9 @@
         label="", colormap=:coolwarm, diverging=false,
         colorbar=:right, colorbar_ratio=0.9, bins=6,
         font="NewComputerModern", font_size=7.0,
+        title="",
         interpolation=:linear,
-        azimuth=30, elevation=30, distance=0.0,
+        azimuth=30, elevation=30, distance=0.0, up=:z,
         feature_edges=true, view_mode=:surface_with_edges,
         light_vector=[0,0,0],
         node_labels=false,
@@ -43,10 +44,12 @@ Create a customizable domain plot for meshes and FE models.
 - `bins::Int`: number of colorbar bins.
 - `font::AbstractString`: font family.
 - `font_size::Real`: font size (> 0).
+- `title::AbstractString`: plot title, centered above the domain view.
 - `interpolation::Symbol`: `:constant | :linear | :nonlinear` surface shading.
 - `azimuth::Real`: 3D azimuth angle in degrees.
 - `elevation::Real`: 3D elevation angle in degrees.
 - `distance::Real`: camera distance (≥ 0).
+- `up::Symbol`: 3D camera up direction (`:x | :y | :z`).
 - `feature_edges::Bool`: enhance feature lines (`:outline` forces on).
 - `view_mode::Symbol`: `:surface_with_edges | :surface | :wireframe | :outline`.
 - `light_vector::Vector{<:Real}`: light direction.
@@ -74,6 +77,7 @@ save(plt, "model_plot.pdf")
 mutable struct DomainPlot<:Figure
     mesh::AbstractDomain
     figure_frame::Frame
+    title_box::TextBox
     canvas::FigureComponent
     colorbar::FigureComponent
     axes::FigureComponent
@@ -86,6 +90,7 @@ mutable struct DomainPlot<:Figure
     azimuth::Float64
     elevation::Float64
     distance::Float64
+    up::Symbol
 
     interpolation::Symbol
     light_vector::Vector{Float64}
@@ -139,10 +144,12 @@ mutable struct DomainPlot<:Figure
         bins::Int=6,
         font::AbstractString="NewComputerModern",
         font_size::Real=7.0,
+        title::AbstractString="",
         interpolation::Symbol=:linear,
         azimuth::Real=30.0,
         elevation::Real=30.0,
         distance::Real=0.0,
+        up::Symbol=:z,
         feature_edges::Bool=true,
         view_mode::Symbol=:surface_with_edges,
         light_vector::Vector{Float64}=[0.0,0.0,0.0],
@@ -157,13 +164,16 @@ mutable struct DomainPlot<:Figure
         @check edge_color == :auto || edge_color in keys(_colors_dict) "edge_color must be :auto or one of: $(collect(keys(_colors_dict))). Got $edge_color"
         @check !isempty(font) "font must be a non-empty string"
         @check length(limits) in (0, 2) "limits must have length 2 (manual) or be empty (auto)"
+        @check up in (:x, :y, :z) "up must be one of :x, :y, :z. Got $up"
 
         canvas = Canvas()
         the_colorbar = Colorbar()
         width, height = size
         axes_loc    = axes
         axis_labels = length(axis_labels)==0 ? ["x", "y", "z"] : axis_labels
-        axes_widget = AxisWidget(location=axes_loc, labels=axis_labels, font=font, font_size=font_size, azimuth=azimuth, elevation=elevation, arrow_length=20)
+        axis_arrow_length = max(28.0, 4.0*font_size)
+        title_box = TextBox(title)
+        axes_widget = AxesWidget(location=axes_loc, labels=axis_labels, font=font, font_size=font_size, azimuth=azimuth, elevation=elevation, distance=distance, up=up, arrow_length=axis_arrow_length)
 
         mesh = mesh
         nodes = []
@@ -174,7 +184,7 @@ mutable struct DomainPlot<:Figure
 
         face_color   = _colors_dict[face_color]
         field        = string(field)
-        field_kind   = string(field) == "" ? :none : field_kind
+        field_kind   = field_kind
         auto_limits  = length(limits) == 0
         limits       = auto_limits ? [0.0, 0.0] : collect(float.(limits))
         field_mult   = field_mult
@@ -197,12 +207,13 @@ mutable struct DomainPlot<:Figure
             printstyled("Domain plot\n", bold=true, color=:cyan)
             println("  size: $(width) x $(height) pt")
             println("  view mode: $(view_mode)")
+            title != "" && println("  title: $(title)")
             field != "" && println("  field: $(field)")
         end
 
-        return new(mesh, Frame(0.0, 0.0, width, height), canvas, the_colorbar, axes_widget, nodes, elems, 
+        return new(mesh, Frame(0.0, 0.0, width, height), title_box, canvas, the_colorbar, axes_widget, nodes, elems, 
             feature_edges_d, values, outerpad, shades,
-            azimuth, elevation, distance,
+            azimuth, elevation, distance, up,
             interpolation, light_vector,
             width, height,
             edge_width, edge_color, outline_width, 
@@ -216,6 +227,11 @@ mutable struct DomainPlot<:Figure
             quiet
         )
     end
+end
+
+
+function _domain_plot_title_font_size(mplot::DomainPlot)
+    return 1.2 * mplot.font_size
 end
 
 
@@ -234,8 +250,7 @@ function bezier_points(edge::AbstractCell)
     return [p1, cp2, cp3, p4]
 end
 
-
-function project_to_2d!(nodes, azimuth, elevation, distance)
+function project_to_2d!(nodes, azimuth, elevation, distance, up::Symbol=:z)
     # Find bounding box
     xmin, xmax = extrema( node.coord[1] for node in nodes)
     ymin, ymax = extrema( node.coord[2] for node in nodes)
@@ -245,34 +260,7 @@ function project_to_2d!(nodes, azimuth, elevation, distance)
     # Centralize
     center = 0.5*Vec3(xmin+xmax, ymin+ymax, zmin+zmax)
     for node in nodes
-        node.coord = node.coord - center
-    end
-
-    # Rotation around z axis
-    θ = -azimuth*pi/180
-    R = Quaternion(cos(θ/2), 0, 0, sin(θ/2))
-    for node in nodes
-        node.coord = (R*node.coord*conj(R))[2:4]
-    end
-
-    # Rotation around y axis
-    θ = elevation*pi/180
-    R = Quaternion(cos(θ/2), 0, sin(θ/2), 0)
-    for node in nodes
-        node.coord = (R*node.coord*conj(R))[2:4]
-    end
-
-    # Set projection values
-    distance==0 && (distance=reflength*3)
-    distance = max(distance, reflength)
-    focal_length = 0.1*distance
-
-    # Make projection
-    for node in nodes
-        x´ = node.coord[1]
-        y′ = node.coord[2]*focal_length/(distance-x´)
-        z′ = node.coord[3]*focal_length/(distance-x´)
-        node.coord = Vec3(y′, z′, distance-x´)
+        node.coord = project_view_point(node.coord, azimuth, elevation, distance, up=up, center=center, reflength=reflength)
     end
 
     xmin, xmax = extrema( node.coord[1] for node in nodes)
@@ -342,9 +330,9 @@ function configure!(mplot::DomainPlot)
     # 3D -> 2D projection
     if mesh.ctx.ndim==3
         # compute shades (before 2d projection)
-        V = Vec3( cosd(mplot.elevation)*cosd(mplot.azimuth), cosd(mplot.elevation)*sind(mplot.azimuth), sind(mplot.elevation) ) # observer vector
-        norm(mplot.light_vector)==0 && (mplot.light_vector = V)
-        L = mplot.light_vector
+        Vview = Vec3(cosd(mplot.elevation)*cosd(mplot.azimuth), cosd(mplot.elevation)*sind(mplot.azimuth), sind(mplot.elevation))
+        V = view_to_world(Vview, up=mplot.up)
+        L = norm(mplot.light_vector)==0 ? V : Vec3(mplot.light_vector)
         # shades = zeros(length(mesh.elems))
         shades = zeros(length(elems))
         for (i,elem) in enumerate(elems)
@@ -364,7 +352,7 @@ function configure!(mplot::DomainPlot)
         mplot.shades = shades
 
         # compute projection
-        project_to_2d!(nodes, mplot.azimuth, mplot.elevation, mplot.distance)
+        project_to_2d!(nodes, mplot.azimuth, mplot.elevation, mplot.distance, mplot.up)
         # zmin, zmax = extrema(node.coord[3] for node in nodes)
 
         # distances = [ sum(node.coord[3] for node in elem.nodes)/length(elem.nodes)  for elem in mesh.elems ]
@@ -435,10 +423,21 @@ function configure!(mplot::DomainPlot)
     width, height = mplot.width, mplot.height
     mplot.figure_frame = Frame(mplot.figure_frame.x, mplot.figure_frame.y, width, height)
     mplot.outerpad = max(0.01*min(width, height), mplot.outerpad)
+    title_height = if isempty(mplot.title_box.text)
+        0.0
+    else
+        surf = CairoImageSurface(4, 4, Cairo.FORMAT_ARGB32)
+        cc = CairoContext(surf)
+        title_font_size = _domain_plot_title_font_size(mplot)
+        select_font_face(cc, get_font(mplot.font), Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL)
+        set_font_size(cc, title_font_size)
+        getsize(cc, mplot.title_box.text, title_font_size)[2]
+    end
+    title_gap = isempty(mplot.title_box.text) ? 0.0 : 0.6 * mplot.font_size
 
     lpane = 0.0
     rpane = 0.0
-    tpane = 0.0
+    tpane = title_height + title_gap
     bpane = 0.0
 
     # Colorbar
@@ -478,6 +477,12 @@ function configure!(mplot::DomainPlot)
     Xmax = base_x + width - rpane - mplot.outerpad
     Ymax = base_y + height - bpane - mplot.outerpad
     canvas.frame = Frame(Xmin, Ymin, Xmax - Xmin, Ymax - Ymin)
+    if !isempty(mplot.title_box.text)
+        mplot.title_box.frame = Frame(Xmin, base_y + mplot.outerpad, Xmax - Xmin, title_height)
+        mplot.title_box.angle = 0.0
+    else
+        mplot.title_box.frame = Frame()
+    end
 
     xmin_data, xmax_data = extrema( node.coord[1] for node in mplot.nodes)
     ymin_data, ymax_data = extrema( node.coord[2] for node in mplot.nodes)
@@ -495,12 +500,15 @@ function configure!(mplot::DomainPlot)
 
     # Axes widget
     if mplot.axes_loc != :none
-        mplot.axes = AxisWidget(
+        mplot.axes = AxesWidget(
             location  = mplot.axes_loc,
             font_size = mplot.font_size,
             font      = mplot.font,
             azimuth    = mplot.azimuth,
             elevation = mplot.elevation,
+            distance  = mplot.distance,
+            up        = mplot.up,
+            arrow_length = max(28.0, 4.0*mplot.font_size),
             labels    = mplot.axis_labels[1:ndim],
         )
         configure!(mplot.axes)
@@ -516,7 +524,7 @@ function configure!(mplot::DomainPlot)
             error("DomainPlot: axes location $(mplot.axes_loc) not implemented")
         end
     else
-        mplot.axes = AxisWidget(location=:none)
+        mplot.axes = AxesWidget(location=:none)
     end
 
     if has_field && mplot.colorbar.location != :none
@@ -556,6 +564,7 @@ function draw_contents!(mplot::DomainPlot, ctx::RenderContext)
     font = get_font(mplot.font)
     select_font_face(cairo_ctx, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL )
     set_font_size(cairo_ctx, mplot.font_size)
+    field_kind = isempty(mplot.field) ? :none : mplot.field_kind
 
     # has_field = mplot.field != ""
     # is_nodal_field = has_field && haskey(mplot.mesh.node_fields, mplot.field)
@@ -587,7 +596,7 @@ function draw_contents!(mplot::DomainPlot, ctx::RenderContext)
             move_to(cairo_ctx, x, y)
             color = Vec3(0.8, 0.2, 0.1)
             # if has_field && !is_nodal_field
-            if mplot.field_kind == :element
+            if field_kind == :element
                 color = mplot.colormap(mplot.values[elem.id])
             end
 
@@ -617,11 +626,19 @@ function draw_contents!(mplot::DomainPlot, ctx::RenderContext)
     end
 
     # draw colorbar
-    mplot.field_kind != :none && draw!(mplot, ctx, mplot.colorbar)
+    field_kind != :none && draw!(mplot, ctx, mplot.colorbar)
 
     # draw axes
     if mplot.axes_loc != :none
         draw!(mplot.axes, ctx)
+    end
+
+    if !isempty(mplot.title_box.text)
+        reset_matrix!(ctx)
+        set_source_rgb(cairo_ctx, 0.0, 0.0, 0.0)
+        set_font_size(cairo_ctx, _domain_plot_title_font_size(mplot))
+        _draw_text_box!(ctx, mplot.title_box)
+        set_font_size(cairo_ctx, mplot.font_size)
     end
 
 end
@@ -635,6 +652,7 @@ end
 function draw_surface_cell!(ctx::RenderContext, mplot::DomainPlot, elem::AbstractCell, shade::Float64)
     cairo_ctx = ctx.cairo_ctx
     set_line_cap(cairo_ctx, Cairo.CAIRO_LINE_CAP_ROUND)
+    field_kind = isempty(mplot.field) ? :none : mplot.field_kind
 
     function get_edge_color(face_color, edge_color)
         if mplot.view_mode == :surface # disguise edges in surface view
@@ -655,14 +673,14 @@ function draw_surface_cell!(ctx::RenderContext, mplot::DomainPlot, elem::Abstrac
     end
 
     # constant_color = !is_nodal_field || mplot.interpolation==:constant
-    constant_color = mplot.field_kind in (:element,:none) || mplot.interpolation==:constant
+    constant_color = field_kind in (:element,:none) || mplot.interpolation==:constant
 
     # compute linear gradients
     if constant_color
-        if mplot.field_kind == :node
+        if field_kind == :node
             val = sum( mplot.values[node.id] for node in elem.nodes)/length(elem.nodes)
             color = mplot.colormap(val).*shade
-        elseif mplot.field_kind == :element
+        elseif field_kind == :element
             color = mplot.colormap(mplot.values[elem.id]).*shade
         else
             color = mplot.face_color.*shade
@@ -816,14 +834,14 @@ function draw_surface_cell!(ctx::RenderContext, mplot::DomainPlot, elem::Abstrac
 
             # elem colors
             color = mplot.face_color
-            if mplot.field_kind == :element
+            if field_kind == :element
                 color = mplot.colormap(mplot.values[elem.id])
             end
 
             # set nodal colors
             for (i,node) in enumerate(elem.nodes[1:nedges])
                 # if has_field && is_nodal_field
-                if mplot.field_kind == :node
+                if field_kind == :node
                     color = mplot.colormap(mplot.values[node.id])
                 end
                 scolor = color.*shade # apply shade
