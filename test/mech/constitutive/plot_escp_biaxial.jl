@@ -16,7 +16,7 @@ function mirrored_curve(σx::Vector{Float64}, σy::Vector{Float64})
 end
 
 
-envelope = DataTable(joinpath(@__DIR__, "ecp-biaxial-envelope.dat"))
+envelope = DataTable(joinpath(@__DIR__, "escp-biaxial-envelope.dat"))
 
 f0 = envelope["f0"][1]
 σx = envelope["σxx"] ./ f0
@@ -35,7 +35,7 @@ chart = Chart(
     aspect_ratio=:equal,
 )
 add_line(chart, diag, diag, color=:gray, line_style=:dash, label="symmetry line")
-add_line(chart, curve_x, curve_y, color=:black, label="ECP envelope")
+add_line(chart, curve_x, curve_y, color=:black, label="ESCP envelope")
 add_scatter(chart, σx, σy, color=:red, mark=:square, label="evaluated angles")
 add_scatter(chart, σy[2:end], σx[2:end], color=:red, mark=:square, label="")
-save(chart, joinpath(@__DIR__, "ecp-biaxial-stress-plane.pdf"))
+save(chart, joinpath(@__DIR__, "escp-biaxial-stress-plane.pdf"))

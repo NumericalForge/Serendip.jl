@@ -1,37 +1,10 @@
 using Serendip
 using Test
 
-function build_mapper(fc::Float64, ft::Float64)
-    mapper = RegionMapper()
-    add_mapping(
-        mapper,
-        "solids",
-        MechSolid,
-        ECP,
-        E=30.0e6,
-        nu=0.25,
-        alpha=0.66,
-        beta=1.15,
-        fc=fc,
-        epsc=-0.002,
-        eta=2.2,
-        ft=ft,
-        wc=0.0001,
-    )
-    return mapper
-end
-
-
-function build_mesh(ℓ::Float64, h::Float64)
-    geo = GeoModel()
-    add_block(geo, [0, 0, 0], ℓ, ℓ, h, shape=HEX8, nx=1, ny=1, nz=1, tag="solids")
-    return Mesh(geo)
-end
-
 
 function run_target_angle(mesh::Mesh, mapper::RegionMapper, θ::Float64, ℓ::Float64, h::Float64)
     model = FEModel(mesh, mapper, quiet=true)
-    ana   = MechAnalysis(model, outkey="ecp-biaxial", outdir=@__DIR__)
+    ana   = MechAnalysis(model, outkey="escp-biaxial", outdir=@__DIR__)
     ip    = nearest(select(model, :ip, :all), [ℓ / 2, ℓ / 2, h / 2])
     log   = add_logger(ana, :ip, collect(ip.coord))
     add_monitor(ana, :ip, ip.coord, stop=:(ρ < 0.95 * ρ_max))
@@ -98,8 +71,14 @@ function main()
     ft = 3.0e3
     f0 = abs(fc)
 
-    mesh = build_mesh(ℓ, h)
-    mapper = build_mapper(fc, ft)
+    # Mesh
+    geo = GeoModel()
+    add_block(geo, [0, 0, 0], ℓ, ℓ, h, shape=:hex8, nx=1, ny=1, nz=1, tag="solids")
+    mesh = Mesh(geo, quadratic=true)
+
+    # Mapper
+    mapper = RegionMapper()
+    add_mapping( mapper, "solids", MechSolid, ESCP, E=30.0e6, nu=0.25, beta=1.15, fc=fc, epsc=-0.002, ft=ft, wc=0.0001 )
 
     # One symmetric branch is enough; the plot script mirrors it across σxx = σyy.
     angles = collect(45.0:15.0:225.0)
@@ -135,12 +114,9 @@ function main()
         :f0 => f0_env,
     )
 
-    save(envelope, joinpath(@__DIR__, "ecp-biaxial-envelope.dat"))
+    save(envelope, joinpath(@__DIR__, "escp-biaxial-envelope.dat"))
 
-    # @test minimum(vcat(σxx_env, σyy_env)) < -0.75 * f0
-    # @test maximum(vcat(σxx_env, σyy_env)) > 0.02 * f0
-
-    include("plot_ecp_biaxial.jl")
+    include("plot_escp_biaxial.jl")
 end
 
 

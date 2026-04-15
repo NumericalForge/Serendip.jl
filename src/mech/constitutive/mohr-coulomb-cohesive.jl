@@ -192,7 +192,7 @@ function calcD(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveState)
         H = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
         Hcap = -mat.ft/(0.5*mat.wc)
         H    = max(H, Hcap) # cap degradation to prevent numerical issues
-        
+
         De_m  = De*m
         nT_De = n'*De
         den   = dot(n, De_m) - ∂f∂σmax*H*norm(m)
@@ -217,7 +217,6 @@ function plastic_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveStat
     Δλ        = 0.0
     up        = cstate.up
     σ         = cstate.σ
-    σmax      = calc_σmax(mat, up)
     tol       = mat.ft*1e-8
     σtol      = mat.ft*1e-6
     σ0        = copy(σ)
@@ -226,8 +225,8 @@ function plastic_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveStat
         den_σn = 1.0 + Δλ*kn*ψ^2
         den_τ  = 1.0 + Δλ*ks
 
-        # stresses at current iterate
-        σn = (σntr < 0) ? σntr : σntr/den_σn
+        # stresses at current iteration
+        σn = σntr < 0 ? σntr : σntr/den_σn
         τ1 = τ1tr/den_τ
         τ2 = τ2tr/den_τ
         τ  = √(τ1^2 + τ2^2 + eps())
@@ -253,12 +252,12 @@ function plastic_update(mat::MohrCoulombCohesive, state::MohrCoulombCohesiveStat
         σ0 = copy(σ)
 
         # derivatives
-        if σntr<0
+        if σntr < 0
             ∂σn∂Δλ = 0.0
-            ∂m∂Δλ  = Vec3( 0.0, -τ1tr*ks/den_τ^2, -τ2tr*ks/den_τ^2 )
+            ∂m∂Δλ  = Vec3(0.0, -τ1tr*ks/den_τ^2, -τ2tr*ks/den_τ^2)
         else
             ∂σn∂Δλ = -σntr*kn*ψ^2/den_σn^2
-            ∂m∂Δλ  = Vec3( -σntr*kn*ψ^4/den_σn^2, -τ1tr*ks/den_τ^2, -τ2tr*ks/den_τ^2 )
+            ∂m∂Δλ  = Vec3(-σntr*kn*ψ^4/den_σn^2, -τ1tr*ks/den_τ^2, -τ2tr*ks/den_τ^2)
         end
 
         ∂τ∂Δλ    = -τtr*ks/den_τ^2

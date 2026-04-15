@@ -1,14 +1,14 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export ECP
+export ESCP
 
 """
-    ECP(; E, nu, fc, epsc, ft, GF=NaN, wc=NaN, beta=1.15, chi=0.2, p0=NaN,
+    ESCP(; E, nu, fc, epsc, ft, GF=NaN, wc=NaN, beta=1.15, chi=0.2, p0=NaN,
          ft_law=:hordijk, fc_law=:popovics, H=0.0)
 
-Evolving Concrete Plasticity model.
+Evolving Strength Concrete Plasticity model.
 
-`ECP` is an invariant-based plasticity model for concrete with:
+`ESCP` is an invariant-based plasticity model for concrete with:
 - a tensile-compressive yield surface written in terms of `ξ`, `ρ`, and `θ`
 - a Willam-Warnke-type deviatoric section controlled by the eccentricity `e`
 - a rounded compressive cap controlled by the compressive limit `ξc`
@@ -56,7 +56,7 @@ The model is calibrated from the uniaxial compressive strength `fc`, tensile str
 - The compressive cap is active for `ξc < ξ < 1.2·ξb`.
 - The model is intended for `MechSolid` elements.
 """
-mutable struct ECP<:Constitutive
+mutable struct ESCP<:Constitutive
     E::Float64
     ν::Float64
     fc::Float64
@@ -74,7 +74,7 @@ mutable struct ECP<:Constitutive
     fc_fun::Union{Nothing,AbstractSpline}
     e::Float64
 
-    function ECP(;
+    function ESCP(;
         E::Real    = NaN,
         nu::Real   = NaN,
         fc::Real   = NaN,
@@ -89,21 +89,21 @@ mutable struct ECP<:Constitutive
         fc_law     = :popovics,
         H::Real    = 0.0,
     )
-        @check E>0 "ECP: Young's modulus E must be > 0. Got $E."
-        @check 0<=nu<0.5 "ECP: Poisson's ratio nu must be in the range [0, 0.5). Got $nu."
-        @check 0.1<chi<=1.0 "ECP: Dilatance ratio χ=tan(ψ) [0.1, 1.0]. Got $chi."
-        @check 1<=beta<=1.5 "ECP: Factor beta must be in the range [1.0, 1.5]. Got $beta."
+        @check E>0 "ESCP: Young's modulus E must be > 0. Got $E."
+        @check 0<=nu<0.5 "ESCP: Poisson's ratio nu must be in the range [0, 0.5). Got $nu."
+        @check 0.1<chi<=1.0 "ESCP: Dilatance ratio χ=tan(ψ) [0.1, 1.0]. Got $chi."
+        @check 1<=beta<=1.5 "ESCP: Factor beta must be in the range [1.0, 1.5]. Got $beta."
 
-        @check ft>0 "ECP: Tensile strength ft must be > 0. Got $ft."
-        @check H>=0 "ECP: Plastic modulus H must be >= 0. Got $H."
+        @check ft>0 "ESCP: Tensile strength ft must be > 0. Got $ft."
+        @check H>=0 "ESCP: Plastic modulus H must be >= 0. Got $H."
 
         wc, ft_law, ft_fun, status = setup_tensile_strength(ft, GF, wc, ft_law)
-        failed(status) && throw(ArgumentError("ECP: " * status.message))
+        failed(status) && throw(ArgumentError("ESCP: " * status.message))
 
         fc_law, fc_fun, status = setup_compressive_strength(E, fc, epsc, fc_law)
-        failed(status) && throw(ArgumentError("ECP: " * status.message))
+        failed(status) && throw(ArgumentError("ESCP: " * status.message))
 
-        @check abs(epsc)>abs(fc)/E "ECP: epsc should be greater than fc/E."
+        @check abs(epsc)>abs(fc)/E "ESCP: epsc should be greater than fc/E."
 
         # Excentricity matching the biaxial compressive strength.
         β  = beta
@@ -111,24 +111,24 @@ mutable struct ECP<:Constitutive
         fb = β*fc
         
         if isnan(wc)
-            @check GF>0 "ECP: Fracture energy GF must be > 0. Got $(repr(GF))."
+            @check GF>0 "ESCP: Fracture energy GF must be > 0. Got $(repr(GF))."
             wc = round(GF/(0.1947*ft), sigdigits=5)  # inverse of Hordijk approximation
-            notify("ECP: Using Hordijk's approximation wc=$(repr(wc)).")
+            notify("ESCP: Using Hordijk's approximation wc=$(repr(wc)).")
         else
-            @check wc>=0 "ECP: Critical crack opening wc must be >= 0. Got $(repr(wc))."
+            @check wc>=0 "ESCP: Critical crack opening wc must be >= 0. Got $(repr(wc))."
         end
-        wc > 1e-5 || notify("ECP: Warning: very low value of wc=$(repr(wc)).")
+        wc > 1e-5 || notify("ESCP: Warning: very low value of wc=$(repr(wc)).")
 
         if isnan(p0)
             ξb  = (2/√3*fb)*1.2 # cap position (ξb) 20% beyond the biaxial strength (2/√3*fb)
             ξc0 = 1.5*ξb
         else
-            @check p0<0 "ECP: Elastic limit in isotropic compression p0 must be < 0. Got $(repr(p0))."
+            @check p0<0 "ESCP: Elastic limit in isotropic compression p0 must be < 0. Got $(repr(p0))."
             ξc0 = √3*p0
         end
 
         den = e^2*fc^2 - ft^2
-        @check den > 0 "ECP: invalid strength ratio. Expected e^2*fc^2 > ft^2."
+        @check den > 0 "ESCP: invalid strength ratio. Expected e^2*fc^2 > ft^2."
         ξt0 = fc*ft*(e^2*fc - ft)/(√3*den)
 
         return new(E, nu, fc, epsc, ft, wc, fb, chi, H, ξc0, ξt0, ft_law, ft_fun, fc_law, fc_fun, e)
@@ -136,7 +136,7 @@ mutable struct ECP<:Constitutive
 end
 
 
-mutable struct ECPState<:ConstState
+mutable struct ESCPState<:ConstState
     ctx::Context
     σ  ::Vec6
     ε  ::Vec6
@@ -145,7 +145,7 @@ mutable struct ECPState<:ConstState
     εvp::Float64
     Δλ ::Float64
     h  ::Float64
-    function ECPState(ctx::Context)
+    function ESCPState(ctx::Context)
         this     = new(ctx)
         this.σ   = zeros(Vec6)
         this.ε   = zeros(Vec6)
@@ -160,11 +160,11 @@ end
 
 
 # Type of corresponding state structure
-# compat_state_type(::Type{ECP}, ::Type{MechSolid}) = ctx.stress_state!=:plane_stress ? ECPState : error("ECP: This model is not compatible with planestress")
-compat_state_type(::Type{ECP}, ::Type{MechSolid}) = ECPState
+# compat_state_type(::Type{ESCP}, ::Type{MechSolid}) = ctx.stress_state!=:plane_stress ? ESCPState : error("ESCP: This model is not compatible with planestress")
+compat_state_type(::Type{ESCP}, ::Type{MechSolid}) = ESCPState
 
 
-function calc_θ(mat::ECP, ρ::Float64, j3::Float64)
+function calc_θ(mat::ESCP, ρ::Float64, j3::Float64)
 
     ρtol = 1e-8*abs(mat.fc)
     ctol = 1e-6
@@ -186,7 +186,7 @@ function calc_θ(mat::ECP, ρ::Float64, j3::Float64)
 end
 
 
-function calc_rθ(mat::ECP, θ::Float64)
+function calc_rθ(mat::ESCP, θ::Float64)
     e = mat.e
 
     rnum   = 2*(1-e^2)*cos(θ) + (2*e-1)*√(4*(1-e^2)*cos(θ)^2 + 5*e^2 - 4*e)
@@ -197,13 +197,7 @@ function calc_rθ(mat::ECP, θ::Float64)
 end
 
 
-function calc_rξ(mat::ECP, ξc::Float64, ξt::Float64, ξ::Float64)
-    abs_fc = abs(mat.fc)
-    return spow((ξt-ξ)/abs_fc, mat.α)
-end
-
-
-function calc_rc(mat::ECP, ξc::Float64, ξ::Float64)
+function calc_rc(mat::ESCP, ξc::Float64, ξ::Float64)
     ξb = 2*mat.fb/√3
     ξ>=ξb && return 1.0
     ξ<ξc  && return 0.0
@@ -211,20 +205,20 @@ function calc_rc(mat::ECP, ξc::Float64, ξ::Float64)
 end
 
 
-function is_apex_state(mat::ECP, ξ::Float64, ξt::Float64)
+function is_apex_state(mat::ESCP, ξ::Float64, ξt::Float64)
     ξtol = √eps(Float64)*max(abs(mat.fc), abs(ξt), 1.0)
     return ξ >= ξt - ξtol
 end
 
 
-function calc_fc(mat::ECP, εcp::Float64)
+function calc_fc(mat::ESCP, εcp::Float64)
     fc0 = 0.4*mat.fc
     fcr = 0.1*mat.fc
 
     return calc_compressive_strength(mat, fc0, fcr, εcp)
 end
 
-function calc_fc_derivative(mat::ECP, εcp::Float64)
+function calc_fc_derivative(mat::ESCP, εcp::Float64)
     fc0 = 0.4*mat.fc
     fcr = 0.1*mat.fc
 
@@ -232,19 +226,19 @@ function calc_fc_derivative(mat::ECP, εcp::Float64)
 end
 
 
-function calc_ft(mat::ECP, w::Float64)
+function calc_ft(mat::ESCP, w::Float64)
     return calc_tensile_strength(mat, w)
 end
 
 
-function calc_ft_derivative(mat::ECP, w::Float64)
+function calc_ft_derivative(mat::ESCP, w::Float64)
     ∂ft∂w = calc_tensile_strength_derivative(mat, w)
     Hcap  = isfinite(mat.wc) ? -mat.ft/(0.5*mat.wc) : -Inf
     return max(∂ft∂w, Hcap)
 end
 
 
-function calc_ξc_ξt_m(mat::ECP, h::Float64, εtp::Float64, εcp::Float64, εvp::Float64)
+function calc_ξc_ξt_m(mat::ESCP, h::Float64, εtp::Float64, εcp::Float64, εvp::Float64)
     w  = εtp*h
     e  = mat.e
     ft = calc_ft(mat, w)
@@ -266,7 +260,7 @@ function calc_ξc_ξt_m(mat::ECP, h::Float64, εtp::Float64, εcp::Float64, εvp
 end
 
 
-function yield_func(mat::ECP, h::Float64, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
+function yield_func(mat::ESCP, h::Float64, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
     # f(σ) = ρ² - m⋅rθ²⋅rc²⋅(ξt-ξ)
 
     i1, j2 = tr(σ), J2(σ)
@@ -283,7 +277,7 @@ function yield_func(mat::ECP, h::Float64, σ::AbstractArray, εtp::Float64, εcp
 end
 
 
-function yield_derivs(mat::ECP, h::Float64, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
+function yield_derivs(mat::ESCP, h::Float64, σ::AbstractArray, εtp::Float64, εcp::Float64, εvp::Float64)
     i1, j2, j3 = tr(σ), J2(σ), J3(σ)
     ξc, ξt, m = calc_ξc_ξt_m(mat, h, εtp, εcp, εvp)
     
@@ -359,7 +353,7 @@ function yield_derivs(mat::ECP, h::Float64, σ::AbstractArray, εtp::Float64, ε
 end
 
 
-function potential_derivs(mat::ECP, h::Float64, σ::AbstractArray, εtp::Float64)
+function potential_derivs(mat::ESCP, h::Float64, σ::AbstractArray, εtp::Float64)
     # g(σ) = ρ^2 - 4 tan^2(ψ) (ξ_t - ξ_f'_c) (ξ_t - ξ) = 0
     # g(σ) = ρ^2 - 4 χ^2 (ξ_t - ξ_f'_c) (ξ_t - ξ) = 0
     ξfc = mat.fc/√3
@@ -387,7 +381,7 @@ function potential_derivs(mat::ECP, h::Float64, σ::AbstractArray, εtp::Float64
 end
 
 
-function ecp_plastic_flow_invariant_rates(∂g∂σ::Vec6)
+function escp_plastic_flow_invariant_rates(∂g∂σ::Vec6)
     # Recover the principal values analytically from invariants, then apply
     # the original positive/negative spectral split.
     Λ1, Λ2, Λ3 = eigvals(∂g∂σ)
@@ -401,7 +395,7 @@ function ecp_plastic_flow_invariant_rates(∂g∂σ::Vec6)
 end
 
 
-function calcD(mat::ECP, state::ECPState)
+function calcD(mat::ESCP, state::ESCPState)
     De  = calcDe(mat.E, mat.ν, state.ctx.stress_state)
     h = state.h
 
@@ -409,7 +403,7 @@ function calcD(mat::ECP, state::ECPState)
 
     ∂f∂σ, ∂f∂εtp, ∂f∂εcp, ∂f∂εvp = yield_derivs(mat, h, state.σ, state.εtp, state.εcp, state.εvp)
     ∂g∂σ = potential_derivs(mat, h, state.σ, state.εtp)
-    rate_εtp, rate_εcp, rate_εvp = ecp_plastic_flow_invariant_rates(∂g∂σ)
+    rate_εtp, rate_εcp, rate_εvp = escp_plastic_flow_invariant_rates(∂g∂σ)
 
     De_dgdσ = De*∂g∂σ
     denom = ∂f∂σ'*De_dgdσ - ∂f∂εcp*rate_εcp - ∂f∂εtp*rate_εtp - ∂f∂εvp*rate_εvp
@@ -419,64 +413,68 @@ function calcD(mat::ECP, state::ECPState)
 end
 
 
-function plastic_update(mat::ECP, state::ECPState, cstate::ECPState, σtr::Vec6)
+function plastic_update(mat::ESCP, state::ESCPState, cstate::ESCPState, σtr::Vec6)
     maxits = 50
     tol    = mat.ft^2*1e-5
     h      = state.h
-    ∂g∂σ   = potential_derivs(mat, h, cstate.σ, cstate.εtp)
     De     = calcDe(mat.E, mat.ν, state.ctx.stress_state)
     Δλ     = eps()
-
-    σ  = σtr - Δλ*(De*∂g∂σ)
 
     εcp = cstate.εcp
     εtp = cstate.εtp
     εvp = cstate.εvp
+    σ   = cstate.σ
 
-    f = yield_func(mat, h, σ, εtp, εcp, εvp)
-    rate_εtp, rate_εcp, rate_εvp = ecp_plastic_flow_invariant_rates(∂g∂σ)
-
-    # NR iterations considering ∂g∂σ frozen
-    for i in 1:maxits
-        ∂f∂σ, ∂f∂εtp, ∂f∂εcp, ∂f∂εvp = yield_derivs(mat, h, σ, εtp, εcp, εvp)
-
-        ∂f∂Δλ = -∂f∂σ'*De*∂g∂σ + ∂f∂εcp*rate_εcp + ∂f∂εtp*rate_εtp + ∂f∂εvp*rate_εvp
-
-        # Newton step direction
-        Δλ = max(Δλ - f / ∂f∂Δλ, 0.0)
-        isfinite(Δλ) || break
-
-        σ   = σtr - Δλ*(De*∂g∂σ)
-        εtp = cstate.εtp + Δλ*rate_εtp
-        εcp = cstate.εcp + Δλ*rate_εcp
-        εvp = cstate.εvp + Δλ*rate_εvp
+    for k in 1:2 # two iterations with updated ∂g∂σ
+        ∂g∂σ = potential_derivs(mat, h, σ, εtp)
 
         f = yield_func(mat, h, σ, εtp, εcp, εvp)
-        
-        if abs(f) < tol
-            Δλ < 0.0 && break
+        rate_εtp, rate_εcp, rate_εvp = escp_plastic_flow_invariant_rates(∂g∂σ)
 
-            w  = εtp * state.h
-            ft = calc_ft(mat, w)
-            fc = calc_fc(mat, εcp)
-            abs(fc*mat.e/ft) > 1.1 || break
+        # NR iterations considering ∂g∂σ frozen
+        for i in 1:maxits
+            ∂f∂σ, ∂f∂εtp, ∂f∂εcp, ∂f∂εvp = yield_derivs(mat, h, σ, εtp, εcp, εvp)
 
-            state.σ   = σ
-            state.εtp = εtp
-            state.εcp = εcp
-            state.εvp = εvp
-            state.Δλ  = Δλ
+            ∂f∂Δλ = -∂f∂σ'*De*∂g∂σ + ∂f∂εcp*rate_εcp + ∂f∂εtp*rate_εtp + ∂f∂εvp*rate_εvp
+
+            # Newton step direction
+            Δλ = max(Δλ - f / ∂f∂Δλ, 0.0)
+            isfinite(Δλ) || return failure("ESCP: plastic update failed (not finite Δλ, k:$k)")
+
+            σ   = σtr - Δλ*(De*∂g∂σ)
+            εtp = cstate.εtp + Δλ*rate_εtp
+            εcp = cstate.εcp + Δλ*rate_εcp
+            εvp = cstate.εvp + Δλ*rate_εvp
+
+            f = yield_func(mat, h, σ, εtp, εcp, εvp)
             
-            return success()
-        end
+            if abs(f) < tol
+                w  = εtp * h
+                ft = calc_ft(mat, w)
+                fc = calc_fc(mat, εcp)
+                abs(fc*mat.e/ft) > 1.1 || return failure("ESCP: plastic update failed (fc*e/ft<1.1, k:$k)")
 
+                break
+            end
+
+            ff = round(f, sigdigits=2)
+            i==maxits && return failure("ESCP: plastic update failed (maxits, k:$k, f:$ff)")
+
+        end
     end
 
-    return failure("ECP: plastic update failed")
+    state.σ   = σ
+    state.εtp = εtp
+    state.εcp = εcp
+    state.εvp = εvp
+    state.Δλ  = Δλ
+    
+    return success()
 end
 
 
-function update_state(mat::ECP, state::ECPState, cstate::ECPState, Δε::AbstractArray)
+
+function update_state(mat::ESCP, state::ESCPState, cstate::ESCPState, Δε::AbstractArray)
 
     De   = calcDe(mat.E, mat.ν, state.ctx.stress_state)
     h    = state.h
@@ -491,7 +489,13 @@ function update_state(mat::ECP, state::ECPState, cstate::ECPState, Δε::Abstrac
         state.Δλ = 0.0
         state.σ  = σtr
         Δσ       = state.σ - cstate.σ
+        
+        if state.ctx.stress_state == :plane_stress
+            Δε33e = -(mat.ν / mat.E) * (Δσ[1] + Δσ[2])
+            Δε = Vec6(Δε[1], Δε[2], Δε33e, 0.0, 0.0, Δε[6])
+        end
         state.ε  = cstate.ε + Δε
+        
         return Δσ, success()
     end
 
@@ -509,11 +513,6 @@ function update_state(mat::ECP, state::ECPState, cstate::ECPState, Δε::Abstrac
         Δεp = state.Δλ * ∂g∂σ
 
         Δε = Vec6(Δε[1], Δε[2], Δε33e + Δεp[3], 0.0, 0.0, Δε[6])
-        # σtr  = cstate.σ + De*Δε
-        # status = plastic_update(mat, state, cstate, σtr)
-        # failed(status) && return state.σ, status
-
-        Δσ = state.σ - cstate.σ
     end
 
     state.ε = cstate.ε + Δε
@@ -522,7 +521,7 @@ function update_state(mat::ECP, state::ECPState, cstate::ECPState, Δε::Abstrac
 end
 
 
-function state_values(mat::ECP, state::ECPState)
+function state_values(mat::ESCP, state::ESCPState)
     σ, ε  = state.σ, state.ε
     h = state.h
     ρ = √(2*J2(σ))
@@ -534,8 +533,6 @@ function state_values(mat::ECP, state::ECPState)
     fc = calc_fc(mat, state.εcp)
 
     ξc, ξt, m = calc_ξc_ξt_m(mat, h, state.εtp, state.εcp, state.εvp)
-    # rc = calc_rc(mat, ξc, ξ)
-    # rξ = calc_rξ(mat, ξc, ξt, ξ)
 
     vals_d = stress_strain_dict(σ, ε, state.ctx.stress_state)
 
@@ -549,11 +546,6 @@ function state_values(mat::ECP, state::ECPState)
     vals_d[:ξc]  = ξc
     vals_d[:ξt]  = ξt
     vals_d[:m]   = m
-    # vals_d[:r]   = r
-    # vals_d[:rξ]  = rξ
-    # vals_d[:rc]  = rc
-    # vals_d[:ξt]  = 2*mat.fb/√3
-    # vals_d[:fcb] = abs(mat.fc)
 
     return vals_d
 end

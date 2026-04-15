@@ -24,55 +24,80 @@ zeta = 5.0
 
 # ❱❱❱ Finite element analyses
 
-models_props_d = Dict(
-    MohrCoulombCohesive => (E=E, nu=nu, ft=ft, mu=1.0, zeta=zeta, wc=wc),
-    # AsinhYieldCohesive => (E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=0.6, gamma=0.05, theta=1.5),
-    # PowerYieldCohesive => (E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=1.5, gamma=0.05, theta=1.5),
+trajectories = [ 
+    "pure extension",
+    "extension with shear",
+    "pure shear",
+    "compression with shear" 
+]
+
+models = (
+    (cmodel=MohrCoulombCohesive, props=(E=E, nu=nu, ft=ft, mu=1.4, zeta=zeta, wc=wc), mark=:triangle),
+    # (cmodel=PowerYieldCohesive, props=(E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=1.5, gamma=0.05, theta=1.5), mark=:circle),
+    (cmodel=AsinhPowerCohesive, props=(E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=0.5, beta=1.0, theta=1.0, psi=1.4, B=ft), mark=:circle),
+    (cmodel=AsinhYieldCohesive, props=(E=E, nu=nu, fc=fc, ft=ft, zeta=zeta, wc=wc, alpha=0.33, beta=0.2, theta=1.0, psi=1.4), mark=:circle),
 )
 
-model_elem_d = Dict(
-    MohrCoulombCohesive => MechCohesive,
-    # AsinhYieldCohesive => MechCohesive,
-    # PowerYieldCohesive => MechCohesive,
+
+grid = ChartGrid(
+    # size=(16cm, 6cm), 
+    size=(16cm, 24cm),
+    background=:old_paper, 
+    row_headers=trajectories,
+    column_headers=[ "`σ_n` vs `τ`", "`w` vs `σ_n`" ],
+    quiet=true,
 )
 
-# ❱❱❱ Finite element analysis using LinearCohesive
-chart1 = Chart(legend=:top_left, xlabel="σn", ylabel="τ")
-chart2 = Chart(legend=:top_right, xlabel="w", ylabel="σn")
-# chart2 = Chart(legend=:bottom_right, xlabel="w", ylabel="σn")
 
-for (cmodel, props) in models_props_d
-    printstyled("\n$(string(cmodel)):\n\n", color=:yellow, bold=true)
-    elem_type = model_elem_d[cmodel]
+for (i,trajectory) in enumerate(trajectories)
+    printstyled("\nTrajectory: $(trajectory)\n\n", color=:cyan, bold=true)
     
-    mapper = RegionMapper()
-    add_mapping(mapper, "bulk", MechSolid, LinearElastic, E=E, nu=nu)
-    add_mapping(mapper, "interface", elem_type, cmodel; props...)
-    
-    model = FEModel(mesh, mapper, stress_state=:plane_stress, thickness=1.0)
-    ana = MechAnalysis(model)
-    
-    joint = select(model.elems, "interface")
-    select( get_ips(joint), tag="jips" )
-    log1 = add_logger(ana, :ip, "jips", "ip.dat")
-    add_monitor(ana, :ip, "jips", (:σn, :τ))
-    
-    stage = add_stage(ana, nincs=80, nouts=10)
-    # add_bc(stage, :node, "left", ux=0, uy=0)
-    # add_bc(stage, :node, "right", ux=1e-9, uy=8e-5)
-    add_bc(stage, :node, (x==0,y==0), uy=0)
-    add_bc(stage, :node, x==0, ux=0)
-    add_bc(stage, :node, x==0.2, ux=0.00025)
-    # add_bc(stage, :node, x==0.2, ux=0.000025)
-    
-    status = run(ana, autoinc=true, maxits=10, tol=0.01, rspan=0.03, dTmax=0.1, quiet=true)
-    
-    # add line plot
-    add_series(chart1, log1.table["σn"], log1.table["τ"], label=string(cmodel), mark=:circle)
-    add_series(chart2, log1.table["w"], log1.table["σn"], label=string(cmodel), mark=:circle)
+    chart1 = Chart(legend=:top_left, xlabel="`σ_n`", ylabel="`τ`")
+    chart2 = Chart(legend=:top_right, xlabel="`w`", ylabel="`σ_n`")
 
-    # @test status.successful
+    for model in models
+        
+        cmodel = model.cmodel
+        props = model.props
+        mark = model.mark
+
+        printstyled("\n$(string(cmodel)):\n\n", color=:yellow, bold=true)
+
+        mapper = RegionMapper()
+        add_mapping(mapper, "bulk", MechSolid, LinearElastic, E=E, nu=nu)
+        add_mapping(mapper, "interface", MechCohesive, cmodel; props...)
+        
+        model = FEModel(mesh, mapper, stress_state=:plane_stress, thickness=1.0)
+        ana = MechAnalysis(model)
+        
+        joint = select(model.elems, "interface")
+        select( get_ips(joint), tag="jips" )
+        log1 = add_logger(ana, :ip, "jips", string(cmodel)*".dat")
+        add_monitor(ana, :ip, "jips", (:σn, :τ))
+        
+        stage = add_stage(ana, nincs=80, nouts=80)
+
+        add_bc(stage, :node, "left", ux=0, uy=0)
+
+        if trajectory == "pure extension"
+            add_bc(stage, :node, "right", ux=0.0002)
+        elseif trajectory == "extension with shear"
+            add_bc(stage, :node, "right", ux=0.00001, uy=0.0001)
+        elseif trajectory == "pure shear"
+            add_bc(stage, :node, "right", ux=0.0, uy=0.001)
+        elseif trajectory == "compression with shear"
+            add_bc(stage, :node, "right", ux=-0.000001, uy=0.0002)
+        end
+
+        status = run(ana, autoinc=true, maxits=10, tol=0.1, rspan=0.03, dTmax=0.1, quiet=false)
+        
+        add_line(chart1, log1.table["σn"], log1.table["τ"], label=string(cmodel), mark=mark)
+        add_line(chart2, log1.table["w"], log1.table["σn"], label=string(cmodel), mark=mark)
+
+    end
+    add_chart(grid, chart1, (i, 1))
+    add_chart(grid, chart2, (i, 2))
+
 end
 
-save(chart1, "cohesive-models-comparison-σn-τ.pdf")
-save(chart2, "cohesive-models-comparison-w-σn.pdf")
+save(grid, "cohesive-models.pdf")
