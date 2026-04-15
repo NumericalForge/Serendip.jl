@@ -181,6 +181,72 @@ function findrootinterval(f::Function, x1, Δx; factor=1.6)
 end
 
 
+"""
+    findroot_bracket_newton(f::Function, x0; tol=√eps()*max(abs(x0), 1.0), ftol=Inf, maxits=50)
+    findroot_bracket_newton(f::Function, df::Function, x0; tol=√eps()*max(abs(x0), 1.0), ftol=Inf, maxits=50)
+
+Safeguarded Newton method starting from `x0`.
+
+The method follows Newton iterations and stores the positive and negative-side
+iterates when both are available. Once a valid bracket is available, Newton
+steps are accepted only if they stay inside the bracket; otherwise the current
+step falls back to bisection.
+
+# Returns
+The tuple `(x, status)`, where `x` is the root approximation.
+"""
+function findroot_bracket_newton(f::Function, x0; kwargs...)
+    return findroot_bracket_newton(f, x -> derive(f, x), x0; kwargs...)
+end
+
+
+function findroot_bracket_newton(f::Function, df::Function, x0;
+        tol=√eps()*max(abs(x0), 1.0), ftol=Inf, maxits::Int=50)
+
+    maxits > 0 || return 0.0, failure("findroot_bracket_newton: maxits must be positive")
+
+    x, a, b = Float64(x0), NaN, NaN
+
+    for _ in 1:maxits
+        fx = f(x)
+        isfinite(fx) || return 0.0, failure("findroot_bracket_newton: non-finite function value")
+
+        if fx < 0.0
+            a = x
+        else
+            b = x
+        end
+
+        bracketed = isfinite(a) && isfinite(b)
+        if fx == 0.0 || (bracketed && abs(a-b) < tol && abs(fx) < ftol)
+            return x, success()
+        end
+
+        dfx = df(x)
+        xnew = isfinite(dfx) && abs(dfx) > eps() ? x - fx/dfx : NaN
+
+        if bracketed
+            x_lo = min(a, b)
+            x_hi = max(a, b)
+
+            if !isfinite(xnew) || xnew <= x_lo || xnew >= x_hi
+                xnew = 0.5*(x_lo + x_hi)
+            end
+        elseif !isfinite(xnew)
+            return 0.0, failure("findroot_bracket_newton: Newton failed before bracket was found")
+        end
+
+        if abs(xnew-x) < tol && abs(fx) < ftol
+            return xnew, success()
+        end
+
+        x = xnew
+    end
+
+    return 0.0, failure("findroot_bracket_newton: maxits reached")
+end
+
+
 function findroot(f::Function, a, b; tol=(b-a)*0.001, ftol=Inf, method=:default)
     if method==:default
         return findroot_default(f, a, b, tol, ftol)
