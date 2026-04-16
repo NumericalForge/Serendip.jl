@@ -172,7 +172,6 @@ end
 
 
 # Type of corresponding state structure
-# compat_state_type(::Type{UCP}, ::Type{MechSolid}) = ctx.stress_state!=:plane_stress ? UCPState : error("UCP: This model is not compatible with planestress")
 compat_state_type(::Type{UCP}, ::Type{MechSolid}) = UCPState
 
 
@@ -265,7 +264,7 @@ function calc_ξc_ξt_m(mat::UCP, h::Float64, εtp::Float64, εcp::Float64, εvp
     
     # p = p0 + H*εvp  -> ξc = √3*p0 + √3*H*εvp
     ξc = mat.ξc0 + √3*mat.H*εvp # hardening in isotropic compression
-    ξt = mat.ξt0*ft/mat.ft
+    ξt = mat.ξt0*ft/mat.ft # this may give wrong results for the peak tensile stress
 
     @assert ξc<0
     @assert ξc<fc/√3
@@ -463,7 +462,7 @@ function plastic_update(mat::UCP, state::UCPState, cstate::UCPState, σtr::Vec6)
     maxits = 50
     tol    = mat.ft*1e-5
     h      = state.h
-    ∂g∂σ   = potential_derivs(mat, h, cstate.σ, cstate.εtp)
+    ∂g∂σ   = potential_derivs(mat, h, cstate.σ, cstate.εtp) # ketp frozen
     De     = calcDe(mat.E, mat.ν, state.ctx.stress_state)
     Δλ     = eps()
 
@@ -480,7 +479,6 @@ function plastic_update(mat::UCP, state::UCPState, cstate::UCPState, σtr::Vec6)
     for i in 1:maxits
         
         ∂f∂σ, ∂f∂εtp, ∂f∂εcp, ∂f∂εvp = yield_derivs(mat, h, σ, εtp, εcp, εvp)
-        # ∂g∂σ = potential_derivs(mat, h, σ, εtp)
         rate_εtp, rate_εcp, rate_εvp = ucp_plastic_flow_invariant_rates(∂g∂σ)
 
         ∂f∂Δλ = -∂f∂σ'*De*∂g∂σ + ∂f∂εcp*rate_εcp + ∂f∂εtp*rate_εtp + ∂f∂εvp*rate_εvp
@@ -498,7 +496,7 @@ function plastic_update(mat::UCP, state::UCPState, cstate::UCPState, σtr::Vec6)
         isfinite(Δλmin) || break
         fmin = eval_f(Δλmin)
 
-        # Backtracking line search
+        # Backtracking line search: required since ∂f∂Δλ is not the exact derivative
         for ω in 0.9:-0.1:0.3
             Δλtr = Δλ - ω * f / ∂f∂Δλ
         
