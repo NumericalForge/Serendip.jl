@@ -265,7 +265,7 @@ from stress and strain tensors defined in Mandel notation.
     εv = ε[1] + ε[2] + ε[3]
 
     if stress_state in (:plane_stress,:plane_strain)
-        s1, _, s3 = eigvals(σ)
+        σ1, σ2, σ3 = eigvals(σ)
         return OrderedDict{Symbol,Float64}(
             :σxx => σ[1],
             :σyy => σ[2],
@@ -274,8 +274,9 @@ from stress and strain tensors defined in Mandel notation.
             :σxz => σ[5]/SR2,
             :σxy => σ[6]/SR2,
             :σvm => σvm,
-            :σ1  => s1,
-            :σ3  => s3,
+            :σ1  => σ1,
+            :σ2  => σ2,
+            :σ3  => σ3,
             :εxx => ε[1],
             :εyy => ε[2],
             :εzz => ε[3],
@@ -296,7 +297,7 @@ from stress and strain tensors defined in Mandel notation.
             :εv  => εv,
         )
     else
-        s1, s2, s3 = eigvals(σ)
+        σ1, σ2, σ3 = eigvals(σ)
         return OrderedDict{Symbol,Float64}(
             :σxx => σ[1],
             :σyy => σ[2],
@@ -305,9 +306,9 @@ from stress and strain tensors defined in Mandel notation.
             :σxz => σ[5]/SR2,
             :σxy => σ[6]/SR2,
             :σvm => σvm,
-            :σ1  => s1,
-            :σ2  => s2,
-            :σ3  => s3,
+            :σ1  => σ1,
+            :σ2  => σ2,
+            :σ3  => σ3,
             :εxx => ε[1],
             :εyy => ε[2],
             :εzz => ε[3],
