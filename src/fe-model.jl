@@ -31,6 +31,8 @@ end
 
 typeofargs(f) = [ ((t for t in fieldtypes(m.sig)[2:end])...,) for m in methods(f) ]
 
+uses_model_thickness(::Any) = false
+
 
 """
     FEModel(mesh::Mesh, mapper::RegionMapper;
@@ -44,7 +46,7 @@ Construct a finite element model from a `Mesh` and a `RegionMapper`.
 - `mapper::RegionMapper`: Provides mapping rules between geometric entities, element formulations, and constitutive models.
 - `ndim::Int=0`: Spatial dimension of the analysis (default uses `mesh.ctx.ndim`).
 - `stress_state::Symbol=:auto`: Stress assumption (`:plane_stress`, `:plane_strain`, `:axisymmetric`, `:auto`).
-- `thickness::Real=1.0`: Domain thickness for 2D analyses.
+- `thickness::Real=1.0`: Default thickness for formulations that use model thickness. Mapping-level thickness takes precedence.
 - `g::Real=0.0`: Gravity acceleration.
 - `T0::Real=0.0`: Reference temperature.
 - `quiet::Bool=false`: Suppress console output if `true`.
@@ -144,6 +146,10 @@ function FEModel(
         const_model  = cmodel(;const_kwargs...)
 
         elem_kwargs = NamedTuple(key => kwargs[key] for key in elem_params if haskey(kwargs, key))
+        if :thickness in elem_params && !haskey(kwargs, :thickness) && uses_model_thickness(etype)
+            thickness = ctx.ndim == 3 ? 1.0 : ctx.thickness
+            elem_kwargs = merge((thickness=thickness,), elem_kwargs)
+        end
         elem_form   = etype(; elem_kwargs...)
 
         state_kwargs = NamedTuple(key => mapping.state[key] for key in state_params if haskey(mapping.state, key))
@@ -750,4 +756,3 @@ function nodal_local_recovery(model::FEModel)
 
     return V_vals, collect(all_fields_set)
 end
-

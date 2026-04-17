@@ -6,6 +6,7 @@ using Serendip
     # bulk
     # "elements/elastic-solid.jl",
     "elements/elastic-elems.jl",
+    "elements/variable-thickness.jl",
     "elements/elastic-quad4.jl",
     "elements/elastic-hex8.jl",
     "elements/axisymmetric.jl",

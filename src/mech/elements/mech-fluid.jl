@@ -46,7 +46,7 @@ compat_role(::Type{MechFluid}) = :bulk
 compat_elem_props(::Type{MechFluid}) = MechFluidProps
 
 function distributed_bc(elem::MechFluid, facet::Cell, t::Float64, key::Symbol, val::Union{Real,Symbol,Expr})
-    return mech_boundary_forces(elem, facet, t, key, val)
+    return mech_boundary_forces(elem, facet, t, elem.ctx.thickness, key, val)
 end
 
 

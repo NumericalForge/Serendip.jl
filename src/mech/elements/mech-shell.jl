@@ -2,13 +2,31 @@
 
 export MechShell
 
+"""
+    MechShell(; thickness=0.0, kappa=1e-8, rho=0.0, gamma=0.0)
+
+Isoparametric Reissner-Mindlin shell formulation for mechanical analyses.
+
+# Keyword Arguments
+- `thickness`:
+  Shell thickness used to position integration points through the section and
+  to compute stiffness and mass contributions.
+- `kappa`:
+  Drilling-stiffness regularization parameter.
+- `rho`:
+  Mass density used in the shell mass matrix.
+- `gamma`:
+  Specific weight parameter available to mechanical loading routines.
+"""
+
 mutable struct MechShell<:MechFormulation
-    th::Float64
+    thickness::Float64
     κ::Float64
     ρ::Float64
     γ::Float64
 
     function MechShell(;thickness::Float64=0.0, kappa::Float64=1e-8, rho=0.0, gamma=0.0)
+        @check thickness > 0.0 "MechShell: thickness must be provided and be positive."
         return new(thickness, kappa, rho, gamma)
     end
 end
@@ -82,14 +100,14 @@ function set_quadrature(elem::Element{MechShell}, n::Int=0; state::NamedTuple=Na
         dNdR = elem.shape.deriv(ip.R) # 3xn
         J = C'*dNdR
         No = normalize(cross(J[:,1], J[:,2]))
-        ip.coord += elem.etype.th/2*ip.R[3]*No
+        ip.coord += elem.etype.thickness/2*ip.R[3]*No
     end
 
 end
 
 
 function distributed_bc(elem::Element{MechShell}, facet::Cell, t::Float64, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
-    return mech_boundary_forces(elem, facet, t, key, val)
+    return mech_boundary_forces(elem, facet, t, 1.0, key, val)
 end
 
 
@@ -141,7 +159,7 @@ dof_map(elem::Element{MechShell}) = elem_map(elem)
 
 function setB(elem::Element{MechShell}, ip::Ip, N::Vect, L::Matx, dNdX::Matx, Rθ::Matx, Bil::Matx, Bi::Matx, B::Matx)
     nnodes = size(dNdX,1)
-    th = elem.etype.th
+    th = elem.etype.thickness
     # Note that matrix B is designed to work with tensors in Mandel's notation
 
     ndof = 6
@@ -198,7 +216,7 @@ end
 function setNN(elem::Element{MechShell}, ip::Ip, N::Vect, NNil::Matx, NNi::Matx, L::Matx, Rθ::Matx, NN::Matx)
     nnodes = length(N)
     ndof = 6
-    th = elem.etype.th
+    th = elem.etype.thickness
     ζ = ip.R[3]
 
     for i in 1:nnodes
@@ -222,7 +240,7 @@ end
 
 function elem_stiffness(elem::Element{MechShell})
     nnodes = length(elem.nodes)
-    th     = elem.etype.th
+    th     = elem.etype.thickness
     κ      = elem.etype.κ
     ndof   = 6
     nstr   = 6
@@ -278,7 +296,7 @@ end
 
 function elem_mass(elem::Element{MechShell})
     nnodes = length(elem.nodes)
-    th     = elem.etype.th
+    th     = elem.etype.thickness
     ndof   = 6 #6
     ρ      = elem.etype.ρ
     C      = get_coords(elem)
@@ -315,7 +333,7 @@ end
 
 function elem_internal_forces(elem::Element{MechShell}, ΔU::Vector{Float64}=Float64[], dt::Float64=0.0)
     nnodes = length(elem.nodes)
-    th   = elem.etype.th
+    th   = elem.etype.thickness
     ndof = 6
 
     map = elem_map(elem)

@@ -72,7 +72,7 @@ end
 
 
 # Distributed natural boundary conditions for faces and edges of bulk elements
-function mech_boundary_forces(elem::Element, facet::Cell, t::Float64, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
+function mech_boundary_forces(elem::Element, facet::Cell, t::Float64, thickness::Float64, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
     ctx = elem.ctx
     ndim  = ctx.ndim
     if ndim==2
@@ -89,10 +89,9 @@ function mech_boundary_forces(elem::Element, facet::Cell, t::Float64, key::Symbo
     isedgebc && facet.shape.ndim==2 && error("mech_boundary_forces: boundary condition $key is not applicable on surfaces")
     !isedgebc && facet.shape.ndim==1 && ndim==3 && error("mech_boundary_forces: boundary condition $key is not applicable on 3D edges")
 
-    th     = isedgebc ? 1.0 : ctx.thickness
+    th     = isedgebc ? 1.0 : thickness
     nodes  = facet.nodes
     nnodes = length(nodes)
-    # t      = elem.ctx.t
 
     # Calculate the facet coordinates
     C = get_coords(nodes, ndim)
@@ -155,7 +154,7 @@ end
 # Body forces for bulk elements
 function mech_solid_body_forces(elem::Element, key::Symbol, val::Union{Real,Symbol,Expr})
     ndim  = elem.ctx.ndim
-    th    = elem.ctx.thickness
+    th    = elem.etype.thickness
     suitable_keys = (:wx, :wy, :wz)
 
     # Check keys
@@ -223,7 +222,6 @@ function mech_shell_body_forces(elem::Element, t::Float64, key::Symbol, val::Uni
     key in suitable_keys || error("mech_shell_body_forces: boundary condition $key is not applicable as body forces at element of type $(typeof(elem)). Suitable keys are $(string.(suitable_keys))")
 
     newkey = key==:wx ? :tx : key==:wy ? :ty : :tz
-    val    = val*elem.props.th
 
-    return mech_boundary_forces(elem, elem.faces[1], t, newkey, val)
+    return mech_boundary_forces(elem, elem.faces[1], t, elem.etype.thickness, newkey, val)
 end

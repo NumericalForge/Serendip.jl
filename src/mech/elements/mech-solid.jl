@@ -2,26 +2,43 @@
 
 export MechSolid, MechBulk
 
+"""
+    MechSolid(; rho=0.0, gamma=0.0, thickness=0.0)
+
+Continuum solid formulation for mechanical analyses.
+
+# Keyword Arguments
+- `rho`:
+  Mass density used in the consistent mass matrix.
+- `gamma`:
+  Specific weight parameter available to mechanical loading routines.
+- `thickness`:
+  Section thickness used in 2D analyses. Takes precedence over FEModel `thickness` parameter. 
+  Assumed to be 1.0 in 3D analyses. Ignored in axisymmetric analyses.
+"""
 
 struct MechSolid<:MechFormulation
     ρ::Float64
     γ::Float64
+    thickness::Float64
 
-    function MechSolid(;rho=0.0, gamma=0.0)
-        return new(rho, gamma)
+    function MechSolid(;rho=0.0, gamma=0.0, thickness=0.0)
+        return new(rho, gamma, thickness)
     end
 end
 
 const MechBulk = MechSolid
 
 compat_role(::Type{MechSolid}) = :solid
+uses_model_thickness(::Type{MechSolid}) = true
 
 
 function elem_init(elem::Element{MechSolid})
     state_ty = typeof(elem.ips[1].state)
     if :h in fieldnames(state_ty)
         # Volume
-        V = cell_extent(elem)*elem.ctx.thickness
+        th = elem.etype.thickness
+        V = cell_extent(elem)*th
 
         # Representative length size for the element
         ndim = elem.ctx.ndim
@@ -37,12 +54,61 @@ end
 
 
 function distributed_bc(elem::Element{MechSolid}, facet::Cell, t::Float64, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
-    return mech_boundary_forces(elem, facet, t, key, val)
+    return mech_boundary_forces(elem, facet, t, elem.etype.thickness, key, val)
 end
 
 
 function body_load(elem::Element{MechSolid}, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
-    return mech_solid_body_forces(elem, key, val)
+    ndim  = elem.ctx.ndim
+    th    = elem.etype.thickness
+    suitable_keys = (:wx, :wy, :wz)
+
+    key in suitable_keys || error("mech_solid_body_forces: condition $key is not applicable as distributed bc at element of type $(typeof(elem)). Suitable keys are $(string.(suitable_keys))")
+    (key == :wz && ndim==2) && error("mech_solid_body_forces: key $key is not applicable in a 2D analysis")
+
+    nodes  = elem.nodes
+    nnodes = length(nodes)
+    C = get_coords(nodes, ndim)
+    Q = zeros(ndim)
+    F = zeros(nnodes, ndim)
+    shape = elem.shape
+    ips = get_ip_coords(shape)
+
+    for i in 1:size(ips,1)
+        R = ips[i].coord
+        w = ips[i].w
+        N = shape.func(R)
+        D = shape.deriv(R)
+        J = C'*D
+        X = C'*N
+
+        if ndim==2
+            x, y = X
+            vip = evaluate(val, x=x, y=y)
+            Q = zeros(2)
+            elem.ctx.stress_state==:axisymmetric && (th = 2*pi*X[1])
+        else
+            x, y, z = X
+            vip = evaluate(val, x=x, y=y, z=z)
+            Q = zeros(3)
+        end
+
+        if key == :wx
+            Q[1] = vip
+        elseif key == :wy
+            Q[2] = vip
+        elseif key == :wz
+            Q[3] = vip
+        end
+
+        coef = det(J)*w*th
+        @mul F += coef*N*Q'
+    end
+
+    keys = (:ux, :uy, :uz)[1:ndim]
+    map  = [ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]
+
+    return reshape(F', nnodes*ndim), map
 end
 
 
@@ -90,7 +156,7 @@ end
 
 function elem_stiffness(elem::Element{MechSolid})
     ndim   = elem.ctx.ndim
-    th     = elem.ctx.thickness
+    th     = elem.etype.thickness
     nnodes = length(elem.nodes)
     C = get_coords(elem)
     K = zeros(nnodes*ndim, nnodes*ndim)
@@ -127,7 +193,7 @@ end
 
 function elem_mass(elem::Element{MechSolid})
     ndim   = elem.ctx.ndim
-    th     = elem.ctx.thickness
+    th     = elem.etype.thickness
     nnodes = length(elem.nodes)
     ρ = elem.etype.ρ
     C = get_coords(elem)
@@ -166,7 +232,7 @@ end
 
 function elem_internal_forces(elem::Element{MechSolid}, ΔU::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim   = elem.ctx.ndim
-    th     = elem.ctx.thickness
+    th     = elem.etype.thickness
     nnodes = length(elem.nodes)
     map    = dof_map(elem)
 
@@ -238,4 +304,3 @@ function elem_vals(elem::Element{MechSolid})
 
     return vals
 end
-

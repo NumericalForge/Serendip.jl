@@ -34,7 +34,7 @@ end
 
 
 function distributed_bc(elem::Element{TMSolid}, facet::Cell, t::Float64, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
-    return mech_boundary_forces(elem, facet, t, key, val)
+    return mech_boundary_forces(elem, facet, t, elem.ctx.thickness, key, val)
 end
 
 
