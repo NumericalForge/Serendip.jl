@@ -57,7 +57,6 @@ function _mountNN(elem::Element{MechEmbBar})
         N = solid.shape.func(R)
         for i in 1:n
             for k in 1:ndim
-                # NN[(i-1)*ndim+k, (j-1)*ndim+k] = N[i]
                 NN[(j-1)*ndim+k, (i-1)*ndim+k] = N[i]
             end
         end
@@ -71,14 +70,9 @@ function elem_init(elem::Element{MechEmbBar})
         get_dof(node, :ux).eq_id = -1
         get_dof(node, :uy).eq_id = -1
         elem.ctx.ndim==3 && (get_dof(node, :uz).eq_id = -1)
-        # node.dofdict[:ux].eq_id = -1
-        # node.dofdict[:uy].eq_id = -1
-        # node.dofdict[:uz].eq_id = -1
     end
 
     elem.cache = MechEmbBarCache( _mountNN(elem) )
-    # elem.cacheM = Array{Matrix}(undef, 1)
-    # elem.cacheM = Vector{FixedSizeMatrix{Float64}}(undef, 1)
 
     # elem.cache.NN = _mountNN(elem)
     return nothing
@@ -179,53 +173,6 @@ function elem_internal_forces(elem::Element{MechEmbBar}, ΔU::Vector{Float64}=Fl
 end
 
 
-# function update_elem!(elem::Element{MechEmbBar}, U::Vector{Float64}, Δt::Float64)
-#     ndim   = elem.ctx.ndim
-#     nnodes = length(elem.nodes)
-#     A      = elem.etype.A
-#     NN     = elem.cache.NN
-
-#     map = elem_map(elem)
-#     dU  = U[map]
-#     dUbar = NN*dU
-
-#     dF = zeros(nnodes*ndim)
-#     C  = get_coords(elem)
-#     B  = zeros(1, nnodes*ndim)
-#     J  = Array{Float64}(undef, ndim, 1)
-#     for ip in elem.ips
-#         dNdR = elem.shape.deriv(ip.R)
-#         @mul J = C'*dNdR
-#         detJ = norm(J)
-
-#         # mount B
-#         B .= 0.0
-#         for i in 1:nnodes
-#             for j in 1:ndim
-#                 B[1,j+(i-1)*ndim] = dNdR[i,1]*J[j]/detJ^2.0
-#             end
-#         end
-
-#         dε = (B*dUbar)[1]
-#         dσ, _ = update_state(elem.cmodel, ip.state, dε)
-#         coef = A*detJ*ip.w
-#         @mul dF += coef*B'*dσ
-#     end
-
-#     # update nodal displacements
-#     keys    = (:ux, :uy, :uz)[1:ndim]
-#     Uhost   = [ get_dof(node, key).vals[key] for node in elem.couplings[1].nodes for key in keys ]
-#     Ubar    = NN*Uhost + dUbar
-#     for (i,node) in enumerate(elem.nodes)
-#         for (j,key) in enumerate(keys)
-#             get_dof(node, key).vals[key] = Ubar[(i-1)*ndim+j]
-#         end
-#     end
-
-#     return NN'*dF, map, success()
-# end
-
-
 function elem_vals(elem::Element{MechEmbBar})
     # get area and average stress and axial force
     vals = OrderedDict(:A => elem.etype.A )
@@ -236,21 +183,3 @@ function elem_vals(elem::Element{MechEmbBar})
     vals[:fx´] = elem.etype.A*max_σx´
     return vals
 end
-
-
-# function post_process(elem::Element{MechEmbBar})
-#     ndim    = elem.ctx.ndim
-#     NN      = elem.cache.NN
-
-#     # update displacements
-#     keys    = (:ux, :uy, :uz)[1:ndim]
-#     Uhost   = [ node.vals[key] for node in elem.couplings[1].nodes for key in keys ]
-#     Ubar    = NN*Uhost
-
-#     for (i,node) in enumerate(elem.nodes)
-#         for (j,key) in enumerate(keys)
-#             node.vals[key] = Ubar[(i-1)*ndim+j]
-#         end
-#     end
-
-# end
