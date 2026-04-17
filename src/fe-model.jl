@@ -46,7 +46,7 @@ Construct a finite element model from a `Mesh` and a `RegionMapper`.
 - `mapper::RegionMapper`: Provides mapping rules between geometric entities, element formulations, and constitutive models.
 - `ndim::Int=0`: Spatial dimension of the analysis (default uses `mesh.ctx.ndim`).
 - `stress_state::Symbol=:auto`: Stress assumption (`:plane_stress`, `:plane_strain`, `:axisymmetric`, `:auto`).
-- `thickness::Real=1.0`: Default thickness for formulations that use model thickness. Mapping-level thickness takes precedence.
+- `thickness::Real=1.0`: Numeric default thickness for formulations that use model thickness. Mapping-level thickness takes precedence.
 - `g::Real=0.0`: Gravity acceleration.
 - `T0::Real=0.0`: Reference temperature.
 - `quiet::Bool=false`: Suppress console output if `true`.

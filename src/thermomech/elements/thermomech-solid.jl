@@ -39,7 +39,7 @@ end
 
 
 function body_load(elem::Element{TMSolid}, key::Symbol, val::Union{Real,Symbol,Expr})
-    return mech_solid_body_forces(elem, key, val)
+    return mech_solid_body_forces(elem, elem.ctx.thickness, key, val)
 end
 
 

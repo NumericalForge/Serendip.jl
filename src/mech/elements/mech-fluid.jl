@@ -51,7 +51,7 @@ end
 
 
 function body_c(elem::MechFluid, key::Symbol, val::Union{Real,Symbol,Expr})
-    return mech_solid_body_forces(elem, key, val)
+    return mech_solid_body_forces(elem, elem.ctx.thickness, key, val)
 end
 
 

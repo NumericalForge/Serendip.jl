@@ -1,5 +1,6 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
+
 # Distributed natural boundary conditions for line elements
 function mech_line_distributed_forces(elem::Element, t::Float64, key::Symbol, val::Union{Real,Symbol,Expr})
     ndim = elem.ctx.ndim
@@ -72,7 +73,7 @@ end
 
 
 # Distributed natural boundary conditions for faces and edges of bulk elements
-function mech_boundary_forces(elem::Element, facet::Cell, t::Float64, thickness::Float64, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
+function mech_boundary_forces(elem::Element, facet::Cell, t::Float64, thickness::Union{Real,Expr,Symbolic}, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
     ctx = elem.ctx
     ndim  = ctx.ndim
     if ndim==2
@@ -89,7 +90,6 @@ function mech_boundary_forces(elem::Element, facet::Cell, t::Float64, thickness:
     isedgebc && facet.shape.ndim==2 && error("mech_boundary_forces: boundary condition $key is not applicable on surfaces")
     !isedgebc && facet.shape.ndim==1 && ndim==3 && error("mech_boundary_forces: boundary condition $key is not applicable on 3D edges")
 
-    th     = isedgebc ? 1.0 : thickness
     nodes  = facet.nodes
     nnodes = length(nodes)
 
@@ -116,11 +116,12 @@ function mech_boundary_forces(elem::Element, facet::Cell, t::Float64, thickness:
             x, y = X
             vip = evaluate(val, t=t, x=x, y=y)
             Q = zeros(2)
-            ctx.stress_state==:axisymmetric && (th = 2*pi*X[1])
+            th = ctx.stress_state == :axisymmetric ? 2*pi*x : isedgebc ? 1.0 : evaluate(thickness, x=x, y=y, z=0.0)
         else
             x, y, z = X
             vip = evaluate(val, t=t, x=x, y=y, z=z)
             Q = zeros(3)
+            th = isedgebc ? 1.0 : evaluate(thickness, x=x, y=y, z=z)
         end
 
         if key in (:tx, :qx)
@@ -152,9 +153,8 @@ end
 
 
 # Body forces for bulk elements
-function mech_solid_body_forces(elem::Element, key::Symbol, val::Union{Real,Symbol,Expr})
+function mech_solid_body_forces(elem::Element, thickness::Union{Real,Expr,Symbolic}, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
     ndim  = elem.ctx.ndim
-    th    = elem.etype.thickness
     suitable_keys = (:wx, :wy, :wz)
 
     # Check keys
@@ -188,11 +188,12 @@ function mech_solid_body_forces(elem::Element, key::Symbol, val::Union{Real,Symb
             x, y = X
             vip = evaluate(val, x=x, y=y)
             Q = zeros(2)
-            elem.ctx.stress_state==:axisymmetric && (th = 2*pi*X[1])
+            th = elem.ctx.stress_state == :axisymmetric ? 2*pi*x : evaluate(thickness, x=x, y=y, z=0.0)
         else
             x, y, z = X
             vip = evaluate(val, x=x, y=y, z=z)
             Q = zeros(3)
+            th = 1.0
         end
 
         if key == :wx

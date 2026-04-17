@@ -13,17 +13,19 @@ Continuum solid formulation for mechanical analyses.
 - `gamma`:
   Specific weight parameter available to mechanical loading routines.
 - `thickness`:
-  Section thickness used in 2D analyses. Takes precedence over FEModel `thickness` parameter. 
-  Assumed to be 1.0 in 3D analyses. Ignored in axisymmetric analyses.
+  Section thickness used in 2D analyses. It may be a constant or a spatial
+  expression in region mappings. Takes precedence over FEModel `thickness`
+  parameter. Assumed to be 1.0 in 3D analyses. Ignored in axisymmetric analyses.
 """
 
 struct MechSolid<:MechFormulation
     ρ::Float64
     γ::Float64
-    thickness::Float64
+    thickness::Union{Float64,Expr,Symbolic}
 
     function MechSolid(;rho=0.0, gamma=0.0, thickness=0.0)
-        return new(rho, gamma, thickness)
+        th = thickness isa Real ? Float64(thickness) : thickness
+        return new(rho, gamma, th)
     end
 end
 
@@ -32,16 +34,36 @@ const MechBulk = MechSolid
 compat_role(::Type{MechSolid}) = :solid
 uses_model_thickness(::Type{MechSolid}) = true
 
+mutable struct MechSolidCache <: ElementCache
+    thickness::Vector{Float64}
+end
 
 function elem_init(elem::Element{MechSolid})
+    if elem.etype.thickness isa Expr || elem.etype.thickness isa Symbolic
+        elem.ctx.ndim == 2 || error("MechSolid: thickness expressions are only supported in 2D analyses")
+        elem.ctx.stress_state != :axisymmetric || error("MechSolid: thickness expressions are not supported in axisymmetric analyses")
+    end
+
+    thickness = [ evaluate(elem.etype.thickness, x=ip.coord.x, y=ip.coord.y, z=ip.coord.z) for ip in elem.ips ]
+    elem.cache = MechSolidCache(thickness)
+
     state_ty = typeof(elem.ips[1].state)
     if :h in fieldnames(state_ty)
-        # Volume
-        th = elem.etype.thickness
-        V = cell_extent(elem)*th
+        ndim = elem.ctx.ndim
+        C = get_coords(elem)
+        J = Array{Float64}(undef, ndim, ndim)
+        V = 0.0
+
+        for (i, ip) in enumerate(elem.ips)
+            dNdR = elem.shape.deriv(ip.R)
+            @mul J = C'*dNdR
+            detJ = det(J)
+            detJ > 0.0 || error("Negative Jacobian determinant in cell $(elem.id)")
+            th = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : elem.cache.thickness[i]
+            V += detJ*ip.w*th
+        end
 
         # Representative length size for the element
-        ndim = elem.ctx.ndim
         h = V^(1/ndim)
 
         for ip in elem.ips
@@ -59,56 +81,7 @@ end
 
 
 function body_load(elem::Element{MechSolid}, key::Symbol, val::Union{Real,Symbol,Expr,Symbolic})
-    ndim  = elem.ctx.ndim
-    th    = elem.etype.thickness
-    suitable_keys = (:wx, :wy, :wz)
-
-    key in suitable_keys || error("mech_solid_body_forces: condition $key is not applicable as distributed bc at element of type $(typeof(elem)). Suitable keys are $(string.(suitable_keys))")
-    (key == :wz && ndim==2) && error("mech_solid_body_forces: key $key is not applicable in a 2D analysis")
-
-    nodes  = elem.nodes
-    nnodes = length(nodes)
-    C = get_coords(nodes, ndim)
-    Q = zeros(ndim)
-    F = zeros(nnodes, ndim)
-    shape = elem.shape
-    ips = get_ip_coords(shape)
-
-    for i in 1:size(ips,1)
-        R = ips[i].coord
-        w = ips[i].w
-        N = shape.func(R)
-        D = shape.deriv(R)
-        J = C'*D
-        X = C'*N
-
-        if ndim==2
-            x, y = X
-            vip = evaluate(val, x=x, y=y)
-            Q = zeros(2)
-            elem.ctx.stress_state==:axisymmetric && (th = 2*pi*X[1])
-        else
-            x, y, z = X
-            vip = evaluate(val, x=x, y=y, z=z)
-            Q = zeros(3)
-        end
-
-        if key == :wx
-            Q[1] = vip
-        elseif key == :wy
-            Q[2] = vip
-        elseif key == :wz
-            Q[3] = vip
-        end
-
-        coef = det(J)*w*th
-        @mul F += coef*N*Q'
-    end
-
-    keys = (:ux, :uy, :uz)[1:ndim]
-    map  = [ get_dof(node,key).eq_id for node in elem.nodes for key in keys ]
-
-    return reshape(F', nnodes*ndim), map
+    return mech_solid_body_forces(elem, elem.etype.thickness, key, val)
 end
 
 
@@ -156,7 +129,6 @@ end
 
 function elem_stiffness(elem::Element{MechSolid})
     ndim   = elem.ctx.ndim
-    th     = elem.etype.thickness
     nnodes = length(elem.nodes)
     C = get_coords(elem)
     K = zeros(nnodes*ndim, nnodes*ndim)
@@ -166,8 +138,8 @@ function elem_stiffness(elem::Element{MechSolid})
     J    = Array{Float64}(undef, ndim, ndim)
     dNdX = Array{Float64}(undef, nnodes, ndim)
 
-    for ip in elem.ips
-        elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
+    for (i, ip) in enumerate(elem.ips)
+        th = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : elem.cache.thickness[i]
 
         # compute B matrix
         dNdR = elem.shape.deriv(ip.R)
@@ -193,7 +165,6 @@ end
 
 function elem_mass(elem::Element{MechSolid})
     ndim   = elem.ctx.ndim
-    th     = elem.etype.thickness
     nnodes = length(elem.nodes)
     ρ = elem.etype.ρ
     C = get_coords(elem)
@@ -201,8 +172,8 @@ function elem_mass(elem::Element{MechSolid})
     N = zeros(ndim, nnodes*ndim)
     J = Array{Float64}(undef, ndim, ndim)
 
-    for ip in elem.ips
-        elem.ctx.stress_state==:axisymmetric && (th = 2*pi*ip.coord.x)
+    for (i, ip) in enumerate(elem.ips)
+        th = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : elem.cache.thickness[i]
 
         # compute N matrix
         Ni   = elem.shape.func(ip.R)
@@ -232,7 +203,6 @@ end
 
 function elem_internal_forces(elem::Element{MechSolid}, ΔU::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim   = elem.ctx.ndim
-    th     = elem.etype.thickness
     nnodes = length(elem.nodes)
     map    = dof_map(elem)
 
@@ -248,10 +218,8 @@ function elem_internal_forces(elem::Element{MechSolid}, ΔU::Vector{Float64}=Flo
         Δε = zeros(6)
     end
 
-    for ip in elem.ips
-        if elem.ctx.stress_state==:axisymmetric
-            th = 2*pi*ip.coord.x
-        end
+    for (i, ip) in enumerate(elem.ips)
+        th = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : elem.cache.thickness[i]
 
         # compute B matrix
         dNdR = elem.shape.deriv(ip.R)
