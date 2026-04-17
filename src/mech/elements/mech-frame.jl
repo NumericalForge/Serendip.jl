@@ -2,17 +2,24 @@
 
 export MechFrame
 
-# MechFrame_params = [
-#     FunInfo( :MechFrame, "A straight 2D frame (truss + simple beam) element"),
-#     KwArgInfo( :E, "Young modulus",  cond=:(E>0.0)  ),
-#     KwArgInfo( :A, "Section area",  cond=:(A>0.0)  ),
-#     KwArgInfo( :I, "Moment of inertia",  cond=:(I>0.0)  ),
-#     KwArgInfo( :gamma, "Specific weight", 0, cond=:(gamma>=0.0) ),
-#     KwArgInfo( :rho, "Density", 0, cond=:(rho>=0.0)  ),
-# ]
-# @doc docstring(MechFrame_params) MechFrame
 
+"""
+    MechFrame(; E, A, I, rho=0.0, gamma=0.0)
 
+Two-dimensional frame formulation combining axial and bending response.
+
+# Keyword Arguments
+- `E`:
+  Young's modulus.
+- `A`:
+  Cross-sectional area.
+- `I`:
+  Second moment of area.
+- `rho`:
+  Mass density.
+- `gamma`:
+  Specific weight parameter available to loading routines.
+"""
 struct MechFrame<:MechFormulation
     E::Float64
     A::Float64
@@ -46,13 +53,6 @@ function distributed_bc(elem::Element{MechFrame}, facet::Cell, t::Float64, key::
     return mech_line_distributed_forces(elem, t, key, val)
 end
 
-
-# function body_c(elem::Element{MechFrame}, key::Symbol, val::Union{Real,Symbol,Expr})
-#     suitable_keys = (:qy,:qn, :wy)
-#     key in suitable_keys || error("MechFrame: boundary condition $key is not applicable as distributed bc at element of type $(typeof(elem)). Suitable keys are $(string.(suitable_keys))")
-
-#     return mech_line_distributed_forces(elem, 0.0, key, val)
-# end
 
 function elem_config_dofs(elem::Element{MechFrame})
     ndim = elem.ctx.ndim

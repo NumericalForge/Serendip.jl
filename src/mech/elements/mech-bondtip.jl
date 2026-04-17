@@ -2,6 +2,12 @@
 
 export MechBondTip
 
+"""
+    MechBondTip()
+
+Tip coupling formulation for bond/interface problems. It links the end of an
+embedded member to a host element through a constitutive tip law.
+"""
 struct MechBondTip<:MechFormulation
     MechBondTip() = new()
 end

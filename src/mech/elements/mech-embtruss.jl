@@ -1,5 +1,15 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
+"""
+    MechEmbBar(; A)
+
+Embedded bar formulation. The bar stiffness is assembled through the host solid
+degrees of freedom while the embedded bar nodes remain auxiliary.
+
+# Keyword Arguments
+- `A`:
+  Cross-sectional area of the embedded bar.
+"""
 struct MechEmbBar<:MechFormulation
     A::Float64
 

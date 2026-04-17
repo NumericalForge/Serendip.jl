@@ -2,6 +2,11 @@
 
 export MechContact
 
+"""
+    MechContact()
+
+Zero-thickness contact interface formulation for mechanical analyses.
+"""
 struct MechContact<:MechFormulation
 end
 

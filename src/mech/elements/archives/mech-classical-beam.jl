@@ -2,6 +2,11 @@
 
 export MechClassicalBeam
 
+"""
+    MechClassicalBeam()
+
+Classical beam formulation for mechanical analyses.
+"""
 mutable struct MechClassicalBeam<:MechFormulation
     id    ::Int
     shape ::CellShape
@@ -248,4 +253,3 @@ function update_elem!(elem::MechClassicalBeam, U::Vector{Float64}, dt::Float64)
     F[map] += K*dU
     return success()
 end
-

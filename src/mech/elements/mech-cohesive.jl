@@ -2,6 +2,11 @@
 
 export MechCohesive
 
+"""
+    MechCohesive()
+
+Zero-thickness cohesive interface formulation for mechanical analyses.
+"""
 struct MechCohesive<:MechFormulation
 end
 

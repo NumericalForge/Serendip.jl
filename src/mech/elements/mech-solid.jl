@@ -17,7 +17,6 @@ Continuum solid formulation for mechanical analyses.
   expression in region mappings. Takes precedence over FEModel `thickness`
   parameter. Assumed to be 1.0 in 3D analyses. Ignored in axisymmetric analyses.
 """
-
 struct MechSolid<:MechFormulation
     ρ::Float64
     γ::Float64

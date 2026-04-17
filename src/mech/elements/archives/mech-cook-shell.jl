@@ -2,7 +2,6 @@
 
 """
     CookShell
-A bulk finite element for mechanical equilibrium analyses.
 """
 mutable struct CookShell<:MechFormulation
     id    ::Int

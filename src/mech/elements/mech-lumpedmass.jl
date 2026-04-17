@@ -1,5 +1,10 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
+"""
+    MechLumpedMass()
+
+Point mass formulation for mechanical analyses.
+"""
 mutable struct MechLumpedMass<:MechFormulation
     id    ::Int
     shape ::CellShape

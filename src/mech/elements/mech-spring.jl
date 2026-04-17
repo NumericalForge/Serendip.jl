@@ -1,5 +1,10 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
+"""
+    MechSpring()
+
+Discrete spring-damper formulation for mechanical analyses.
+"""
 mutable struct MechSpring<:MechFormulation
     id    ::Int
     shape ::CellShape
