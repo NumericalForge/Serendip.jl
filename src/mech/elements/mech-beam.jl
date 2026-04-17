@@ -54,7 +54,7 @@ embedded_formulation(::Type{MechBeam}) = error("MechBeam: this element cannot be
 
 
 mutable struct MechBeamCache <: ElementCache
-    Dlmn::Vector{FixedSizeMatrix{Float64}}  # rotation matrices at nodes
+    R_list::Vector{FixedSizeMatrix{Float64}}  # rotation matrices at nodes
 end
 
 
@@ -64,7 +64,7 @@ function elem_init(elem::Element{MechBeam})
 
     nnodes in (2,3) || error("MechBeam: only two-node and three-node beam elements are supported")
 
-    Dlmn = Vector{FixedSizeMatrix{Float64}}(undef, nnodes)
+    R_list = Vector{FixedSizeMatrix{Float64}}(undef, nnodes)
     C = get_coords(elem)
     J = Matrix{Float64}(undef, ndim, 1)
 
@@ -74,9 +74,9 @@ function elem_init(elem::Element{MechBeam})
         @mul J = C'*dNdR
         L = zeros(ndim,ndim)
         set_rot_x_xp(elem, J, L)
-        Dlmn[i] = FixedSizeMatrix(L)
+        R_list[i] = FixedSizeMatrix(L)
     end
-    elem.cache = MechBeamCache(Dlmn)
+    elem.cache = MechBeamCache(R_list)
 
     # set the value of αs at integration points
     for ip in elem.ips
@@ -330,8 +330,8 @@ function setB(elem::Element{MechBeam}, ip::Ip, L::Matx, N::Vect, dNdX::Matx, Rθ
             η = ip.R[2]
             ζ = ip.R[3]
             Rθ[1:3,1:3] .= L
-            Rθ[4:6,4:6] .= elem.cache.Dlmn[i]
-            # Rθ[1:3,1:3] .= elem.cache.Dlmn[i]
+            Rθ[4:6,4:6] .= elem.cache.R_list[i]
+            # Rθ[1:3,1:3] .= elem.cache.R_list[i]
 
             Ni = nnodes>2 ? N[i] : 0.5 # MITC projectrion to reduce shear locking in two-node beams
 
@@ -385,7 +385,7 @@ function setH(elem::Element{MechBeam}, ip::Ip, L::Matx, N::Vect, Rθ::Matx, Hli:
 
             Rθ .= 0.0
             Rθ[1:3,1:3] .= L
-            Rθ[4:6,4:6] .= elem.cache.Dlmn[i]
+            Rθ[4:6,4:6] .= elem.cache.R_list[i]
         end
 
         @mul Hi = Hli*Rθ
@@ -558,11 +558,11 @@ function elem_recover_nodal_values(elem::Element{MechBeam})
 
     for i in 1:nnodes
         if ndim==2
-            Rθ[1:2,1:2] .= elem.cache.Dlmn[i]
+            Rθ[1:2,1:2] .= elem.cache.R_list[i]
             Rθ[3,3] = 1.0
         else
-            Rθ[1:3,1:3] .= elem.cache.Dlmn[i]
-            Rθ[4:6,4:6] .= elem.cache.Dlmn[i]
+            Rθ[1:3,1:3] .= elem.cache.R_list[i]
+            Rθ[4:6,4:6] .= elem.cache.R_list[i]
         end
 
         U′[(i-1)*ndof+1:i*ndof] = Rθ*U[(i-1)*ndof+1:i*ndof]
@@ -574,7 +574,7 @@ function elem_recover_nodal_values(elem::Element{MechBeam})
 
         # second derivatives
         d2Ndξ2 = elem.shape.deriv2([ξ])
-        d2xdξ2 = dot(C'*d2Ndξ2, elem.cache.Dlmn[i][1,:])
+        d2xdξ2 = dot(C'*d2Ndξ2, elem.cache.R_list[i][1,:])
         d2ξNdx2 = -d2xdξ2/jac^3
 
         for j in 1:nnodes

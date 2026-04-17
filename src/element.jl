@@ -2,7 +2,6 @@
 
 abstract type ElementFormulation end
 
-# abstract type ElementCache{T <: ElementFormulation} end
 abstract type ElementCache end
 
 mutable struct  Element{T}<:AbstractCell where T<:ElementFormulation
@@ -16,9 +15,6 @@ mutable struct  Element{T}<:AbstractCell where T<:ElementFormulation
     ips   ::Vector{Ip}
     cmodel::Constitutive
     couplings::Vector{Element}
-    cacheV::Vector{FixedSizeVector{Float64}}
-    cacheM::Vector{FixedSizeMatrix{Float64}}
-    cacheD::Dict{Symbol,Any}
     cache::ElementCache
     ctx  ::Context
 
@@ -159,25 +155,6 @@ function commit_state(elems::Array{<:Element,1})
         end
     end
 end
-
-
-# function update_material!(elem::Element, mat::Constitutive)
-#     typeof(elem.cmodel) == typeof(mat) || error("update_material!: The same material type should be used.")
-#     elem.cmodel = mat
-# end
-
-# """
-# `update_material!(elems, mat)`
-
-# Especifies the material model `mat` to be used to represent the behavior of a set of `Element` objects `elems`.
-# """
-# function update_material!(elems::Array{<:Element,1}, mat::Constitutive)
-#     length(elems)==0 && notify("update_material!: Defining material model $(typeof(mat)) for an empty array of elements.")
-
-#     for elem in elems
-#         update_material!(elem, mat)
-#     end
-# end
 
 
 # Get all ips from a collection of elements

@@ -28,6 +28,12 @@ end
 compat_role(::Type{MechBondSlip}) = :line_interface
 
 
+mutable struct MechBondSlipCache <: ElementCache
+    B_list::Vector{FixedSizeMatrix{Float64}}
+    detJ_list::FixedSizeVector{Float64}
+end
+
+
 function set_quadrature(elem::Element{MechBondSlip}, n::Int=0; state::NamedTuple=NamedTuple())
 
     bar   = elem.couplings[2]
@@ -62,18 +68,20 @@ end
 
 
 function elem_init(elem::Element{MechBondSlip})
-    host = elem.couplings[1]
-    bar  = elem.couplings[2]
-    Ch = get_coords(host)
-    Ct = get_coords(bar)
-    nips = length(elem.ips)
-    elem.cacheM = Vector{FixedSizeMatrix{Float64}}(undef,nips) # B matrices
-    elem.cacheV = [ FixedSizeVector{Float64}(undef,nips) ] # detJ values at slot 1
+    host      = elem.couplings[1]
+    bar       = elem.couplings[2]
+    Ch        = get_coords(host)
+    Ct        = get_coords(bar)
+    nips      = length(elem.ips)
+    B_list    = Vector{FixedSizeMatrix{Float64}}(undef, nips)
+    detJ_list = FixedSizeVector{Float64}(undef, nips)
+    
     for (i,ip) in enumerate(elem.ips)
-        B, detJ = mountB(elem, ip.R, Ch, Ct)
-        elem.cacheM[i] = FixedSizeMatrix(B)
-        elem.cacheV[1][i] = detJ
+        Bi, detJi = mountB(elem, ip.R, Ch, Ct)
+        B_list[i] = FixedSizeMatrix(Bi)
+        detJ_list[i] = detJi
     end
+    elem.cache = MechBondSlipCache(B_list, detJ_list)
 
     return nothing
 end
@@ -172,8 +180,8 @@ function elem_stiffness(elem::Element{MechBondSlip})
     DB = zeros(ndim, nnodes*ndim)
 
     for (i,ip) in enumerate(elem.ips)
-        B    = elem.cacheM[i]
-        detJ = elem.cacheV[1][i]
+        B    = elem.cache.B_list[i]
+        detJ = elem.cache.detJ_list[i]
         D    = calcD(elem.cmodel, ip.state)
         coef = p*detJ*ip.w
         @mul DB = D*B
@@ -201,8 +209,8 @@ function elem_internal_forces(elem::Element{MechBondSlip}, ΔU::Vector{Float64}=
     ΔF = zeros(nnodes*ndim)
 
     for (i,ip) in enumerate(elem.ips)
-        B    = elem.cacheM[i]
-        detJ = elem.cacheV[1][i]
+        B    = elem.cache.B_list[i]
+        detJ = elem.cache.detJ_list[i]
 
         if update
             @mul Δu = B*ΔU

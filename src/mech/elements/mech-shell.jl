@@ -34,13 +34,18 @@ end
 compat_role(::Type{MechShell}) = :surface
 
 
+mutable struct MechShellCache <: ElementCache
+    R_list::Vector{FixedSizeMatrix{Float64}}
+end
+
+
 function elem_init(elem::Element{MechShell})
     # check element dimension
     elem.shape.ndim==2 || throw(SerendipException("MechShell: Invalid element shape. Got $(elem.shape.kind)"))
 
     # Compute nodal rotation matrices
     nnodes = length(elem.nodes)
-    elem.cacheM = Vector{FixedSizeMatrix{Float64}}(undef, nnodes)
+    R_list = Vector{FixedSizeMatrix{Float64}}(undef, nnodes)
     C = get_coords(elem)
 
     for i in 1:nnodes
@@ -56,8 +61,9 @@ function elem_init(elem::Element{MechShell})
         normalize!(V2)
         normalize!(V3)
 
-        elem.cacheM[i] = FixedSizeMatrix([V1'; V2'; V3'])
+        R_list[i] = FixedSizeMatrix([V1'; V2'; V3'])
     end
+    elem.cache = MechShellCache(R_list)
 
     # set the value of αs at integration points
     for ip in elem.ips
@@ -166,8 +172,8 @@ function setB(elem::Element{MechShell}, ip::Ip, N::Vect, L::Matx, dNdX::Matx, R�
     for i in 1:nnodes
         ζ = ip.R[3]
         Rθ[1:3,1:3] .= L
-        # Rθ[1:3,1:3] .= elem.cacheM[i]
-        Rθ[4:5,4:6] .= elem.cacheM[i][1:2,:]
+        # Rθ[1:3,1:3] .= elem.cache.R_list[i]
+        Rθ[4:5,4:6] .= elem.cache.R_list[i][1:2,:]
 
         dNdx = dNdX[i,1]
         dNdy = dNdX[i,2]
@@ -194,7 +200,7 @@ function setB_dr(elem::Element{MechShell}, N::Vect, L::Matx, dNdX::Matx, Rθ_dr:
     for i in 1:nnodes
 
         Rθ_dr[1:2,1:3] .= L[1:2,1:3]
-        Rθ_dr[3,4:6] .= elem.cacheM[i][3,:]
+        Rθ_dr[3,4:6] .= elem.cache.R_list[i][3,:]
 
         dNdx = dNdX[i,1]
         dNdy = dNdX[i,2]
