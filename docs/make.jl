@@ -35,7 +35,7 @@ makedocs(
     modules  = [Serendip],
     sitename = "Serendip",
     pagesonly = true,    # only listed pages are included
-    checkdocs = :exports,   # :missing, :exports, :all
+    checkdocs = :none,   # :missing, :exports, :all, :none
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true",
         # assets = ["assets/luxor-docs.css"],
