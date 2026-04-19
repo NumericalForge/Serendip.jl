@@ -16,7 +16,7 @@ p3 = add_point(geo, [0.2, 3.9, 0.4])
 
 l1 = add_line(geo, p1, p2)
 arc = add_circle_arc(geo, p2, pc, p3)
-add_path(geo, [l1, arc]; embedded=true, tag="embedded", shape=:lin3)
+add_path(geo, [l1, arc]; mode=:embedded, tag="embedded", shape=:lin3)
 
 mesh = Mesh(geo)
 

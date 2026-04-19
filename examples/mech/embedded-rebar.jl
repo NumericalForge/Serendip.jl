@@ -10,7 +10,7 @@ p1 = add_point(geo, [0.05, 0.05, 0.05])
 p2 = add_point(geo, [0.05, 5.95, 0.05])
 l1 = add_line(geo, p1, p2)
 
-path = add_path(geo, [l1], tag="embedded", embedded=true) # uses the embedded approach
+path = add_path(geo, [l1], tag="embedded", mode=:embedded) # uses the embedded approach
 add_array(geo, path, nx=3, dx=0.2)
 
 mesh = Mesh(geo)

@@ -41,16 +41,17 @@ function Path(edges::Vector{Edge})
 end
 
 """
-    GPath(path; embedded=false, shape=:lin3, tag="", interface_tag="", tip_tag="", tips=:none)
+    GPath(path; mode=:interface, shape=:lin3, tag="", interface_tag="", tip_tag="", tips=:none)
 
 Creates a geometric path (`GPath`) entity, which represents a curve (typically a sequence of connected edges) embedded or placed in the geometry model.
 This structure is typically used to represent linear inclusions such as reinforcements, drains, etc.
-If embedded is `false`, interface elements will be created along the path.
-If `tips` is not `:none`, tip elements will be created at the endpoints of the path.
+The `mode` option controls how line elements are generated along the path.
+If `mode` is `:interface`, interface elements will be created along the path.
+If `tips` is not `:none`, tip elements will be created at the endpoints of the path in `:interface` mode.
 
 # Arguments
 - `path::Path`: The geometric path (sequence of edges and points) to be wrapped as a GPath.
-- `embedded::Bool=false`: Whether this path should be embedded in the bulk mesh during meshing (e.g. cracks, reinforcements).
+- `mode::Symbol=:interface`: Path generation mode. Use `:interface`, `:embedded`, `:conforming`, or `:free`.
 - `shape::Symbol=:lin3`: Shape symbol used for discretizing the path (e.g., `:lin2`, `:lin3`).
 - `tag::String=""`: Optional label or name for this path (e.g. to identify or filter later).
 - `interface_tag::String=""`: Optional tag for use when interface elements are generated from the path.
@@ -61,16 +62,22 @@ Note: Original OCC edges are removed from the geometry after constructing the pa
 """
 struct GPath<:GeoEntity
     path::Path
-    embedded::Bool
+    mode::Symbol
     shape::CellShape
     tag::String
     interface_tag::String
     tip_tag::String
     tips::Symbol
 
-    function GPath(path::Path; embedded::Bool=false, shape::Union{Symbol,CellShape}=:lin3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
+    function GPath(path::Path; mode::Symbol=:interface, shape::Union{Symbol,CellShape}=:lin3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
+        @check mode in (:interface, :embedded, :conforming, :free) "'mode' must be one of :interface, :embedded, :conforming, :free"
         @check tips in (:none, :start, :end, :both)
-        this = new(path, embedded, get_shape(shape), tag, interface_tag, tip_tag, tips)
+        if mode != :interface
+            interface_tag != "" && warn("GPath: 'interface_tag' is ignored when mode=$(repr(mode))")
+            tip_tag != "" && warn("GPath: 'tip_tag' is ignored when mode=$(repr(mode))")
+            tips != :none && warn("GPath: 'tips' is ignored when mode=$(repr(mode))")
+        end
+        this = new(path, mode, get_shape(shape), tag, interface_tag, tip_tag, tips)
         return this
     end
 end
@@ -86,7 +93,7 @@ function Base.copy(p::GPath)
     path = copy(p.path)
 
     # create a new GPath with the copied path
-    return GPath(path; embedded=p.embedded, shape=p.shape, tag=p.tag, interface_tag=p.interface_tag, tip_tag=p.tip_tag, tips=p.tips)
+    return GPath(path; mode=p.mode, shape=p.shape, tag=p.tag, interface_tag=p.interface_tag, tip_tag=p.tip_tag, tips=p.tips)
 end
 
 function move(gpath::GPath; dx::Real=0.0, dy::Real=0.0, dz::Real=0.0)
@@ -122,7 +129,7 @@ This struct serves as a container for user-defined geometry entities and geometr
 # Fields Initialized
 - `entities`: A dictionary mapping Gmsh entity identifiers `(dim, tag)` to `GeoEntity` objects explicitly added by the user.
 - `blocks`: A list of meshing `Block` structures used for meshing control or volume/surface definitions.
-- `gpaths`: A list of `GPath` objects used to represent embedded geometric paths (e.g., for reinforcement, interfaces, or spring elements).
+- `gpaths`: A list of `GPath` objects used to represent path-generated line elements (e.g., for reinforcement, interfaces, or spring elements).
 
 # Example
 ```julia
@@ -239,7 +246,7 @@ end
 
 
 """
-    add_path(geometry, edges; embedded=false, shape=:lin3, tag="", interface_tag="", tip_tag="", tips=:none)
+    add_path(geometry, edges; mode=:interface, shape=:lin3, tag="", interface_tag="", tip_tag="", tips=:none)
 
 Adds a logical path structure (`GPath`) to the geometric model from a sequence of connected `Edge` objects.
 This is useful for modeling discrete and embedded 1D elements such as reinforcement bars, drains, or inclusions.
@@ -247,7 +254,7 @@ This is useful for modeling discrete and embedded 1D elements such as reinforcem
 # Arguments
 - `geometry::GeoModel`: Target geometric model.
 - `edges::Vector{Edge}`: Sequence of connected edges that define the path.
-- `embedded::Bool=false`: Whether the path is embedded into a solid domain. If embedded is `false`, interface elements will be created.
+- `mode::Symbol=:interface`: Path generation mode. Use `:interface`, `:embedded`, `:conforming`, or `:free`.
 - `shape::Symbol=:lin3`: Finite element shape symbol for discretization of the path (`:lin2` or `:lin3`).
 - `tag::String=""`: Identifier tag for the path.
 - `interface_tag::String=""`: Optional tag used for interface elements.
@@ -271,11 +278,11 @@ edge2 = add_line(geo, p2, p3)
 path = add_path(geo, [edge1, edge2]; tag="reinforcement", interface_tag="contact")
 ```
 """
-function add_path(geometry::GeoModel, edges::Vector{Edge}; embedded::Bool=false, shape::Union{Symbol,CellShape}=:lin3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
+function add_path(geometry::GeoModel, edges::Vector{Edge}; mode::Symbol=:interface, shape::Union{Symbol,CellShape}=:lin3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
     @check tips in (:none, :start, :end, :both) "'tips' must be one of :none, :start, :end, :both"
 
     path = Path(edges)
-    gpath = GPath(path; tag=tag, embedded=embedded, shape=get_shape(shape), interface_tag=interface_tag, tip_tag=tip_tag, tips=tips)
+    gpath = GPath(path; tag=tag, mode=mode, shape=get_shape(shape), interface_tag=interface_tag, tip_tag=tip_tag, tips=tips)
     push!(geometry.gpaths, gpath)
 
     # remove edges from the geometry model
@@ -290,13 +297,12 @@ function add_path(geometry::GeoModel, edges::Vector{Edge}; embedded::Bool=false,
 end
 
 
-function add_path(geometry::GeoModel, coords::Vector{<:Real}...; embedded::Bool=false, shape::Union{Symbol,CellShape}=:lin3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
+function add_path(geometry::GeoModel, coords::Vector{<:Real}...; mode::Symbol=:interface, shape::Union{Symbol,CellShape}=:lin3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
     @check tips in (:none, :start, :end, :both)
-    embedded && interface_tag!="" && warn("add_path: 'interface_tag' is ignored when 'embedded=true'")
 
     path = Path(coords...)
 
-    gpath = GPath(path; tag=tag, embedded=embedded, shape=get_shape(shape), interface_tag=interface_tag, tip_tag=tip_tag, tips=tips)
+    gpath = GPath(path; tag=tag, mode=mode, shape=get_shape(shape), interface_tag=interface_tag, tip_tag=tip_tag, tips=tips)
     push!(geometry.gpaths, gpath)
 
     return gpath

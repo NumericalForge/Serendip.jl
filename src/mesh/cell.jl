@@ -318,6 +318,32 @@ function get_edges(cell::AbstractCell)
 end
 
 
+"""
+    get_edges(node::Node)
+
+Return the unique topology edges from the cells adjacent to `node` that contain
+`node`.
+"""
+function get_edges(node::Node)
+    edges = Cell[]
+    edge_keys = Set{Tuple{Vararg{UInt64}}}()
+
+    for cell in node.elems
+        for edge in get_edges(cell)
+            any(n -> n === node, edge.nodes) || continue
+
+            key = Tuple(sort!(UInt64[n.id > 0 ? UInt64(n.id) : objectid(n) for n in edge.nodes]))
+            key in edge_keys && continue
+
+            push!(edge_keys, key)
+            push!(edges, edge)
+        end
+    end
+
+    return edges
+end
+
+
 # Returns the volume/area/length of a cell
 function cell_extent(c::AbstractCell)
     IP = get_ip_coords(c.shape)

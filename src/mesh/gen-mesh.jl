@@ -229,7 +229,7 @@ function Mesh(geo::GeoModel;
     end
 
     if length(geo.gpaths)>0
-        gen_insets!(mesh, geo.gpaths)
+        gen_path_insets(mesh, geo.gpaths)
         synchronize(mesh, sort=sort)
     end
 

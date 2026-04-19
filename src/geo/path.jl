@@ -71,9 +71,9 @@ end
 
 function Path(pts::Vector{<:Real}...; closed::Bool=false)
     points = [ Point(pts[i]) for i in 1:length(pts) ]
-    cmds = [ PathCmd(:M, points[1]) ]
+    cmds = [ PathCmd(:M, [1]) ]
     for i in 2:length(points)
-        push!(cmds, PathCmd(:L, points[i]))
+        push!(cmds, PathCmd(:L, [i-1, i]))
     end
     # create a new Path
     return Path(points, cmds; closed=closed)
@@ -231,6 +231,7 @@ function evaluate(path::Path, cmd::PathCmd, t::Float64)
     elseif cmd.key==:A # 3 points arc
         X1, X2, X3 = [ p.coord for p in points[cmd.idxs] ]
         C, N = cmd.C, cmd.N
+        r = norm(X1-C)
         θ = t*acos(clamp(dot(X1-C, X3-C)/r^2, -1, 1))
         R = Quaternion(cos(θ/2), N[1]*sin(θ/2), N[2]*sin(θ/2), N[3]*sin(θ/2))
         P = C + R*(X1 - C)*conj(R)
@@ -246,6 +247,76 @@ function evaluate(path::Path, cmd::PathCmd, t::Float64)
     else
         error("Invalid command key $(cmd.key)")
     end
+end
+
+
+"""
+    command_parameter(path::Path, cmd::PathCmd, X; tol=1e-8)
+
+Return the local parameter `t` in `[0, 1]` for point `X` on path command `cmd`.
+
+If `X` lies on the command within `tol`, the returned value satisfies
+`evaluate(path, cmd, t) ≈ X`. If `X` is outside the command, or the projection is
+not within tolerance, returns `nothing`.
+"""
+function command_parameter(path::Path, cmd::PathCmd, X; tol=1e-8)
+    X = Vec3(X)
+    points = path.points
+
+    if cmd.key == :L
+        X1, X2 = [ p.coord for p in points[cmd.idxs] ]
+        V = X2 - X1
+        L2 = dot(V, V)
+        L2 <= tol^2 && return nothing
+
+        t = dot(X - X1, V) / L2
+        -tol <= t <= 1.0 + tol || return nothing
+        tc = clamp(t, 0.0, 1.0)
+        norm(evaluate(path, cmd, tc) - X) <= tol || return nothing
+        return tc
+    elseif cmd.key in (:A, :Ac)
+        X1 = points[cmd.idxs[1]].coord
+        X3 = points[cmd.idxs[3]].coord
+        C = cmd.key == :Ac ? points[cmd.idxs[2]].coord : Vec3(cmd.C)
+        N = Vec3(cmd.N)
+        norm(N) <= tol && return nothing
+
+        V1 = X1 - C
+        VX = X - C
+        r = norm(V1)
+        r <= tol && return nothing
+        abs(norm(VX) - r) <= tol || return nothing
+        abs(dot(VX, N)) <= max(tol, tol*r) || return nothing
+
+        total = acos(clamp(dot(V1, X3 - C) / r^2, -1.0, 1.0))
+        total <= tol && return nothing
+
+        θ = atan(dot(N, cross(V1, VX)), dot(V1, VX))
+        θ < -tol && (θ += 2*pi)
+        -tol <= θ <= total + tol || return nothing
+
+        t = clamp(θ / total, 0.0, 1.0)
+        norm(evaluate(path, cmd, t) - X) <= tol || return nothing
+        return t
+    elseif cmd.key == :B
+        lo, hi = 0.0, 1.0
+        f(t) = norm(evaluate(path, cmd, t) - X)^2
+        for _ in 1:60
+            t1 = lo + (hi - lo) / 3.0
+            t2 = hi - (hi - lo) / 3.0
+            if f(t1) < f(t2)
+                hi = t2
+            else
+                lo = t1
+            end
+        end
+
+        t = (lo + hi) / 2.0
+        norm(evaluate(path, cmd, t) - X) <= tol || return nothing
+        return t
+    end
+
+    return nothing
 end
 
 

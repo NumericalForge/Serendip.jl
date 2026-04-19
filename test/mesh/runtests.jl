@@ -6,6 +6,7 @@ using Serendip
          "shape/extrapolation.jl",
          "structured.jl",
          "path-tips.jl",
+         "path-modes.jl",
          "cohesive-insertion.jl",
          "unstructured/runtests.jl",
          "io.jl",
