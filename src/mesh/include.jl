@@ -15,7 +15,7 @@ include("gen-line-interface-elems.jl")
 include("gen-mesh.jl")
 
 include("io.jl")
-export Mesh, save, get_outer_facets, threshold
+export Mesh, save, get_outer_facets, threshold, add_mesh, join_mesh!, join_meshes
 
 include("refine.jl")
 export hrefine, prefine

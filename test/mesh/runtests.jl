@@ -8,6 +8,8 @@ using Serendip
          "path-tips.jl",
          "path-modes.jl",
          "cohesive-insertion.jl",
+         "join-meshes.jl",
+         "geo-add-mesh.jl",
          "unstructured/runtests.jl",
          "io.jl",
         #  "operations.jl",

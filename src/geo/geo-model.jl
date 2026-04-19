@@ -130,6 +130,7 @@ This struct serves as a container for user-defined geometry entities and geometr
 - `entities`: A dictionary mapping Gmsh entity identifiers `(dim, tag)` to `GeoEntity` objects explicitly added by the user.
 - `blocks`: A list of meshing `Block` structures used for meshing control or volume/surface definitions.
 - `gpaths`: A list of `GPath` objects used to represent path-generated line elements (e.g., for reinforcement, interfaces, or spring elements).
+- `meshes`: A list of existing meshes to include in generated meshes and use as boundary constraints.
 
 # Example
 ```julia
@@ -142,6 +143,7 @@ mutable struct GeoModel
     blocks::Vector{Block}
     gpaths::Vector{GPath}
     fields::Vector{SizeField}
+    meshes::Vector{AbstractDomain}
 
     function GeoModel(; size=0.0, min_size=0.0, max_size=0.0, quiet::Bool=false)
         quiet || printstyled("Geometry model:\n", bold=true, color=:cyan)
@@ -162,7 +164,8 @@ mutable struct GeoModel
             OrderedDict{Tuple{Int,Int},GeoEntity}(),
             Block[],
             GPath[],
-            SizeField[]
+            SizeField[],
+            AbstractDomain[]
         )
     end
 end
@@ -180,6 +183,13 @@ function save(geo::GeoModel, filename::String, quiet=false)
     end
     quiet || printstyled("  file $filename written\n", color=:cyan)
     return nothing
+end
+
+
+function add_mesh(geo::GeoModel, mesh::AbstractDomain)
+    stored = copy(mesh)
+    push!(geo.meshes, stored)
+    return stored
 end
 
 

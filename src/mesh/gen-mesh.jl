@@ -1,10 +1,88 @@
+function _candidate_constraint_hosts(node::Node, host_dimtags; tol=1e-8)
+    X = node.coord
+    hosts = Tuple{Int,Int}[]
+
+    for (dim, id) in host_dimtags
+        xmin, ymin, zmin, xmax, ymax, zmax = gmsh.model.occ.getBoundingBox(dim, id)
+        if xmin - tol <= X.x <= xmax + tol &&
+           ymin - tol <= X.y <= ymax + tol &&
+           zmin - tol <= X.z <= zmax + tol
+            push!(hosts, (Int(dim), Int(id)))
+        end
+    end
+
+    return hosts
+end
+
+
+function _add_mesh_constraints!(meshes, target_dim::Integer)
+    target_dim in (2, 3) || return 0
+
+    dim_ids = gmsh.model.occ.getEntities(target_dim)
+    host_dimtags = gmsh.model.getBoundary(dim_ids, false, false, false)
+    point_hosts = Tuple{Int,Vector{Tuple{Int,Int}}}[]
+    curve_node_keys = Dict{Int,Set{Tuple{Float64,Float64,Float64}}}()
+    node_keys = Set{Tuple{Float64,Float64,Float64}}()
+    nconstraints = 0
+
+    for mesh in meshes
+        facets = get_outer_facets(select(mesh.elems, :solid))
+        for facet in facets
+            facet.shape.ndim == target_dim - 1 || continue
+
+            nvertices = facet.shape.base_shape.npoints
+            for node in facet.nodes[1:nvertices]
+                key = node_pos_key(node)
+                key in node_keys && continue
+                push!(node_keys, key)
+
+                hosts = _candidate_constraint_hosts(node, host_dimtags)
+                isempty(hosts) && continue
+
+                for (dim, host) in hosts
+                    dim == 1 || continue
+                    keys = get!(curve_node_keys, host, Set{Tuple{Float64,Float64,Float64}}())
+                    push!(keys, key)
+                end
+
+                tag = gmsh.model.occ.addPoint(node.coord.x, node.coord.y, node.coord.z)
+                push!(point_hosts, (tag, hosts))
+            end
+        end
+    end
+
+    isempty(point_hosts) && return 0
+
+    gmsh.model.occ.synchronize()
+
+    # When stored mesh nodes constrain a boundary curve, keep Gmsh from adding
+    # extra curve nodes that would later become hanging nodes at the interface.
+    if target_dim == 2
+        for (curve, keys) in curve_node_keys
+            length(keys) >= 2 || continue
+            gmsh.model.mesh.set_transfinite_curve(curve, length(keys))
+        end
+    end
+
+    for (tag, hosts) in point_hosts
+        for (dim, host) in hosts
+            gmsh.model.mesh.embed(0, [tag], dim, host)
+            nconstraints += 1
+        end
+    end
+
+    return nconstraints
+end
+
+
 """
     Mesh(geo::GeoModel; ndim=0, recombine=false, quadratic=false, algorithm=:delaunay,
          sort=true, quiet=false) -> Mesh
 
 Generate a finite element mesh from a geometric model using Gmsh or structured
 blocks. Supports both **unstructured** meshing from OCC entities and **structured**
-meshing from `geo.blocks`. If both are present, unstructured meshing takes precedence.
+meshing from `geo.blocks`. If both are present, block boundaries constrain the
+OCC mesh and both meshes are joined.
 
 # Arguments
 - `geo::GeoModel`: Geometry model containing OCC entities and/or structured blocks.
@@ -51,13 +129,17 @@ function Mesh(geo::GeoModel;
     quiet     ::Bool = false,
 )
 
-    if length(geo.blocks)>0
+    source_meshes = AbstractDomain[geo.meshes...]
+    has_blocks = length(geo.blocks)>0
+    has_occ = length(gmsh.model.occ.getEntities(1))>0
 
+    if has_blocks
         quiet || printstyled("Structured mesh generation:\n", bold=true, color=:cyan)
-        mesh = mesh_structured(geo, ndim)
+        block_mesh = mesh_structured(geo, ndim)
+        push!(source_meshes, block_mesh)
+    end
 
-    elseif length(gmsh.model.occ.getEntities(1))>0
-
+    if has_occ
         quiet || printstyled("Unstructured mesh generation:\n", bold=true, color=:cyan)
         quadratic && gmsh.option.setNumber("Mesh.ElementOrder", 2)
 
@@ -74,8 +156,6 @@ function Mesh(geo::GeoModel;
             gmsh.option.setNumber("Mesh.Algorithm", 6) # frontal delaunay
             gmsh.option.setNumber("Mesh.Algorithm3D", 4) # frontal
         end
-
-        length(geo.blocks)>0 && warn("Mesh: Blocks are being ignored")
 
         # mesh
         gmsh_ndim = gmsh.model.getDimension()
@@ -163,6 +243,8 @@ function Mesh(geo::GeoModel;
         end
         gmsh.model.occ.synchronize()
 
+        _add_mesh_constraints!(source_meshes, gmsh_ndim)
+
         # ❱❱❱ Mesh generation
         logfile = "_gmsh.log"
         try
@@ -182,6 +264,7 @@ function Mesh(geo::GeoModel;
         node_ids, coord_list, _ = gmsh.model.mesh.getNodes()
         nnodes = length(node_ids)
         nodes = [ Node(coord_list[ 3*(i-1)+1 : 3*i ], id=i) for i in 1:nnodes ]
+        node_by_tag = Dict{Int, Node}(Int(node_ids[i]) => nodes[i] for i in 1:nnodes)
 
         shape_dict = Dict( 1=>LIN2, 2=>TRI3, 3=>QUAD4, 4=>TET4, 5=>HEX8, 6=>WED6, 7=>PYR5, 8=>LIN3, 9=>TRI6, 10=>QUAD9, 11=>TET10, 12=>HEX27, 16=>QUAD8, 17=>HEX20 )
         nnodes_dict = Dict( 1=>2, 2=>3, 3=>4, 4=>4, 5=>8, 6=>6, 7=>5, 8=>3, 9=>6, 10=>9, 11=>10, 12=>27, 16=>8, 17=>20 )
@@ -198,10 +281,10 @@ function Mesh(geo::GeoModel;
                 role = ty in (1,8) ? :line : :solid
                 for (j,id) in enumerate(elem_ids[i])
                     conn = elem_conns[i][ (j-1)*nenodes + 1 : j*nenodes ]
-                    if shape == TET10 # Fix bug in Gmsh
+                    if shape == TET10 # Convert Gmsh TET10 ordering to Serendip's FE convention
                         conn[9], conn[10] = conn[10], conn[9] # swap last two nodes
                     end
-                    enodes = nodes[conn]
+                    enodes = Node[node_by_tag[Int(tag)] for tag in conn]
                     cell = Cell(shape, role, enodes, tag=ent_tag, id=Int(id))
                     push!(cells, cell)
                 end
@@ -209,12 +292,21 @@ function Mesh(geo::GeoModel;
         end
 
         mesh = Mesh(max(gmsh_ndim, ndim))
-        mesh.nodes = nodes
+        mesh.nodes = isempty(source_meshes) ? nodes : get_nodes(cells)
         mesh.elems = cells
         synchronize(mesh, sort=sort)
 
+        if !isempty(source_meshes)
+            mesh = join_meshes(source_meshes..., mesh, check=true)
+        end
+
     else
-        error("Mesh: No blocks or surfaces/volumes found")
+        if isempty(source_meshes)
+            error("Mesh: No blocks, surfaces/volumes, or stored meshes found")
+        end
+        mesh = has_blocks && length(source_meshes)==1 ? source_meshes[1] :
+               length(source_meshes)==1 ? copy(source_meshes[1]) :
+               join_meshes(source_meshes..., check=true)
     end
 
     mesh.ctx.ndim = max(mesh.ctx.ndim, ndim)

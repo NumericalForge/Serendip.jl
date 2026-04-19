@@ -502,40 +502,122 @@ function synchronize(mesh::Mesh; sort=false, cleandata=false)
 end
 
 
-function join_mesh!(mesh::Mesh, m2::Mesh)
-
-    # mesh.ctx.ndim = max(mesh.ctx.ndim, m2.ctx.ndim)
-
-    pointdict = Dict{UInt, Node}()
-    for m in (mesh, m2)
-        for node in m.nodes
-            pointdict[hash(node)] = node
-        end
-    end
-    nodes = collect(values(pointdict))
-
-    elems = Cell[]
-    for m in (mesh, m2)
-        for elem in m.elems
-            newelemnodes = Node[pointdict[hash(node)] for node in elem.nodes ]
-            newelem = Cell(elem.shape, newelemnodes, tag=elem.tag)
-            push!(elems, newelem)
-        end
-    end
-
-    mesh.nodes = nodes
-    mesh.elems = elems
-    # mesh._pointdict = pointdict
-
-    synchronize(mesh, sort=false)
-
-    return nothing
+function _cell_key(cell::AbstractCell)
+    return Tuple(sort!(collect(node_pos_key(node) for node in cell.nodes)))
 end
 
 
-function join_meshes(m1::Mesh, m2::Mesh)
-    mesh = copy(m1)
-    join_mesh!(mesh, m2)
+function _copy_cell_with_nodes(cell::AbstractCell, nodemap::IdDict{Node,Node})
+    nodes = Node[nodemap[node] for node in cell.nodes]
+    newcell = Cell(cell.shape, cell.role, nodes, tag=cell.tag, active=cell.active)
+    newcell.embedded = cell.embedded
+    newcell.crossed = cell.crossed
+    return newcell
+end
+
+
+function _check_duplicate_solids(cells::Vector{Cell})
+    solids = filter(c -> c.shape.ndim in (2, 3), select(cells, :solid))
+    seen = Dict{Tuple, Cell}()
+
+    for cell in solids
+        key = _cell_key(cell)
+        if haskey(seen, key)
+            error("add_mesh: duplicate solid elements found while joining meshes")
+        end
+        seen[key] = cell
+    end
+end
+
+
+function _check_boundary_conformity(mesh::Mesh, other::Mesh)
+    facets1 = get_outer_facets(select(mesh.elems, :solid))
+    facets2 = get_outer_facets(select(other.elems, :solid))
+    (isempty(facets1) || isempty(facets2)) && return
+
+    keys1 = Set(_cell_key(facet) for facet in facets1)
+    keys2 = Set(_cell_key(facet) for facet in facets2)
+    common_keys = intersect(keys1, keys2)
+
+    node_keys1 = Set(node_pos_key(node) for node in get_nodes(facets1))
+    node_keys2 = Set(node_pos_key(node) for node in get_nodes(facets2))
+
+    for facet in facets1
+        _cell_key(facet) in common_keys && continue
+        shared = count(node -> node_pos_key(node) in node_keys2, facet.nodes)
+        shared >= facet.shape.ndim + 1 && error("add_mesh: nonconforming solid interface found while joining meshes")
+    end
+
+    for facet in facets2
+        _cell_key(facet) in common_keys && continue
+        shared = count(node -> node_pos_key(node) in node_keys1, facet.nodes)
+        shared >= facet.shape.ndim + 1 && error("add_mesh: nonconforming solid interface found while joining meshes")
+    end
+end
+
+
+function add_mesh(mesh::Mesh, other::Mesh; check::Bool=true)
+    check && _check_boundary_conformity(mesh, other)
+
+    pointdict = NodePosMap()
+    nodemap = IdDict{Node,Node}()
+    nodes = Node[]
+
+    for node in mesh.nodes
+        if haskey(pointdict, node)
+            nodemap[node] = pointdict[node]
+        else
+            pointdict[node] = node
+            nodemap[node] = node
+            push!(nodes, node)
+        end
+    end
+
+    for node in other.nodes
+        if haskey(pointdict, node)
+            nodemap[node] = pointdict[node]
+        else
+            newnode = copy(node)
+            pointdict[newnode] = newnode
+            nodemap[node] = newnode
+            push!(nodes, newnode)
+        end
+    end
+
+    oldcells = [mesh.elems; other.elems]
+    newcells = Cell[]
+    cellmap = IdDict{AbstractCell,Cell}()
+    for cell in oldcells
+        newcell = _copy_cell_with_nodes(cell, nodemap)
+        push!(newcells, newcell)
+        cellmap[cell] = newcell
+    end
+
+    for cell in oldcells
+        newcell = cellmap[cell]
+        newcell.couplings = AbstractCell[
+            cellmap[coupled] for coupled in cell.couplings if haskey(cellmap, coupled)
+        ]
+    end
+
+    check && _check_duplicate_solids(newcells)
+
+    mesh.nodes = nodes
+    mesh.elems = newcells
+    mesh.ctx.ndim = max(mesh.ctx.ndim, other.ctx.ndim)
+    synchronize(mesh, sort=false, cleandata=true)
+
+    return mesh
+end
+
+
+function join_meshes(meshes::Mesh...; check::Bool=true)
+    length(meshes) >= 2 || error("join_meshes: at least two meshes are required")
+
+    mesh = copy(meshes[1])
+    for other in meshes[2:end]
+        add_mesh(mesh, other, check=check)
+    end
     return mesh
 end
 
