@@ -16,10 +16,11 @@ module Serendip
 
 using StatsBase, Statistics, LinearAlgebra
 using StaticArrays, FixedSizeArrays, SparseArrays, Arpack, Pardiso
+using Printf, DelimitedFiles, Glob, Dates, JSON
 using Gmsh
-using Printf, DelimitedFiles, DataStructures, Glob, Dates, JSON
 using Cairo
 import FreeTypeAbstraction
+import DataStructures: OrderedDict, OrderedSet
 
 macro t_str(s)
     return s
@@ -31,7 +32,6 @@ end
 
 export @t_str, @L_str
 
-import DataStructures: OrderedDict, OrderedSet
 
 # Tools module
 include("tools/include.jl")
