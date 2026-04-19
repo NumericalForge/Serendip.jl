@@ -186,10 +186,23 @@ function save(geo::GeoModel, filename::String, quiet=false)
 end
 
 
+"""
+    add_mesh(geo::GeoModel, mesh)
+
+Adds an existing mesh to a geometry model.
+
+Stored meshes are included in the mesh returned by `Mesh(geo)`. When OCC
+entities are meshed, the boundary vertex nodes of the stored meshes are also
+used as Gmsh point constraints so adjacent generated regions can conform to the
+stored mesh boundary.
+
+The mesh is stored by reference, following the same convention as other geometry
+model contents. Later mutations to the mesh object are therefore reflected when
+`Mesh(geo)` is generated.
+"""
 function add_mesh(geo::GeoModel, mesh::AbstractDomain)
-    stored = copy(mesh)
-    push!(geo.meshes, stored)
-    return stored
+    push!(geo.meshes, mesh)
+    return mesh
 end
 
 

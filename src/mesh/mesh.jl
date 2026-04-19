@@ -556,6 +556,22 @@ function _check_boundary_conformity(mesh::Mesh, other::Mesh)
 end
 
 
+"""
+    add_mesh(mesh::Mesh, other::Mesh; check=true) -> Mesh
+
+Adds `other` to `mesh` in place and returns `mesh`.
+
+Nodes with the same rounded coordinate key are welded, preserving existing
+nodes from `mesh` first. Cells from both meshes are copied into the destination
+with their shape, role, tag, active state, embedded flag, crossed flag and local
+couplings preserved where possible. Mesh fields are cleared during the final
+synchronization.
+
+When `check=true`, regular 2D/3D solid elements are validated before returning:
+duplicate solid cells are rejected and nonconforming solid interfaces are
+reported as errors. Non-solid cells are copied and node-welded but are not used
+for conformity validation.
+"""
 function add_mesh(mesh::Mesh, other::Mesh; check::Bool=true)
     check && _check_boundary_conformity(mesh, other)
 
@@ -611,6 +627,15 @@ function add_mesh(mesh::Mesh, other::Mesh; check::Bool=true)
 end
 
 
+"""
+    join_meshes(meshes::Mesh...; check=true) -> Mesh
+
+Returns a new mesh formed by joining two or more meshes.
+
+The first mesh is copied, then each following mesh is added with `add_mesh`.
+Input meshes are left unchanged. With `check=true`, the same duplicate-solid and
+solid-interface conformity checks used by `add_mesh` are applied at each join.
+"""
 function join_meshes(meshes::Mesh...; check::Bool=true)
     length(meshes) >= 2 || error("join_meshes: at least two meshes are required")
 

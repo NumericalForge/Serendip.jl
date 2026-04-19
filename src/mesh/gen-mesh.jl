@@ -106,8 +106,18 @@ OCC mesh and both meshes are joined.
 - Handles embedded points (`p.embedded == true`) by embedding them in host surfaces.
 - Removes orphan vertices without adjacencies.
 - Builds `Node` and `Cell` objects from Gmsh mesh data, including element connectivity.
-- For structured meshes uses block definitions from `geo`.
+- For structured meshes, uses block definitions from `geo`.
+- Existing meshes added with `add_mesh(geo, mesh)` are included in the result.
+- If structured blocks and/or stored meshes are combined with OCC entities, their
+  boundary vertex nodes are used as Gmsh constraints before meshing the OCC region.
+- After all parts are generated, meshes are joined with node welding and
+  conformity checks enabled.
 - If `geo.gpaths` are present, generates insets and re-synchronizes.
+
+# Notes
+- For quadratic stored or block meshes, only boundary vertex nodes are used as
+  Gmsh constraints. High-order midside nodes are checked later during the final
+  mesh join.
 
 # Returns
 - `mesh::Mesh`: A mesh object containing nodes, elements, faces, edges, and context information.
