@@ -77,12 +77,12 @@ for case in cases
 
     table = joint_log.table
 
-    add_series(chart, :line, table["s"], table["τ"], label=case.name, mark=:circle)
+    add_series(chart, :line, table["sl"], table["τl"], label=case.name, mark=:circle)
 
     case.name == "LinearBondSlip" && continue # skip assertions for linear case
 
-    @test maximum(abs.(table["τ"])) ≈ τmax atol=0.01*τmax
-    @test abs(table["τ"][end]) ≈ τres atol=0.01*τres
+    @test maximum(abs.(table["τl"])) ≈ τmax atol=0.01*τmax
+    @test abs(table["τl"][end]) ≈ τres atol=0.01*τres
 end
 
 save(chart, "bondslip-monotonic-comparison.pdf")
