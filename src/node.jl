@@ -153,7 +153,7 @@ end
 
 
 """
-    select(nodes::Vector{Node}, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag="")
+    select(nodes::Vector{Node}, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag=nothing)
 
 Select nodes from a collection using one or more filters. Filters are applied
 sequentially (logical AND), starting from all nodes. Tuple selectors are
@@ -178,7 +178,8 @@ Point-coordinate selection behavior:
 - `nearest::Bool=false`: enable nearest fallback for coordinate-vector selectors.
 - `quiet::Bool=false`: suppress point-selection notifications.
 - `prefix::AbstractString="select"`: prefix used in point-selection notifications.
-- `tag=""`: if non-empty, assign this tag to all selected nodes.
+- `tag::Union{String,Nothing}=nothing`: if a string is provided, assigns it to
+  all selected nodes.
 """
 function select(
     nodes::Vector{Node},
@@ -187,7 +188,7 @@ function select(
     nearest = false,
     quiet = false,
     prefix::AbstractString = "select",
-    tag = ""
+    tag::Union{String, Nothing} = nothing
     )
 
     selectors = _flatten_selectors(selectors)
@@ -247,7 +248,7 @@ function select(
     end
 
     # Set tag for selected nodes
-    if tag != ""
+    if tag !== nothing
         for i in selected
             nodes[i].tag = tag
         end

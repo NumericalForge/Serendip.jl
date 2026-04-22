@@ -65,7 +65,7 @@ end
 
 
 """
-    select(elems::Vector{<:AbstractCell}, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag="")
+    select(elems::Vector{<:AbstractCell}, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag=nothing)
 
 Select entities from an element list using one or more filters. By default this
 function filters cells, but `:node` and `:ip` can redirect selection to nodes or
@@ -97,7 +97,8 @@ supported after redirection with `:node` or `:ip`.
 - `nearest::Bool=false`: forwarded to redirected node/IP selection.
 - `quiet::Bool=false`: forwarded to redirected node/IP selection.
 - `prefix::AbstractString="select"`: forwarded to redirected node/IP selection.
-- `tag::String=""`: if non-empty, assigns this tag to the selected cells.
+- `tag::Union{String,Nothing}=nothing`: if a string is provided, assigns it to
+  the selected cells.
 
 # Returns
 - A vector of selected entities:
@@ -112,7 +113,7 @@ function select(
     nearest = false,
     quiet = false,
     prefix::AbstractString = "select",
-    tag::String = "",
+    tag::Union{String, Nothing} = nothing
     )
 
     selectors = _flatten_selectors(selectors)
@@ -168,7 +169,7 @@ function select(
     selection = elems[selected]
 
     # Set tag for selected elements
-    if tag != ""
+    if tag !== nothing
         for elem in selection
             elem.tag = tag
         end
@@ -179,7 +180,7 @@ end
 
 
 """
-    select(domain::AbstractDomain, kind::Symbol, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag="")
+    select(domain::AbstractDomain, kind::Symbol, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag=nothing)
 
 Filters entities from a finite element domain (`domain`) by type and selection criteria.
 
@@ -214,7 +215,8 @@ for the remaining selectors (for example: `select(mesh, :element, :solid, :node,
 - `nearest::Bool`: Enables nearest fallback for point-coordinate selectors.
 - `quiet::Bool`: Suppresses point-selection notifications.
 - `prefix::AbstractString`: Prefix used in point-selection notifications.
-- `tag::String`: If non-empty, assigns this tag to selected entities.
+- `tag::Union{String,Nothing}`: if a string is provided, assigns it to selected
+  entities.
 
 # Returns
 - A vector of selected entities. The entity type follows `kind`, except when
@@ -228,7 +230,7 @@ function select(
     nearest = false,
     quiet = false,
     prefix::AbstractString = "select",
-    tag::String = "",
+    tag::Union{String, Nothing} = nothing,
     )
 
     if kind == :element

@@ -63,7 +63,7 @@ end
 
 
 """
-    select(ips::Vector{Ip}, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag="")
+    select(ips::Vector{Ip}, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag=nothing)
 
 Select integration points from a collection using one or more filters. Filters
 are applied sequentially (logical AND), starting from all integration points.
@@ -88,7 +88,8 @@ Point-coordinate selection behavior:
 - `nearest::Bool=false`: enable nearest fallback for coordinate-vector selectors.
 - `quiet::Bool=false`: suppress point-selection notifications.
 - `prefix::AbstractString="select"`: prefix used in point-selection notifications.
-- `tag=""`: if non-empty, assign this tag to all selected integration points.
+- `tag::Union{String,Nothing}=nothing`: if a string is provided, assigns it to
+  all selected integration points.
 """
 function select(
     ips::Vector{Ip},
@@ -97,7 +98,7 @@ function select(
     nearest = false,
     quiet = false,
     prefix::AbstractString = "select",
-    tag = ""
+    tag::Union{String, Nothing} = nothing
     )
 
     selectors = _flatten_selectors(selectors)
@@ -158,7 +159,7 @@ function select(
     end
 
     # Set tag for selected ips
-    if tag != ""
+    if tag !== nothing
         for i in selected
             ips[i].tag = tag
         end
