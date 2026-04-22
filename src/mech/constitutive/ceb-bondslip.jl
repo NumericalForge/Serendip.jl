@@ -188,7 +188,7 @@ end
 
 function state_values(mat::CebBondSlip, state::CebBondSlipState)
     return OrderedDict(
-        :s => state.u[1] ,
-        :τ => state.σ[1] ,
+        :sl => state.u[1] ,
+        :τl => state.σ[1] ,
     )
 end

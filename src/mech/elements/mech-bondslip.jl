@@ -20,7 +20,7 @@ struct MechBondSlip<:MechFormulation
     p::Float64
 
     function MechBondSlip(; p=NaN)
-        @check p > 0.0
+        @check p > 0.0 "MechBondSlip: p must be a positive real number"
         return new(p)
     end
 end

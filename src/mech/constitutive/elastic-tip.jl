@@ -16,21 +16,28 @@ end
 
 
 """
-    LinearTip(; k)
+    LinearTip(; k, fixed=false)
 
-Constitutive model for a linear tip spring. Used to model the
-elastic response at the tips of bar or beam elements inside bulk material.
-Transmits tension and compression.
+Unilateral linear elastic tip spring.
 
-# Arguments
+Used with `MechBondTip` to model the elastic response at the tips of bar or
+beam elements embedded in bulk material. By default, the spring is active only
+for positive relative tip displacement (`w > 0`), which represents penetration.
+Set `fixed=true` for a bilateral spring that remains active for both signs of
+`w`.
+
+# Keyword arguments
 - `k::Real`
-  Stiffness (≥ 0). Reaction update: `Δf = k·Δw`.
+  Tip stiffness (≥ 0).
+- `fixed::Bool=false`
+  Keep the spring active for both positive and negative relative tip
+  displacements.
 
 # Notes
 - `w` is the relative tip displacement along the element axis.
 
 # Returns
-- A `LinearTip` object.
+A `LinearTip` constitutive object.
 """
 mutable struct LinearTip<:Constitutive
     k::Float64
@@ -77,7 +84,7 @@ end
 
 function state_values(::LinearTip, state::LinearTipState)
     return OrderedDict(
-        :s => state.w,
-        :τ => state.f
+        :stip => state.w,
+        :τtip => state.f
     )
 end

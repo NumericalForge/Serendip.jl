@@ -267,7 +267,7 @@ end
 
 function state_values(mat::CyclicBondSlip, ips::CyclicBondSlipState)
     return OrderedDict(
-      :s => ips.u[1] ,
-      :τ => ips.σ[1] ,
+      :sl => ips.u[1] ,
+      :τl => ips.σ[1] ,
       )
 end
