@@ -397,50 +397,55 @@ function status_cycler(ana::Analysis, sw::StopWatch)
 
     stage     = ana.data.stages[ana.data.stage]
     last_loop = false
+    infos     = String[]
     alerts    = String[]
     while true
         nlines = 0
+        
+        _update_msg_list(infos, ana.data.info, 5)
+        _update_msg_list(alerts, ana.data.alerts, 5)
 
-        nlines += print_info(ana)
-        nlines += print_alerts(ana, alerts)
+        nlines += print_alerts(alerts)
+        nlines += print_info(infos)
         nlines += print_summary(ana, sw)
+        nlines += print_monitors(ana.data.monitors)
 
         last_loop && break
 
         print("\e[$(nlines)A")
         stage.status != :solving && (last_loop=true)
-        # sleep(0.05)
-        # yield()
     end
 
     print("\e[?25h") # enable cursor
 end
 
 
-function print_info(ana::Analysis)
-    str = strip(String(take!(ana.data.info)))
-    str!="" && println("  ", str, "\e[K")
+function _update_msg_list(list::Vector{String}, buff::IOBuffer, maxlen::Int)
+    msg = strip(String(take!(buff)))
 
-    return 0
+    if msg!=""
+        lines = split(msg, "\n")
+        append!(list, lines)
+    end
+
+    n = length(list)
+    if n>maxlen
+        splice!(list, 1:n-maxlen)
+        list[1] = "  ⋮"
+    end
 end
 
 
-function print_alerts(ana::Analysis, alerts::Vector{String})
-    str = strip(String(take!(ana.data.alerts)))
-    T = ana.data.T
-
-    if str!=""
-        list = split(str, "\n")
-        # list = String[ string("  ", Time(now()), "  ", m) for m in list ]
-        append!(alerts, list)
+function print_info(infos::Vector{String})
+    for m in infos
+        printstyled(m, "\e[K\n", color=:cyan)
     end
 
-    n = length(alerts)
-    if n>5
-        splice!(alerts, 1:n-5)
-        alerts[1] = "  ⋮"
-    end
+    return length(infos)
+end
 
+
+function print_alerts(alerts::Vector{String})
     for m in alerts
         printstyled(m, "\e[K\n", color=Base.warn_color())
     end
@@ -457,9 +462,10 @@ function print_summary(ana::Analysis, sw::StopWatch)
     # line 1:
     T  = data.T
     ΔT = data.ΔT
-    # println("  unknown dofs: ", data.nu, "\e[K")
     printstyled("  inc $(data.inc)  output $(data.out)  udofs $(data.nu)  nf $(data.nfails)\e[K\n", bold=true, color=:light_blue)
     # printstyled("  udofs $(data.nu)", bold=true, color=:light_blue)
+
+    # line 2:
     if data.transient
         t = round(data.t, sigdigits=3)
         printstyled("  t=$t", bold=true, color=:light_blue)
@@ -469,18 +475,24 @@ function print_summary(ana::Analysis, sw::StopWatch)
 
     printstyled("  dT $dT  res $res_str\e[K\n", bold=true, color=:light_blue)
 
-    # line 2:
+    # line 3:
     bar = progress_bar(T)
     progress = @sprintf("%5.3f", T*100)
     printstyled("  $(see(sw)) ", bold=true, color=:light_blue)
     print(bar)
     printstyled(" $(progress)% \e[K\n", bold=true, color=:light_blue)
 
-    # print monitors
+    return nlines
+end
+
+
+function print_monitors(monitors::Vector{Monitor})
+    nlines = 0
+
     heads  = String[]
     labels = String[]
     values = String[]
-    for mon in ana.data.monitors
+    for mon in monitors
         h, ls, vs = output(mon)
         length(ls) > 0 || continue
         hs = repeat([""], length(ls))
@@ -500,3 +512,4 @@ function print_summary(ana::Analysis, sw::StopWatch)
 
     return nlines
 end
+    

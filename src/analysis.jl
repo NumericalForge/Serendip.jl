@@ -167,7 +167,7 @@ function compute_bc_values(ana::Analysis, bc::BoundaryCondition, t::Float64, U::
                     dof = get_dof(node, key)
                     F[dof.eq_id] += evaluate(cond, x=x, y=y, z=z, t=t) # cummulative value
                 else
-                    @warn("compute_bc_values: Unknown boundary condition key `$(repr(key))`. Available keys: $(ess_keys ∪ nat_keys).")
+                    println(ana.data.alerts, "compute_bc_values: Unknown BC key `$(key)` for node $(node.id).")
                 end
             end
         end
@@ -176,7 +176,7 @@ function compute_bc_values(ana::Analysis, bc::BoundaryCondition, t::Float64, U::
         essential_keys = Set( dof.name for facet in facets for node in facet.nodes for dof in node.dofs )
 
         for (key,cond) in bc.conds
-            key == :fs && continue
+            # key == :fs && continue
             if key in essential_keys
                 for facet in facets
                     for node in facet.nodes
@@ -196,7 +196,7 @@ function compute_bc_values(ana::Analysis, bc::BoundaryCondition, t::Float64, U::
     elseif bc.kind == :body
         for elem in bc.target
             for (key,val) in bc.conds
-                key == :fs && continue
+                # key == :fs && continue
                 Fd, map = body_load(elem, key, val)
                 F[map] += Fd
             end

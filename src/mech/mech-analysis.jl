@@ -410,7 +410,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         q = 0.0 # increment size factor for autoinc
         
         if syserror
-            println(data.alerts, "$(round(T*100,digits=2))%  " * sysstatus.message)
+            println(data.info, "$(round(T*100,digits=2))%  " * sysstatus.message)
             println(data.log, sysstatus.message)
             converged = false
         end
@@ -499,7 +499,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             # Update analysis records
             solstatus = update_records!(ana, checkpoint=checkpoint)
             if failed(solstatus)
-                println(data.alerts, solstatus.message)
+                println(data.info, solstatus.message)
                 break
             end
 
