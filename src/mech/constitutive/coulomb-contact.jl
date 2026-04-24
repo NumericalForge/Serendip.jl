@@ -96,10 +96,10 @@ function calcD(mat::CoulombContact, state::CoulombContactState)
                     0.0  ks   0.0
                     0.0  0.0  ks ]
 
-    if state.Δλ == 0.0
-        return De
-    elseif state.w[1] >= 0.0
+    if state.w[1] >= 0.0
         return @SMatrix zeros(3, 3)
+    elseif state.Δλ == 0.0
+        return De
     else
         _, τ1, τ2 = state.σ
         τ = sqrt(τ1^2 + τ2^2 + eps())
@@ -120,50 +120,44 @@ function update_state(mat::CoulombContact, state::CoulombContactState, cstate::C
                     0.0  ks   0.0
                     0.0  0.0  ks ]
 
-
     # Trial state
     wtr = cstate.w + Δw
-
     σtr = cstate.σ + De*Δw
+    σscale = max(norm(σtr), norm(cstate.σ), 1.0)
+    tol_σ = sqrt(eps(Float64))*σscale
+    tol_f = sqrt(eps(Float64))*σscale
+    tol_w = tol_σ/max(kn, ks)
 
-    # No traction in opening/non-compressive regime.
-    # if wtr[1] >= 0.0
-    #     state.Δλ = 0.0
-    #     state.up = cstate.up + norm(Δw)
-    #     state.w  = wtr
-    #     state.σ  = Vec3(0.0, 0.0, 0.0)
-    #     Δσ       = state.σ - cstate.σ
-
-    #     return Δσ, success()
-    # end
+    if wtr[1] >= -tol_w || σtr[1] >= -tol_σ
+        state.Δλ = 0.0
+        state.up = cstate.up
+        state.w  = wtr
+        state.σ  = Vec3(0.0, 0.0, 0.0)
+        Δσ       = state.σ - cstate.σ
+        return Δσ, success()
+    end
 
     # Trial yield function (compression branch)
     ftr = yield_func(mat, σtr)
 
-    if ftr <= 0.0
+    if ftr <= tol_f
         # Pure elastic increment
         state.Δλ = 0.0
         state.σ  = σtr
         state.up = cstate.up
-    elseif σtr[1] >= 0.0
-        state.Δλ = 1.0
-        state.up = cstate.up + norm(Δw)
-        state.w  = wtr
-        state.σ  = Vec3(0.0, 0.0, 0.0)
-        Δσ       = state.σ - cstate.σ
-
-        return Δσ, success()
     else
         # Plastic increment
         σntr, τ1tr, τ2tr = σtr
-        σntr += eps()
-        τtr = sqrt(τ1tr^2 + τ2tr^2)
+        τtr = sqrt(τ1tr^2 + τ2tr^2 + eps())
+        τlim = max(-σntr*mat.μ, 0.0)
+        scale = clamp(τlim/τtr, 0.0, 1.0)
 
-        state.Δλ = -1/ks * (τtr/(σntr*mat.μ) + 1)
-        @assert state.Δλ >= 0.0
-        state.σ  = Vec3(σntr, τ1tr/(1.0 + ks*state.Δλ), τ2tr/(1.0 + ks*state.Δλ))
-        τ        = τtr/(1.0 + ks*state.Δλ)
+        state.Δλ = max((1.0/scale - 1.0)/ks, 0.0)
+        state.σ  = Vec3(σntr, τ1tr*scale, τ2tr*scale)
+        τ        = τtr*scale
         state.up = cstate.up + state.Δλ*τ
+
+        yield_func(mat, state.σ) <= 10*tol_f || return state.σ - cstate.σ, failure("CoulombContact: closed-form return failed.")
     end
 
     state.w = wtr

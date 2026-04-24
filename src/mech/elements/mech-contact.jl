@@ -14,50 +14,39 @@ end
 # Return the shape family that works with this element
 compat_role(::Type{MechContact}) = :contact
 
+mutable struct MechContactCache <: ElementCache
+    depth_list::FixedSizeVector{Float64}
+end
 
-# function elem_init(elem::Element{MechContact})
-#     # Computation of characteristic length 'h' for cohesive elements
-#     # and set it in the integration point state
 
-#     hasfield(typeof(elem.ips[1].state), :h) || return
+function elem_init(elem::Element{MechContact})
+    nips = length(elem.ips)
+    depth_list = FixedSizeVector{Float64}(undef, nips)
 
-#     ndim = elem.ctx.ndim
+    if elem.ctx.ndim == 2 && elem.ctx.stress_state != :axisymmetric
+        owners = [owner for owner in elem.couplings if owner isa Element{MechSolid}]
 
-#     # Avg volume of linked elements
-#     V = 0.0
-#     for elem in elem.couplings
-#         V += cell_extent(elem)
-#     end
-#     V /= length(elem.couplings)
+        for (i, ip) in enumerate(elem.ips)
+            if isempty(owners)
+                depth_list[i] = elem.ctx.thickness
+            else
+                depth_list[i] = minimum(
+                    evaluate(owner.etype.thickness, x=ip.coord.x, y=ip.coord.y, z=ip.coord.z)
+                    for owner in owners
+                )
+            end
+        end
+    else
+        depth_list .= 1.0
+    end
 
-#     # Area of cohesive element
-#     A = 0.0
-#     C = get_coords(elem)
-#     n = div(length(elem.nodes), 2)
-#     C = C[1:n, :]
-#     J = fzeros(ndim, ndim-1)
-
-#     for ip in elem.ips
-#         # compute shape Jacobian
-#         dNdR = elem.shape.deriv(ip.R)
-#         @mul J = C'*dNdR
-#         detJ = norm2(J)
-#         detJ <= 0 && error("Invalid Jacobian norm for cohesive element")
-#         A += detJ*ip.w
-#     end
-
-#     # Calculate and save h at cohesive element's integration points
-#     h = V/A
-#     for ip in elem.ips
-#         ip.state.h = h
-#     end
-
-# end
+    elem.cache = MechContactCache(depth_list)
+    return nothing
+end
 
 
 function elem_stiffness(elem::Element{MechContact})
     ndim   = elem.ctx.ndim
-    th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
     hnodes = div(nnodes, 2) # half the number of total nodes
     nstr   = 3
@@ -70,10 +59,8 @@ function elem_stiffness(elem::Element{MechContact})
     J  = fzeros(ndim, ndim-1)
     NN = fzeros(nstr, nnodes*ndim)
 
-    for ip in elem.ips
-        if elem.ctx.stress_state==:axisymmetric
-            th = 2*pi*ip.coord.x
-        end
+    for (i, ip) in enumerate(elem.ips)
+        depth = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : ndim == 2 ? elem.cache.depth_list[i] : 1.0
 
         # compute shape Jacobian
         N    = elem.shape.func(ip.R)
@@ -94,7 +81,7 @@ function elem_stiffness(elem::Element{MechContact})
         @mul B = T'*NN
 
         # compute K
-        coef = detJ*ip.w*th
+        coef = detJ*ip.w*depth
         D    = calcD(elem.cmodel, ip.state)
 
         @mul DB = D*B
@@ -109,7 +96,6 @@ end
 
 function elem_internal_forces(elem::Element{MechContact}, ΔU::Vector{Float64}=Float64[], dt::Float64=0.0)
     ndim   = elem.ctx.ndim
-    th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
     hnodes = div(nnodes, 2) # half the number of total nodes
     map    = dof_map(elem)
@@ -127,10 +113,8 @@ function elem_internal_forces(elem::Element{MechContact}, ΔU::Vector{Float64}=F
     J  = fzeros(ndim, ndim-1)
     NN = fzeros(nstr, nnodes*ndim)
 
-    for ip in elem.ips
-        if elem.ctx.stress_state==:axisymmetric
-            th = 2*pi*ip.coord.x
-        end
+    for (i, ip) in enumerate(elem.ips)
+        depth = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : ndim == 2 ? elem.cache.depth_list[i] : 1.0
 
         # compute shape Jacobian
         N    = elem.shape.func(ip.R)
@@ -159,7 +143,7 @@ function elem_internal_forces(elem::Element{MechContact}, ΔU::Vector{Float64}=F
         end
 
         # internal force
-        coef = detJ*ip.w*th
+        coef = detJ*ip.w*depth
         @mul ΔF += coef*B'*Δσ
     end
 

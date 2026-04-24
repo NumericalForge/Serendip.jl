@@ -157,13 +157,15 @@ function calcD(mat::MohrCoulombContact, state::MohrCoulombContactState)
 
     if state.Δλ == 0.0  # Elastic 
         return De
-    # elseif σmax <= tiny && state.w[1] >= 0.0
-    #     Dep = De*1e-3
-    #     return Dep
+    elseif σmax <= tiny && norm(state.σ) <= tiny
+        Dep = De*1e-6
+        return Dep
     else
         n, ∂f∂σmax = yield_derivs(mat, state.σ)
         m = potential_derivs(mat, state.σ)
         H = deriv_σmax_up(mat, state.up)  # ∂σmax/∂up
+        Hcap = -mat.ft/(0.5*mat.wc)
+        H    = max(H, Hcap)
         
         De_m  = De*m
         nT_De = n'*De
@@ -214,6 +216,8 @@ function plastic_update(mat::MohrCoulombContact, state::MohrCoulombContactState,
         up   = cstate.up + Δλ*norm_m
         σmax = calc_σmax(mat, up)
         H    = deriv_σmax_up(mat, up)
+        Hcap = -mat.ft/(0.5*mat.wc)
+        H    = max(H, Hcap)
 
         # residual
         f = τ + μ*(σn - σmax)
@@ -252,6 +256,50 @@ function plastic_update(mat::MohrCoulombContact, state::MohrCoulombContactState,
 end
 
 
+function plastic_update_apex(mat::MohrCoulombContact, state::MohrCoulombContactState, cstate::MohrCoulombContactState, σtr::Vec3)
+    _, ks = calc_kn_ks(mat, state)
+    _, τ1tr, τ2tr = σtr
+
+    τtr = √(τ1tr^2 + τ2tr^2 + eps())
+    τtr > 0.0 || return failure("MohrCoulombContact: apex return requires nonzero trial shear traction.")
+
+    σmax0 = calc_σmax(mat, cstate.up)
+    τlim0 = mat.μ*σmax0
+    Δλ0   = max((τtr/max(τlim0, eps()) - 1.0)/ks, 0.0)
+    Δx    = max(Δλ0, 1.0/ks)
+    tol_f = max(mat.ft, τtr, 1.0)*√(eps())
+
+    function residual(Δλ)
+        den_τ = 1.0 + Δλ*ks
+        τ     = τtr/den_τ
+        up    = cstate.up + Δλ*τ
+        σmax  = calc_σmax(mat, up)
+        return τ - mat.μ*σmax
+    end
+
+    a, b, status = findrootinterval(residual, 0.0, Δx)
+    if failed(status)
+        state.σ  = zeros(Vec3)
+        state.up = max(cstate.up, mat.wc)
+        state.Δλ = max((state.up-cstate.up)/τtr, 0.0)
+        return success()
+    end
+
+    Δλ, status = findroot(residual, a, b; tol=√eps()*max(abs(b), 1.0), ftol=tol_f)
+    failed(status) && return failure("MohrCoulombContact: apex return failed.")
+
+    den_τ = 1.0 + Δλ*ks
+    τ     = τtr/den_τ
+    up    = cstate.up + Δλ*τ
+    scale = τ/τtr
+
+    state.σ  = Vec3(0.0, τ1tr*scale, τ2tr*scale)
+    state.Δλ = Δλ
+    state.up = up
+    return success()
+end
+
+
 function update_state(mat::MohrCoulombContact, state::MohrCoulombContactState, cstate::MohrCoulombContactState, Δw::Vector{Float64})
     kn, ks = calc_kn_ks(mat, state)
     De = @SMatrix [ kn   0.0  0.0
@@ -260,25 +308,25 @@ function update_state(mat::MohrCoulombContact, state::MohrCoulombContactState, c
 
     σmax = calc_σmax(mat, cstate.up)
 
-    if isnan(Δw[1]) || isnan(Δw[2])
+    if any(isnan, Δw)
         alert("MohrCoulombContact: Invalid value for relative displacement: Δw = $Δw")
     end
 
     # σ trial and f trial
     σtr = cstate.σ + De*Δw
     ftr = yield_func(mat, σtr, σmax)
+    tol_f = max(mat.ft, norm(σtr), 1.0)*√(eps())
+    tol_σ = max(mat.ft, norm(σtr), 1.0)*√(eps())
 
     # Elastic and EP integration
-    # if σmax == 0.0 && cstate.w[1] + Δw[1] >= 0.0
-    #     # traction-free after full decohesion
-    #     state.σ   = Vec3(0.0, 0.0, 0.0)
-    #     state.Δλ  = 1.0
-    #     state.up  = max(cstate.up, norm(cstate.w + Δw))
-    # else
-    if ftr <= 0.0
+    if ftr <= tol_f
         # Pure elastic increment
         state.Δλ = 0.0
         state.σ  = σtr
+        state.up = cstate.up
+    elseif abs(σtr[1]) <= tol_σ
+        status = plastic_update_apex(mat, state, cstate, σtr)
+        failed(status) && return state.σ, status
     else
         # Plastic increment
         status = plastic_update(mat, state, cstate, σtr)
@@ -295,8 +343,8 @@ function state_values(mat::MohrCoulombContact, state::MohrCoulombContactState)
     σmax = calc_σmax(mat, state.up)
     σn, τ1, τ2 = state.σ
     wn, s1, s2 = state.w
-    τ = sqrt(τ1^2 + τ2^2)
-    s = sqrt(s1^2 + s2^2)
+    τ = √(τ1^2 + τ2^2)
+    s = √(s1^2 + s2^2)
     
     return Dict(
         :w    => wn,
