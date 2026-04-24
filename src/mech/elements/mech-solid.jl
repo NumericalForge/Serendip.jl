@@ -34,7 +34,7 @@ compat_role(::Type{MechSolid}) = :solid
 uses_model_thickness(::Type{MechSolid}) = true
 
 mutable struct MechSolidCache <: ElementCache
-    thickness::Vector{Float64}
+    thk_list::FixedSizeVector{Float64}
 end
 
 function elem_init(elem::Element{MechSolid})
@@ -43,8 +43,12 @@ function elem_init(elem::Element{MechSolid})
         elem.ctx.stress_state != :axisymmetric || error("MechSolid: thickness expressions are not supported in axisymmetric analyses")
     end
 
-    thickness = [ evaluate(elem.etype.thickness, x=ip.coord.x, y=ip.coord.y, z=ip.coord.z) for ip in elem.ips ]
-    elem.cache = MechSolidCache(thickness)
+    nips = length(elem.ips)
+    thk_list = FixedSizeVector{Float64}(undef, nips)
+    for (i, ip) in enumerate(elem.ips)
+        thk_list[i] = evaluate(elem.etype.thickness, x=ip.coord.x, y=ip.coord.y, z=ip.coord.z)
+    end
+    elem.cache = MechSolidCache(thk_list)
 
     state_ty = typeof(elem.ips[1].state)
     if :h in fieldnames(state_ty)
@@ -53,16 +57,16 @@ function elem_init(elem::Element{MechSolid})
         J = Array{Float64}(undef, ndim, ndim)
         V = 0.0
 
-        for (i, ip) in enumerate(elem.ips)
+        for ip in elem.ips
             dNdR = elem.shape.deriv(ip.R)
             @mul J = C'*dNdR
             detJ = det(J)
             detJ > 0.0 || error("Negative Jacobian determinant in cell $(elem.id)")
-            th = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : elem.cache.thickness[i]
+            th = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : 1.0
             V += detJ*ip.w*th
         end
 
-        # Representative length size for the element
+        # Representative length size for the element -> used to find crack bands
         h = V^(1/ndim)
 
         for ip in elem.ips
@@ -138,7 +142,7 @@ function elem_stiffness(elem::Element{MechSolid})
     dNdX = Array{Float64}(undef, nnodes, ndim)
 
     for (i, ip) in enumerate(elem.ips)
-        th = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : elem.cache.thickness[i]
+        th = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : elem.cache.thk_list[i]
 
         # compute B matrix
         dNdR = elem.shape.deriv(ip.R)
@@ -172,7 +176,7 @@ function elem_mass(elem::Element{MechSolid})
     J = Array{Float64}(undef, ndim, ndim)
 
     for (i, ip) in enumerate(elem.ips)
-        th = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : elem.cache.thickness[i]
+        th = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : elem.cache.thk_list[i]
 
         # compute N matrix
         Ni   = elem.shape.func(ip.R)
@@ -218,7 +222,7 @@ function elem_internal_forces(elem::Element{MechSolid}, ΔU::Vector{Float64}=Flo
     end
 
     for (i, ip) in enumerate(elem.ips)
-        th = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : elem.cache.thickness[i]
+        th = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : elem.cache.thk_list[i]
 
         # compute B matrix
         dNdR = elem.shape.deriv(ip.R)

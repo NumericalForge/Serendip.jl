@@ -17,6 +17,7 @@ compat_role(::Type{MechCohesive}) = :cohesive
 
 mutable struct MechCohesiveCache <: ElementCache
     mobilized::Bool
+    depth_list::FixedSizeVector{Float64}
 end
 
 
@@ -24,43 +25,98 @@ function elem_init(elem::Element{MechCohesive})
     # Computation of characteristic length 'h' for cohesive elements
     # and set it in the integration point state
 
-    hasfield(typeof(elem.ips[1].state), :h) || return
-    
     ndim = elem.ctx.ndim
+    state_has_h = hasfield(typeof(elem.ips[1].state), :h)
 
-    # Avg volume of linked elements
-    V = 0.0
-    for elem in elem.couplings
-        V += cell_extent(elem)
-    end
-    V /= length(elem.couplings)
+    # Cohesive depth from linked solids if applicable
+    depth_list = if ndim == 2 && elem.ctx.stress_state != :axisymmetric
+        length(elem.couplings) == 2 || error("MechCohesive: linked solid thickness requires exactly two linked owners.")
+        nips = length(elem.ips)
+        list = FixedSizeVector{Float64}(undef, nips)
+        for (i, ip) in enumerate(elem.ips)
+            th1 = evaluate(elem.couplings[1].etype.thickness, x=ip.coord.x, y=ip.coord.y, z=ip.coord.z)
+            th2 = evaluate(elem.couplings[2].etype.thickness, x=ip.coord.x, y=ip.coord.y, z=ip.coord.z)
+            list[i] = min(th1, th2)
+        end
 
-    # Area of cohesive element
-    A = 0.0
-    C = get_coords(elem)
-    n = div(length(elem.nodes), 2)
-    C = C[1:n, :]
-    J = fzeros(ndim, ndim-1)
-
-    for ip in elem.ips
-        # compute shape Jacobian
-        dNdR = elem.shape.deriv(ip.R)
-        @mul J = C'*dNdR
-        detJ = norm2(J)
-        detJ <= 0 && error("Invalid Jacobian norm for cohesive element")
-        A += detJ*ip.w
+        list
+    else
+        list = FixedSizeVector{Float64}(undef, length(elem.ips))
+        list .= elem.ctx.thickness
+        list
     end
 
-    # Calculate and save h at cohesive element's integration points
-    h = V/A
-    for ip in elem.ips
-        ip.state.h = h
+    # Average element size
+    if state_has_h
+        V = 0.0
+        A = 0.0
+
+        if ndim == 2 && elem.ctx.stress_state != :axisymmetric
+            for owner in elem.couplings
+                C = get_coords(owner)
+                J = Array{Float64}(undef, ndim, ndim)
+                V_owner = 0.0
+
+                for ip in owner.ips
+                    dNdR = owner.shape.deriv(ip.R)
+                    @mul J = C'*dNdR
+                    detJ = det(J)
+                    detJ > 0.0 || error("Negative Jacobian determinant in cell $(owner.id)")
+                    depth = evaluate(owner.etype.thickness, x=ip.coord.x, y=ip.coord.y, z=ip.coord.z)
+                    V_owner += detJ*ip.w*depth
+                end
+
+                V += V_owner
+            end
+            V /= length(elem.couplings)
+
+            C = get_coords(elem)
+            n = div(length(elem.nodes), 2)
+            C = C[1:n, :]
+            J = fzeros(ndim, ndim-1)
+
+            for (i, ip) in enumerate(elem.ips)
+                dNdR = elem.shape.deriv(ip.R)
+                @mul J = C'*dNdR
+                detJ = norm2(J)
+                detJ <= 0 && error("Invalid Jacobian norm for cohesive element")
+                A += detJ*ip.w*depth_list[i]
+            end
+        else
+            # Avg volume of linked elements
+            for owner in elem.couplings
+                V += cell_extent(owner)
+            end
+            V /= length(elem.couplings)
+
+            # Area of cohesive element
+            C = get_coords(elem)
+            n = div(length(elem.nodes), 2)
+            C = C[1:n, :]
+            J = fzeros(ndim, ndim-1)
+
+            for ip in elem.ips
+                # compute shape Jacobian
+                dNdR = elem.shape.deriv(ip.R)
+                @mul J = C'*dNdR
+                detJ = norm2(J)
+                detJ <= 0 && error("Invalid Jacobian norm for cohesive element")
+                A += detJ*ip.w
+            end
+        end
+
+        # Calculate and save h at cohesive element's integration points
+        h = V/A
+        for ip in elem.ips
+            ip.state.h = h
+        end
     end
 
     # Explicit cohesive elements already have duplicated/opposite-face nodes.
     # Intrinsic/extrinsic inserted interfaces usually start with the same node ids on both faces.
+    n = div(length(elem.nodes), 2)
     mobilized = elem.nodes[1].id != elem.nodes[n+1].id
-    elem.cache = MechCohesiveCache(mobilized)
+    elem.cache = MechCohesiveCache(mobilized, depth_list)
 end
 
 
@@ -68,10 +124,9 @@ function elem_stiffness(elem::Element{MechCohesive})
     elem.cache.mobilized == false && return zeros(0,0), Int[], Int[] # return empty arrays if the element is inactive
 
     ndim   = elem.ctx.ndim
-    th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
     hnodes = div(nnodes, 2) # half the number of total nodes
-    nstr   = 3
+    nstr   = length(elem.ips[1].state.σ)
 
     C = get_coords(elem)[1:hnodes,:]
     B = fzeros(nstr, nnodes*ndim)
@@ -81,10 +136,8 @@ function elem_stiffness(elem::Element{MechCohesive})
     J  = fzeros(ndim, ndim-1)
     NN = fzeros(nstr, nnodes*ndim)
 
-    for ip in elem.ips
-        if elem.ctx.stress_state==:axisymmetric
-            th = 2*pi*ip.coord.x
-        end
+    for (i, ip) in enumerate(elem.ips)
+        depth = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : elem.cache.depth_list[i]
 
         # compute shape Jacobian
         N    = elem.shape.func(ip.R)
@@ -102,10 +155,13 @@ function elem_stiffness(elem::Element{MechCohesive})
         end
         
         T = calc_interface_rotation(J)
+        if size(T, 1) != nstr
+            T = T[1:nstr, 1:nstr]
+        end
         @mul B = T'*NN
 
         # compute K
-        coef = detJ*ip.w*th
+        coef = detJ*ip.w*depth
         D    = calcD(elem.cmodel, ip.state)
         
         @mul DB = D*B
@@ -130,11 +186,10 @@ function elem_internal_forces(elem::Element{MechCohesive}, ΔU::Vector{Float64}=
     end
 
     ndim   = elem.ctx.ndim
-    th     = elem.ctx.thickness
     nnodes = length(elem.nodes)
     hnodes = div(nnodes, 2) # half the number of total nodes
     map    = dof_map(elem)
-    nstr   = 3
+    nstr   = length(elem.ips[1].state.σ)
 
     update = !isempty(ΔU)
     if update
@@ -148,10 +203,8 @@ function elem_internal_forces(elem::Element{MechCohesive}, ΔU::Vector{Float64}=
     J  = fzeros(ndim, ndim-1)
     NN = fzeros(nstr, nnodes*ndim)
 
-    for ip in elem.ips
-        if elem.ctx.stress_state==:axisymmetric
-            th = 2*pi*ip.coord.x
-        end
+    for (i, ip) in enumerate(elem.ips)
+        depth = elem.ctx.stress_state == :axisymmetric ? 2*pi*ip.coord.x : elem.cache.depth_list[i]
 
         # compute shape Jacobian
         N    = elem.shape.func(ip.R)
@@ -168,6 +221,9 @@ function elem_internal_forces(elem::Element{MechCohesive}, ΔU::Vector{Float64}=
         end
 
         T = calc_interface_rotation(J)
+        if size(T, 1) != nstr
+            T = T[1:nstr, 1:nstr]
+        end
         @mul B = T'*NN
 
         if update
@@ -180,7 +236,7 @@ function elem_internal_forces(elem::Element{MechCohesive}, ΔU::Vector{Float64}=
         end
 
         # internal force
-        coef = detJ*ip.w*th
+        coef = detJ*ip.w*depth
         @mul ΔF += coef*B'*Δσ
     end
 

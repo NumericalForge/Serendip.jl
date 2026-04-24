@@ -4,13 +4,13 @@ export LinearCohesive
 
 mutable struct LinearCohesiveState<:ConstState
     ctx::Context
-    σ  ::Vector{Float64}
-    w  ::Vector{Float64}
+    σ  ::Vec3
+    w  ::Vec3
     h  ::Float64
     function LinearCohesiveState(ctx::Context)
         this = new(ctx)
-        this.σ = zeros(ctx.ndim)
-        this.w = zeros(ctx.ndim)
+        this.σ = zeros(Vec3)
+        this.w = zeros(Vec3)
         return this
     end
 end
@@ -35,49 +35,45 @@ compat_state_type(::Type{<:LinearCohesive}, ::Type{MechCohesive}) = LinearCohesi
 
 # LinearCohesive
 function calcD(mat::LinearCohesive, state::LinearCohesiveState)
-    ndim = state.ctx.ndim
     kn = mat.E*mat.ζ/state.h
     G  = mat.E/(2*(1 + mat.ν))
     ks = G*mat.ζ/state.h
 
-    if ndim==2
-        return [  kn  0.0
-                 0.0   ks ]
-    else
-        return  [  kn  0.0  0.0
-                  0.0   ks  0.0
-                  0.0  0.0   ks ]
-    end
+    return @SMatrix [  kn  0.0  0.0
+                      0.0   ks  0.0
+                      0.0  0.0   ks ]
 end
 
 
-function update_state(mat::LinearCohesive, state::LinearCohesiveState, Δu)
-    D  = calcD(mat, state)
-    Δσ = D*Δu
+function update_state(mat::LinearCohesive, state::LinearCohesiveState, cstate::LinearCohesiveState, Δu::AbstractArray)
+    Δw = length(Δu) == 2 ? Vec3(Δu[1], Δu[2], 0.0) : Vec3(Δu[1], Δu[2], Δu[3])
+    D  = calcD(mat, cstate)
+    Δσ = D*Δw
 
-    state.w += Δu
-    state.σ += Δσ
+    state.w = cstate.w + Δw
+    state.σ = cstate.σ + Δσ
     return Δσ, success()
 end
 
 
 function state_values(::LinearCohesive, state::LinearCohesiveState)
     ndim = state.ctx.ndim
-    τ = norm(state.σ[2:ndim])
+    σn, τ1, τ2 = state.σ
+    τ = √(τ1^2 + τ2^2)
     if ndim == 3
         return Dict(
             :w => state.w[1],
-            :σn => state.σ[1],
+            :σn => σn,
             :τ  => τ,
-            :σ2 => state.σ[2],
-            :σ3 => state.σ[3],
+            :σ2 => τ1,
+            :σ3 => τ2,
           )
     else
         return Dict(
             :w => state.w[1],
-            :σn => state.σ[1],
+            :σn => σn,
             :τ  => τ,
-            :σ2 => state.σ[2],
+            :σ2 => τ1,
         )
     end
 end
