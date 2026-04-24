@@ -164,12 +164,12 @@ function findrootinterval(f::Function, x1, Δx; factor=1.6)
     x2 = x1 + Δx
     f1 = f(x1)
     f2 = f(x2)
-    maxits = 50
+    maxits = 40
 
     # search for a valid interval
     if f1*f2>0
         for i in 1:maxits
-            x2 += Δx*1.6^i
+            x2 += Δx*1.5^i
             f2  = f(x2)
             f1*f2<0 && break
 
@@ -247,11 +247,13 @@ function findroot_bracket_newton(f::Function, df::Function, x0;
 end
 
 
-function findroot(f::Function, a, b; tol=(b-a)*0.001, ftol=Inf, method=:default)
+function findroot(f::Function, a, b; tol=(b-a)*0.001, ftol=Inf, method=:brent)
     if method==:default
         return findroot_default(f, a, b, tol, ftol)
     elseif method==:bisection
         return findroot_bisection(f, a, b, tol, ftol)
+    elseif method==:brent
+        return findroot_brent(f, a, b, tol, ftol)
     else
         return error("findroot: method $method not implemented")
     end
@@ -390,7 +392,7 @@ function findroot_default(f::Function, a, b, tol, ftol)
 end
 
 
-function brent(f::Function, a, b, tol; maxits::Int=50)
+function findroot_brent(f::Function, a, b, tol; maxits::Int=50)
     ftol = 2*eps()
     fa = f(a)
     fb = f(b)
