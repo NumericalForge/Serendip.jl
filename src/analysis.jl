@@ -159,7 +159,7 @@ function compute_bc_values(ana::Analysis, bc::BoundaryCondition, t::Float64, U::
             nat_keys = get_natural_keys(node)
             x, y, z = node.coord
             for (key,cond) in bc.conds
-                key == :fs && continue
+                # key == :fs && continue
                 if key in ess_keys
                     dof = get_dof(node, key)
                     U[dof.eq_id] = evaluate(cond, x=x, y=y, z=z, t=t)
@@ -194,6 +194,17 @@ function compute_bc_values(ana::Analysis, bc::BoundaryCondition, t::Float64, U::
             end
         end
     elseif bc.kind == :body
+        # get list of elem types in bc.target
+        elem_types = Set(typeof(elem) for elem in bc.target)
+        
+        # check if body_load method is implemented for all elem types
+        for elem_type in elem_types
+            if !hasmethod(body_load, Tuple{elem_type, Symbol, Union{Expr, Real, Symbol}})
+                println(ana.data.alerts, "compute_bc_values: Skipping body load on elements of type $(elem_type).")
+            end 
+        end
+        
+        # apply body load
         for elem in bc.target
             for (key,val) in bc.conds
                 # key == :fs && continue
