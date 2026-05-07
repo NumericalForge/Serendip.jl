@@ -20,6 +20,8 @@ function cohesive_pairwise_identity_flags(mesh)
     return flags
 end
 
+unique_node_objects(nodes) = length(unique(objectid.(nodes)))
+
 @testset "Whole mesh insertion" begin
     mesh = initial_mesh()
     add_cohesive_elements(mesh, tag="coh", implicit=true)
@@ -54,4 +56,40 @@ end
     @test length(cohesives_exp) == 14
     @test all(.!cohesive_pairwise_identity_flags(mesh_exp))  # explicit: paired nodes differ
     @test length(mesh_exp.nodes) == 47
+end
+
+@testset "Boundary shell generation stays connected after explicit split" begin
+    mesh = initial_mesh()
+    add_cohesive_elements(mesh, tag="coh", implicit=false, quiet=true)
+    add_boundary_shell_elements(mesh, x == 0.0, tag="shell", contact_tag="shell-contact", quiet=true)
+
+    shells = select(mesh.elems, :surface, "shell")
+    contacts = select(mesh.elems, :contact, "shell-contact")
+
+    @test length(shells) == 4
+    @test length(contacts) == 4
+    @test unique_node_objects(get_nodes(shells)) == 5
+
+    for contact in contacts
+        shell = contact.couplings[2]
+        m = div(length(contact.nodes), 2)
+        @test all(contact.nodes[m+i] === shell.nodes[i] for i in 1:m)
+    end
+end
+
+@testset "Boundary shells without contact stay attached to boundary faces" begin
+    mesh = initial_mesh()
+    add_boundary_shell_elements(mesh, x == 0.0, tag="shell", quiet=true)
+
+    shells = select(mesh.elems, :surface, "shell")
+
+    @test length(shells) == 4
+    for shell in shells
+        owner = shell.couplings[1]
+        matches_owner_facet = any(owner.shape.facet_idxs) do facet_idxs
+            length(shell.nodes) == length(facet_idxs) || return false
+            all(shell.nodes[i] === owner.nodes[facet_idxs[i]] for i in eachindex(facet_idxs))
+        end
+        @test matches_owner_facet
+    end
 end
