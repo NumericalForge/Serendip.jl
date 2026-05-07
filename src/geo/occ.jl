@@ -499,28 +499,37 @@ function get_volume(geo::GeoModel, X::Vector{<:Real})
     return get(geo.entities, ent, Volume(ent[2]))
 end
 
-# function select(geo::GeoModel, kind::Symbol; tag::String="")
-#     ents = []
-#     if kind == :point
-#         ents = get_entities(geo, 0)
-#     elseif kind in (:line, :curve)
-#         ents = get_entities(geo, 1)
-#     elseif kind in (:face, :surface)
-#         ents = get_entities(geo, 2)
-#     elseif kind == :volume
-#         ents = get_entities(geo, 3)
-#     else
-#         error("select: Unknown kind '$kind'")
-#     end
 
-#     if tag != ""
-#         ents = [ e for e in ents if e.tag == tag ]
-#     end
+"""
+    select(geo::GeoModel, kind::Symbol, selector::Union{String,Vector{<:Real}}; tag::String="")
 
-#     return ents
-# end
+Select an OCC geometry entity from `geo` by coordinates or by tag.
 
+Supported entity kinds are `:point`, `:edge`, `:curve`, `:face`,
+`:surface`, and `:volume`. The symbols `:edge`/`:curve` and
+`:face`/`:surface` are treated as aliases.
 
+Selection behavior depends on the type of `selector`:
+- `selector::Vector{<:Real}`: locates the entity of the requested `kind`
+  containing or matching the coordinates and returns that single entity. If
+  `tag != ""`, the selected entity is tagged and stored in `geo.entities`.
+- `selector::String`: returns all stored entities of the requested `kind`
+  whose `tag` matches `selector`.
+
+# Arguments
+- `geo::GeoModel`: Geometry model containing the OCC entities.
+- `kind::Symbol`: Entity kind to select (`:point`, `:edge`, `:curve`,
+  `:face`, `:surface`, or `:volume`).
+- `selector::Union{String,Vector{<:Real}}`: Tag string or point coordinates
+  `[x, y, z]` used for selection.
+- `tag::String=""`: Optional tag assigned to the entity selected by
+  coordinates.
+
+# Returns
+- `GeoEntity`: When `selector` is a coordinate vector.
+- `Vector{GeoEntity}`: When `selector` is a tag string. Returns an empty
+  vector if no tagged entities match.
+"""
 function select(geo::GeoModel, kind::Symbol, selector::Union{String,Vector{<:Real}}; tag::String="")
     kind in (:point, :edge, :curve, :face, :surface, :volume) || error("select: Unknown kind '$kind'")
     dim = kind == :point ? 0 : kind in (:edge, :curve) ? 1 : kind in (:face, :surface) ? 2 : 3
@@ -550,29 +559,6 @@ function select(geo::GeoModel, kind::Symbol, selector::Union{String,Vector{<:Rea
         return ents
     end
 end
-
-
-# function select(geo::GeoModel, kind::Symbol, selector::String; tag::String="")
-# end
-
-
-
-# function get_surface2(geo::GeoModel, X::Vector{<:Real})
-#     gmsh.model.occ.synchronize()
-#     @show X
-
-#     for dim_id in gmsh.model.occ.getEntities(2)
-#         @show dim_id
-#         U = gmsh.model.getParametrization(dim_id..., X)
-#         @show U
-
-#         if gmsh.model.isInside(dim_id..., U, true)==1
-#             return dim_id
-#         end
-#     end
-#     return nothing
-# end
-
 
 
 function get_entities(dim::Int)
