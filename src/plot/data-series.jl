@@ -1,7 +1,7 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 const _line_style_list = [:none, :solid, :dot, :dash, :dashdot]
-const _mark_list = [:none, :circle, :square, :triangle, :utriangle, :cross, :xcross, :diamond, :pentagon, :hexagon, :star]
+const _mark_list = [:none, :circle, :square, :triangle, :utriangle, :cross, :xcross, :diamond, :pentagon, :hexagon, :star, :hatch, :hash]
 
 
 mutable struct DataSeries
@@ -83,7 +83,7 @@ function DataSeries(X::AbstractArray, Y::AbstractArray; args...)
 end
 
 
-function draw_polygon(cc::CairoContext, x, y, n, length, color, strokecolor; angle=0)
+function draw_polygon(cc::CairoContext, x, y, n, length, color, strokecolor; angle=0, draw_stroke=true)
     Δθ = 360/n
     minθ = angle + 90
     maxθ = angle + 360 + 90
@@ -100,13 +100,17 @@ function draw_polygon(cc::CairoContext, x, y, n, length, color, strokecolor; ang
 
     close_path(cc)
     set_source_rgb(cc, rgb(color)...)
-    fill_preserve(cc)
-    set_source_rgb(cc, rgb(strokecolor)...)
-    stroke(cc)
+    if draw_stroke
+        fill_preserve(cc)
+        set_source_rgb(cc, rgb(strokecolor)...)
+        stroke(cc)
+    else
+        fill(cc)
+    end
 end
 
 
-function draw_star(cc::CairoContext, x, y, n, length, color, strokecolor; angle=0)
+function draw_star(cc::CairoContext, x, y, n, length, color, strokecolor; angle=0, draw_stroke=true)
     Δθ = 360/n/2
     minθ = angle + 90
     maxθ = angle + 360 + 90
@@ -129,38 +133,47 @@ function draw_star(cc::CairoContext, x, y, n, length, color, strokecolor; angle=
 
     close_path(cc)
     set_source_rgb(cc, rgb(color)...)
-    fill_preserve(cc)
-    set_source_rgb(cc, rgb(strokecolor)...)
-    stroke(cc)
+    if draw_stroke
+        fill_preserve(cc)
+        set_source_rgb(cc, rgb(strokecolor)...)
+        stroke(cc)
+    else
+        fill(cc)
+    end
 end
 
 
-function draw_mark(cc::CairoContext, x, y, mark, size, color, strokecolor)
+function draw_mark(cc::CairoContext, x, y, mark, size, color, strokecolor; draw_stroke=true)
     radius = size/2
     new_path(cc)
 
     if mark==:circle
         arc(cc, x, y, radius, 0, 2*pi)
         set_source_rgb(cc, rgb(color)...)
-        fill_preserve(cc)
-        set_source_rgb(cc, rgb(strokecolor)...)
-        stroke(cc)
+        if draw_stroke
+            fill_preserve(cc)
+            set_source_rgb(cc, rgb(strokecolor)...)
+            stroke(cc)
+        else
+            fill(cc)
+        end
     elseif mark==:square
-        draw_polygon(cc, x, y, 4, 1.2*radius, color, strokecolor, angle=45)
+        draw_polygon(cc, x, y, 4, 1.2*radius, color, strokecolor, angle=45, draw_stroke=draw_stroke)
     elseif mark==:diamond
-        draw_polygon(cc, x, y, 4, 1.2*radius, color, strokecolor, angle=0)
+        draw_polygon(cc, x, y, 4, 1.2*radius, color, strokecolor, angle=0, draw_stroke=draw_stroke)
     elseif mark==:triangle
-        draw_polygon(cc, x, y, 3, 1.3*radius, color, strokecolor, angle=0)
+        draw_polygon(cc, x, y, 3, 1.3*radius, color, strokecolor, angle=0, draw_stroke=draw_stroke)
     elseif mark==:utriangle
-        draw_polygon(cc, x, y, 3, 1.3*radius, color, strokecolor, angle=180)
+        draw_polygon(cc, x, y, 3, 1.3*radius, color, strokecolor, angle=180, draw_stroke=draw_stroke)
     elseif mark==:pentagon
-        draw_polygon(cc, x, y, 5, 1.1*radius, color, strokecolor, angle=0)
+        draw_polygon(cc, x, y, 5, 1.1*radius, color, strokecolor, angle=0, draw_stroke=draw_stroke)
     elseif mark==:hexagon
-        draw_polygon(cc, x, y, 6, 1.1*radius, color, strokecolor, angle=0)
+        draw_polygon(cc, x, y, 6, 1.1*radius, color, strokecolor, angle=0, draw_stroke=draw_stroke)
     elseif mark==:star
-        draw_star(cc, x, y, 5, 1.25*radius, color, strokecolor, angle=0)
+        draw_star(cc, x, y, 5, 1.25*radius, color, strokecolor, angle=0, draw_stroke=draw_stroke)
     elseif mark==:cross
         radius = 1.35*radius
+        set_source_rgb(cc, rgb(strokecolor)...)
         set_line_width(cc, radius/3)
         move_to(cc, x, y-radius)
         line_to(cc, x, y+radius)
@@ -170,6 +183,7 @@ function draw_mark(cc::CairoContext, x, y, mark, size, color, strokecolor)
         stroke(cc)
     elseif mark==:xcross
         radius = 1.35*radius
+        set_source_rgb(cc, rgb(strokecolor)...)
         set_line_width(cc, radius/3)
         move_to(cc, x-radius, y-radius)
         line_to(cc, x+radius, y+radius)
@@ -177,5 +191,28 @@ function draw_mark(cc::CairoContext, x, y, mark, size, color, strokecolor)
         move_to(cc, x+radius, y-radius)
         line_to(cc, x-radius, y+radius)
         stroke(cc)
+    elseif mark==:hatch
+        radius = 1.15*radius
+        gap = 0.45*radius
+        set_source_rgb(cc, rgb(strokecolor)...)
+        set_line_width(cc, radius/4)
+        for offset in (-gap, 0.0, gap)
+            move_to(cc, x-radius, y+radius+offset)
+            line_to(cc, x+radius, y-radius+offset)
+            stroke(cc)
+        end
+    elseif mark==:hash
+        radius = 1.10*radius
+        gap = 0.45*radius
+        set_source_rgb(cc, rgb(strokecolor)...)
+        set_line_width(cc, radius/4)
+        for offset in (-gap, gap)
+            move_to(cc, x+offset, y-radius)
+            line_to(cc, x+offset, y+radius)
+            stroke(cc)
+            move_to(cc, x-radius, y+offset)
+            line_to(cc, x+radius, y+offset)
+            stroke(cc)
+        end
     end
 end

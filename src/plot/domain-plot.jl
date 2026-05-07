@@ -15,6 +15,7 @@
         azimuth=30, elevation=30, distance=0.0, up=:z,
         feature_edges=true, view_mode=:surface_with_edges,
         light_vector=[0,0,0],
+        mark=:none, mark_size=2.5, stage=nothing,
         node_labels=false,
         axes=:none, axis_labels=String[],
         quiet=false)
@@ -53,6 +54,9 @@ Create a customizable domain plot for meshes and FE models.
 - `feature_edges::Bool`: enhance feature lines (`:outline` forces on).
 - `view_mode::Symbol`: `:surface_with_edges | :surface | :wireframe | :outline`.
 - `light_vector::Vector{<:Real}`: light direction.
+- `mark::Symbol`: node marker mode. Use `:none`, `:auto`, or `:support`.
+- `mark_size::Real`: node marker size in points.
+- `stage`: optional analysis stage whose boundary conditions feed semantic markers.
 - `node_labels::Bool`: show node ids.
 - `axes::Symbol`: axes widget location (see `_axes_widget_locations`).
 - `axis_labels::Vector{<:AbstractString}`: custom axis labels; defaults to `["x","y","z"]`.
@@ -119,6 +123,10 @@ mutable struct DomainPlot<:Figure
     font_size::Float64
     show_feature_edges::Bool
     view_mode::Symbol
+    mark::Symbol
+    mark_size::Float64
+    stage::Any
+    node_marker_kinds::Dict{Int,Symbol}
     node_labels::Bool
     axes_loc::Symbol
     axis_labels::Vector{AbstractString}
@@ -153,6 +161,9 @@ mutable struct DomainPlot<:Figure
         feature_edges::Bool=true,
         view_mode::Symbol=:surface_with_edges,
         light_vector::Vector{Float64}=[0.0,0.0,0.0],
+        mark::Symbol=:none,
+        mark_size::Real=2.5,
+        stage=nothing,
         node_labels::Bool=false,
         axes::Symbol=:none,
         axis_labels::Vector{<:AbstractString}=String[],
@@ -165,6 +176,10 @@ mutable struct DomainPlot<:Figure
         @check !isempty(font) "font must be a non-empty string"
         @check length(limits) in (0, 2) "limits must have length 2 (manual) or be empty (auto)"
         @check up in (:x, :y, :z) "up must be one of :x, :y, :z. Got $up"
+        @check mark in _domain_mark_list "mark must be one of $(_domain_mark_list). Got $mark"
+        @check mark_size > 0 "mark_size must be positive"
+        @check mark != :support || stage !== nothing "DomainPlot: mark=:support requires a stage"
+        @check stage === nothing || hasproperty(stage, :bcs) "DomainPlot: stage must provide a bcs field"
 
         canvas = Canvas()
         the_colorbar = Colorbar()
@@ -202,6 +217,7 @@ mutable struct DomainPlot<:Figure
         elevation          = elevation
         distance           = distance
         show_feature_edges = (feature_edges || view_mode==:outline) && view_mode != :wireframe
+        node_marker_kinds  = Dict{Int,Symbol}()
 
         if !quiet
             printstyled("Domain plot\n", bold=true, color=:cyan)
@@ -223,6 +239,7 @@ mutable struct DomainPlot<:Figure
             colorbar_location, colorbar_ratio,
             bins, font, font_size,
             show_feature_edges, view_mode,
+            mark, mark_size, stage, node_marker_kinds,
             node_labels, axes_loc, axis_labels,
             quiet
         )
@@ -232,6 +249,146 @@ end
 
 function _domain_plot_title_font_size(mplot::DomainPlot)
     return 1.2 * mplot.font_size
+end
+
+const _domain_mark_list = (:none, :auto, :support)
+const _domain_translation_keys = (:ux, :uy, :uz)
+const _domain_rotation_keys = (:rx, :ry, :rz)
+const _domain_regular_marker_kind = :regular
+
+function _domain_bc_target_nodes(bc)
+    if bc.kind == :node
+        return bc.target
+    elseif bc.kind in (:face, :edge)
+        return [node for facet in bc.target for node in facet.nodes]
+    else
+        return Node[]
+    end
+end
+
+
+function _domain_is_zero_bc(cond, node::Node)
+    cond isa Real || return false
+    x, y, z = node.coord
+    return isapprox(evaluate(cond, x=x, y=y, z=z, t=0.0), 0.0; atol=1e-12)
+end
+
+
+function _domain_node_bc_classes(stage, ndim::Int)
+    class_data = Dict{Int,NamedTuple}()
+    stage === nothing && return class_data
+
+    translations = Set(_domain_translation_keys[1:ndim])
+    rotations = Set(_domain_rotation_keys)
+
+    for bc in stage.bcs
+        bc.kind == :body && continue
+        for node in _domain_bc_target_nodes(bc)
+            data = get(class_data, node.id, (
+                natural = false,
+                essential = false,
+                zero_translations = Set{Symbol}(),
+                zero_rotation = false,
+            ))
+
+            natural = data.natural
+            essential = data.essential
+            zero_translations = copy(data.zero_translations)
+            zero_rotation = data.zero_rotation
+
+            for (key, cond) in bc.conds
+                dof = get_dof(node, key)
+                if dof !== nothing && dof.name == key
+                    essential = true
+                    if key in translations && _domain_is_zero_bc(cond, node)
+                        push!(zero_translations, key)
+                    elseif key in rotations && _domain_is_zero_bc(cond, node)
+                        zero_rotation = true
+                    end
+                elseif dof !== nothing && dof.natname == key
+                    natural = true
+                elseif bc.kind in (:face, :edge)
+                    natural = true
+                end
+            end
+
+            class_data[node.id] = (
+                natural = natural,
+                essential = essential,
+                zero_translations = zero_translations,
+                zero_rotation = zero_rotation,
+            )
+        end
+    end
+
+    return class_data
+end
+
+
+function _domain_resolve_node_marker_kinds(stage, ndim::Int)
+    marker_kinds = Dict{Int,Symbol}()
+    translations = Set(_domain_translation_keys[1:ndim])
+
+    for (node_id, data) in _domain_node_bc_classes(stage, ndim)
+        if data.zero_rotation
+            marker_kinds[node_id] = :clamp
+        elseif data.zero_translations == translations
+            marker_kinds[node_id] = :full_translation
+        elseif !isempty(data.zero_translations)
+            marker_kinds[node_id] = :zero_translation
+        elseif data.essential
+            marker_kinds[node_id] = :essential
+        elseif data.natural
+            marker_kinds[node_id] = :natural
+        end
+    end
+
+    return marker_kinds
+end
+
+
+function _domain_node_marker_style(mark_kind::Symbol)
+    if mark_kind == :natural
+        return (:circle, :lightgray, true)
+    elseif mark_kind == :essential
+        return (:triangle, :lightgray, true)
+    elseif mark_kind == :zero_translation
+        return (:triangle, :black, true)
+    elseif mark_kind == :full_translation
+        return (:square, :black, true)
+    elseif mark_kind == :clamp
+        return (:hash, :black, true)
+    else
+        return (:circle, :black, false)
+    end
+end
+
+
+function _domain_draw_node_marker!(ctx::RenderContext, mplot::DomainPlot, node::Node)
+    mplot.mark == :none && return
+
+    mark_kind = get(mplot.node_marker_kinds, node.id, _domain_regular_marker_kind)
+    mplot.mark == :support && mark_kind == _domain_regular_marker_kind && return
+
+    mark, color, has_stroke = _domain_node_marker_style(mark_kind)
+
+    cairo_ctx = ctx.cairo_ctx
+    x, y = data2user(mplot.canvas, node.coord[1], node.coord[2])
+    set_line_width(cairo_ctx, max(0.3, 0.1*mplot.mark_size) * ctx.width_scale)
+    draw_mark(cairo_ctx, x, y, mark, mplot.mark_size, Color(color), Color(:black); draw_stroke=has_stroke)
+end
+
+
+function _domain_draw_node_markers!(ctx::RenderContext, mplot::DomainPlot, nodes)
+    mplot.mark == :none && return
+    cairo_ctx = ctx.cairo_ctx
+
+    Cairo.save(cairo_ctx)
+    reset_matrix!(ctx)
+    for node in nodes
+        _domain_draw_node_marker!(ctx, mplot, node)
+    end
+    Cairo.restore(cairo_ctx)
 end
 
 
@@ -249,6 +406,7 @@ function bezier_points(edge::AbstractCell)
 
     return [p1, cp2, cp3, p4]
 end
+
 
 function project_to_2d!(nodes, azimuth, elevation, distance, up::Symbol=:z)
     # Find bounding box
@@ -418,6 +576,7 @@ function configure!(mplot::DomainPlot)
 
     mplot.nodes = nodes
     mplot.elems = elems
+    mplot.node_marker_kinds = mplot.mark in (:auto, :support) ? _domain_resolve_node_marker_kinds(mplot.stage, ndim) : Dict{Int,Symbol}()
 
     # Canvas
     width, height = mplot.width, mplot.height
@@ -610,6 +769,10 @@ function draw_contents!(mplot::DomainPlot, ctx::RenderContext)
             draw_surface_cell!(ctx, mplot, elem, shade)
         end
 
+        if mplot.mesh.ctx.ndim == 3
+            _domain_draw_node_markers!(ctx, mplot, elem.nodes)
+        end
+
         # point labels
         Cairo.save(cairo_ctx)
         reset_matrix!(ctx)
@@ -623,6 +786,10 @@ function draw_contents!(mplot::DomainPlot, ctx::RenderContext)
         end
         Cairo.restore(cairo_ctx)
         set_local_matrix!(ctx, CairoMatrix([ratio, 0, 0, -ratio, Xmin-xmin*ratio, Ymax+ymin*ratio]...))
+    end
+
+    if mplot.mesh.ctx.ndim != 3
+        _domain_draw_node_markers!(ctx, mplot, mplot.nodes)
     end
 
     # draw colorbar

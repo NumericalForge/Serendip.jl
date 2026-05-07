@@ -4,6 +4,7 @@ using Serendip
     "chart.jl",
     "bar-chart.jl",
     "domain-colorbar.jl",
+    "domain-markers.jl",
     "domain-view.jl",
     "chart-grid.jl",
     "typesetting.jl",
