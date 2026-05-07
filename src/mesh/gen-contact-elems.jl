@@ -426,25 +426,23 @@ function add_boundary_shell_elements(
 
     if gen_contact_elems
         # --- Case A: Shells with Contact Interface ---
-        nodes_to_dup = Set{Node}()
+        # Use geometric node keys so shell nodes remain connected even if the
+        # boundary was previously split by cohesive insertion.
+        new_nodes_map = NodePosMap()
+
         for face in faces
             for node in face.nodes
-                push!(nodes_to_dup, node)
+                if !haskey(new_nodes_map, node)
+                    new_n = copy(node)
+                    new_n.id = -1
+                    if !isempty(tag)
+                        new_n.tag = tag
+                    end
+
+                    push!(generated_nodes, new_n)
+                    new_nodes_map[node] = new_n
+                end
             end
-        end
-        
-        # Create Duplicate Nodes
-        new_nodes_map = Dict{Node, Node}()
-        
-        for node in nodes_to_dup
-            new_n = copy(node)
-            new_n.id = -1 
-            if !isempty(tag)
-                new_n.tag = tag 
-            end
-            
-            push!(generated_nodes, new_n)
-            new_nodes_map[node] = new_n
         end
 
         # Create Elements
