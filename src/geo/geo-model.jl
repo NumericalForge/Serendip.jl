@@ -269,6 +269,35 @@ end
 
 
 """
+    add_block(geometry, coords;
+        nx=0, ny=0,
+        rx=1.0, ry=1.0,
+        shape=nothing, quadratic=false, tag="")
+
+Adds a 2D structured block from explicit quadrilateral control-point
+coordinates. `coords` must have either 4 corner points or 8 points including
+midside points, ordered as `[1, 2, 3, 4, 5, 6, 7, 8]` around the boundary.
+"""
+function add_block(geometry::GeoModel,
+    coords::Matrix{<:Real};
+    nx::Int=0, ny::Int=0,
+    rx::Real=1.0, ry::Real=1.0,
+    quadratic=false,
+    shape=nothing, tag="")
+
+    npoints = size(coords, 1)
+    npoints in (4, 8) || error("add_block: coordinate matrix must have 4 or 8 points for a quadrilateral block.")
+
+    bl = Block(coords;
+        nx=nx, ny=ny,
+        rx=rx, ry=ry,
+        quadratic=quadratic, shape=_resolve_geo_shape(shape), tag=tag)
+    push!(geometry.blocks, bl)
+    return bl
+end
+
+
+"""
     add_path(geometry, edges; mode=:interface, shape=:lin3, tag="", interface_tag="", tip_tag="", tips=:none)
 
 Adds a logical path structure (`GPath`) to the geometric model from a sequence of connected `Edge` objects.

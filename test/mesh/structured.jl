@@ -15,6 +15,44 @@ for (n, shape) in zip(nodes_count, shapes)
     println(TR)
 end
 
+
+@testset "Coordinate matrix blocks" begin
+    coords4 = [
+        0.0  0.0
+        2.0  0.0
+        2.2  1.0
+        0.0  1.0
+    ]
+    geo4 = GeoModel(quiet=true)
+    block4 = add_block(geo4, coords4, nx=2, ny=3, shape=:quad4, tag="quad4-block")
+    mesh4 = Mesh(geo4, quiet=true)
+    @test block4.blockshape.kind == :quad4
+    @test length(mesh4.nodes) == 12
+    @test length(mesh4.elems) == 6
+    @test all(cell.tag == "quad4-block" for cell in mesh4.elems)
+
+    coords8 = [
+        0.0  0.0
+        1.0  0.0
+        1.0  1.0
+        0.0  1.0
+        0.5 -0.1
+        1.1  0.5
+        0.5  1.1
+       -0.1  0.5
+    ]
+    geo8 = GeoModel(quiet=true)
+    block8 = add_block(geo8, coords8, nx=2, ny=2, shape=:quad8, tag="quad8-block")
+    mesh8 = Mesh(geo8, quiet=true)
+    @test block8.blockshape.kind == :quad8
+    @test block8.shape.kind == :quad8
+    @test length(mesh8.nodes) == 21
+    @test length(mesh8.elems) == 4
+    @test all(cell.shape.kind == :quad8 for cell in mesh8.elems)
+    @test all(cell.tag == "quad8-block" for cell in mesh8.elems)
+end
+
+
 nodes_count = [ 1331, 4961, 9261, 1331, 9261 ]
 shapes = [:hex8, :hex20, :hex27, :tet4, :tet10]
 
