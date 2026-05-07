@@ -7,6 +7,8 @@ using Serendip
     # "elements/elastic-solid.jl",
     "elements/elastic-elems.jl",
     "elements/variable-thickness.jl",
+    # "elements/cohesive-thickness.jl",
+    # "elements/contact-thickness.jl",
     "elements/elastic-quad4.jl",
     "elements/elastic-hex8.jl",
     "elements/axisymmetric.jl",
@@ -47,5 +49,6 @@ using Serendip
 
     "constitutive/cohesive.jl",
     "constitutive/contact.jl",
+    # "constitutive/coulomb-contact-update.jl",
     "constitutive/coulomb-contact.jl",
 ]
