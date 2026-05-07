@@ -381,12 +381,6 @@ function findroot_default(f::Function, a, b, tol, ftol)
 
         i==maxits && return 0.0, failure("findroot: maxits reached")
     end
-    # @show err
-    # @show tol
-    # @show y2
-    # @show y3
-    # @show n
-    # error()
 
     return x, success()
 end
