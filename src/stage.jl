@@ -97,6 +97,46 @@ function add_bc(
 end
 
 
+"""
+    add_constraint(stage::Stage, kind::Symbol, selector, expr)
+
+Add a linear kinematic constraint to the given `stage`.
+
+This function attaches an affine equality constraint to a set of selected
+entities in the model. The constraint expression is expanded later into one
+algebraic row per target node.
+
+# Arguments
+- `stage::Stage`: The analysis stage where the constraint will be applied.
+- `kind::Symbol`: The target entity kind. Options:
+    - `:node` – apply directly on selected nodes.
+    - `:face` – apply on the nodes belonging to selected faces.
+    - `:edge` – apply on the nodes belonging to selected edges.
+- `selector`: A filtering expression or array of coordinates used to select the
+  constrained entities. For `kind == :node`, an array selector like
+  `[x, y, z]` is converted into an exact coordinate-equality selector.
+- `expr::Union{Expr,Symbolic}`: Affine equality expression defining the
+  constraint, such as `:(ux - uy = 0)`.
+
+# Behavior
+- Resolves the target entities in the finite element model using `selector`.
+- Converts symbolic input into an expression with `getexpr`.
+- Extracts affine terms and the right-hand side from the equality expression.
+- Stores the resulting `Constraint` in `stage.constraints`.
+
+# Returns
+- `constraint::Constraint`: The created constraint object.
+
+# Notes
+- Only affine equality constraints are supported by this interface.
+- The current assembly rejects constraints involving prescribed dofs.
+
+# Examples
+```julia
+add_constraint(stage, :node, [1.0, 1.0, 0.0], :(ux - uy = 0))
+add_constraint(stage, :edge, x == y, :(ux - uy = 0))
+```
+"""
 function add_constraint(stage::Stage, kind::Symbol, selector, expr::Union{Expr,Symbolic})
     kind in (:node, :face, :edge) || error("add_constraint: Invalid constraint kind: $kind. Use :node, :face or :edge.")
 
