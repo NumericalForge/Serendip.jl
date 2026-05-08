@@ -13,7 +13,8 @@ box  = add_box(geo, [0.0, 0.0, 0.0], l, b, h)
 mesh = Mesh(geo)
 save(mesh, "simple-beam-mesh.vtu")
 
-plot = DomainPlot(mesh)
+plot = DomainPlot()
+add_plot(plot, mesh)
 save(plot, "simple-beam-mesh.pdf")
 
 # ❱❱❱ Finite element analysis
@@ -32,6 +33,6 @@ run(ana)
 
 # ❱❱❱ Post-processing
 
-plot = DomainPlot(model, field="uy", colormap=:spectral)
+plot = DomainPlot()
+add_plot(plot, model; field="uy", colormap=:spectral)
 save(plot, "simple-beam.pdf")
-

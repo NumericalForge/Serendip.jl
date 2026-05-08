@@ -46,7 +46,8 @@ run(ana, autoinc=true)
 
 # ❱❱❱ Post-processing
 
-plot = DomainPlot(model,
+plot = DomainPlot()
+add_plot(plot, model;
     field = "σx´",
     field_mult = 1e-3,
     colormap = :rainbow,

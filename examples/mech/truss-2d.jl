@@ -32,11 +32,12 @@ run(ana)
 
 # ❱❱❱ Post-processing
 
-plot = DomainPlot(model,
+plot = DomainPlot()
+add_plot(plot, model;
     field = "σx´",
     colormap = :coolwarm,
     label = t"$σ_x$ [MPa]",
     warp = 100,
-    node_labels = true
+    node_labels = true,
 )
 save(plot, "truss-2d.pdf")

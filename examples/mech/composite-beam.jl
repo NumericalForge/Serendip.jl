@@ -121,7 +121,8 @@ save(model, "medium-model.vtu")
 
 # ❱❱❱ Post-processing
 
-plot = DomainPlot(model,
+plot = DomainPlot()
+add_plot(plot, model;
     field = "σx´", # stress in the bars (local axis likely aligns with bar, so this might stay)
     field_mult = 1e-3,
     colormap = :rainbow,

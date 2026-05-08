@@ -48,11 +48,12 @@ run(ana)
 ## Post-processing
 
 ````@example static-2d
-plot = DomainPlot(model,
+plot = DomainPlot()
+add_plot(plot, model;
     field = "σxx",
     colormap = :coolwarm,
     label = t"σ_x",
-    warp = 10000
+    warp = 10000,
 )
 save(plot, "static-2d.svg")
 ````
@@ -67,4 +68,3 @@ save(plot, "static-2d.svg")
 ---
 
 *This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
-

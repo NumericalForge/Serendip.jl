@@ -38,7 +38,8 @@ save(geo, "medium-geo.geo_unrolled")
 # Mesh generation
 mesh = Mesh(geo)
 save(mesh, "reinforced-beam-mesh.vtu")
-mplot = DomainPlot(mesh, view_mode = :wireframe, elevation=10, azimuth=30)
+mplot = DomainPlot(elevation=10, azimuth=30)
+add_plot(mplot, mesh; view_mode=:wireframe)
 save(mplot, "reinforced-beam-mesh.pdf")
 
 select(mesh, :element, :bulk, tag="concrete")
@@ -81,10 +82,11 @@ run(ana, tol=1.0, rspan=0.05, autoinc=true)
 
 # ❱❱❱ Post-processing
 
-# mplot = DomainPlot(model, field="σx´", colormap=:spectral, view_mode=:wireframe)
+# mplot = DomainPlot(); add_plot(mplot, model; field="σx´", colormap=:spectral, view_mode=:wireframe)
 
-mplot = DomainPlot(model, 
-            field="σxx", 
+mplot = DomainPlot()
+add_plot(mplot, model;
+            field="σxx",
             # view_mode=:wireframe,
             colormap=:spectral)
 save(mplot, "reinforced-beam.pdf")

@@ -52,11 +52,13 @@ run(ana, autoinc=true, maxits=3, tol=0.5, rspan=0.03, quiet=false)
 
 # ❱❱❱ Post-processing
 
-plot = DomainPlot(model,
+plot = DomainPlot(
+    azimuth = -80,
+)
+add_plot(plot, model;
     field      = "σxx",
     field_mult = 1e-3,
     warp       = 200,
-    azimuth    = -80,
     colormap   = :spectral,
     diverging  = true,
     edge_color = :gray,

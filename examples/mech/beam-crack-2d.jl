@@ -47,7 +47,8 @@ run(ana, autoinc=true, maxits=3, tol=0.1, rspan=0.03, quiet=false)
 
 # ❱❱❱ Post-processing
 
-plot = DomainPlot(model,
+plot = DomainPlot()
+add_plot(plot, model;
     field      = "σxx",
     field_mult = 1e-3,
     warp       = 25,

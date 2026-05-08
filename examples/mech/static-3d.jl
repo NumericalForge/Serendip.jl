@@ -26,12 +26,14 @@ run(ana)
 
 # ❱❱❱ Post-processing
 
-plot = DomainPlot(model,
+plot = DomainPlot(
+    elevation = 30,
+    azimuth = -60,
+)
+add_plot(plot, model;
     field = "σzz",
     colormap = :spectral,
     label = t"σ_z",
-    elevation = 30,
-    azimuth = -60,
-    warp = 50
+    warp = 50,
 )
 save(plot, "static-3d.pdf")

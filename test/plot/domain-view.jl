@@ -24,15 +24,21 @@ function configured_coords(plot)
     return [[node.coord[1], node.coord[2], node.coord[3]] for node in sort(plot.nodes, by=node -> node.id)]
 end
 
-@test DomainPlot(model, quiet=true).up == :z
-@test DomainPlot(model, quiet=true).field_kind == :auto
-@test DomainPlot(model, up=:x, quiet=true).up == :x
-@test DomainPlot(model, up=:y, quiet=true).up == :y
-@test DomainPlot(model, up=:z, quiet=true).up == :z
-@test_throws ArgumentError DomainPlot(model, up=:w, quiet=true)
+function view_plot(mesh; up=:z, title="", axes=:none)
+    plot = DomainPlot(up=up, title=title, axes=axes, quiet=true)
+    add_plot(plot, mesh)
+    return plot
+end
 
-default_coords = configured_coords(DomainPlot(model, quiet=true))
-explicit_z_coords = configured_coords(DomainPlot(model, up=:z, quiet=true))
+@test DomainPlot(quiet=true).up == :z
+@test view_plot(model).layers[1].field_kind == :auto
+@test DomainPlot(up=:x, quiet=true).up == :x
+@test DomainPlot(up=:y, quiet=true).up == :y
+@test DomainPlot(up=:z, quiet=true).up == :z
+@test_throws ArgumentError DomainPlot(up=:w, quiet=true)
+
+default_coords = configured_coords(view_plot(model))
+explicit_z_coords = configured_coords(view_plot(model, up=:z))
 for (coord_default, coord_explicit) in zip(default_coords, explicit_z_coords)
     @test coord_default ≈ coord_explicit
 end
@@ -57,10 +63,10 @@ axes_grid = ChartGrid(
     size=(16cm, 12cm),
 )
 
-add_chart(axes_grid, DomainPlot(mesh2d, title="2D", axes=:bottom_left, quiet=true), (1, 1))
-add_chart(axes_grid, DomainPlot(model, title="up = :z", axes=:top_right, up=:z, quiet=true), (1, 2))
-add_chart(axes_grid, DomainPlot(model, title="up = :x", axes=:top_right, up=:x, quiet=true), (2, 1))
-add_chart(axes_grid, DomainPlot(model, title="up = :y", axes=:top_right, up=:y, quiet=true), (2, 2))
+add_chart(axes_grid, view_plot(mesh2d, title="2D", axes=:bottom_left), (1, 1))
+add_chart(axes_grid, view_plot(model, title="up = :z", axes=:top_right, up=:z), (1, 2))
+add_chart(axes_grid, view_plot(model, title="up = :x", axes=:top_right, up=:x), (2, 1))
+add_chart(axes_grid, view_plot(model, title="up = :y", axes=:top_right, up=:y), (2, 2))
 
 save(axes_grid, "output/domainplot-up-axes.pdf")
 save(axes_grid, "output/domainplot-up-axes.png")

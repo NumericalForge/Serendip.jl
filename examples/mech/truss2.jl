@@ -24,10 +24,11 @@ run(ana)
 
 # save(model, "truss2.vtu")
 
-plot = DomainPlot(model,
+plot = DomainPlot()
+add_plot(plot, model;
     field = "σx´",
     colormap = :coolwarm,
     label = t"$σ_x$ [kN]",
-    warp = 0.2
+    warp = 0.2,
 )
 save(plot, "truss.pdf")

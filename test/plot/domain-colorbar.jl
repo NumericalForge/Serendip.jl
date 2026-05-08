@@ -15,10 +15,16 @@ grid = ChartGrid(
     size=(16cm, 12cm),
 )
 
-add_chart(grid, DomainPlot(model, field="temp", field_kind=:node, colorbar=:left), (1, 1))
-add_chart(grid, DomainPlot(model, field="temp", field_kind=:node, colorbar=:right), (1, 2))
-add_chart(grid, DomainPlot(model, field="temp", field_kind=:node, colorbar=:top), (2, 1))
-add_chart(grid, DomainPlot(model, field="temp", field_kind=:node, colorbar=:bottom), (2, 2))
+function colorbar_plot(model, location)
+    plot = DomainPlot(quiet=true)
+    add_plot(plot, model; field="temp", field_kind=:node, colorbar=location)
+    return plot
+end
+
+add_chart(grid, colorbar_plot(model, :left), (1, 1))
+add_chart(grid, colorbar_plot(model, :right), (1, 2))
+add_chart(grid, colorbar_plot(model, :top), (2, 1))
+add_chart(grid, colorbar_plot(model, :bottom), (2, 2))
 
 save(grid, "output/domainplot.pdf")
 save(grid, "output/domainplot.png")

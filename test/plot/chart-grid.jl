@@ -32,19 +32,11 @@ add_mapping(mapper, "solids", MechSolid, LinearElastic, E=1e4, nu=0.25)
 model = FEModel(mesh, mapper, quiet=true)
 model.node_fields["temp"] = collect(1.0:length(model.nodes))
 
-plot_left = DomainPlot(model,
-    field="temp",
-    field_kind=:node,
-    colorbar=:left,
-    quiet=true,
-)
+plot_left = DomainPlot(quiet=true)
+add_plot(plot_left, model; field="temp", field_kind=:node, colorbar=:left)
 
-plot_top = DomainPlot(model,
-    field="temp",
-    field_kind=:node,
-    colorbar=:top,
-    quiet=true,
-)
+plot_top = DomainPlot(quiet=true)
+add_plot(plot_top, model; field="temp", field_kind=:node, colorbar=:top)
 
 grid = ChartGrid(
     title="Composed Figure With `sigma_n` Charts",

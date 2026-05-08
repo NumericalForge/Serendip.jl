@@ -21,7 +21,9 @@ addsubpath!(geo, :M, pa, :L, pb, embedded=true)
 
 mesh = Mesh(geo)
 # plot = GeometryPlot(geo); save(plot, "geo.pdf")
-plot = DomainPlot(mesh, nodelabels=true); save(plot, "mesh.pdf")
+plot = DomainPlot()
+add_plot(plot, mesh; node_labels=true)
+save(plot, "mesh.pdf")
 
 
 # insert_cohesive_elements!(mesh)

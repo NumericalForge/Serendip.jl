@@ -32,13 +32,19 @@ end
 
 model, stage = marker_model_2d()
 
-@test DomainPlot(model, quiet=true).mark == :none
-@test DomainPlot(model, mark=:auto, mark_size=3.0, quiet=true).mark_size == 3.0
-@test_throws ArgumentError DomainPlot(model, mark=:unknown, quiet=true)
-@test_throws ArgumentError DomainPlot(model, mark=:circle, quiet=true)
-@test_throws ArgumentError DomainPlot(model, mark=:square, quiet=true)
-@test_throws ArgumentError DomainPlot(model, mark_size=0.0, quiet=true)
-@test_throws ArgumentError DomainPlot(model, mark=:support, quiet=true)
+function marker_plot(model; mark=:none, mark_size=2.5, stage=nothing)
+    plot = DomainPlot(quiet=true)
+    add_plot(plot, model; mark=mark, mark_size=mark_size, stage=stage)
+    return plot
+end
+
+@test marker_plot(model).layers[1].mark == :none
+@test marker_plot(model, mark=:auto, mark_size=3.0).layers[1].mark_size == 3.0
+@test_throws ArgumentError marker_plot(model, mark=:unknown)
+@test_throws ArgumentError marker_plot(model, mark=:circle)
+@test_throws ArgumentError marker_plot(model, mark=:square)
+@test_throws ArgumentError marker_plot(model, mark_size=0.0)
+@test_throws ArgumentError marker_plot(model, mark=:support)
 
 kinds = Serendip._domain_resolve_node_marker_kinds(stage, model.ctx.ndim)
 @test kinds[node_id(model, [0.0, 0.0, 0.0])] == :full_translation
@@ -48,9 +54,9 @@ kinds = Serendip._domain_resolve_node_marker_kinds(stage, model.ctx.ndim)
 @test kinds[node_id(model, [1.0, 1.0, 0.0])] == :clamp
 @test kinds[node_id(model, [1.0, 2.0, 0.0])] == :natural
 
-regular = DomainPlot(model, mark=:auto, quiet=true)
-auto = DomainPlot(model, mark=:auto, stage=stage, quiet=true)
-support = DomainPlot(model, mark=:support, stage=stage, quiet=true)
+regular = marker_plot(model, mark=:auto)
+auto = marker_plot(model, mark=:auto, stage=stage)
+support = marker_plot(model, mark=:support, stage=stage)
 
 save(regular, "output/domain-markers-regular.pdf")
 save(auto, "output/domain-markers-auto.pdf")
@@ -70,6 +76,6 @@ ana3d = MechAnalysis(model3d; outdir="output", outkey="domain-markers-3d")
 stage3d = add_stage(ana3d)
 add_bc(stage3d, :face, z==0.0, uz=0.0)
 
-plot3d = DomainPlot(model3d, mark=:auto, stage=stage3d, quiet=true)
+plot3d = marker_plot(model3d, mark=:auto, stage=stage3d)
 save(plot3d, "output/domain-markers-3d.pdf")
 @test isfile("output/domain-markers-3d.pdf")

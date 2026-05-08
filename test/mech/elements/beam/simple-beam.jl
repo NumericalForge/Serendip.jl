@@ -32,16 +32,18 @@ run(ana)
 @test log1.table[:uy][end] ≈ -0.14447 atol=1e-5
 
 # ❱❱❱ Post-processing
-plot = DomainPlot(model,
-    size            = (280,100),
-    warp            = 2,
-    field           = "σx´",
-    colormap        = :coolwarm,
-    line_elem_width = 3,
-    colorbar_ratio  = 1,
-    font_size       = 8,
-    outerpad        = 15.0,
-    node_labels     = true
+plot = DomainPlot(
+    size=(280,100),
+    font_size=8,
+    outerpad=15.0,
+)
+add_plot(plot, model;
+    warp=2,
+    field="σx´",
+    colormap=:coolwarm,
+    line_elem_width=3,
+    colorbar_ratio=1,
+    node_labels=true,
 )
 
 save(plot, "beam.pdf")

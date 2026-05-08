@@ -36,11 +36,12 @@ run(ana)
 
 # ## Post-processing
 
-plot = DomainPlot(model,
+plot = DomainPlot()
+add_plot(plot, model;
     field = "σxx",
     colormap = :coolwarm,
     label = t"σ_x",
-    warp = 10000
+    warp = 10000,
 )
 save(plot, "static-2d.svg")
 
