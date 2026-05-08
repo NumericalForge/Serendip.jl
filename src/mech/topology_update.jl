@@ -74,7 +74,7 @@ Main update loop for the Extrinsic Cohesive Zone Model.
 - `nu`: Number of unknown DOFs after reordering.
 - `mobilized_elems`: Cohesive elements mobilized in this call.
 """
-function update_model_cohesive_elems(model::FEModel, dofs::Vector{Dof}, bcs::Vector{BoundaryCondition})
+function update_model_cohesive_elems(model::FEModel, dofs::Vector{Dof}, bcs::AbstractVector)
 
     # Identify inactive cohesive candidates that are active in the stage.
     inactive_cohesives = [elem for elem in model.elems
