@@ -1,6 +1,23 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
+# Solve a reduced linear system using the configured direct solver.
+function _solve_reduced_system(K::SparseMatrixCSC{Float64, Int}, RHS::Vect, linear_solver::Symbol)
+    linear_solver in (:pardiso, :umfpack) || throw(SerendipException("solve_system: Unknown linear solver $linear_solver"))
+
+    if linear_solver == :pardiso
+        ps = MKLPardisoSolver()
+        np = get_nprocs(ps)
+        nj = Threads.nthreads()
+        set_nprocs!(ps, min(np, nj))
+        return solve(ps, K, RHS)
+    end
+
+    LUfact = lu(K)
+    return LUfact\RHS
+end
+
+
 # Solves a system with unknowns in U and F vectors
 function solve_system(
     K ::SparseMatrixCSC{Float64, Int},
@@ -12,8 +29,6 @@ function solve_system(
     #  ┌  K11   K12 ┐  ┌ U1? ┐    ┌ F1  ┐
     #  │            │  │     │ =  │     │
     #  └  K21   K22 ┘  └ U2  ┘    └ F2? ┘
-
-    linear_solver in (:pardiso, :umfpack) || throw(SerendipException("solve_system: Unknown linear solver $linear_solver"))
 
     msg = ""
 
@@ -36,17 +51,7 @@ function solve_system(
         RHS = F1 - K12*U2
 
         try
-            if linear_solver == :pardiso
-                ps = MKLPardisoSolver()
-                np = get_nprocs(ps)
-                nj = Threads.nthreads()
-                set_nprocs!(ps, min(np, nj))
-                U1 = solve(ps, K11, RHS)
-            else
-                LUfact = lu(K11)
-                U1 = LUfact\RHS
-            end
-
+            U1 = _solve_reduced_system(K11, RHS, linear_solver)
             F2 += K21*U1
         catch err
             err isa InterruptException && rethrow(err)
@@ -73,9 +78,70 @@ function solve_system(
 end
 
 
+function solve_system(
+    K ::SparseMatrixCSC{Float64, Int},
+    U ::Vect,
+    F ::Vect,
+    nu::Int,
+    A1::SparseMatrixCSC{Float64, Int},
+    b::Vector{Float64},
+    λ::Vector{Float64},
+    linear_solver::Symbol=:umfpack
+)
+    nc = size(A1, 1)
+    nc == 0 && return solve_system(K, U, F, nu, linear_solver)
+
+    nu > 0 || return failure("solve_system: Constraints require at least one unknown primal dof.")
+
+    msg = ""
+    nu1 = nu + 1
+    K11 = K[1:nu, 1:nu]
+    K12 = K[1:nu, nu1:end]
+    K21 = K[nu1:end, 1:nu]
+    K22 = K[nu1:end, nu1:end]
+
+    F1 = F[1:nu]
+    U2 = U[nu1:end]
+
+    F2   = K22*U2
+    U1   = zeros(nu)
+    A1t  = transpose(A1)
+    Z    = spzeros(Float64, nc, nc)
+    Kaug = vcat(hcat(K11, A1t), hcat(A1, Z))
+    RHS  = [F1 - K12*U2; b]
+
+    try
+        aug_solver = linear_solver == :pardiso ? :umfpack : linear_solver # pardisso cannot handle non positive definite matrices
+        sol = _solve_reduced_system(Kaug, RHS, aug_solver)
+        U1 .= @view sol[1:nu]
+        λ .= @view sol[nu+1:end]
+        F2 += K21*U1
+    catch err
+        err isa InterruptException && rethrow(err)
+        λ .= 0.0
+        if any(isnan.(K11))
+            msg = "$msg\nsolve_system: NaN values in coefficients matrix"
+        end
+        return failure("$msg\nsolve_system: $err")
+    end
+
+    maxU = 1/eps()
+    if maximum(abs, U1) > maxU
+        return failure("$msg\nsolve_system: Possible syngular matrix ", string(maximum(abs, U1)))
+    end
+
+    U[1:nu] .= U1
+    F[nu1:end] .= F2
+
+    yield()
+    return success(msg)
+end
+
+
 struct SolverSettings
     tol::Float64
     rtol::Float64
+    utol::Float64
     autoinc::Bool
     dT0::Float64
     dTmin::Float64
@@ -90,7 +156,7 @@ struct SolverSettings
     linear_solver::Symbol
 
     @doc """
-        SolverSettings(; tol=0.01, rtol=0.01, dT0=0.01, dTmin=1e-7, dTmax=0.1,
+        SolverSettings(; tol=0.01, rtol=0.01, utol=0.01, dT0=0.01, dTmin=1e-7, dTmax=0.1,
                           rspan=0.01, maxits=15, autoinc=false, quiet=false)
 
     Defines configuration parameters for controlling the analysis process.
@@ -98,6 +164,7 @@ struct SolverSettings
     # Arguments
     - `tol::Float64`: Absolute tolerance for convergence checks.
     - `rtol::Float64`: Relative tolerance for convergence checks.
+    - `utol::Float64`: Absolute tolerance for constraint residuals.
     - `autoinc::Bool`: Enable automatic increment control .
     - `dT0::Float64`: Initial increment of pseudo-time.
     - `dTmin::Float64`: Minimum allowed increment of pseudo-time.
@@ -112,13 +179,13 @@ struct SolverSettings
     - `linear_solver::Symbol`: Linear solver selector (`:pardiso`, `:umfpack`).
     # Example
     ```julia
-    settings = SolverSettings(tol=1e-4, rtol=1e-3, autoinc=true)
+    settings = SolverSettings(tol=1e-4, rtol=1e-3, utol=1e-4, autoinc=true)
     ```
     """
     function SolverSettings(;
-        tol=0.01, rtol=0.01, autoinc=false, dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01,
+        tol=0.01, rtol=0.01, utol=0.01, autoinc=false, dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01,
         maxits=15, alpha=0.0, beta=0.0, nmodes=5, eigen_solver=:auto, rayleigh=false, linear_solver=:pardiso)
-        return new(tol, rtol, autoinc, dT0, dTmin, dTmax, maxits, rspan, alpha, beta, nmodes, eigen_solver, rayleigh, linear_solver)
+        return new(tol, rtol, utol, autoinc, dT0, dTmin, dTmax, maxits, rspan, alpha, beta, nmodes, eigen_solver, rayleigh, linear_solver)
     end
 end
 
@@ -230,7 +297,7 @@ end
 
 """
     run(ana;
-        tol=0.01, rtol=0.01, autoinc=false,
+        tol=0.01, rtol=0.01, utol=0.01, autoinc=false,
         dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01, maxits=5,
         alpha=0.0, beta=0.0, nmodes=5, eigen_solver=:auto, rayleigh=false,
         linear_solver=:pardiso,
@@ -245,6 +312,7 @@ Execute a finite-element analysis and return the solver status.
 # Keywords
 - `tol::Real`: absolute convergence tolerance for the residual.
 - `rtol::Real`: relative convergence tolerance for the residual.
+- `utol::Real`: absolute convergence tolerance for constraint residuals.
 - `autoinc::Bool`: enable automatic step size control.
 - `dT0::Real`: initial time/load increment.
 - `dTmin::Real`: minimum allowed increment.
@@ -269,7 +337,7 @@ Execute a finite-element analysis and return the solver status.
 # Example
 ```julia
 status = run(analysis;
-             tol=1e-3, rtol=1e-3, autoinc=true,
+             tol=1e-3, rtol=1e-3, utol=1e-3, autoinc=true,
              dT0=0.02, dTmin=1e-6, dTmax=0.1,
              maxits=10, alpha=0.0, beta=0.25,
              nmodes=8, eigen_solver=:auto, rayleigh=true)
@@ -278,6 +346,7 @@ status = run(analysis;
 function Base.run(ana::Analysis;
     tol     ::Real         = 0.01,
     rtol    ::Real         = 0.01,
+    utol    ::Real         = 0.01,
     autoinc ::Bool         = false,
     dT0     ::Real         = 0.01,
     dTmin   ::Real         = 1e-7,
@@ -295,6 +364,7 @@ function Base.run(ana::Analysis;
 )
     @check tol>0 "run: solver paramter `tol` must be positive"
     @check rtol>0 "run: solver paramter `rtol` must be positive"
+    @check utol>0 "run: solver paramter `utol` must be positive"
     @check dT0>0 "run: solver paramter `dT0` must be positive"
     @check dTmin>0 "run: solver paramter `dTmin` must be positive"
     @check dTmax>0 "run: solver paramter `dTmax` must be positive"
@@ -331,7 +401,7 @@ function Base.run(ana::Analysis;
     end
 
     solver_settings = SolverSettings(
-        tol=tol, rtol=rtol, autoinc=autoinc, dT0=dT0, dTmin=dTmin, dTmax=dTmax,
+        tol=tol, rtol=rtol, utol=utol, autoinc=autoinc, dT0=dT0, dTmin=dTmin, dTmax=dTmax,
         rspan=rspan, maxits=maxits, alpha=alpha, beta=beta, nmodes=nmodes, 
         eigen_solver=eigen_solver, rayleigh=rayleigh, linear_solver=linear_solver
     )

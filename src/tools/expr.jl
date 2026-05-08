@@ -2,6 +2,7 @@
 
 export Symbolic
 export evaluate
+export get_affine_terms, check_affine
 
 mutable struct Symbolic
     sym::Symbol
@@ -198,6 +199,78 @@ function getvars(expr::Expr)
     end
     return symbols
 end
+
+
+function _unwrap_expr_block(expr)
+    expr isa Expr || return expr
+    expr.head == :block || return expr
+
+    args = [arg for arg in expr.args if !(arg isa LineNumberNode)]
+    length(args) == 1 || return expr
+    return args[1]
+end
+
+
+function get_affine_terms(expr::Expr; tol=1e-12)
+    expr.head == :(=) || error("get_affine_terms: Constraint must be an equality")
+
+    lhs, rhs = _unwrap_expr_block.(expr.args)
+    f = Expr(:call, :-, lhs, rhs)
+    vars = unique(getvars(f))
+    isempty(vars) && error("get_affine_terms: Constraint has no variables")
+
+    vals = Dict(v => 0.0 for v in vars)
+    c = evaluate(deepcopy(f); vals...)
+
+    terms = Pair{Symbol,Float64}[]
+    for v in vars
+        vals[v] = 1.0
+        a = evaluate(deepcopy(f); vals...) - c
+        vals[v] = 0.0
+        abs(a) > tol && push!(terms, v => a)
+    end
+
+    isempty(terms) && error("get_affine_terms: Constraint has no nonzero terms")
+    rhs_val = -c
+    check_affine(expr, terms, rhs_val; tol=tol) || error("get_affine_terms: Constraint must be affine")
+
+    return terms, rhs_val
+end
+
+
+get_affine_terms(expr::Symbolic; tol=1e-12) = get_affine_terms(getexpr(expr); tol=tol)
+
+
+function check_affine(expr::Expr, terms, rhs; tol=1e-10)
+    expr.head == :(=) || error("check_affine: Constraint must be an equality")
+
+    lhs, rhs_expr = _unwrap_expr_block.(expr.args)
+    f = Expr(:call, :-, lhs, rhs_expr)
+    vars = unique(getvars(f))
+
+    function model(vals)
+        s = -rhs
+        for (var, coeff) in terms
+            s += coeff*vals[var]
+        end
+        return s
+    end
+
+    tests = [
+        Dict(v => 0.0 for v in vars),
+        Dict(v => 1.0 for v in vars),
+        Dict(v => 2.0 for v in vars),
+        Dict(v => Float64(i) for (i, v) in enumerate(vars)),
+    ]
+
+    for vals in tests
+        isapprox(evaluate(deepcopy(f); vals...), model(vals); atol=tol) || return false
+    end
+    return true
+end
+
+
+check_affine(expr::Symbolic, terms, rhs; tol=1e-10) = check_affine(getexpr(expr), terms, rhs; tol=tol)
 
 
 # replace a symbol

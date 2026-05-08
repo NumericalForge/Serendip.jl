@@ -12,6 +12,7 @@ using Serendip
     "elements/elastic-quad4.jl",
     "elements/elastic-hex8.jl",
     "elements/axisymmetric.jl",
+    "elements/constraints.jl",
 
     # frame
     "elements/rod/frame.jl",

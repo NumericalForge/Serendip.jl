@@ -87,12 +87,13 @@ export RegionMapper, RegionModel, add_mapping, add_map
 
 abstract type Analysis end
 
+# Boundary conditions and constraints
+include("bc.jl")
+include("constraint.jl")
+export add_bc, add_constraint
+
 include("stage.jl")
 export Stage, add_stage
-
-# Boundary conditions
-include("bc.jl")
-export add_bc
 
 include("logger.jl")
 export add_logger

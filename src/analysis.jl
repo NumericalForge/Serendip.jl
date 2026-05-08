@@ -151,9 +151,6 @@ end
 function compute_bc_values(ana::Analysis, bc::BoundaryCondition, t::Float64, U::Vector{Float64}, F::Vector{Float64})
 
     if bc.kind == :node
-        # essential_keys = Set( dof.name for node in bc.nodes for dof in node.dofs )
-        # ess_keys = get_essential_keys(ana)
-        # nat_keys = get_natural_keys(ana)
         for node in bc.target
             ess_keys = get_essential_keys(node)
             nat_keys = get_natural_keys(node)
@@ -222,17 +219,10 @@ end
 # Return a vector with all model dofs and the number of unknown dofs according to bcs
 function configure_dofs(model::AbstractDomain, bcs::Vector{BoundaryCondition})
 
-    # get active nodes
-    # active_elems = select(model.elems, :active)
-    # ids = [ node.id for elem in active_elems for node in elem.nodes ]
-    # ids = sort(unique(ids)) # sort is required to preserve node numbering optimization
-
     ids = [ node.id for node in model.nodes ]
-
     active_nodes = model.nodes[ids]
 
     # All dofs
-    # dofs = Dof[dof for node in active_nodes for dof in node.dofs]
     dofs = Dof[dof for node in active_nodes if !node.aux for dof in node.dofs]
 
     # Reset all dofs as natural conditions
@@ -258,7 +248,6 @@ function configure_dofs(model::AbstractDomain, bcs::Vector{BoundaryCondition})
 
     return dofs, nu
 end
-
 
 function update_records!(ana::Analysis; checkpoint=true, force=false)
     data = ana.data

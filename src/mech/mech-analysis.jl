@@ -41,8 +41,9 @@ mutable struct MechAnalysis<:Analysis
     end
 end
 
-get_natural_keys(::MechAnalysis) = [:fx, :fy, :fz]
-get_essential_keys(::MechAnalysis) = [:ux, :uy, :uz]
+
+get_natural_keys(::MechAnalysis)   = [:fx, :fy, :fz, :mx, :my, :mz]
+get_essential_keys(::MechAnalysis) = [:ux, :uy, :uz, :rx, :ry, :rz]
 
 
 # Assemble the global stiffness matrix
@@ -117,142 +118,11 @@ function update_state(elems::Vector{<:Element}, ΔUt::Vector{Float64}, t::Float6
 end
 
 
-"""
-    project_activation_equilibrium!(
-        activated_cohesives,
-        affected_idxs,
-        lambda=0.0,
-    )
-
-Draft helper for cohesive activation transfer (not wired into `stage_solver` yet).
-
-Builds a local patch around mobilized cohesive elements, computes force mismatch on
-split-affected dofs, solves a regularized local correction problem, and applies an
-incremental cohesive displacement correction through `elem_internal_forces`.
-
-Returns `ReturnStatus`.
-"""
-function project_activation_equilibrium!(
-    activated_cohesives::Vector{<:Element{MechCohesive}},
-    affected_idxs::Vector{Int},
-    lambda::Float64=0.0,
-)
-    lambda_factor = 1e-8
-    isempty(activated_cohesives) && return success()
-
-    # 1) Patch dofs: all displacement dofs connected to mobilized cohesive elements.
-    #    Force fitting is restricted to `affected_idxs` later.
-    patch_dofs = Int[]
-    for elem in activated_cohesives
-        append!(patch_dofs, dof_map(elem))
-    end
-    affected_set = Set(affected_idxs)
-    patch_dofs = sort(unique(patch_dofs))
-    nloc = length(patch_dofs)
-    nloc == 0 && return failure("project_activation_equilibrium!: Empty local patch.")
-
-    l2g = copy(patch_dofs)
-    g2l = Dict{Int,Int}(gid => i for (i, gid) in enumerate(l2g))
-
-    # 2) Build force target from neighboring elements.
-    #    Include bulk/special elements and previously mobilized cohesive interfaces
-    #    attached to activated-node stars; exclude only the cohesive elements that
-    #    are being initialized in this call.
-    ftarget = zeros(nloc)
-    activated_set = Set(activated_cohesives)
-    neigh_elems = Set{Element}()
-    for cohe in activated_cohesives
-        for node in cohe.nodes
-            for elem in node.elems
-                elem in activated_set && continue
-                push!(neigh_elems, elem)
-            end
-        end
-    end
-
-    for elem in neigh_elems
-        Fe, map, status = elem_internal_forces(elem)
-        failed(status) && return status
-        for (a, gid) in enumerate(map)
-            gid in affected_set || continue
-            iloc = get(g2l, gid, 0)
-            iloc == 0 && continue
-            ftarget[iloc] -= Fe[a]
-        end
-    end
-
-    # 3) Assemble cohesive local stiffness Kpatch on local indexing.
-    R = Int[]
-    C = Int[]
-    V = Float64[]
-    for elem in activated_cohesives
-        Ke, rmap, cmap = elem_stiffness(elem)
-        nr, nc = size(Ke)
-        for i in 1:nr
-            iloc = get(g2l, rmap[i], 0)
-            iloc == 0 && continue
-            for j in 1:nc
-                jloc = get(g2l, cmap[j], 0)
-                jloc == 0 && continue
-                val = Ke[i, j]
-                abs(val) < eps() && continue
-                push!(R, iloc)
-                push!(C, jloc)
-                push!(V, val)
-            end
-        end
-    end
-    Kpatch = sparse(R, C, V, nloc, nloc)
-
-    # 4) Solve regularized least-squares: min ||K u - f||^2 + λ||u||^2
-    KtK = Matrix(Kpatch' * Kpatch)
-    rhs = Kpatch' * ftarget
-    λ = lambda
-    if λ <= 0.0
-        trKtK = sum(diag(KtK))
-        scale = trKtK > 0 ? trKtK/nloc : 1.0
-        λ = lambda_factor*scale
-    end
-    
-    Kreg = KtK + λ*Matrix(I, nloc, nloc)
-    u_patch = Kreg \ rhs
-
-    # 5) Initialize activated cohesive states from solved total local displacement.
-    #    We zero stress values (other values are already zero), then update using elem_internal_forces.
-    for elem in activated_cohesives
-        for ip in elem.ips
-            if hasfield(typeof(ip.state), :σ)
-                ip.state.σ = zeros(Vec3)
-                ip.cstate.σ = zeros(Vec3)
-            end
-            if hasfield(typeof(ip.state), :w)
-                ip.state.w = zeros(Vec3)
-                ip.cstate.w = zeros(Vec3)
-            end
-        end
-
-        # Local element displacement vector extracted from patch solution.
-        emap = dof_map(elem)
-        ue = zeros(length(emap))
-        for (a, gid) in enumerate(emap)
-            @assert haskey(g2l, gid) "project_activation_equilibrium!: Missing gid in local map: $gid"
-            ue[a] = u_patch[g2l[gid]]
-        end
-
-        _, _, status = elem_internal_forces(elem, ue, 0.0)
-        
-        failed(status) && return status
-        
-    end
-
-    return success()
-end
-
-
 function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSettings; quiet=quiet)
 
     tol     = solver_settings.tol
     rtol    = solver_settings.rtol
+    utol    = solver_settings.utol
     ΔT0     = solver_settings.dT0
     ΔTmin   = solver_settings.dTmin
     ΔTmax   = solver_settings.dTmax
@@ -270,6 +140,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     nincs     = stage.nincs
     nouts     = stage.nouts
     bcs       = stage.bcs
+    constraints = stage.constraints
     ctx       = model.ctx
     saveouts  = stage.nouts > 0
     ftol      = tol
@@ -288,6 +159,8 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     ndofs = length(dofs)
     umap  = 1:nu         # map for unknown displacements
     pmap  = nu+1:ndofs   # map for prescribed displacements
+    A1, b = mount_constraint_matrices(constraints, nu, ndofs)
+    has_constraints = !isempty(b)
     data.nu     = nu
     data.nfails = 0
 
@@ -325,6 +198,8 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     ΔUa  = zeros(ndofs)  # vector of essential values (e.g. displacements) for this increment
     ΔUi  = zeros(ndofs)  # vector of essential values for current iteration
     Rc   = zeros(ndofs)  # vector of cumulated residues
+    Rcon = zeros(length(b))
+    λ    = zeros(size(A1, 1))
     linear_domain = true
     sysstatus = ReturnStatus()
 
@@ -352,8 +227,8 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
         ΔUex, ΔFex = ΔT*Uex, ΔT*Fex     # increment of external vectors
 
-        η = 1.0
-        αcap = η*ΔT*norm(F)/(T+ΔT)/(norm(Rc)+eps())  
+        η    = 1.0
+        αcap = η*ΔT*norm(F)/(T+ΔT)/(norm(Rc)+eps())
         αcr  = min(ΔT/rspan, αcap, 1.0)    # fraction of cumulated residues to apply
         # αcr  = min(ΔT/rspan, 1.0)    # fraction of cumulated residues to apply
 
@@ -362,10 +237,15 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         R   .= ΔFex
         ΔUa .= 0.0
         ΔUi .= ΔUex  # essential values at iteration i
+        if has_constraints
+            Rcon .= ΔT .* b
+        end
 
         # Newton Rapshon iterations
-        res       = 0.0
-        res1      = 0.0
+        res   = 0.0 # residual for current iteration
+        res1  = 0.0 # first iteration residual for autoinc adjustment
+        res_c = 0.0 # constraint residual
+
         converged = false
         syserror  = false
 
@@ -376,7 +256,11 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             lastres = res # residue from last iteration
 
             K = mount_K(active_elems, ndofs)
-            sysstatus = solve_system(K, ΔUi, R, nu, lin_sol)   # Changes unknown positions in ΔUi and R
+            if !has_constraints
+                sysstatus = solve_system(K, ΔUi, R, nu, lin_sol)   # Changes unknown positions in ΔUi and R
+            else
+                sysstatus = solve_system(K, ΔUi, R, nu, A1, Rcon, λ, lin_sol)
+            end
             failed(sysstatus) && (syserror=true; break)
             ΔUt   = ΔUa .+ ΔUi
             ΔFin, sysstatus = update_state(active_elems, ΔUt, 0.0)
@@ -388,18 +272,20 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             # Residual vector for next iteration
             R .= ΔFex .- ΔFin
             R[pmap] .= 0.0  # zero at prescribed positions
+            if has_constraints
+                R[umap] .-= transpose(A1) * λ
+                nu > 0 && (Rcon .-= A1 * ΔUi[umap])
+                res_c = norm(Rcon, Inf)
+            end
             res = norm(R, Inf)
             @printf(data.log, "    it %d  residue: %-10.4e\n", it, res)
             
             if it==1
                 res1 = res
-                # res > 0.5*norm(ΔFin[umap], Inf) && (converged=false; break)
-                # res1>5*ftol && (converged=false; break)
             end
             it>1  && (linear_domain=false)
             
-            res<ftol && (converged=true; break)
-            # err<rtol && (converged=true; break)
+            res < ftol && res_c < utol && (converged=true; break)
 
             isnan(res) && break
             it>maxits  && break
@@ -420,56 +306,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
             inc += 1
             data.inc = inc
-
-            # ❱❱❱ Hook: Topology update for cohesive elements
-            dof_map, new_idxs, affected_idxs, _nu, mobilized_elems = update_model_cohesive_elems(model, dofs, bcs)
-
-            if length(affected_idxs) > 0
-                nu      = _nu
-                data.nu = nu
-                ndofs   = length(dofs)
-                umap    = 1:nu
-                pmap    = nu+1:ndofs
-
-                # Update displacements
-                U   = U[dof_map]
-                ΔUa = ΔUa[dof_map] 
-                ΔUi = ΔUi[dof_map]
-                Uex = Uex[dof_map] 
-
-                # Re-evaluate boundary conditions
-                Uex = zeros(ndofs)
-                Fex = zeros(ndofs)
-                for bc in stage.bcs
-                    compute_bc_values(ana, bc, T, Uex, Fex)
-                end
-                
-                # Resize F
-                F = F[dof_map]
-                F[new_idxs] .= 0.0 # Removes forces at new dofs. Does not perform redistribution!
-
-                ΔFin = ΔFin[dof_map]
-                ΔFin[new_idxs] .= 0.0 # Assuming that those positions are in equilibrium
-
-                # Re-evaluate residuals
-                # R  = ΔT.*Fex .- ΔFin
-                # R[pmap] .= 0.0  # zero at prescribed positions
-                
-                R = R[dof_map]
-                Rc = Rc[dof_map]
-                R[new_idxs] .= 0.0
-                Rc[new_idxs] .= 0.0
-            end
-
-            if length(affected_idxs) > 0 && length(mobilized_elems) > 0
-                status = project_activation_equilibrium!(mobilized_elems, affected_idxs)
-                if failed(status)
-                    sysstatus = status
-                    syserror = true
-                    converged = false
-                    break
-                end
-            end
             
             # Update forces and displacement for the current stage
             U .+= ΔUa
