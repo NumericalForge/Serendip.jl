@@ -78,7 +78,7 @@ include("plot/include.jl")
 export cm
 export Chart, ChartGrid, DataSeries, Legend, Colormap, DomainPlot, Annotation
 export add_line, add_scatter, add_bar, add_annotation
-export add_chart
+export add_chart, add_plot
 # Deprecated/Aliases
 export add_series
 
