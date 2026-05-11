@@ -30,12 +30,49 @@ function view_plot(mesh; up=:z, title="", axes=:none)
     return plot
 end
 
+function surface_role_mesh(ndim)
+    mesh = Mesh(ndim)
+    mesh.nodes = Node[
+        Node(0.0, 0.0, 0.0, id=1),
+        Node(1.0, 0.0, 0.0, id=2),
+        Node(1.0, 1.0, 0.0, id=3),
+        Node(0.0, 1.0, 0.0, id=4),
+    ]
+    mesh.elems = Cell[Cell(get_shape(:quad4), :surface, mesh.nodes, id=1)]
+
+    if ndim == 3
+        append!(mesh.nodes, Node[
+            Node(0.0, 0.0, 1.0, id=5),
+            Node(1.0, 0.0, 1.0, id=6),
+            Node(1.0, 1.0, 1.0, id=7),
+            Node(0.0, 1.0, 1.0, id=8),
+        ])
+        push!(mesh.elems, Cell(get_shape(:quad4), :surface, mesh.nodes[5:8], id=2))
+    end
+
+    return mesh
+end
+
 @test DomainPlot(quiet=true).up == :z
 @test view_plot(model).layers[1].field_kind == :auto
 @test DomainPlot(up=:x, quiet=true).up == :x
 @test DomainPlot(up=:y, quiet=true).up == :y
 @test DomainPlot(up=:z, quiet=true).up == :z
 @test_throws ArgumentError DomainPlot(up=:w, quiet=true)
+
+surface2d_plot = view_plot(surface_role_mesh(2))
+Serendip.configure!(surface2d_plot)
+@test length(surface2d_plot.layers[1].elems) == 1
+@test surface2d_plot.layers[1].elems[1].role == :surface
+@test length(surface2d_plot.nodes) == 4
+
+surface3d_plot = view_plot(surface_role_mesh(3))
+Serendip.configure!(surface3d_plot)
+@test length(surface3d_plot.layers[1].elems) == 2
+@test all(elem.role == :surface for elem in surface3d_plot.layers[1].elems)
+@test length(surface3d_plot.render_elems) == 2
+render_keys = Serendip._domain_render_depth_key.(surface3d_plot.render_elems)
+@test render_keys == sort(render_keys)
 
 default_coords = configured_coords(view_plot(model))
 explicit_z_coords = configured_coords(view_plot(model, up=:z))

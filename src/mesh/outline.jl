@@ -18,65 +18,58 @@ function get_facet_normal(face::AbstractCell)
 end
 
 
-function get_feature_edges(cells::Vector{<:AbstractCell}; angle=150)
+function get_outline_edges(cells::Vector{<:AbstractCell}; angle=120)
 
-    faces_dict = Dict{UInt64, Cell}()
+    boundary_faces = Dict{Tuple, Cell}()
 
     # Get faces
     for cell in cells
         cell.role in (:solid, :surface) || continue # only bulk cells
         if cell.shape.ndim==2
-            hs = hash(cell)
-            faces_dict[hs] = cell
+            key = _cell_key(cell)
+            if haskey(boundary_faces, key)
+                delete!(boundary_faces, key)
+            else
+                boundary_faces[key] = cell
+            end
             continue
         end
 
-        for face in get_edges(cell)
-            hs = hash(face)
-            if haskey(faces_dict, hs)
-                delete!(faces_dict, hs)
+        for face in get_facets(cell)
+            key = _cell_key(face)
+            if haskey(boundary_faces, key)
+                delete!(boundary_faces, key)
             else
-                faces_dict[hs] = face
+                boundary_faces[key] = face
             end
         end
     end
 
-    faces = values(faces_dict)
-    # @show faces
+    faces = collect(values(boundary_faces))
 
     # Get normals
-    normals = Dict{CellFace,Vector{Float64}}( f => get_facet_normal(f) for f in faces )
-    face_edge_d = Dict{UInt64,Cell}()
-    outline = CellEdge[]
+    normals = IdDict{Cell,Vector{Float64}}( f => get_facet_normal(f) for f in faces )
+    pending_edges = Dict{Tuple,Cell}()
+    outline_edges = CellEdge[]
 
     # Get edges with non-coplanar adjacent faces
     for face in faces
         n1 = normals[face]
         for edge in get_edges(face)
-            hs = hash(edge)
-            edge0 = get(face_edge_d, hs, nothing)
+            key = _cell_key(edge)
+            edge0 = get(pending_edges, key, nothing)
             if edge0===nothing
-                face_edge_d[hs] = edge
+                pending_edges[key] = edge
             else
-                delete!(face_edge_d, hs)
+                delete!(pending_edges, key)
                 n2 = normals[edge0.owner]
-                α = 180 - acos( abs(clamp(dot(n1,n2),-1,1)) )*180/pi
+                α = 180 - acosd( abs(clamp(dot(n1,n2),-1,1)) )
                 α = round(α, digits=2)
-                α<=angle && push!(outline, edge)
+                α<=angle && push!(outline_edges, edge)
             end
         end
     end
-    # @show length(face_edge_d)
-    outline = [ outline; collect(values(face_edge_d)) ]
+    append!(outline_edges, values(pending_edges))
 
-    return outline
-end
-
-
-function get_feature_mesh(mesh::Mesh; angle=150)
-    if mesh.ndim==2
-        return Mesh(mesh.edges)
-    else
-        return Mesh(get_feature_edges(mesh.faces; angle=angle))
-    end
+    return outline_edges
 end

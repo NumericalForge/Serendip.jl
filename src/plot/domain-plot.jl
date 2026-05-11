@@ -14,7 +14,8 @@
 
     DomainPlot(mesh;
         size=(220,150), face_color=:aliceblue, warp=0.0,
-        edge_width=0.3, edge_color=:auto, outline_width=0.4,
+        line_width=0.3, line_color=:auto, outline_width=0.4, outline_color=:auto,
+        outline_angle=120,
         line_elem_width=0.6,
         field="", limits=Float64[], field_kind=:auto, field_mult=1.0,
         label="", colormap=:coolwarm, diverging=false,
@@ -23,7 +24,7 @@
         title="",
         interpolation=:linear,
         azimuth=30, elevation=30, distance=0.0, up=:z,
-        feature_edges=true, view_mode=:surface_with_edges,
+        show_outline=true, view_mode=:surface_with_edges,
         light_vector=[0,0,0],
         mark=:none, mark_size=2.5, stage=nothing,
         node_labels=false,
@@ -41,15 +42,17 @@ mutable struct DomainPlotLayer
     mesh::AbstractDomain
     nodes::Vector{Node}
     elems::Vector{AbstractCell}
-    feature_edges_d::Dict
+    outline_edges_d::Dict
     values::Vector{Float64}
     shades::Vector{Float64}
     field_kind::Symbol
     node_marker_kinds::Dict{Int,Symbol}
 
-    edge_width::Float64
-    edge_color::Union{Symbol,Tuple}
+    line_width::Float64
+    line_color::Symbol
     outline_width::Float64
+    outline_color::Symbol
+    outline_angle::Float64
     line_elem_width::Float64
     face_color::Tuple
     field::String
@@ -65,7 +68,7 @@ mutable struct DomainPlotLayer
     colorbar::Colorbar
     bins::Int
     interpolation::Symbol
-    show_feature_edges::Bool
+    show_outline::Bool
     view_mode::Symbol
     mark::Symbol
     mark_size::Float64
@@ -93,7 +96,7 @@ mutable struct DomainPlot <: Figure
     axes::AxesWidget
     nodes::Vector{Node}
     elems::Vector{AbstractCell}
-    feature_edges_d::Dict
+    outline_edges_d::Dict
     values::Vector{Float64}
     outerpad::Float64
     shades::Vector{Float64}
@@ -108,9 +111,11 @@ mutable struct DomainPlot <: Figure
     width::Float64
     height::Float64
 
-    edge_width::Float64
-    edge_color::Union{Symbol,Tuple}
+    line_width::Float64
+    line_color::Symbol
     outline_width::Float64
+    outline_color::Symbol
+    outline_angle::Float64
     line_elem_width::Float64
     face_color::Tuple
     field::String
@@ -127,7 +132,7 @@ mutable struct DomainPlot <: Figure
     bins::Int
     font::String
     font_size::Float64
-    show_feature_edges::Bool
+    show_outline::Bool
     view_mode::Symbol
     mark::Symbol
     mark_size::Float64
@@ -216,6 +221,8 @@ mutable struct DomainPlot <: Figure
             0.3,
             :auto,
             0.3,
+            :auto,
+            120.0,
             0.6,
             _colors_dict[:aliceblue],
             "",
@@ -258,9 +265,11 @@ function DomainPlot(mesh;
     size::Tuple{<:Real,<:Real}=(220,150),
     face_color::Symbol=:aliceblue,
     warp::Real=0.0,
-    edge_width::Real=0.3,
-    edge_color::Union{Symbol,Tuple}=:auto,
-    outline_width::Real=0.3,
+    line_width::Real=0.3,
+    line_color::Symbol=:auto,
+    outline_width::Real=0.35,
+    outline_color::Symbol=:auto,
+    outline_angle::Real=120.0,
     line_elem_width::Real=0.6,
     field::AbstractString="",
     field_kind::Symbol=:auto,
@@ -281,7 +290,7 @@ function DomainPlot(mesh;
     elevation::Real=30.0,
     distance::Real=0.0,
     up::Symbol=:z,
-    feature_edges::Bool=true,
+    show_outline::Bool=true,
     view_mode::Symbol=:surface_with_edges,
     mark::Symbol=:none,
     mark_size::Real=2.5,
@@ -315,9 +324,11 @@ function DomainPlot(mesh;
         mesh;
         face_color=face_color,
         warp=warp,
-        edge_width=edge_width,
-        edge_color=edge_color,
+        line_width=line_width,
+        line_color=line_color,
         outline_width=outline_width,
+        outline_color=outline_color,
+        outline_angle=outline_angle,
         line_elem_width=line_elem_width,
         field=field,
         field_kind=field_kind,
@@ -330,7 +341,7 @@ function DomainPlot(mesh;
         colorbar_ratio=colorbar_ratio,
         bins=bins,
         interpolation=interpolation,
-        feature_edges=feature_edges,
+        show_outline=show_outline,
         view_mode=view_mode,
         mark=mark,
         mark_size=mark_size,
@@ -371,13 +382,15 @@ end
 
 function _domain_sync_legacy_layer_fields!(mplot::DomainPlot, layer::DomainPlotLayer)
     mplot.mesh = layer.mesh
-    mplot.feature_edges_d = layer.feature_edges_d
+    mplot.outline_edges_d = layer.outline_edges_d
     mplot.values = layer.values
     mplot.shades = layer.shades
 
-    mplot.edge_width = layer.edge_width
-    mplot.edge_color = layer.edge_color
+    mplot.line_width = layer.line_width
+    mplot.line_color = layer.line_color
     mplot.outline_width = layer.outline_width
+    mplot.outline_color = layer.outline_color
+    mplot.outline_angle = layer.outline_angle
     mplot.line_elem_width = layer.line_elem_width
     mplot.face_color = layer.face_color
     mplot.field = layer.field
@@ -392,7 +405,7 @@ function _domain_sync_legacy_layer_fields!(mplot::DomainPlot, layer::DomainPlotL
     mplot.bins = layer.bins
     mplot.interpolation = layer.interpolation
     mplot.colorbar = layer.colorbar
-    mplot.show_feature_edges = layer.show_feature_edges
+    mplot.show_outline = layer.show_outline
     mplot.view_mode = layer.view_mode
     mplot.mark = layer.mark
     mplot.mark_size = layer.mark_size
@@ -412,7 +425,7 @@ Use this with the composable constructor:
 ```julia
 plot = DomainPlot(size=(8cm, 6cm))
 add_plot(plot, mesh1; face_color=:aliceblue)
-add_plot(plot, model2; warp=1.0, view_mode=:outline, edge_color=:red)
+add_plot(plot, model2; warp=1.0, view_mode=:outline, line_color=:red)
 save(plot, "out.pdf")
 ```
 
@@ -423,9 +436,11 @@ save(plot, "out.pdf")
 # Layer keywords
 - `face_color::Symbol`: surface color for area/surface cells.
 - `warp::Real`: displacement scale factor applied from nodal field `"U"`.
-- `edge_width::Real`: internal edge width for area/surface cells.
-- `edge_color::Union{Symbol,Tuple}`: edge color; `:auto` darkens the face color.
+- `line_width::Real`: internal line width for area/surface cells.
+- `line_color::Symbol`: line color; `:auto` darkens the face color.
 - `outline_width::Real`: boundary outline width.
+- `outline_color::Symbol`: boundary outline color; `:auto` derives from `line_color`.
+- `outline_angle::Real`: maximum adjacent-face angle, in degrees, considered part of the outline.
 - `line_elem_width::Real`: stroke width for line elements.
 - `field::AbstractString`: scalar field name for coloring; empty disables coloring.
 - `field_kind::Symbol`: `:auto | :none | :node | :element`.
@@ -438,7 +453,7 @@ save(plot, "out.pdf")
 - `colorbar_ratio::Real`: colorbar length factor for this layer; defaults to the figure setting.
 - `bins::Int`: number of colorbar bins.
 - `interpolation::Symbol`: `:constant | :linear | :nonlinear`.
-- `feature_edges::Bool`: enhance feature lines (`:outline` forces on).
+- `show_outline::Bool`: draw outline edges (`:outline` forces on).
 - `view_mode::Symbol`: `:surface_with_edges | :surface | :wireframe | :outline`.
 - `mark::Symbol`: node marker mode. Use `:none`, `:auto`, or `:support`.
 - `mark_size::Real`: node marker size in points.
@@ -460,9 +475,11 @@ function add_plot(
     mesh;
     face_color::Symbol=:aliceblue,
     warp::Real=0.0,
-    edge_width::Real=0.3,
-    edge_color::Union{Symbol,Tuple}=:auto,
+    line_width::Real=0.3,
+    line_color::Symbol=:auto,
     outline_width::Real=0.3,
+    outline_color::Symbol=:auto,
+    outline_angle::Real=120.0,
     line_elem_width::Real=0.6,
     field::AbstractString="",
     field_kind::Symbol=:auto,
@@ -475,7 +492,7 @@ function add_plot(
     colorbar_ratio::Union{Real,Nothing}=nothing,
     bins::Int=6,
     interpolation::Symbol=:linear,
-    feature_edges::Bool=true,
+    show_outline::Bool=true,
     view_mode::Symbol=:surface_with_edges,
     mark::Symbol=:none,
     mark_size::Real=2.5,
@@ -483,7 +500,9 @@ function add_plot(
     node_labels::Bool=false,
 )
     @check face_color in keys(_colors_dict) "face_color must be one of: $(collect(keys(_colors_dict))). Got $face_color"
-    @check edge_color == :auto || edge_color in keys(_colors_dict) "edge_color must be :auto or one of: $(collect(keys(_colors_dict))). Got $edge_color"
+    @check line_color == :auto || line_color in keys(_colors_dict) "line_color must be :auto or one of: $(collect(keys(_colors_dict))). Got $line_color"
+    @check outline_color == :auto || outline_color in keys(_colors_dict) "outline_color must be :auto or one of: $(collect(keys(_colors_dict))). Got $outline_color"
+    @check 0 <= outline_angle <= 180 "outline_angle must be between 0 and 180 degrees. Got $outline_angle"
     @check length(limits) in (0, 2) "limits must have length 2 (manual) or be empty (auto)"
     @check mark in _domain_mark_list "mark must be one of $(_domain_mark_list). Got $mark"
     @check mark_size > 0 "mark_size must be positive"
@@ -509,9 +528,11 @@ function add_plot(
         Float64[],
         field_kind,
         Dict{Int,Symbol}(),
-        float(edge_width),
-        edge_color,
+        float(line_width),
+        line_color,
         float(outline_width),
+        outline_color,
+        float(outline_angle),
         float(line_elem_width),
         _colors_dict[face_color],
         string(field),
@@ -527,7 +548,7 @@ function add_plot(
         Colorbar(location=:none),
         bins,
         interpolation,
-        (feature_edges || view_mode == :outline) && view_mode != :wireframe,
+        (show_outline || view_mode == :outline) && view_mode != :wireframe,
         view_mode,
         mark,
         float(mark_size),
@@ -789,25 +810,26 @@ function _domain_prepare_layer!(mplot::DomainPlot, layer::DomainPlotLayer)
 
     active_elems = select(mesh.elems, :active)
     if ndim == 2
-        areacells = [elem for elem in active_elems if elem.role == :solid]
+        areacells = [elem for elem in active_elems if elem.shape.ndim == 2 && elem.role in (:solid, :surface)]
         linecells = [elem for elem in active_elems if elem.role == :line]
-        feature_edges = get_outer_facets(areacells)
+        outline_edges = get_outer_facets(areacells)
 
         layer.elems = AbstractCell[areacells; linecells]
         layer.nodes = get_nodes(layer.elems)
         layer.shades = ones(Float64, length(layer.elems))
     else
         volcells = [elem for elem in active_elems if elem.role == :solid && elem.shape.ndim == 3]
-        areacells = [elem for elem in active_elems if elem.role == :solid && elem.shape.ndim == 2]
+        areacells = [elem for elem in active_elems if elem.shape.ndim == 2 && elem.role in (:solid, :surface)]
         linecells = [elem for elem in active_elems if elem.role == :line]
         surfcells = get_outer_facets(volcells)
-        feature_edges = get_feature_edges(surfcells)
+        all_surfcells = AbstractCell[surfcells; areacells]
+        outline_edges = get_outline_edges(all_surfcells, angle=layer.outline_angle)
 
         for cell in surfcells
             cell.id = cell.owner.id
         end
 
-        layer.elems = AbstractCell[surfcells; areacells; linecells]
+        layer.elems = AbstractCell[all_surfcells; linecells]
         layer.nodes = unique(node -> node.id, [node for elem in layer.elems for node in elem.nodes])
 
         Vview = Vec3(cosd(mplot.elevation)*cosd(mplot.azimuth), cosd(mplot.elevation)*sind(mplot.azimuth), sind(mplot.elevation))
@@ -831,9 +853,9 @@ function _domain_prepare_layer!(mplot::DomainPlot, layer::DomainPlotLayer)
         layer.shades = shades
     end
 
-    empty!(layer.feature_edges_d)
-    for edge in feature_edges
-        layer.feature_edges_d[_domain_edge_key(edge)] = edge
+    empty!(layer.outline_edges_d)
+    for edge in outline_edges
+        layer.outline_edges_d[_domain_edge_key(edge)] = edge
     end
 
     _domain_configure_layer_field!(layer, mesh, layer.nodes)
@@ -861,7 +883,7 @@ function _domain_reset_render_state!(mplot::DomainPlot)
     mplot.nodes = Node[]
     mplot.elems = AbstractCell[]
     mplot.render_elems = DomainRenderElem[]
-    mplot.feature_edges_d = Dict()
+    mplot.outline_edges_d = Dict()
     mplot.values = Float64[]
     mplot.shades = Float64[]
 end
@@ -1244,21 +1266,23 @@ function draw_surface_cell!(ctx::RenderContext, layer::DomainPlotLayer, elem::Ab
     set_line_cap(cairo_ctx, Cairo.CAIRO_LINE_CAP_ROUND)
     field_kind = _domain_layer_field_kind(layer)
 
-    function get_edge_color(face_color, edge_color)
+    function get_line_color(face_color, line_color)
         if layer.view_mode == :surface
             face_color
-        elseif edge_color == :auto
+        elseif line_color == :auto
             face_color.*0.55
         else
-            _colors_dict[layer.edge_color]
+            _colors_dict[line_color]
         end
     end
 
-    function get_outline_color(face_color, edge_color)
-        if edge_color == :auto
+    function get_outline_color(face_color, line_color, outline_color)
+        if outline_color != :auto
+            _colors_dict[outline_color]
+        elseif line_color == :auto
             face_color.*0.7
         else
-            _colors_dict[layer.edge_color].*0.7
+            _colors_dict[line_color].*0.7
         end
     end
 
@@ -1274,8 +1298,8 @@ function draw_surface_cell!(ctx::RenderContext, layer::DomainPlotLayer, elem::Ab
             color = layer.face_color.*shade
         end
 
-        edge_color = get_edge_color(color, layer.edge_color)
-        outline_color = get_outline_color(color, layer.edge_color)
+        line_color = get_line_color(color, layer.line_color)
+        outline_color = get_outline_color(color, layer.line_color, layer.outline_color)
     else
         cm = layer.colormap
         npoints = elem.shape.base_shape.npoints
@@ -1318,14 +1342,14 @@ function draw_surface_cell!(ctx::RenderContext, layer::DomainPlotLayer, elem::Ab
         edge_pat = pattern_create_linear(0, 0, V[1], V[2])
         Cairo.set_matrix(edge_pat, mat)
         for (val, stop) in zip(values, stops)
-            color = get_edge_color(cm(val).*shade, layer.edge_color)
+            color = get_line_color(cm(val).*shade, layer.line_color)
             pattern_add_color_stop_rgb(edge_pat, stop, color...)
         end
 
         outline_pat = pattern_create_linear(0, 0, V[1], V[2])
         Cairo.set_matrix(outline_pat, mat)
         for (val, stop) in zip(values, stops)
-            color = get_outline_color(cm(val).*shade, layer.edge_color)
+            color = get_outline_color(cm(val).*shade, layer.line_color, layer.outline_color)
             pattern_add_color_stop_rgb(outline_pat, stop, color...)
         end
     end
@@ -1351,8 +1375,8 @@ function draw_surface_cell!(ctx::RenderContext, layer::DomainPlotLayer, elem::Ab
             end
 
             if show_edges
-                set_source_rgb(cairo_ctx, edge_color...)
-                set_line_width(cairo_ctx, layer.edge_width * ctx.width_scale)
+                set_source_rgb(cairo_ctx, line_color...)
+                set_line_width(cairo_ctx, layer.line_width * ctx.width_scale)
                 stroke(cairo_ctx)
             end
         elseif layer.interpolation == :linear
@@ -1373,7 +1397,7 @@ function draw_surface_cell!(ctx::RenderContext, layer::DomainPlotLayer, elem::Ab
 
             if show_edges
                 set_source(cairo_ctx, edge_pat)
-                set_line_width(cairo_ctx, layer.edge_width * ctx.width_scale)
+                set_line_width(cairo_ctx, layer.line_width * ctx.width_scale)
                 stroke(cairo_ctx)
             end
         else
@@ -1429,7 +1453,7 @@ function draw_surface_cell!(ctx::RenderContext, layer::DomainPlotLayer, elem::Ab
                 else
                     set_source(cairo_ctx, edge_pat)
                 end
-                set_line_width(cairo_ctx, layer.edge_width * ctx.width_scale)
+                set_line_width(cairo_ctx, layer.line_width * ctx.width_scale)
                 stroke(cairo_ctx)
             end
         end
@@ -1437,7 +1461,7 @@ function draw_surface_cell!(ctx::RenderContext, layer::DomainPlotLayer, elem::Ab
 
     set_line_cap(cairo_ctx, Cairo.CAIRO_LINE_CAP_ROUND)
 
-    if layer.show_feature_edges
+    if layer.show_outline
         new_path(cairo_ctx)
         set_line_width(cairo_ctx, layer.outline_width * ctx.width_scale)
         if constant_color
@@ -1447,7 +1471,7 @@ function draw_surface_cell!(ctx::RenderContext, layer::DomainPlotLayer, elem::Ab
         end
 
         for edge in edges
-            haskey(layer.feature_edges_d, _domain_edge_key(edge)) || continue
+            haskey(layer.outline_edges_d, _domain_edge_key(edge)) || continue
 
             x, y = edge.nodes[1].coord
             move_to(cairo_ctx, x, y)

@@ -40,4 +40,4 @@ include("gen-contact-elems.jl")
 export add_cohesive_elements, add_contact_elements, add_boundary_contact_elements, add_boundary_shell_elements
 
 include("outline.jl")
-export get_feature_edges, get_feature_mesh
+export get_outline_edges

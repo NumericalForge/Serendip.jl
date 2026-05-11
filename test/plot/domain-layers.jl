@@ -57,7 +57,7 @@ case2d.mesh.node_fields["temp"] = collect(1.0:length(case2d.mesh.nodes))
 
 plot2d = DomainPlot(size=(5cm, 4cm), quiet=true)
 add_plot(plot2d, case2d.mesh, face_color=:aliceblue, view_mode=:surface_with_edges, field="temp", field_kind=:node, colorbar=:left)
-add_plot(plot2d, case2d.model, warp=5.0, view_mode=:outline, edge_color=:red, field="ux", field_kind=:node, colorbar=:right)
+add_plot(plot2d, case2d.model, warp=5.0, view_mode=:outline, line_color=:red, field="ux", field_kind=:node, colorbar=:right)
 
 Serendip.configure!(plot2d)
 @test length(plot2d.layers) == 2
@@ -79,7 +79,7 @@ case3d.mesh.node_fields["temp"] = collect(1.0:length(case3d.mesh.nodes))
 
 plot3d = DomainPlot(size=(5cm, 4cm), quiet=true)
 add_plot(plot3d, case3d.mesh, face_color=:aliceblue, view_mode=:surface_with_edges, field="temp", field_kind=:node, colorbar=:top)
-add_plot(plot3d, case3d.model, warp=5.0, view_mode=:outline, edge_color=:red, field="ux", field_kind=:node, colorbar=:bottom)
+add_plot(plot3d, case3d.model, warp=5.0, view_mode=:outline, line_color=:red, field="ux", field_kind=:node, colorbar=:bottom)
 
 Serendip.configure!(plot3d)
 @test length(plot3d.layers) == 2
