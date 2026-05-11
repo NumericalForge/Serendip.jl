@@ -388,6 +388,174 @@ function add_array(geometry::GeoModel, gpath::GPath; nx::Int=1, ny::Int=1, nz::I
 end
 
 
+# ❱❱❱ Selection
+
+
+function _get_entities_from_dimids(geo::GeoModel, dimids)
+    entities = []
+    for (d, id) in dimids
+        ent = get(geo.entities, (d, id), nothing)
+        if ent !== nothing
+            push!(entities, ent)
+            continue
+        end
+
+        if d == 3
+            push!(entities, Volume(id))
+        elseif d == 2
+            push!(entities, Surface(id))
+        elseif d == 1
+            push!(entities, Edge(id, "Line")) # TODO
+        elseif d == 0
+            push!(entities, Point(id))
+        end
+    end
+    return entities
+end
+
+
+function _get_dimids_from_entities(entities)
+    entities = _flatten(entities, GeoEntity)
+    dimids = []
+    for e in entities
+        if e isa Volume
+            push!(dimids, (3, e.id))
+        elseif e isa Surface
+            push!(dimids, (2, e.id))
+        elseif e isa Edge
+            push!(dimids, (1, e.id))
+        elseif e isa Point
+            push!(dimids, (0, e.id))
+        end
+    end
+    return dimids
+end
+
+
+function get_entities(geo::GeoModel, dim::Int)
+    gmsh.model.occ.synchronize()
+    dimids = gmsh.model.occ.getEntities(dim)
+    return _get_entities_from_dimids(geo, dimids)
+end
+
+
+function _get_geo_dim(kind::Symbol)
+    kind in (:point, :edge, :curve, :face, :surface, :volume) || error("select: Unknown kind '$kind'")
+    return kind == :point ? 0 : kind in (:edge, :curve) ? 1 : kind in (:face, :surface) ? 2 : 3
+end
+
+
+function _get_bbox_points(dim::Int, id::Int)
+    xmin, ymin, zmin, xmax, ymax, zmax = gmsh.model.occ.getBoundingBox(dim, id)
+    xs = unique((xmin, xmax))
+    ys = unique((ymin, ymax))
+    zs = unique((zmin, zmax))
+    points = Vec3[Vec3(x, y, z) for x in xs for y in ys for z in zs]
+    center = Vec3((xmin + xmax)/2, (ymin + ymax)/2, (zmin + zmax)/2)
+    any(point -> norm(point - center) < 1e-12, points) || push!(points, center)
+    return points
+end
+
+
+"""
+    select(geo::GeoModel, kind::Symbol, selectors...; invert=false, tag=nothing)
+
+Select OCC geometry entities from `geo` using one or more filters. Filters are
+applied sequentially (logical AND), starting from all entities of the requested
+kind. Tuple selectors are flattened and applied in order.
+
+Supported entity kinds are `:point`, `:edge`, `:curve`, `:face`,
+`:surface`, and `:volume`. The symbols `:edge`/`:curve` and
+`:face`/`:surface` are treated as aliases.
+
+Supported selectors:
+- `:all` keeps the current selection unchanged.
+- `:none` clears the selection.
+- `String` matches `entity.tag`.
+- `Expr` or `Symbolic` evaluates a coordinate condition using `x`, `y`, `z`
+  at the entity bounding-box corners and center. The entity is kept only if the
+  condition is true at all tested bounding-box points.
+- `AbstractVector{<:Real}` selects by point coordinates, keeping the smallest
+  candidate entity whose bounding box contains the point.
+
+# Arguments
+- `geo::GeoModel`: Geometry model containing the OCC entities.
+- `kind::Symbol`: Entity kind to select (`:point`, `:edge`, `:curve`,
+  `:face`, `:surface`, or `:volume`).
+- `selectors`: One or more selectors applied in sequence.
+
+# Keyword Arguments
+- `invert::Bool=false`: return the complement of the final selection.
+- `tag::Union{String,Nothing}=nothing`: if a string is provided, assigns it to
+  all selected entities and persists them in `geo.entities`.
+
+# Returns
+- `Vector{GeoEntity}` with the selected entities.
+"""
+function select(
+    geo::GeoModel,
+    kind::Symbol,
+    selectors...;
+    invert::Bool = false,
+    tag::Union{String, Nothing} = nothing,
+    )
+    dim = _get_geo_dim(kind)
+
+    selectors = _flatten_selectors(selectors)
+    length(selectors) == 1 && selectors[1] === nothing && (selectors = ())
+
+    entities = get_entities(geo, dim)
+    selected = collect(1:length(entities))
+
+    for selector in selectors
+        if selector isa Symbol
+            if selector == :all
+                continue
+            elseif selector == :none
+                selected = Int[]
+            else
+                error("select: unknown symbol selector $(repr(selector))")
+            end
+        elseif selector isa String
+            selected = Int[i for i in selected if entities[i].tag == selector]
+        elseif selector isa Expr || selector isa Symbolic
+            selected = Int[
+                i for i in selected if all(
+                    evaluate(selector, x=corner.x, y=corner.y, z=corner.z)
+                    for corner in _get_bbox_points(dim, entities[i].id)
+                )
+            ]
+        elseif selector isa AbstractVector{<:Real}
+            ids = [entities[i].id for i in selected]
+            dim_id = _get_entity(dim, selector; ids=ids)
+            if dim_id === nothing
+                selected = Int[]
+            else
+                i = findfirst(j -> entities[j].id == dim_id[2], selected)
+                selected = i === nothing ? Int[] : Int[selected[i]]
+            end
+        else
+            error("select: unknown selector type $(typeof(selector))")
+        end
+    end
+
+    if invert
+        selected = setdiff(1:length(entities), selected)
+    end
+
+    selection = entities[selected]
+
+    if tag !== nothing
+        dimids = [(dim, entity.id) for entity in selection]
+        selection = _ensure_entities(geo, dimids)
+        for entity in selection
+            entity.tag = tag
+        end
+    end
+
+    return selection
+end
+
 
 # ❱❱❱ Transfinite
 
@@ -405,47 +573,53 @@ specifying the number of mesh nodes to distribute along it.
 # Returns
 - `Nothing`
 """
-function set_transfinite_curve(geo::GeoModel, curve, num_nodes)
+function set_transfinite_curve(geo::GeoModel, curves, num_nodes)
     gmsh.model.occ.synchronize()
-    gmsh.model.mesh.set_transfinite_curve(curve.id, num_nodes)
+    for curve in curves
+        gmsh.model.mesh.set_transfinite_curve(curve.id, num_nodes)
+    end
 end
 
 
 """
-    set_transfinite_surface(geo, surface)
+    set_transfinite_surface(geo, surfaces)
 
-Assign a transfinite mesh distribution to a surface entity `surface` in the geometric model `geo`.  
+Assign a transfinite mesh distribution to surface entities `surfaces` in the geometric model `geo`.  
 Used to ensure structured meshing consistent with adjoining transfinite curves.
 
 # Arguments
 - `geo::GeoModel`: Geometry model containing the surface.
-- `surface`: Surface entity to be meshed transfinetely.
+- `surfaces`: Surface entities to be meshed transfinetely.
 
 # Returns
 - `Nothing`
 """
-function set_transfinite_surface(geo::GeoModel, surface)
+function set_transfinite_surface(geo::GeoModel, surfaces)
     gmsh.model.occ.synchronize()
-    gmsh.model.mesh.set_transfinite_surface(surface.id)
+    for s in surfaces
+        gmsh.model.mesh.set_transfinite_surface(s.id)
+    end
 end
 
 
 """
-    set_recombine(geo, ent)
+    set_recombine(geo, ents)
 
-Enable element recombination for a surface entity `ent` in the geometric model `geo`.  
+Enable element recombination for surface entities `ents` in the geometric model `geo`.  
 This converts triangular subdivisions into quadrilateral elements during meshing.
 
 # Arguments
 - `geo::GeoModel`: Geometry model containing the surface.
-- `ent`: Surface entity where recombination is applied.
+- `ents`: Surface entities where recombination is applied.
 
 # Returns
 - `Nothing`
 """
-function set_recombine(geo::GeoModel, ent)
+function set_recombine(geo::GeoModel, ents)
     gmsh.model.occ.synchronize()
-    gmsh.model.mesh.set_recombine(2, ent.id)
+    for ent in ents
+        gmsh.model.mesh.set_recombine(2, ent.id)
+    end
 end
 
 

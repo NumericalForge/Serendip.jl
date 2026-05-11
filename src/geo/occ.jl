@@ -438,13 +438,15 @@ function get_boundary(geo::GeoModel, entities; combined=true, oriented=false, re
 end
 
 
-function _get_entity(dim, X; tol=1e-6)
+function _get_entity(dim, X; tol=1e-6, ids=nothing)
     gmsh.model.occ.synchronize()
     x, y, z = X
     ent_id = nothing
     min_vol = Inf
 
-    for (_, id) in gmsh.model.occ.getEntities(dim)
+    ids === nothing && (ids = [id for (_, id) in gmsh.model.occ.getEntities(dim)])
+
+    for id in ids
 
         # Get bounding box of the entity
         xmin, ymin, zmin, xmax, ymax, zmax = gmsh.model.occ.getBoundingBox(dim, id)
@@ -471,197 +473,88 @@ function _get_entity(dim, X; tol=1e-6)
 end
 
 
-function get_point(geo::GeoModel, X::Vector{<:Real})
-    ent = _get_entity(0, X)
-    ent === nothing && return nothing
-    return get(geo.entities, ent, Point(ent[2], X))
-end
+# function get_point(geo::GeoModel, X::Vector{<:Real})
+#     ent = _get_entity(0, X)
+#     ent === nothing && return nothing
+#     return get(geo.entities, ent, Point(ent[2], X))
+# end
 
 
-function get_curve(geo::GeoModel, X::Vector{<:Real})
-    ent = _get_entity(1, X)
-    ent === nothing && return nothing
-    type = gmsh.model.getType(1, ent[2])
-    return get(geo.entities, ent, Edge(ent[2], type))
-end
+# function get_curve(geo::GeoModel, X::Vector{<:Real})
+#     ent = _get_entity(1, X)
+#     ent === nothing && return nothing
+#     type = gmsh.model.getType(1, ent[2])
+#     return get(geo.entities, ent, Edge(ent[2], type))
+# end
 
 
-function get_surface(geo::GeoModel, X::Vector{<:Real})
-    ent = _get_entity(2, X)
-    ent === nothing && return nothing
-    return get(geo.entities, ent, Surface(ent[2]))
-end
+# function get_surface(geo::GeoModel, X::Vector{<:Real})
+#     ent = _get_entity(2, X)
+#     ent === nothing && return nothing
+#     return get(geo.entities, ent, Surface(ent[2]))
+# end
 
 
-function get_volume(geo::GeoModel, X::Vector{<:Real})
-    ent = _get_entity(3, X)
-    ent === nothing && return nothing
-    return get(geo.entities, ent, Volume(ent[2]))
-end
+# function get_volume(geo::GeoModel, X::Vector{<:Real})
+#     ent = _get_entity(3, X)
+#     ent === nothing && return nothing
+#     return get(geo.entities, ent, Volume(ent[2]))
+# end
 
 
-"""
-    select(geo::GeoModel, kind::Symbol, selector::Union{String,Vector{<:Real}}; tag::String="")
+# function get_points(geo, ents=[])
+#     ents = _flatten(ents, GeoEntity)
 
-Select an OCC geometry entity from `geo` by coordinates or by tag.
+#     length(ents) == 0 && return get_entities(0)
 
-Supported entity kinds are `:point`, `:edge`, `:curve`, `:face`,
-`:surface`, and `:volume`. The symbols `:edge`/`:curve` and
-`:face`/`:surface` are treated as aliases.
-
-Selection behavior depends on the type of `selector`:
-- `selector::Vector{<:Real}`: locates the entity of the requested `kind`
-  containing or matching the coordinates and returns that single entity. If
-  `tag != ""`, the selected entity is tagged and stored in `geo.entities`.
-- `selector::String`: returns all stored entities of the requested `kind`
-  whose `tag` matches `selector`.
-
-# Arguments
-- `geo::GeoModel`: Geometry model containing the OCC entities.
-- `kind::Symbol`: Entity kind to select (`:point`, `:edge`, `:curve`,
-  `:face`, `:surface`, or `:volume`).
-- `selector::Union{String,Vector{<:Real}}`: Tag string or point coordinates
-  `[x, y, z]` used for selection.
-- `tag::String=""`: Optional tag assigned to the entity selected by
-  coordinates.
-
-# Returns
-- `GeoEntity`: When `selector` is a coordinate vector.
-- `Vector{GeoEntity}`: When `selector` is a tag string. Returns an empty
-  vector if no tagged entities match.
-"""
-function select(geo::GeoModel, kind::Symbol, selector::Union{String,Vector{<:Real}}; tag::String="")
-    kind in (:point, :edge, :curve, :face, :surface, :volume) || error("select: Unknown kind '$kind'")
-    dim = kind == :point ? 0 : kind in (:edge, :curve) ? 1 : kind in (:face, :surface) ? 2 : 3
-
-    if selector isa Vector
-        dim_id = _get_entity(dim, selector)
-        dim_id === nothing && return GeoEntity[]
-
-        if kind== :point
-            obj = get(geo.entities, dim_id, Point(dim_id[2], X))
-        elseif kind in (:edge, :curve)
-            type = gmsh.model.getType(1, dim_id[2])
-            obj = get(geo.entities, dim_id, Edge(dim_id[2], type))
-        elseif kind in (:face, :surface)
-            obj = get(geo.entities, dim_id, Surface(dim_id[2]))
-        elseif kind == :volume
-            obj = get(geo.entities, dim_id, Volume(dim_id[2]))
-        end
-        tag!= "" && (obj.tag = tag)
-        geo.entities[dim_id] = obj
-        return obj
-    else # string tag
-        ents = GeoEntity[]
-        for (dim_id, obj) in geo.entities
-            dim_id[1] == dim && obj.tag == selector && push!(ents, obj)
-        end
-        return ents
-    end
-end
+#     return get_boundary(geo, ents; combined=false, oriented=false, recursive=true)
+# end
 
 
-function get_entities(dim::Int)
-    gmsh.model.occ.synchronize()
-    dimids = gmsh.model.occ.getEntities(dim)
-    return _get_entities_from_dimids(geo, dimids)
-end
+# function get_curves(ents=[])
+#     length(ents) == 0 && return get_entities(1)
+
+#     all_edges = []
+#     for e in ents
+#         if e isa Volume
+#             bry = get_boundary([e]; combined=false, oriented=false, recursive=false)
+#             edges = get_curves(bry)
+#         elseif e isa Surface
+#             bry = get_boundary([e]; combined=false, oriented=false, recursive=false)
+#             edges = [ x for x in bry if x isa Edge ]
+#         elseif e isa Edge
+#             edges = [e]
+#         end
+#         append!(all_edges, edges)
+#     end
+
+#     return all_edges
+# end
 
 
-function get_points(geo, ents=[])
-    ents = _flatten(ents, GeoEntity)
+# function get_surfaces(ents=[])
+#     length(ents) == 0 && return get_entities(2)
 
-    length(ents) == 0 && return get_entities(0)
+#     all_surfaces = []
+#     for e in ents
+#         if e isa Volume
+#             bry = get_boundary([e]; combined=false, oriented=false, recursive=false)
+#             surfaces = [ x for x in bry if x isa Surface ]
+#         elseif e isa Surface
+#             surfaces = [e]
+#         end
+#         append!(all_surfaces, surfaces)
+#     end
 
-    return get_boundary(geo, ents; combined=false, oriented=false, recursive=true)
-end
-
-
-function get_curves(ents=[])
-    length(ents) == 0 && return get_entities(1)
-
-    all_edges = []
-    for e in ents
-        if e isa Volume
-            bry = get_boundary([e]; combined=false, oriented=false, recursive=false)
-            edges = get_curves(bry)
-        elseif e isa Surface
-            bry = get_boundary([e]; combined=false, oriented=false, recursive=false)
-            edges = [ x for x in bry if x isa Edge ]
-        elseif e isa Edge
-            edges = [e]
-        end
-        append!(all_edges, edges)
-    end
-
-    return all_edges
-end
+#     return all_surfaces
+# end
 
 
-function get_surfaces(ents=[])
-    length(ents) == 0 && return get_entities(2)
+# function get_volumes(ents=[])
+#     length(ents) == 0 && return get_entities(3)
 
-    all_surfaces = []
-    for e in ents
-        if e isa Volume
-            bry = get_boundary([e]; combined=false, oriented=false, recursive=false)
-            surfaces = [ x for x in bry if x isa Surface ]
-        elseif e isa Surface
-            surfaces = [e]
-        end
-        append!(all_surfaces, surfaces)
-    end
-
-    return all_surfaces
-end
-
-
-function get_volumes(ents=[])
-    length(ents) == 0 && return get_entities(3)
-
-    return [ e for e in ents if e isa Volume ]
-end
-
-
-function _get_entities_from_dimids(geo::GeoModel, dimids)
-    entities = []
-    for (d, id) in dimids
-        ent = get(geo.entities, (d, id), nothing)
-        if ent !== nothing
-            push!(entities, ent)
-            continue
-        end
-
-        if d == 3
-            push!(entities, Volume(id))
-        elseif d == 2
-            push!(entities, Surface(id))
-        elseif d == 1
-            push!(entities, Edge(id, "Line")) # TODO
-        elseif d == 0
-            push!(entities, Point(id))
-        end
-    end
-    return entities
-end
-
-
-function _get_dimids_from_entities(entities)
-    entities = _flatten(entities, GeoEntity)
-    dimids = []
-    for e in entities
-        if e isa Volume
-            push!(dimids, (3, e.id))
-        elseif e isa Surface
-            push!(dimids, (2, e.id))
-        elseif e isa Edge
-            push!(dimids, (1, e.id))
-        elseif e isa Point
-            push!(dimids, (0, e.id))
-        end
-    end
-    return dimids
-end
+#     return [ e for e in ents if e isa Volume ]
+# end
 
 
 function _common_nonempty_tag(ents)
