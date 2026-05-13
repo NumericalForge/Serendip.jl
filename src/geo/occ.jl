@@ -24,7 +24,6 @@ Add a point to the geometric model `geo` at the coordinates `X = [x, y, z]`.
 # Returns
 - `Point`: The created point entity.
 """
-
 function add_point(geo::GeoModel, X::Vector{<:Real}; size=0, embedded::Bool=false, tag::String="")
     id = gmsh.model.occ.addPoint(X[1], X[2], X[3], size)
     gmsh.model.occ.synchronize()
