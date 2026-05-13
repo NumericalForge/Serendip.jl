@@ -25,8 +25,8 @@ function test_round_trip(mesh::Mesh, filename::String)
 end
 
 @testset "Mesh IO" begin
-    dir = "."
-    # mktempdir() do dir
+    # dir = "."
+    mktempdir() do dir
         @testset "VTK round-trip" begin
             test_round_trip(io_test_mesh(), joinpath(dir, "mesh.vtk"))
         end
@@ -61,5 +61,5 @@ end
             @test elem_fields["cell-type"] == [Int(cell.shape.vtk_type) for cell in mesh.elems]
             @test elem_fields["tag"][1] != elem_fields["tag"][end]
         end
-    # end
+    end
 end
