@@ -30,6 +30,12 @@ function view_plot(mesh; up=:z, title="", axes=:none)
     return plot
 end
 
+function layer_plot(mesh; kwargs...)
+    plot = DomainPlot(quiet=true)
+    add_plot(plot, mesh; kwargs...)
+    return plot.layers[1]
+end
+
 function surface_role_mesh(ndim)
     mesh = Mesh(ndim)
     mesh.nodes = Node[
@@ -89,30 +95,38 @@ end
 @test DomainPlot(up=:y, quiet=true).up == :y
 @test DomainPlot(up=:z, quiet=true).up == :z
 @test_throws ArgumentError DomainPlot(up=:w, quiet=true)
-@test view_plot(mesh2d, title="line elem color").layers[1].line_elem_color == :auto
+@testset "Line element styling" begin
+    default_line_elem_layer = layer_plot(mesh2d)
+    @test default_line_elem_layer.line_elem_color == :auto
+    @test default_line_elem_layer.line_elem_width == 0.6
+    @test Serendip._domain_default_line_elem_rgb(default_line_elem_layer) == (0.8, 0.2, 0.1)
 
-wireframe_outline_plot = DomainPlot(quiet=true)
-add_plot(wireframe_outline_plot, mesh2d, view_mode=:wireframe, show_outline=true)
-@test wireframe_outline_plot.layers[1].view_mode == :wireframe
-@test wireframe_outline_plot.layers[1].show_outline
+    wireframe_outline_layer = layer_plot(mesh2d, view_mode=:wireframe, show_outline=true)
+    @test wireframe_outline_layer.view_mode == :wireframe
+    @test wireframe_outline_layer.show_outline
+    @test wireframe_outline_layer.line_elem_width == 0.6
+    @test Serendip._domain_default_line_elem_rgb(wireframe_outline_layer) == (0.8, 0.2, 0.1)
 
-line_elem_plot = DomainPlot(quiet=true)
-add_plot(line_elem_plot, mesh2d, line_elem_color=:green)
-@test line_elem_plot.layers[1].line_elem_color == Color(:green)
+    override_line_elem_layer = layer_plot(mesh2d, line_elem_color=:green)
+    @test override_line_elem_layer.line_elem_color == Color(:green)
 
-custom_color_plot = DomainPlot(quiet=true)
-add_plot(
-    custom_color_plot,
-    mesh2d,
-    face_color=Color(:steelblue),
-    line_color=(0.25, 0.25, 0.25),
-    outline_color=Color(:black),
-    line_elem_color=(0.1, 0.6, 0.2),
-)
-@test custom_color_plot.layers[1].face_color == Color(:steelblue)
-@test custom_color_plot.layers[1].line_color == Color((0.25, 0.25, 0.25))
-@test custom_color_plot.layers[1].outline_color == Color(:black)
-@test custom_color_plot.layers[1].line_elem_color == Color((0.1, 0.6, 0.2))
+    custom_style_layer = layer_plot(
+        mesh2d,
+        face_color=Color(:steelblue),
+        line_color=(0.25, 0.25, 0.25),
+        outline_color=Color(:black),
+        line_elem_color=(0.1, 0.6, 0.2),
+    )
+    @test custom_style_layer.face_color == Color(:steelblue)
+    @test custom_style_layer.line_color == Color((0.25, 0.25, 0.25))
+    @test custom_style_layer.outline_color == Color(:black)
+    @test custom_style_layer.line_elem_color == Color((0.1, 0.6, 0.2))
+
+    outline_default_layer = layer_plot(mesh2d, view_mode=:outline, outline_width=0.8, outline_color=Color(:black))
+    @test outline_default_layer.line_elem_width == 0.8
+    @test outline_default_layer.line_elem_color == :auto
+    @test Serendip._domain_default_line_elem_rgb(outline_default_layer) == (0.0, 0.0, 0.0)
+end
 
 surface2d_plot = view_plot(surface_role_mesh(2))
 Serendip.configure!(surface2d_plot)

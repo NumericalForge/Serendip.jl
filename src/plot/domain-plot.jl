@@ -16,7 +16,7 @@
         size=(220,150), face_color=:aliceblue, warp=0.0,
         line_width=0.3, line_color=:auto, outline_width=0.4, outline_color=:auto,
         outline_angle=120,
-        line_elem_width=0.6, line_elem_color=:auto,
+        line_elem_width=nothing, line_elem_color=:auto,
         field="", limits=Float64[], field_kind=:auto, field_mult=1.0,
         label="", colormap=:coolwarm, diverging=false,
         colorbar=:right, colorbar_ratio=0.9, bins=6,
@@ -281,7 +281,7 @@ function DomainPlot(mesh;
     outline_width::Real=0.35,
     outline_color::Union{Symbol,Color,Tuple}=:auto,
     outline_angle::Real=120.0,
-    line_elem_width::Real=0.6,
+    line_elem_width::Union{Nothing,Real}=nothing,
     line_elem_color::Union{Symbol,Color,Tuple}=:auto,
     field::AbstractString="",
     field_kind::Symbol=:auto,
@@ -375,6 +375,8 @@ const _domain_mark_list = (:none, :auto, :support)
 const _domain_translation_keys = (:ux, :uy, :uz)
 const _domain_rotation_keys = (:rx, :ry, :rz)
 const _domain_regular_marker_kind = :regular
+const _domain_default_line_elem_color_rgb = (0.8, 0.2, 0.1)
+const _domain_default_line_elem_width = 0.6
 
 
 function _domain_resolve_color(color, name::AbstractString; auto::Bool=false)
@@ -393,6 +395,56 @@ end
 
 
 _domain_rgb(color::Color) = Tuple(rgb(color))
+
+
+function _domain_line_rgb(face_color, line_color)
+    if line_color == :auto
+        return face_color .* 0.55
+    else
+        return _domain_rgb(line_color)
+    end
+end
+
+
+function _domain_outline_rgb(face_color, line_color, outline_color)
+    if outline_color != :auto
+        return _domain_rgb(outline_color)
+    elseif line_color == :auto
+        return face_color .* 0.7
+    else
+        return _domain_rgb(line_color) .* 0.7
+    end
+end
+
+
+function _domain_default_line_elem_rgb(layer::DomainPlotLayer)
+    if layer.view_mode == :outline
+        return _domain_outline_rgb(_domain_rgb(layer.face_color), layer.line_color, layer.outline_color)
+    else
+        return _domain_default_line_elem_color_rgb
+    end
+end
+
+
+function _domain_resolve_line_elem_width(line_elem_width, view_mode::Symbol, outline_width::Real)
+    line_elem_width !== nothing && return float(line_elem_width)
+    if view_mode == :outline
+        return float(outline_width)
+    else
+        return _domain_default_line_elem_width
+    end
+end
+
+
+function _domain_line_elem_rgb(layer::DomainPlotLayer, elem::AbstractCell)
+    if _domain_layer_field_kind(layer) == :element
+        return layer.colormap(layer.values[elem.id])
+    elseif layer.line_elem_color == :auto
+        return _domain_default_line_elem_rgb(layer)
+    else
+        return _domain_rgb(layer.line_elem_color)
+    end
+end
 
 
 
@@ -473,8 +525,8 @@ save(plot, "out.pdf")
 - `outline_width::Real`: boundary outline width.
 - `outline_color::Union{Symbol,Color,Tuple}`: boundary outline color; `:auto` derives from `line_color`.
 - `outline_angle::Real`: maximum adjacent-face angle, in degrees, considered part of the outline.
-- `line_elem_width::Real`: stroke width for line elements.
-- `line_elem_color::Union{Symbol,Color,Tuple}`: line-element color; `:auto` keeps the default standalone line color unless an element field colormap is active.
+- `line_elem_width::Union{Nothing,Real}`: stroke width for line elements. `nothing` uses the default `0.6` except in `:outline` mode, where it inherits `outline_width`.
+- `line_elem_color::Union{Symbol,Color,Tuple}`: line-element color. `:auto` uses the default red outside `:outline` mode and follows the outline-color rule in `:outline` mode, unless an element field colormap is active.
 - `field::AbstractString`: scalar field name for coloring; empty disables coloring.
 - `field_kind::Symbol`: `:auto | :none | :node | :element`.
 - `limits::Vector{<:Real}`: field range `[min,max]`; empty vector enables auto range.
@@ -513,7 +565,7 @@ function add_plot(
     outline_width::Real=0.3,
     outline_color::Union{Symbol,Color,Tuple}=:auto,
     outline_angle::Real=120.0,
-    line_elem_width::Real=0.6,
+    line_elem_width::Union{Nothing,Real}=nothing,
     line_elem_color::Union{Symbol,Color,Tuple}=:auto,
     field::AbstractString="",
     field_kind::Symbol=:auto,
@@ -550,6 +602,7 @@ function add_plot(
     face_color = _domain_resolve_color(face_color, "face_color")
     line_color = _domain_resolve_color(line_color, "line_color"; auto=true)
     outline_color = _domain_resolve_color(outline_color, "outline_color"; auto=true)
+    line_elem_width = _domain_resolve_line_elem_width(line_elem_width, view_mode, outline_width)
     line_elem_color = _domain_resolve_color(line_elem_color, "line_elem_color"; auto=true)
     layer_colorbar = something(colorbar, mplot.colorbar_location)
     layer_colorbar_ratio = float(something(colorbar_ratio, mplot.colorbar_ratio))
@@ -568,7 +621,7 @@ function add_plot(
         float(outline_width),
         outline_color,
         float(outline_angle),
-        float(line_elem_width),
+        line_elem_width,
         line_elem_color,
         face_color,
         string(field),
@@ -1436,17 +1489,10 @@ function draw_contents!(mplot::DomainPlot, ctx::RenderContext)
         if elem.role == :line
             x, y = elem.nodes[1].coord
             move_to(cairo_ctx, x, y)
-            color = (0.8, 0.2, 0.1)
-            if _domain_layer_field_kind(layer) == :element
-                color = layer.colormap(layer.values[elem.id])
-            elseif layer.line_elem_color != :auto
-                color = _domain_rgb(layer.line_elem_color)
-            end
-
             pts = bezier_points(elem)
             curve_to(cairo_ctx, pts[2]..., pts[3]..., pts[4]...)
             set_line_width(cairo_ctx, layer.line_elem_width * ctx.width_scale)
-            set_source_rgb(cairo_ctx, color...)
+            set_source_rgb(cairo_ctx, _domain_line_elem_rgb(layer, elem)...)
             stroke(cairo_ctx)
         else
             draw_surface_cell!(ctx, layer, elem, render.shade)
@@ -1504,26 +1550,6 @@ function draw_surface_cell!(ctx::RenderContext, layer::DomainPlotLayer, elem::Ab
     set_line_cap(cairo_ctx, Cairo.CAIRO_LINE_CAP_ROUND)
     field_kind = _domain_layer_field_kind(layer)
 
-    function get_line_color(face_color, line_color)
-        if layer.view_mode == :surface
-            face_color
-        elseif line_color == :auto
-            face_color.*0.55
-        else
-            _domain_rgb(line_color)
-        end
-    end
-
-    function get_outline_color(face_color, line_color, outline_color)
-        if outline_color != :auto
-            _domain_rgb(outline_color)
-        elseif line_color == :auto
-            face_color.*0.7
-        else
-            _domain_rgb(line_color).*0.7
-        end
-    end
-
     constant_color = field_kind in (:element, :none) || layer.interpolation == :constant
 
     if constant_color
@@ -1536,8 +1562,8 @@ function draw_surface_cell!(ctx::RenderContext, layer::DomainPlotLayer, elem::Ab
             color = _domain_rgb(layer.face_color).*shade
         end
 
-        line_color = get_line_color(color, layer.line_color)
-        outline_color = get_outline_color(color, layer.line_color, layer.outline_color)
+        line_color = layer.view_mode == :surface ? color : _domain_line_rgb(color, layer.line_color)
+        outline_color = _domain_outline_rgb(color, layer.line_color, layer.outline_color)
     else
         cm = layer.colormap
         npoints = elem.shape.base_shape.npoints
@@ -1580,14 +1606,15 @@ function draw_surface_cell!(ctx::RenderContext, layer::DomainPlotLayer, elem::Ab
         edge_pat = pattern_create_linear(0, 0, V[1], V[2])
         Cairo.set_matrix(edge_pat, mat)
         for (val, stop) in zip(values, stops)
-            color = get_line_color(cm(val).*shade, layer.line_color)
+            base_color = cm(val).*shade
+            color = layer.view_mode == :surface ? base_color : _domain_line_rgb(base_color, layer.line_color)
             pattern_add_color_stop_rgb(edge_pat, stop, color...)
         end
 
         outline_pat = pattern_create_linear(0, 0, V[1], V[2])
         Cairo.set_matrix(outline_pat, mat)
         for (val, stop) in zip(values, stops)
-            color = get_outline_color(cm(val).*shade, layer.line_color, layer.outline_color)
+            color = _domain_outline_rgb(cm(val).*shade, layer.line_color, layer.outline_color)
             pattern_add_color_stop_rgb(outline_pat, stop, color...)
         end
     end
