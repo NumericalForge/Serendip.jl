@@ -212,31 +212,32 @@ end
 
 
 """
-    add_block(geometry, X1, X2;
+    add_block(geometry, X, dx, dy, dz;
         nx=0, ny=0, nz=0, n=0,
         rx=1.0, ry=1.0, rz=1.0, r=0.0,
-        shape=nothing, tag="")
+        quadratic=false, shape=nothing, tag="")
 
-Adds a 1D, 2D or 3D block (`Block`) to the geometric model using two opposite corner points.
+Adds a structured 1D, 2D, or 3D block (`Block`) to the geometry model from an
+origin point `X` and edge lengths `dx`, `dy`, and `dz`.
 
 # Arguments
 - `geometry::GeoModel`: Target geometric model to which the block is appended.
-- `X1::Vector{<:Real}`: Coordinates of the first corner (lower vertex).
-- `X2::Vector{<:Real}`: Coordinates of the opposite corner (upper vertex).
-- `nx::Int=1, ny::Int=0, nz::Int=0`: Number of mesh divisions along x, y, and z.
-- `n::Int=0`: Number of mesh divisions for 1D blocks (overrides `nx`).
-- `rx::Real=1.0, ry::Real=1.0, rz::Real=1.0`: Element size grading ratios along x, y, and z.
-- `r::Real=0.0`: Element size grading ratio for 1D blocks (overrides `rx`).
-- `shape`: Optional finite element shape symbol (`:hex8`, `:hex20`, `:quad4`, `:lin2`, etc.).
-  If omitted, it is inferred from the number of points and dimension.
+- `X::Vector{<:Real}`: Block origin coordinates. Shorter vectors are padded with zeros.
+- `dx::Real, dy::Real, dz::Real`: Block lengths along the x, y, and z directions.
+- `nx::Int=0, ny::Int=0, nz::Int=0`: Number of divisions along each active direction.
+- `n::Int=0`: Number of divisions for 1D blocks; when provided, the block is treated as 1D and `nx` is ignored.
+- `rx::Real=1.0, ry::Real=1.0, rz::Real=1.0`: Grading ratios along x, y, and z.
+- `r::Real=0.0`: Grading ratio for 1D blocks; when positive, it overrides `rx`.
+- `quadratic::Bool=false`: If `true` and `shape` is omitted, choose a quadratic default shape (`:lin3`, `:quad8`, or `:hex20`).
+- `shape`: Optional cell shape. If omitted, it is inferred from the block dimension and `quadratic`.
 - `tag::String=""`: Optional tag identifier for the block.
 
 # Behavior
-- The block dimension (`ndim`) is inferred from the number of nonzero coordinate components:
-  - 1D → line block (`:lin2`, `:lin3`)
-  - 2D → surface block (`:quad4`, `:quad8`)
-  - 3D → volume block (`:hex8`, `:hex20`)
-- The `shape` argument must match the inferred dimension.
+- The block dimension is inferred from `dx`, `dy`, and `dz`:
+  - 1D when only `dx` is nonzero, or when `n > 0`
+  - 2D when `dx` and `dy` are nonzero and `dz == 0`
+  - 3D when `dz != 0`
+- The chosen `shape` must be compatible with the inferred dimension.
 
 # Returns
 - `Block`: The block object appended to `geometry.blocks`.
@@ -245,15 +246,11 @@ Adds a 1D, 2D or 3D block (`Block`) to the geometric model using two opposite co
 ```julia
 geo = GeoModel()
 
-# Define opposite corners of a 3D domain
-X1 = [0.0, 0.0, 0.0]
-X2 = [2.0, 1.0, 1.0]
-
 # Add a hexahedral block with graded mesh along z
-blk = add_block(geo, X1, X2;
-nx=8, ny=4, nz=4, rz=1.3,
-shape=:hex8,
-tag="foundation")
+blk = add_block(geo, [0.0, 0.0, 0.0], 2.0, 1.0, 1.0;
+    nx=8, ny=4, nz=4, rz=1.3,
+    shape=:hex8,
+    tag="foundation")
 ```
 """
 function add_block(geometry::GeoModel, 
