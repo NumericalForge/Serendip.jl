@@ -16,7 +16,7 @@
         size=(220,150), face_color=:aliceblue, warp=0.0,
         line_width=0.3, line_color=:auto, outline_width=0.4, outline_color=:auto,
         outline_angle=120,
-        line_elem_width=0.6,
+        line_elem_width=0.6, line_elem_color=:auto,
         field="", limits=Float64[], field_kind=:auto, field_mult=1.0,
         label="", colormap=:coolwarm, diverging=false,
         colorbar=:right, colorbar_ratio=0.9, bins=6,
@@ -49,12 +49,13 @@ mutable struct DomainPlotLayer
     node_marker_kinds::Dict{Int,Symbol}
 
     line_width::Float64
-    line_color::Symbol
+    line_color::Union{Symbol,Color}
     outline_width::Float64
-    outline_color::Symbol
+    outline_color::Union{Symbol,Color}
     outline_angle::Float64
     line_elem_width::Float64
-    face_color::Tuple
+    line_elem_color::Union{Symbol,Color}
+    face_color::Color
     field::String
     auto_limits::Bool
     limits::Vector{Float64}
@@ -83,6 +84,14 @@ struct DomainRenderElem
     shade::Float64
     layer_index::Int
     index_in_layer::Int
+    xmin::Float64
+    xmax::Float64
+    ymin::Float64
+    ymax::Float64
+    zmin::Float64
+    zmax::Float64
+    zavg::Float64
+    fallback_depth::Float64
 end
 
 
@@ -112,12 +121,13 @@ mutable struct DomainPlot <: Figure
     height::Float64
 
     line_width::Float64
-    line_color::Symbol
+    line_color::Union{Symbol,Color}
     outline_width::Float64
-    outline_color::Symbol
+    outline_color::Union{Symbol,Color}
     outline_angle::Float64
     line_elem_width::Float64
-    face_color::Tuple
+    line_elem_color::Union{Symbol,Color}
+    face_color::Color
     field::String
     field_kind::Symbol
     limits::Vector{Float64}
@@ -224,7 +234,8 @@ mutable struct DomainPlot <: Figure
             :auto,
             120.0,
             0.6,
-            _colors_dict[:aliceblue],
+            :auto,
+            Color(:aliceblue),
             "",
             :auto,
             [0.0, 0.0],
@@ -263,14 +274,15 @@ end
 
 function DomainPlot(mesh;
     size::Tuple{<:Real,<:Real}=(220,150),
-    face_color::Symbol=:aliceblue,
+    face_color::Union{Symbol,Color,Tuple}=:aliceblue,
     warp::Real=0.0,
     line_width::Real=0.3,
-    line_color::Symbol=:auto,
+    line_color::Union{Symbol,Color,Tuple}=:auto,
     outline_width::Real=0.35,
-    outline_color::Symbol=:auto,
+    outline_color::Union{Symbol,Color,Tuple}=:auto,
     outline_angle::Real=120.0,
     line_elem_width::Real=0.6,
+    line_elem_color::Union{Symbol,Color,Tuple}=:auto,
     field::AbstractString="",
     field_kind::Symbol=:auto,
     limits::AbstractVector{<:Real}=Float64[],
@@ -330,6 +342,7 @@ function DomainPlot(mesh;
         outline_color=outline_color,
         outline_angle=outline_angle,
         line_elem_width=line_elem_width,
+        line_elem_color=line_elem_color,
         field=field,
         field_kind=field_kind,
         limits=limits,
@@ -364,6 +377,24 @@ const _domain_rotation_keys = (:rx, :ry, :rz)
 const _domain_regular_marker_kind = :regular
 
 
+function _domain_resolve_color(color, name::AbstractString; auto::Bool=false)
+    if auto && color === :auto
+        return :auto
+    end
+
+    try
+        return resolve_color(color)
+    catch err
+        err isa ArgumentError || rethrow()
+        auto_msg = auto ? " or :auto" : ""
+        throw(ArgumentError("$name must be a named color, Color, or RGB tuple$auto_msg. Got $(repr(color))"))
+    end
+end
+
+
+_domain_rgb(color::Color) = Tuple(rgb(color))
+
+
 
 function _domain_edge_key(edge::AbstractCell)
     return Tuple(sort(Int[node.id for node in edge.nodes]))
@@ -392,6 +423,7 @@ function _domain_sync_legacy_layer_fields!(mplot::DomainPlot, layer::DomainPlotL
     mplot.outline_color = layer.outline_color
     mplot.outline_angle = layer.outline_angle
     mplot.line_elem_width = layer.line_elem_width
+    mplot.line_elem_color = layer.line_elem_color
     mplot.face_color = layer.face_color
     mplot.field = layer.field
     mplot.field_kind = layer.field_kind
@@ -434,14 +466,15 @@ save(plot, "out.pdf")
 - `mesh::Union{AbstractDomain,FEModel}`: Source mesh or FE model for this layer.
 
 # Layer keywords
-- `face_color::Symbol`: surface color for area/surface cells.
+- `face_color::Union{Symbol,Color,Tuple}`: surface color for area/surface cells.
 - `warp::Real`: displacement scale factor applied from nodal field `"U"`.
 - `line_width::Real`: internal line width for area/surface cells.
-- `line_color::Symbol`: line color; `:auto` darkens the face color.
+- `line_color::Union{Symbol,Color,Tuple}`: line color; `:auto` darkens the face color.
 - `outline_width::Real`: boundary outline width.
-- `outline_color::Symbol`: boundary outline color; `:auto` derives from `line_color`.
+- `outline_color::Union{Symbol,Color,Tuple}`: boundary outline color; `:auto` derives from `line_color`.
 - `outline_angle::Real`: maximum adjacent-face angle, in degrees, considered part of the outline.
 - `line_elem_width::Real`: stroke width for line elements.
+- `line_elem_color::Union{Symbol,Color,Tuple}`: line-element color; `:auto` keeps the default standalone line color unless an element field colormap is active.
 - `field::AbstractString`: scalar field name for coloring; empty disables coloring.
 - `field_kind::Symbol`: `:auto | :none | :node | :element`.
 - `limits::Vector{<:Real}`: field range `[min,max]`; empty vector enables auto range.
@@ -453,7 +486,7 @@ save(plot, "out.pdf")
 - `colorbar_ratio::Real`: colorbar length factor for this layer; defaults to the figure setting.
 - `bins::Int`: number of colorbar bins.
 - `interpolation::Symbol`: `:constant | :linear | :nonlinear`.
-- `show_outline::Bool`: draw outline edges (`:outline` forces on).
+- `show_outline::Bool`: draw outline edges (`:outline` forces on, including in `:wireframe` mode).
 - `view_mode::Symbol`: `:surface_with_edges | :surface | :wireframe | :outline`.
 - `mark::Symbol`: node marker mode. Use `:none`, `:auto`, or `:support`.
 - `mark_size::Real`: node marker size in points.
@@ -473,14 +506,15 @@ save(plot, "out.pdf")
 function add_plot(
     mplot::DomainPlot,
     mesh;
-    face_color::Symbol=:aliceblue,
+    face_color::Union{Symbol,Color,Tuple}=:aliceblue,
     warp::Real=0.0,
     line_width::Real=0.3,
-    line_color::Symbol=:auto,
+    line_color::Union{Symbol,Color,Tuple}=:auto,
     outline_width::Real=0.3,
-    outline_color::Symbol=:auto,
+    outline_color::Union{Symbol,Color,Tuple}=:auto,
     outline_angle::Real=120.0,
     line_elem_width::Real=0.6,
+    line_elem_color::Union{Symbol,Color,Tuple}=:auto,
     field::AbstractString="",
     field_kind::Symbol=:auto,
     limits::AbstractVector{<:Real}=Float64[],
@@ -499,9 +533,6 @@ function add_plot(
     stage=nothing,
     node_labels::Bool=false,
 )
-    @check face_color in keys(_colors_dict) "face_color must be one of: $(collect(keys(_colors_dict))). Got $face_color"
-    @check line_color == :auto || line_color in keys(_colors_dict) "line_color must be :auto or one of: $(collect(keys(_colors_dict))). Got $line_color"
-    @check outline_color == :auto || outline_color in keys(_colors_dict) "outline_color must be :auto or one of: $(collect(keys(_colors_dict))). Got $outline_color"
     @check 0 <= outline_angle <= 180 "outline_angle must be between 0 and 180 degrees. Got $outline_angle"
     @check length(limits) in (0, 2) "limits must have length 2 (manual) or be empty (auto)"
     @check mark in _domain_mark_list "mark must be one of $(_domain_mark_list). Got $mark"
@@ -516,6 +547,10 @@ function add_plot(
     if !isempty(mplot.layers)
         @check mesh.ctx.ndim == mplot.layers[1].mesh.ctx.ndim "DomainPlot: all layers must have the same dimension"
     end
+    face_color = _domain_resolve_color(face_color, "face_color")
+    line_color = _domain_resolve_color(line_color, "line_color"; auto=true)
+    outline_color = _domain_resolve_color(outline_color, "outline_color"; auto=true)
+    line_elem_color = _domain_resolve_color(line_elem_color, "line_elem_color"; auto=true)
     layer_colorbar = something(colorbar, mplot.colorbar_location)
     layer_colorbar_ratio = float(something(colorbar_ratio, mplot.colorbar_ratio))
 
@@ -534,7 +569,8 @@ function add_plot(
         outline_color,
         float(outline_angle),
         float(line_elem_width),
-        _colors_dict[face_color],
+        line_elem_color,
+        face_color,
         string(field),
         length(limits) == 0,
         length(limits) == 0 ? [0.0, 0.0] : collect(float.(limits)),
@@ -548,7 +584,7 @@ function add_plot(
         Colorbar(location=:none),
         bins,
         interpolation,
-        (show_outline || view_mode == :outline) && view_mode != :wireframe,
+        show_outline || view_mode == :outline,
         view_mode,
         mark,
         float(mark_size),
@@ -865,10 +901,7 @@ end
 
 
 function _domain_render_depth_key(render::DomainRenderElem)
-    zavg = sum(node.coord[3] for node in render.elem.nodes)/length(render.elem.nodes)
-    zmin = minimum(node.coord[3] for node in render.elem.nodes)
-    depth = 0.9*zavg + 0.1*zmin
-    return (-depth, render.layer_index, render.index_in_layer)
+    return (-render.fallback_depth, render.layer_index, render.index_in_layer)
 end
 
 
@@ -876,6 +909,195 @@ function _domain_render_2d_key(render::DomainRenderElem)
     role_rank = render.elem.role == :line ? 1 : 0
     area_key = role_rank == 0 ? -cell_extent(render.elem) : 0.0
     return (render.layer_index, role_rank, area_key, render.index_in_layer)
+end
+
+
+function _domain_is_surface_like(elem::AbstractCell)
+    return elem.shape.ndim == 2 && elem.role in (:solid, :surface)
+end
+
+
+_domain_is_line(elem::AbstractCell) = elem.role == :line
+
+
+function _domain_is_surface_line_pair(a::AbstractCell, b::AbstractCell)
+    return (_domain_is_surface_like(a) && _domain_is_line(b)) || (_domain_is_line(a) && _domain_is_surface_like(b))
+end
+
+
+function _domain_render_role_rank_3d(render::DomainRenderElem)
+    role = render.elem.role
+    role == :line && return 1
+    _domain_is_surface_like(render.elem) && return 0
+    return 0
+end
+
+
+function _domain_render_depth_tolerance(mplot::DomainPlot)
+    zmin = minimum(node.coord[3] for node in mplot.nodes)
+    zmax = maximum(node.coord[3] for node in mplot.nodes)
+    zrange = zmax - zmin
+    return max(zrange * 1e-6, 1e-9)
+end
+
+
+function _domain_render_overlap_2d(a::DomainRenderElem, b::DomainRenderElem, tol::Float64)
+    xoverlap = max(a.xmin, b.xmin) <= min(a.xmax, b.xmax) + tol
+    yoverlap = max(a.ymin, b.ymin) <= min(a.ymax, b.ymax) + tol
+    return xoverlap && yoverlap
+end
+
+
+function _domain_shared_node_count(a::AbstractCell, b::AbstractCell)
+    ids = Set(node.id for node in a.nodes)
+    return count(node -> node.id in ids, b.nodes)
+end
+
+
+function _domain_render_interval_order(a::DomainRenderElem, b::DomainRenderElem, tol::Float64)
+    if a.zmin > b.zmax + tol
+        return -1
+    elseif b.zmin > a.zmax + tol
+        return 1
+    else
+        return 0
+    end
+end
+
+
+function _domain_order_by_nearest_depth(a::DomainRenderElem, b::DomainRenderElem, tol::Float64)
+    if a.zmin < b.zmin - tol
+        return 1
+    elseif b.zmin < a.zmin - tol
+        return -1
+    else
+        return 0
+    end
+end
+
+
+function _domain_order_by_fallback_depth(a::DomainRenderElem, b::DomainRenderElem, tol::Float64)
+    if a.fallback_depth < b.fallback_depth - tol
+        return -1
+    elseif b.fallback_depth < a.fallback_depth - tol
+        return 1
+    else
+        return 0
+    end
+end
+
+
+function _domain_render_order_3d(a::DomainRenderElem, b::DomainRenderElem, tol::Float64)
+    a_surface = _domain_is_surface_like(a.elem)
+    b_surface = _domain_is_surface_like(b.elem)
+    overlaps_2d = _domain_render_overlap_2d(a, b, tol)
+
+    if overlaps_2d && (a_surface || b_surface)
+        order = _domain_render_interval_order(a, b, tol)
+        order != 0 && return order
+    end
+
+    if overlaps_2d && (a_surface || b_surface)
+        order = _domain_order_by_nearest_depth(a, b, tol)
+        order != 0 && return order
+    end
+
+    if overlaps_2d && _domain_is_surface_line_pair(a.elem, b.elem)
+        return _domain_is_line(a.elem) ? 1 : -1
+    end
+
+    order = _domain_order_by_fallback_depth(a, b, tol)
+    order != 0 && return order
+
+    a_rank = _domain_render_role_rank_3d(a)
+    b_rank = _domain_render_role_rank_3d(b)
+    if a_rank != b_rank
+        return a_rank < b_rank ? -1 : 1
+    end
+
+    a.layer_index != b.layer_index && return a.layer_index < b.layer_index ? -1 : 1
+    a.index_in_layer != b.index_in_layer && return a.index_in_layer < b.index_in_layer ? -1 : 1
+    return 0
+end
+
+
+function _domain_render_shared_edge_order_3d(a::DomainRenderElem, b::DomainRenderElem, tol::Float64)
+    if !_domain_is_surface_line_pair(a.elem, b.elem)
+        return 0
+    end
+
+    if !_domain_render_overlap_2d(a, b, tol)
+        return 0
+    end
+
+    if _domain_shared_node_count(a.elem, b.elem) < 2
+        return 0
+    end
+
+    return _domain_is_line(a.elem) ? 1 : -1
+end
+
+
+function _domain_shared_edge_target_3d(renders::Vector{DomainRenderElem}, i::Int, tol::Float64)
+    render = renders[i]
+    _domain_is_line(render.elem) || return i
+
+    target = i
+    for j in i+1:length(renders)
+        if _domain_render_shared_edge_order_3d(render, renders[j], tol) > 0
+            target = j
+        end
+    end
+
+    return target
+end
+
+
+function _domain_correct_render_order_3d!(renders::Vector{DomainRenderElem}, tol::Float64)
+    n = length(renders)
+    n <= 1 && return nothing
+
+    last_unsorted = n
+    while last_unsorted > 1
+        changed = false
+        last_swap = 1
+        for i in 1:last_unsorted-1
+            if _domain_render_order_3d(renders[i], renders[i+1], tol) > 0
+                renders[i], renders[i+1] = renders[i+1], renders[i]
+                changed = true
+                last_swap = i + 1
+            end
+        end
+        changed || break
+        last_unsorted = last_swap
+    end
+
+    return nothing
+end
+
+
+function _domain_correct_shared_edge_priority_3d!(renders::Vector{DomainRenderElem}, tol::Float64)
+    n = length(renders)
+    n <= 1 && return nothing
+
+    i = 1
+    while i < n
+        if !_domain_is_line(renders[i].elem)
+            i += 1
+            continue
+        end
+
+        render = renders[i]
+        target = _domain_shared_edge_target_3d(renders, i, tol)
+        if target > i
+            deleteat!(renders, i)
+            insert!(renders, target, render)
+        else
+            i += 1
+        end
+    end
+
+    return nothing
 end
 
 
@@ -906,12 +1128,26 @@ function _domain_build_render_elems!(mplot::DomainPlot)
     for (layer_index, layer) in enumerate(mplot.layers)
         for (index_in_layer, elem) in enumerate(layer.elems)
             shade = mplot.ndim == 3 ? layer.shades[index_in_layer] : 1.0
-            push!(mplot.render_elems, DomainRenderElem(layer, elem, shade, layer_index, index_in_layer))
+            xcoords = [node.coord[1] for node in elem.nodes]
+            ycoords = [node.coord[2] for node in elem.nodes]
+            zcoords = [node.coord[3] for node in elem.nodes]
+            xmin = minimum(xcoords)
+            xmax = maximum(xcoords)
+            ymin = minimum(ycoords)
+            ymax = maximum(ycoords)
+            zmin = minimum(zcoords)
+            zmax = maximum(zcoords)
+            zavg = sum(zcoords) / length(zcoords)
+            fallback_depth = 0.9 * zavg + 0.1 * zmin
+            push!(mplot.render_elems, DomainRenderElem(layer, elem, shade, layer_index, index_in_layer, xmin, xmax, ymin, ymax, zmin, zmax, zavg, fallback_depth))
         end
     end
 
     if mplot.ndim == 3
+        tol = _domain_render_depth_tolerance(mplot)
         sort!(mplot.render_elems, by=_domain_render_depth_key)
+        _domain_correct_render_order_3d!(mplot.render_elems, tol)
+        _domain_correct_shared_edge_priority_3d!(mplot.render_elems, tol)
     else
         sort!(mplot.render_elems, by=_domain_render_2d_key)
     end
@@ -1200,9 +1436,11 @@ function draw_contents!(mplot::DomainPlot, ctx::RenderContext)
         if elem.role == :line
             x, y = elem.nodes[1].coord
             move_to(cairo_ctx, x, y)
-            color = Vec3(0.8, 0.2, 0.1)
+            color = (0.8, 0.2, 0.1)
             if _domain_layer_field_kind(layer) == :element
                 color = layer.colormap(layer.values[elem.id])
+            elseif layer.line_elem_color != :auto
+                color = _domain_rgb(layer.line_elem_color)
             end
 
             pts = bezier_points(elem)
@@ -1272,17 +1510,17 @@ function draw_surface_cell!(ctx::RenderContext, layer::DomainPlotLayer, elem::Ab
         elseif line_color == :auto
             face_color.*0.55
         else
-            _colors_dict[line_color]
+            _domain_rgb(line_color)
         end
     end
 
     function get_outline_color(face_color, line_color, outline_color)
         if outline_color != :auto
-            _colors_dict[outline_color]
+            _domain_rgb(outline_color)
         elseif line_color == :auto
             face_color.*0.7
         else
-            _colors_dict[line_color].*0.7
+            _domain_rgb(line_color).*0.7
         end
     end
 
@@ -1295,7 +1533,7 @@ function draw_surface_cell!(ctx::RenderContext, layer::DomainPlotLayer, elem::Ab
         elseif field_kind == :element
             color = layer.colormap(layer.values[elem.id]).*shade
         else
-            color = layer.face_color.*shade
+            color = _domain_rgb(layer.face_color).*shade
         end
 
         line_color = get_line_color(color, layer.line_color)
@@ -1420,7 +1658,7 @@ function draw_surface_cell!(ctx::RenderContext, layer::DomainPlotLayer, elem::Ab
                 end
             end
 
-            color = layer.face_color
+            color = _domain_rgb(layer.face_color)
             if field_kind == :element
                 color = layer.colormap(layer.values[elem.id])
             end

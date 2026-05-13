@@ -5,8 +5,8 @@ X = collect(0:0.25:2π)
 
 chart1 = Chart(
     title="Sine Curve",
-    background=:white,
-    legend_background=:old_paper,
+    background=Color(:white),
+    legend_background=(242/255, 232/255, 203/255),
     xlabel="`x`",
     ylabel="`sin(x)`",
     legend=:outer_right,
@@ -22,6 +22,16 @@ chart2 = Chart(
     quiet=true,
 )
 add_bar(chart2, 1:5, [1.0, 1.5, 0.7, 1.2, 1.8]; color=:steelblue, label="bars")
+add_line(
+    chart2,
+    1:5,
+    [1.1, 1.3, 0.9, 1.0, 1.6];
+    color=Color(:royalblue),
+    mark=:square,
+    mark_color=(1.0, 1.0, 1.0),
+    mark_stroke_color=Color(:black),
+    label="overlay",
+)
 
 geo = GeoModel(quiet=true)
 add_block(geo, [0,0,0], 1,1,1, nx=1, ny=1, nz=1, tag="solids")
@@ -60,3 +70,7 @@ save(grid, "output/chart-grid.pdf")
 save(grid, "output/chart-grid.png")
 save(chart1, "output/chart-grid-child.pdf")
 @test chart1.background == Color(:white)
+@test chart1.legend.background == Color(:old_paper)
+@test chart2.dataseries[2].color == Color(:royalblue)
+@test chart2.dataseries[2].mark_color == Color(:white)
+@test chart2.dataseries[2].mark_stroke_color == Color(:black)

@@ -23,13 +23,13 @@ Construct a 2D chart figure with axes, legend, and optional tick customization.
 - `xmult::Real`, `ymult::Real`: multiplicative factors applied to tick values.
 - `xbins::Int`, `ybins::Int`: target number of major ticks.
 - `title::AbstractString`: chart title, centered above the plot area.
-- `background`: full-figure background fill; `nothing` leaves the figure unfilled.
+- `background::Union{Nothing,Symbol,Color,Tuple}`: full-figure background fill; `nothing` leaves the figure unfilled.
 - `xlabel::AbstractString`, `ylabel::AbstractString`: axis labels.
 - `xticks::Vector{<:Real}`, `yticks::Vector{<:Real}`: explicit tick positions; empty vectors enable auto ticks.
 - `xtick_labels::Vector{<:AbstractString}`, `ytick_labels::Vector{<:AbstractString}`: custom tick labels; if provided, lengths must match the corresponding tick arrays.
 - `legend::Symbol`: legend location (e.g., `:top_right`, `:top_left`, `:bottom_left`, `:outer_right`).
 - `legend_font_size::Real`: legend font size; `0` uses `font_size`.
-- `legend_background`: legend box fill color; if unset it defaults to white standalone and follows the grid background when drawn inside a `ChartGrid`.
+- `legend_background::Union{Nothing,Symbol,Color,Tuple}`: legend box fill color; if unset it defaults to white standalone and follows the grid background when drawn inside a `ChartGrid`.
 - `quiet::Bool`: suppress constructor log.
 
 # Notes
@@ -93,7 +93,7 @@ mutable struct Chart <: Figure
         xbins::Int=7,
         ybins::Int=6,
         title::AbstractString="",
-        background=nothing,
+        background::Union{Nothing,Symbol,Color,Tuple}=nothing,
         xlabel::AbstractString="\$x\$",
         ylabel::AbstractString="\$y\$",
         xticks::Vector{<:Real}=Float64[],
@@ -102,12 +102,7 @@ mutable struct Chart <: Figure
         ytick_labels::Vector{<:AbstractString}=String[],
         legend::Symbol=:top_right,
         legend_font_size::Real=0,
-        legend_background=nothing,
-        # colorbar=:right,
-        # colorbar_scale=0.9,
-        # colorbar_label="",
-        # colorbar_limits=[0.0, 0.0],
-        # colorbar_font_size=7.0,
+        legend_background::Union{Nothing,Symbol,Color,Tuple}=nothing,
         quiet=false
     )
         if legend_font_size == 0
@@ -164,12 +159,12 @@ The second version uses `kind = :line`.
 # Keyword options
 - `line_style::Symbol = :solid` : Line style (e.g. `:solid`, `:dash`, ...).
 - `dash::Vector{Float64} = Float64[]` : Custom dash pattern. If nonempty, overrides `line_style`.
-- `color = :default` : Line/marker color. `:default` selects from the chart palette cyclically.
+- `color::Union{Symbol,Color,Tuple} = :default` : Line/marker color. `:default` selects from the chart palette cyclically.
 - `line_width::Float64 = 0.5` : Line width (> 0).
 - `mark::Symbol = :none` : Mark shape.
 - `mark_size::Float64 = 2.5` : Mark size (> 0).
-- `mark_color = :white` : Mark fill color.
-- `mark_stroke_color = :default` : Mark edge color (`:default` follows `color`).
+- `mark_color::Union{Symbol,Color,Tuple} = :white` : Mark fill color.
+- `mark_stroke_color::Union{Symbol,Color,Tuple} = :default` : Mark edge color (`:default` follows `color`).
 - `label::AbstractString = ""` : Legend label.
 - `tag::AbstractString = ""` : On-curve annotation text.
 - `tag_location::Symbol = :top` : Relative location of tag (`:top`, `:bottom`, `:left`, `:right`).
@@ -192,10 +187,11 @@ add_line(ch, 0:0.1:10, sin.(0:0.1:10); label="sin")
 """
 function add_series(chart::Chart, kind::Symbol, X::AbstractArray, Y::AbstractArray;
     line_style=:solid, dash=Float64[],
-    color=:default,
+    color::Union{Symbol,Color,Tuple}=:default,
     line_width=0.5,
     mark=:none, mark_size=2.5,
-    mark_color=:white, mark_stroke_color=:default,
+    mark_color::Union{Symbol,Color,Tuple}=:white,
+    mark_stroke_color::Union{Symbol,Color,Tuple}=:default,
     label="", tag="", tag_location=:top, tag_position=0.5,
     tag_alignment=:horizontal,
     bar_width=0.0,
@@ -262,12 +258,12 @@ Add a line series to `chart`.
 # Keyword options
 - `line_style::Symbol = :solid`: Line style (e.g. `:solid`, `:dash`, ...).
 - `dash::Vector{Float64} = Float64[]`: Custom dash pattern. If nonempty, overrides `line_style`.
-- `color = :default`: Line/marker color. `:default` selects from the chart palette cyclically.
+- `color::Union{Symbol,Color,Tuple} = :default`: Line/marker color. `:default` selects from the chart palette cyclically.
 - `line_width::Float64 = 0.5`: Line width (> 0).
 - `mark::Symbol = :none`: Mark shape.
 - `mark_size::Float64 = 2.5`: Mark size (> 0).
-- `mark_color = :white`: Mark fill color.
-- `mark_stroke_color = :default`: Mark edge color (`:default` follows `color`).
+- `mark_color::Union{Symbol,Color,Tuple} = :white`: Mark fill color.
+- `mark_stroke_color::Union{Symbol,Color,Tuple} = :default`: Mark edge color (`:default` follows `color`).
 - `label::AbstractString = ""`: Legend label.
 - `tag::AbstractString = ""`: On-curve annotation text.
 - `tag_location::Symbol = :top`: Relative location of tag (`:top`, `:bottom`, `:left`, `:right`).

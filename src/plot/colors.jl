@@ -114,6 +114,9 @@ resolve_color(color::Tuple) = Color(color)
 const _default_colors = [ Color(:c1), Color(:c2), Color(:c3), Color(:c4), Color(:c5), Color(:c6), Color(:c7), Color(:c8), Color(:c9), Color(:c10), Color(:c11), Color(:c12) ]
 
 
+gray(x::Real) = Color(float(x), float(x), float(x))
+export gray
+
 function grayscale(c::Color)
     gray = 0.299*c.r + 0.587*c.g + 0.114*c.b
     return Color(gray, gray, gray, c.a)
