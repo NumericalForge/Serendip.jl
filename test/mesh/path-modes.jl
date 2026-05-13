@@ -1,5 +1,6 @@
 using Serendip
 using Test
+using LinearAlgebra: norm
 
 @testset "Path modes" begin
     @testset "Invalid path mode" begin
@@ -12,6 +13,8 @@ using Test
 
         @test_throws Exception add_path(geo, [l1]; mode=:bad)
         @test_throws MethodError add_path(geo, [l1]; embedded=true)
+        @test_throws Exception add_path(geo, [l1]; mode=:free, n=0)
+        @test_throws Exception add_path(geo, [l1]; mode=:embedded, n=2)
     end
 
     @testset "Interface mode creates interface elements" begin
@@ -106,7 +109,7 @@ using Test
         p1 = add_point(geo, [0.0, 0.0, 0.0])
         p2 = add_point(geo, [1.0, 1.0, 0.0])
         l1 = add_line(geo, p1, p2)
-        add_path(geo, [l1]; mode=:free, tag="bars", shape=:lin3)
+        add_path(geo, [l1]; mode=:free, tag="bars")
 
         mesh = Mesh(geo, quiet=true)
         lines = select(mesh.elems, :line, "bars")
@@ -118,5 +121,55 @@ using Test
         @test !lines[1].embedded
         @test isempty(select(mesh.elems, :line_interface))
         @test isempty(select(mesh.elems, :tip))
+    end
+
+    @testset "Free mode subdivides each command with scalar n" begin
+        geo = GeoModel(quiet=true)
+        add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=1, ny=1, shape=:quad4)
+
+        add_path(geo, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0]; mode=:free, tag="bars", quadratic=false, n=3)
+
+        mesh = Mesh(geo, quiet=true)
+        lines = select(mesh.elems, :line, "bars")
+
+        @test length(lines) == 6
+        @test all(line.shape.kind == :lin2 for line in lines)
+    end
+
+    @testset "Free mode subdivides higher-order line shapes" begin
+        geo = GeoModel(quiet=true)
+        add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=1, ny=1, shape=:quad4)
+
+        p1 = add_point(geo, [0.0, 0.0, 0.0])
+        p2 = add_point(geo, [1.0, 0.0, 0.0])
+        l1 = add_line(geo, p1, p2)
+        add_path(geo, [l1]; mode=:free, tag="bars", n=2)
+
+        mesh = Mesh(geo, quiet=true)
+        lines = select(mesh.elems, :line, "bars")
+        endpoints1 = Set(lines[1].nodes[1:2])
+        endpoints2 = Set(lines[2].nodes[1:2])
+
+        @test length(lines) == 2
+        @test all(line.shape.kind == :lin3 for line in lines)
+        @test length(intersect(endpoints1, endpoints2)) == 1
+    end
+
+    @testset "Free mode uses arc-length subdivision on curved paths" begin
+        geo = GeoModel(quiet=true)
+        add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=1, ny=1, shape=:quad4)
+
+        pc = add_point(geo, [0.0, 0.0, 0.0])
+        p1 = add_point(geo, [1.0, 0.0, 0.0])
+        p2 = add_point(geo, [0.0, 1.0, 0.0])
+        arc = add_circle_arc(geo, p1, pc, p2)
+        add_path(geo, [arc]; mode=:free, tag="bars", quadratic=false, n=4)
+
+        mesh = Mesh(geo, quiet=true)
+        lines = select(mesh.elems, :line, "bars")
+        lengths = [norm(line.nodes[2].coord - line.nodes[1].coord) for line in lines]
+
+        @test length(lines) == 4
+        @test maximum(lengths) - minimum(lengths) < 1e-3
     end
 end

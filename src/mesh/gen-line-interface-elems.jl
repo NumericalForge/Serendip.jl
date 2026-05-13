@@ -121,6 +121,9 @@ end
 _line_shape_for_nodes(nodes::Vector{Node}) = (LIN2, LIN3, LIN4)[length(nodes)-1]
 
 
+_gpath_line_shape(gpath::GPath) = gpath.quadratic ? LIN3 : LIN2
+
+
 function _path_line_nodes!(mesh::Mesh, path::Path, cmd::PathCmd, line_shape::CellShape, P1::Node, P2::Node; t1=0.0, t2=1.0)
     line_shape in (LIN2, LIN3, LIN4) || error("gen_path_insets: unsupported line shape $(line_shape.kind)")
     line_shape == LIN2 && return [P1, P2]
@@ -134,6 +137,38 @@ function _path_line_nodes!(mesh::Mesh, path::Path, cmd::PathCmd, line_shape::Cel
         push!(points, P)
     end
     return points
+end
+
+
+function _command_arc_length_params(path::Path, cmd::PathCmd, n::Int)
+    n == 1 && return [0.0, 1.0]
+
+    nsamples = max(64, 16*n)
+    ts = collect(range(0.0, 1.0; length=nsamples + 1))
+    coords = [evaluate(path, cmd, t) for t in ts]
+
+    cumulative = zeros(Float64, length(ts))
+    for i in 2:length(ts)
+        cumulative[i] = cumulative[i - 1] + norm(coords[i] - coords[i - 1])
+    end
+
+    total = cumulative[end]
+    total <= eps(Float64) && return collect(range(0.0, 1.0; length=n + 1))
+
+    params = Float64[0.0]
+    for i in 1:n-1
+        target = total * i / n
+        j = searchsortedfirst(cumulative, target)
+        j <= 1 && (push!(params, ts[1]); continue)
+        j > length(ts) && (push!(params, ts[end]); continue)
+
+        l1, l2 = cumulative[j - 1], cumulative[j]
+        t1, t2 = ts[j - 1], ts[j]
+        t = l2 == l1 ? t1 : t1 + (target - l1) * (t2 - t1) / (l2 - l1)
+        push!(params, t)
+    end
+    push!(params, 1.0)
+    return params
 end
 
 
@@ -195,7 +230,7 @@ function gen_hosted_path_insets(mesh::Mesh, subpath::GPath)
     commands  = path.cmds
     is_closed = path.closed
     line_tag  = subpath.tag
-    line_shape    = subpath.shape
+    line_shape = _gpath_line_shape(subpath)
 
     segment_end = 1.0
     first_path_node = Node(path.points[1].coord)
@@ -357,17 +392,23 @@ end
 
 function gen_free_path_insets(mesh::Mesh, subpath::GPath)
     path = subpath.path
-    line_shape = subpath.shape
+    line_shape = _gpath_line_shape(subpath)
+    n = subpath.n
     tol = PATH_NODE_TOL
 
     for cmd in path.cmds
         cmd.key == :M && continue
 
-        X_start, X_end = _path_command_endpoints(path, cmd)
-        P1 = _find_or_create_mesh_node!(mesh, X_start, tol=tol)
-        P2 = _find_or_create_mesh_node!(mesh, X_end, tol=tol)
-        points = _path_line_nodes!(mesh, path, cmd, line_shape, P1, P2)
+        params = _command_arc_length_params(path, cmd, n)
+        P1 = _find_or_create_mesh_node!(mesh, evaluate(path, cmd, params[1]), tol=tol)
 
-        _add_line_cell!(mesh, line_shape, points, subpath.tag)
+        for i in 1:n
+            is_last = i == n
+            P2 = _find_or_create_mesh_node!(mesh, evaluate(path, cmd, params[i + 1]), tol=tol)
+            points = _path_line_nodes!(mesh, path, cmd, line_shape, P1, P2, t1=params[i], t2=params[i + 1])
+
+            _add_line_cell!(mesh, line_shape, points, subpath.tag)
+            is_last || (P1 = P2)
+        end
     end
 end

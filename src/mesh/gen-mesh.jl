@@ -312,11 +312,19 @@ function Mesh(geo::GeoModel;
 
     else
         if isempty(source_meshes)
-            error("Mesh: No blocks, surfaces/volumes, or stored meshes found")
+            if isempty(geo.gpaths)
+                error("Mesh: No blocks, surfaces/volumes, stored meshes, or paths found")
+            end
+
+            all(gpath.mode == :free for gpath in geo.gpaths) ||
+                error("Mesh: Non-free paths require a base mesh or OCC geometry")
+
+            mesh = Mesh(ndim)
+        else
+            mesh = has_blocks && length(source_meshes)==1 ? source_meshes[1] :
+                   length(source_meshes)==1 ? copy(source_meshes[1]) :
+                   join_meshes(source_meshes..., check=true)
         end
-        mesh = has_blocks && length(source_meshes)==1 ? source_meshes[1] :
-               length(source_meshes)==1 ? copy(source_meshes[1]) :
-               join_meshes(source_meshes..., check=true)
     end
 
     mesh.ctx.ndim = max(mesh.ctx.ndim, ndim)

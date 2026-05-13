@@ -40,8 +40,9 @@ function Path(edges::Vector{Edge})
 
 end
 
+
 """
-    GPath(path; mode=:interface, shape=:lin3, tag="", interface_tag="", tip_tag="", tips=:none)
+    GPath(path; mode=:interface, quadratic=true, tag="", interface_tag="", tip_tag="", tips=:none, n=1)
 
 Creates a geometric path (`GPath`) entity, which represents a curve (typically a sequence of connected edges) embedded or placed in the geometry model.
 This structure is typically used to represent linear inclusions such as reinforcements, drains, etc.
@@ -52,32 +53,36 @@ If `tips` is not `:none`, tip elements will be created at the endpoints of the p
 # Arguments
 - `path::Path`: The geometric path (sequence of edges and points) to be wrapped as a GPath.
 - `mode::Symbol=:interface`: Path generation mode. Use `:interface`, `:embedded`, `:conforming`, or `:free`.
-- `shape::Symbol=:lin3`: Shape symbol used for discretizing the path (e.g., `:lin2`, `:lin3`).
+- `quadratic::Bool=true`: If `true`, discretize the path with quadratic 3-node line elements. If `false`, use linear 2-node line elements.
 - `tag::String=""`: Optional label or name for this path (e.g. to identify or filter later).
 - `interface_tag::String=""`: Optional tag for use when interface elements are generated from the path.
 - `tips::Symbol=:none`: Specify witch tips are considered (:start, :end, :both, :none) for the generation of tip interface elements.
 - `tip_tag::String=""`: Optional tag for tip elements if tip elements are enabled.
+- `n::Int=1`: Number of free-path line elements created per path command. Only used when `mode == :free`.
 
 Note: Original OCC edges are removed from the geometry after constructing the path.
 """
 struct GPath<:GeoEntity
     path::Path
     mode::Symbol
-    shape::CellShape
+    quadratic::Bool
     tag::String
     interface_tag::String
     tip_tag::String
     tips::Symbol
+    n::Int
 
-    function GPath(path::Path; mode::Symbol=:interface, shape::Union{Symbol,CellShape}=:lin3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
+    function GPath(path::Path; mode::Symbol=:interface, quadratic::Bool=true, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none, n::Int=1)
         @check mode in (:interface, :embedded, :conforming, :free) "'mode' must be one of :interface, :embedded, :conforming, :free"
         @check tips in (:none, :start, :end, :both)
+        @check n >= 1 "'n' must be greater than or equal to 1"
         if mode != :interface
             interface_tag != "" && warn("GPath: 'interface_tag' is ignored when mode=$(repr(mode))")
             tip_tag != "" && warn("GPath: 'tip_tag' is ignored when mode=$(repr(mode))")
             tips != :none && warn("GPath: 'tips' is ignored when mode=$(repr(mode))")
         end
-        this = new(path, mode, get_shape(shape), tag, interface_tag, tip_tag, tips)
+        mode != :free && n != 1 && error("GPath: 'n' is only supported when mode=:free")
+        this = new(path, mode, quadratic, tag, interface_tag, tip_tag, tips, n)
         return this
     end
 end
@@ -93,7 +98,7 @@ function Base.copy(p::GPath)
     path = copy(p.path)
 
     # create a new GPath with the copied path
-    return GPath(path; mode=p.mode, shape=p.shape, tag=p.tag, interface_tag=p.interface_tag, tip_tag=p.tip_tag, tips=p.tips)
+    return GPath(path; mode=p.mode, quadratic=p.quadratic, tag=p.tag, interface_tag=p.interface_tag, tip_tag=p.tip_tag, tips=p.tips, n=p.n)
 end
 
 function move(gpath::GPath; dx::Real=0.0, dy::Real=0.0, dz::Real=0.0)
@@ -298,20 +303,27 @@ end
 
 
 """
-    add_path(geometry, edges; mode=:interface, shape=:lin3, tag="", interface_tag="", tip_tag="", tips=:none)
+    add_path(geometry, edges; mode=:interface, quadratic=true, tag="", interface_tag="", tip_tag="", tips=:none, n=1)
 
 Adds a logical path structure (`GPath`) to the geometric model from a sequence of connected `Edge` objects.
 This is useful for modeling discrete and embedded 1D elements such as reinforcement bars, drains, or inclusions.
+
+The `mode` argument defines how the path is converted into line cells when `Mesh(geo)` is built:
+- `:interface`: traces the path through host cells, creates line elements along the path, and also creates `:line_interface` coupling elements between each line segment and its host cell. Optional `tips`/`tip_tag` are only meaningful in this mode.
+- `:embedded`: traces the path through host cells and creates line elements coupled directly to their host cell as embedded elements (`embedded=true`), without creating interface cells.
+- `:conforming`: reuses existing mesh edges that already lie on the path. It does not create new path geometry inside cells; instead it walks the existing mesh topology from one existing path endpoint to the other.
+- `:free`: creates standalone line elements directly from the path geometry, independent of host-cell crossings. Existing endpoint nodes are reused when available, otherwise new nodes are created. The optional `n` keyword subdivides each path edge into `n` line elements in this mode.
 
 # Arguments
 - `geometry::GeoModel`: Target geometric model.
 - `edges::Vector{Edge}`: Sequence of connected edges that define the path.
 - `mode::Symbol=:interface`: Path generation mode. Use `:interface`, `:embedded`, `:conforming`, or `:free`.
-- `shape::Symbol=:lin3`: Finite element shape symbol for discretization of the path (`:lin2` or `:lin3`).
+- `quadratic::Bool=true`: If `true`, discretize the path with quadratic 3-node line elements. If `false`, use linear 2-node line elements.
 - `tag::String=""`: Identifier tag for the path.
 - `interface_tag::String=""`: Optional tag used for interface elements.
 - `tip_tag::String=""`: Optional tag for used for tip elements at endpoints.
 - `tips::Symbol=:none`: Specifies which endpoint elements are generated (e.g., `:start`, `:end`, `:both`). If tips is `:none`, no tips elements are created.
+- `n::Int=1`: Number of line elements created per path edge in `:free` mode.
 
 # Returns
 - `GPath`: The path structure added to the model.
@@ -330,31 +342,30 @@ edge2 = add_line(geo, p2, p3)
 path = add_path(geo, [edge1, edge2]; tag="reinforcement", interface_tag="contact")
 ```
 """
-function add_path(geometry::GeoModel, edges::Vector{Edge}; mode::Symbol=:interface, shape::Union{Symbol,CellShape}=:lin3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
+function add_path(geometry::GeoModel, edges::Vector{Edge}; mode::Symbol=:interface, quadratic::Bool=true, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none, n::Int=1)
     @check tips in (:none, :start, :end, :both) "'tips' must be one of :none, :start, :end, :both"
 
     path = Path(edges)
-    gpath = GPath(path; tag=tag, mode=mode, shape=get_shape(shape), interface_tag=interface_tag, tip_tag=tip_tag, tips=tips)
+    gpath = GPath(path; tag=tag, mode=mode, quadratic=quadratic, interface_tag=interface_tag, tip_tag=tip_tag, tips=tips, n=n)
     push!(geometry.gpaths, gpath)
 
-    # remove edges from the geometry model
+    # remove source OCC curves but keep their endpoint points available for
+    # later OCC operations such as rebuilding surfaces from the same vertices.
     dim_ids = [ (1, edge.id) for edge in edges ]
-
-    for dim_id in dim_ids
-        gmsh.model.occ.remove([dim_id], true)
-        gmsh.model.occ.synchronize()
-    end
+    gmsh.model.occ.remove(dim_ids, false)
+    gmsh.model.occ.synchronize()
+    foreach(dim_id -> delete!(geometry.entities, dim_id), dim_ids)
 
     return gpath
 end
 
 
-function add_path(geometry::GeoModel, coords::Vector{<:Real}...; mode::Symbol=:interface, shape::Union{Symbol,CellShape}=:lin3, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none)
+function add_path(geometry::GeoModel, coords::Vector{<:Real}...; mode::Symbol=:interface, quadratic::Bool=true, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none, n::Int=1)
     @check tips in (:none, :start, :end, :both)
 
     path = Path(coords...)
 
-    gpath = GPath(path; tag=tag, mode=mode, shape=get_shape(shape), interface_tag=interface_tag, tip_tag=tip_tag, tips=tips)
+    gpath = GPath(path; tag=tag, mode=mode, quadratic=quadratic, interface_tag=interface_tag, tip_tag=tip_tag, tips=tips, n=n)
     push!(geometry.gpaths, gpath)
 
     return gpath
