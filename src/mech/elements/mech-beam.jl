@@ -91,7 +91,7 @@ function resolve_quadrature(elem::Element{MechBeam}, quadrature::Tuple)
     nl = quadrature[1]
 
     if nl==0
-        nl = 2
+        nl = length(get_ip_coords(elem.shape, 0))
     end
     @check nl in (2, 3, 4) "MechBeam: unsupported number of integration points along the beam length (nl=$nl). Available values are (2, 3, 4)"
 
