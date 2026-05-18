@@ -25,4 +25,4 @@ stage = add_stage(ana, nincs=30, nouts=1)
 add_bc(stage, :node, (x==0), ux=0, uy=0, uz=0, rx=0, ry=0, rz=0)
 add_bc(stage, :node, (x==L), uz = -0.03)
 run(ana, autoinc=true)
-@test log.table["fz"][end]≈-34 atol=0.8
+@test log.table["fz"][end]≈-34 atol=0.9

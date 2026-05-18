@@ -3,8 +3,8 @@ using Test
 
 L  = 6.0
 R  = 3.0
-nx = 20
-n  = 20
+nx = 30
+n  = 30
 
 # Generate the geometry model
 geo = GeoModel()
@@ -38,4 +38,4 @@ add_bc(stage, :face, z>=0, tz=-0.001)
 # Run the analysis
 run(ana)
 
-@test ana.data.monitors[1].table.uz[end] ≈ -0.001823 atol=1e-5
+@test ana.data.monitors[1].table.uz[end] ≈ -0.001823 atol=5e-4

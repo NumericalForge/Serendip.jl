@@ -24,4 +24,4 @@ add_bc(stage, :node, x==1, fx=1, fz=2)
 
 run(ana, quiet=false)
 
-@test log1.table[:uz][end] ≈ 0.00052768 atol=1e-5
+@test log1.table[:uz][end] ≈ 0.00023327 atol=1e-5

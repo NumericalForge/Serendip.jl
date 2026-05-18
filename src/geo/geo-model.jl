@@ -581,11 +581,16 @@ specifying the number of mesh nodes to distribute along it.
 # Returns
 - `Nothing`
 """
-function set_transfinite_curve(geo::GeoModel, curves, num_nodes)
+function set_transfinite_curve(geo::GeoModel, curves::AbstractVector, num_nodes::Int)
     gmsh.model.occ.synchronize()
     for curve in curves
         gmsh.model.mesh.set_transfinite_curve(curve.id, num_nodes)
     end
+end
+
+function set_transfinite_curve(geo::GeoModel, curve::GeoEntity, num_nodes::Int)
+    gmsh.model.occ.synchronize()
+    gmsh.model.mesh.set_transfinite_curve(curve.id, num_nodes)
 end
 
 

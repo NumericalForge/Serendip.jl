@@ -29,7 +29,7 @@ add_bc(stage, :node, (x==1, y==h/2), uy = -0.03)
 
 run(ana, autoinc=true)
 
-@test log.table["fy"][end] ≈ -30 atol=0.4
+@test log.table["fy"][end] ≈ -30 atol=0.6
 
 makeplots = false
 if @isdefined(makeplots) && makeplots

@@ -66,8 +66,10 @@ for case in cases
 
     model = FEModel(mesh, mapper)
     ana = MechAnalysis(model)
+    select(model, :element, "joints", :ip, outer_ip_coord, tag="ip-log", nearest=true)
+    @show select(model, :ip, "ip-log")
 
-    joint_log = add_logger(ana, :ip, outer_ip_coord)
+    joint_log = add_logger(ana, :ip, "ip-log")
 
     stage = add_stage(ana)
     add_bc(stage, :node, "fixed", ux=0, uy=0, uz=0)

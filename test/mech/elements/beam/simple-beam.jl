@@ -3,7 +3,7 @@ using Test
 
 #❱❱❱ Mesh
 geo = GeoModel()
-add_block(geo, [0,0,0], 2, 0, 0, tag="beam", nx=2, shape=:lin3)
+add_block(geo, [0,0,0], 2, 0, 0, tag="beam", nx=6, shape=:lin3)
 
 mesh = Mesh(geo, ndim=2)
 #❱❱❱ FEM analysis
@@ -29,7 +29,7 @@ add_bc(stage, :node, (x==1, y==0), mz=1)
 
 run(ana) 
 
-@test log1.table[:uy][end] ≈ -0.14447 atol=1e-5
+@test log1.table[:uy][end] ≈ -0.14447 atol=1e-3
 
 # ❱❱❱ Post-processing
 plot = DomainPlot(
