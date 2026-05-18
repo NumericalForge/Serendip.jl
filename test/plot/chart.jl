@@ -1,5 +1,5 @@
 using Serendip
-
+using Test
 
 X = collect(0:0.4:8)
 Y1 = sin.(X)
