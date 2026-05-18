@@ -57,6 +57,7 @@ Construct a finite element model from a `Mesh` and a `RegionMapper`.
 # Notes
 - Checks compatibility between element formulations and constitutive models.
 - Initializes nodes, elements, integration points, quadrature, and couplings.
+- Mapping-level `quadrature` is forwarded to each element's `set_quadrature` method.
 - Prints model statistics unless `quiet=true`.
 """
 function FEModel(
@@ -95,12 +96,14 @@ function FEModel(
     ncells      = length(mesh.elems)
     model.elems = Vector{Element}(undef, ncells)
     elem_state_d = Dict{Int,NamedTuple}()
+    elem_quadrature_d = Dict{Int,Union{Int,Tuple}}()
 
     for mapping in mapper.mappings
         selector = mapping.selector
         etype    = mapping.etype
         cmodel   = mapping.cmodel
         cstate   = compat_state_type(cmodel, etype)
+        quadrature = mapping.quadrature
         kwargs   = mapping.params
 
         cells = select(mesh, :element, selector)
@@ -184,6 +187,7 @@ function FEModel(
 
             model.elems[cell.id] = elem
             elem_state_d[cell.id] = state_kwargs
+            elem_quadrature_d[cell.id] = quadrature
         end
     end
 
@@ -241,7 +245,7 @@ function FEModel(
     ip_id = 0
     for elem in model.elems
         elem_config_dofs(elem)  # dofs
-        set_quadrature(elem, state=elem_state_d[elem.id])    # ips
+        set_quadrature(elem, elem_quadrature_d[elem.id], state=elem_state_d[elem.id])    # ips
         for ip in elem.ips      # ip ids
             ip_id += 1
             ip.id = ip_id

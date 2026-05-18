@@ -59,9 +59,22 @@ const POLYVERTEX = MakePOLYVERTEX()
 _register_shape(POLYVERTEX)
 
 
-function get_ip_coords(shape::CellShape, nips=0)
-    !haskey(shape.quadrature, nips) && error("Cell shape $(shape.kind) cannot use $nips integration points. Available values are $(collect(keys(shape.quadrature))).")
-    return shape.quadrature[nips]
+function get_ip_coords(shape::CellShape, quadrature::Tuple)
+    n = length(quadrature)
+    if n==3
+        shape.base_shape == HEX8 || error("Cell shape $(shape.kind) cannot use 3-entry directional quadrature $(quadrature)")
+    elseif n==2
+        shape.base_shape == QUAD4 || error("Cell shape $(shape.kind) cannot use 2-entry directional quadrature $(quadrature)")
+    end
+
+    key = prod(quadrature)
+    haskey(shape.quadrature, key) || error("Cell shape $(shape.kind) cannot set number of integration points for quadrature $(quadrature). Available total rules are $(collect(keys(shape.quadrature))).")
+    return shape.quadrature[key]
+end
+
+
+function get_ip_coords(shape::CellShape, quadrature::Int=0)
+    return get_ip_coords(shape, (quadrature,))
 end
 
 

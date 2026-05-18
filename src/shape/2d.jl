@@ -404,7 +404,7 @@ function MakeQUAD8()
     shape.edge_idxs   = shape.facet_idxs
     shape.facet_shape = ntuple(_->LIN3, 4)
     shape.nat_coords  = coords_QUAD8
-    shape.quadrature  = Dict( 0 => QUAD_IP4, 1 => QUAD_IP1, 4 => QUAD_IP4, 9 => QUAD_IP9, 16 => QUAD_IP16 )
+    shape.quadrature  = Dict( 0 => QUAD_IP9, 1 => QUAD_IP1, 4 => QUAD_IP4, 9 => QUAD_IP9, 16 => QUAD_IP16 )
     shape.func        = shape_func_QUAD8
     shape.deriv       = shape_deriv_QUAD8
     return shape

@@ -87,32 +87,48 @@ function elem_init(elem::Element{MechBeam})
 end
 
 
-function set_quadrature(elem::Element{MechBeam}, n::Int=0; state::NamedTuple=NamedTuple())
-    ndim = elem.ctx.ndim
+function resolve_quadrature(elem::Element{MechBeam}, quadrature::Tuple)
+    nl = quadrature[1]
+
+    if nl==0
+        nl = 2
+    end
+    @check nl in (2, 3, 4) "MechBeam: unsupported number of integration points along the beam length (nl=$nl). Available values are (2, 3, 4)"
+
+    nt = 0
+    if length(quadrature) == 2
+        nt = quadrature[2]
+    elseif length(quadrature) == 3
+        nt = quadrature[2]
+        nt2 = quadrature[3]
+        @check nt==nt2 "MechBeam: for three-entry directional quadrature, the number of integration points through the local y and z directions must be the same (nt_y=$nt, nt_z=$nt2)"
+    end
 
     if elem.etype.αs == 9/10 # circular section
-        if ndim==3
-            if n in (0,8)
-                nl, nj, nk = 2, 2, 2
-            elseif n==12
-                nl, nj, nk = 3, 2, 2
-            else 
-                error("MechBeam: unsupported number of integration points for circular sections in 3D")
-            end
-        else
-            if n in (0,4)
-                nl, nj, nk = 2, 2, 1
-            elseif n==6
-                nl, nj, nk = 3, 2, 1
-            else
-                error("MechBeam: unsupported number of integration points for circular sections in 2D")
-            end
+        if nt == 0
+            nt = 2
         end
+        @check nt==2 "MechBeam: circular sections only support 2 integration points through the thickness (nt=$nt)"
+    else # rectangular section
+        if nt == 0
+            nt = 2
+        end
+        @check nt in (2, 3, 4) "MechBeam: unsupported number of integration points through the beam thickness (nt=$nt). Available values are (2, 3, 4)"
+    end
 
-        # longitudinal
-        ipL = get_ip_coords(LIN2, nl) 
-        
-        # transversal quadrature for circular sections
+    nt2 = elem.ctx.ndim==3 ? nt : 1
+
+    return nl, nt, nt2
+end
+
+
+function set_quadrature(elem::Element{MechBeam}, quadrature::Tuple; state::NamedTuple=NamedTuple())
+    ndim = elem.ctx.ndim
+    nl, nj, nk = resolve_quadrature(elem, quadrature)
+
+    if elem.etype.αs == 9/10 # circular section
+        ipL = get_ip_coords(LIN2, nl)
+
         if ndim==3
             ipT = [ QPoint( -0.5, -0.5,  0.0,  pi/4 ),
                     QPoint(  0.5, -0.5,  0.0,  pi/4 ),
@@ -125,58 +141,32 @@ function set_quadrature(elem::Element{MechBeam}, n::Int=0; state::NamedTuple=Nam
 
         nt = length(ipT)
         resize!(elem.ips, nl*nt)
-        
+
         for i in 1:nl
-            for j in 1:length(ipT)
+            for j in 1:nt
                 R = [ ipL[i].coord[1], ipT[j].coord[1], ipT[j].coord[2] ]
                 w = ipL[i].w*ipT[j].w
                 m = (i-1)*nt + j
-
                 ipstate = compat_state_type(typeof(elem.cmodel), typeof(elem.etype))(elem.ctx; state...)
                 elem.ips[m] = Ip(R, w, elem, ipstate)
             end
         end
 
     else # rectangular section
-        if ndim==3
-            if n in (0,8)
-                nl, nj, nk = 2, 2, 2
-            elseif n==2
-                nl, nj, nk = 2, 1, 1
-            elseif n==3
-                nl, nj, nk = 3, 1, 1
-            elseif n==12
-                nl, nj, nk = 3, 2, 2
-            else
-                error("MechBeam: unsupported number of integration points for rectangular sections in 3D")
-            end
-        else
-            if n in (0,4)
-                nl, nj, nk = 2, 2, 1
-            elseif n==2
-                nl, nj, nk = 2, 1, 1
-            elseif n==3
-                nl, nj, nk = 3, 1, 1
-            elseif n==6
-                nl, nj, nk = 3, 2, 1
-            else
-                error("MechBeam: unsupported number of integration points for rectangular sections in 2D")
-            end
-        end
-
-        ipL = get_ip_coords(LIN2, nl) # longitudinal
-        ipT = get_ip_coords(LIN2, nj) # transversal
+        ipL = get_ip_coords(LIN2, nl)
+        ipTY = get_ip_coords(LIN2, nj)
+        ipTZ = ndim == 3 ? get_ip_coords(LIN2, nk) : ipTY
 
         resize!(elem.ips, nl*nj*nk)
         for i in 1:nl
             for j in 1:nj
                 for k in 1:nk
                     if ndim==2
-                        R = [ ipL[i].coord[1], ipT[j].coord[1], 0.0 ]
-                        w = ipL[i].w*ipT[j].w
+                        R = [ ipL[i].coord[1], ipTY[j].coord[1], 0.0 ]
+                        w = ipL[i].w*ipTY[j].w
                     else
-                        R = [ ipL[i].coord[1], ipT[j].coord[1], ipT[k].coord[1] ]
-                        w = ipL[i].w*ipT[j].w*ipT[k].w
+                        R = [ ipL[i].coord[1], ipTY[j].coord[1], ipTZ[k].coord[1] ]
+                        w = ipL[i].w*ipTY[j].w*ipTZ[k].w
                     end
                     m = (i-1)*nj*nk + (j-1)*nk + k
                     ipstate = compat_state_type(typeof(elem.cmodel), typeof(elem.etype))(elem.ctx; state...)
@@ -205,6 +195,11 @@ function set_quadrature(elem::Element{MechBeam}, n::Int=0; state::NamedTuple=Nam
         ip.coord = C'*N
     end
 
+end
+
+
+function set_quadrature(elem::Element{MechBeam}, quadrature::Int=0; state::NamedTuple=NamedTuple())
+    return set_quadrature(elem, (quadrature,); state=state)
 end
 
 

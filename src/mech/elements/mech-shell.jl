@@ -74,21 +74,16 @@ function elem_init(elem::Element{MechShell})
 end
 
 
-function set_quadrature(elem::Element{MechShell}, n::Int=0; state::NamedTuple=NamedTuple())
-    # Set integration points
-    if n in (8, 18)
-        n = div(n,2)
-    end
-    ip2d = get_ip_coords(elem.shape, n)
-    ip1d = get_ip_coords(LIN2, 2)
-    n = size(ip2d,1)
+function set_shell_quadrature(elem::Element{MechShell}, ip2d, ip1d; state::NamedTuple=NamedTuple())
+    n2d = size(ip2d, 1)
+    nth = size(ip1d, 1)
 
-    resize!(elem.ips, 2*n)
-    for k in 1:2
-        for i in 1:n
+    resize!(elem.ips, nth*n2d)
+    for k in 1:nth
+        for i in 1:n2d
             R = [ ip2d[i].coord[1:2]; ip1d[k].coord[1] ]
             w = ip2d[i].w*ip1d[k].w
-            j = (k-1)*n + i
+            j = (k-1)*n2d + i
             ipstate = compat_state_type(typeof(elem.cmodel), MechShell)(elem.ctx; state...)
             elem.ips[j] = Ip(R, w, elem, ipstate)
         end
@@ -108,7 +103,29 @@ function set_quadrature(elem::Element{MechShell}, n::Int=0; state::NamedTuple=Na
         No = normalize(cross(J[:,1], J[:,2]))
         ip.coord += elem.etype.thickness/2*ip.R[3]*No
     end
+end
 
+
+function set_quadrature(elem::Element{MechShell}, quadrature::Tuple; state::NamedTuple=NamedTuple())
+    n = length(quadrature)
+    if n==3
+        elem.shape.base_shape == QUAD4 || error("MechShell: three-entry directional quadrature is only supported for quadrilateral shells `(nr, ns, nt)`")
+        ip2d = get_ip_coords(elem.shape, (quadrature[1], quadrature[2]))
+        ip1d = get_ip_coords(LIN2, quadrature[3])
+    elseif n==2
+        elem.shape.base_shape == TRI3 || error("MechShell: two-entry directional quadrature is only supported for triangular shells `(nsurf, nt)`")
+        ip2d = get_ip_coords(elem.shape, quadrature[1])
+        ip1d = get_ip_coords(LIN2, quadrature[2])
+    else
+        ip2d = get_ip_coords(elem.shape, quadrature[1])
+        ip1d = get_ip_coords(LIN2, 2)
+    end
+
+    return set_shell_quadrature(elem, ip2d, ip1d; state=state)
+end
+
+function set_quadrature(elem::Element{MechShell}, quadrature::Int=0; state::NamedTuple=NamedTuple())
+    return set_quadrature(elem, (quadrature,); state=state)
 end
 
 

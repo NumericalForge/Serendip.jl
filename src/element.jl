@@ -90,16 +90,11 @@ end
 # Set the quadrature points for an element
 # Default implementation of bulk line and interface elements
 # Other elements such as beams, shells and line_interfaces should specialize this function
-function set_quadrature(elem::Element, n::Int=0; state::NamedTuple=NamedTuple())
-
-    if !(n in keys(elem.shape.quadrature))
-        alert("set_quadrature: cannot set $n integration points for shape $(elem.shape.kind)")
-        return
-    end
+function set_quadrature(elem::Element, quadrature::Union{Int,Tuple}=0; state::NamedTuple=NamedTuple())
 
     shape = elem.shape
 
-    ipc = get_ip_coords(shape, n)
+    ipc = get_ip_coords(shape, quadrature)
     n = size(ipc,1)
 
     resize!(elem.ips, n)
@@ -110,15 +105,11 @@ function set_quadrature(elem::Element, n::Int=0; state::NamedTuple=NamedTuple())
         elem.ips[i] = Ip(R, w, elem, ipstate)
     end
 
-    # finding ips global coordinates
     C = get_coords(elem)
-
-    # fix for interface elements
     if elem.role in (:cohesive, :contact)
-        C = C[1:shape.npoints, : ]
+        C = C[1:shape.npoints, :]
     end
 
-    # interpolation
     for ip in elem.ips
         N = shape.func(ip.R)
         ip.coord = extend!(C'*N, 3)
@@ -126,14 +117,14 @@ function set_quadrature(elem::Element, n::Int=0; state::NamedTuple=NamedTuple())
 end
 
 
-function set_quadrature(elems::Array{<:Element,1}, n::Int=0)
+function set_quadrature(elems::Array{<:Element,1}, n=0)
     for elem in elems
         set_quadrature(elem, n)
     end
 end
 
 
-function change_quadrature(elems::Array{<:Element,1}, n::Int=0)
+function change_quadrature(elems::Array{<:Element,1}, n=0)
     set_quadrature(elems, n)
     foreach(elem_init, elems)
 end
