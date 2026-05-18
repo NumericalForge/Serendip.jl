@@ -93,3 +93,51 @@ end
         @test matches_owner_facet
     end
 end
+
+@testset "Crack-marked mesh loader" begin
+    coords = [
+        0.0 0.0
+        1.0 0.0
+        2.0 0.0
+        0.0 1.0
+        1.0 1.0
+        2.0 1.0
+        0.0 2.0
+        1.0 2.0
+        2.0 2.0
+    ]
+    conns = [
+        [1, 2, 5, 4],
+        [2, 3, 6, 5],
+        [4, 5, 8, 7],
+        [5, 6, 9, 8],
+        [2, 5],
+    ]
+    shapes = [:quad4, :quad4, :quad4, :quad4, :lin2]
+
+    input_mesh = Mesh(coords, conns, shapes, quiet=true)
+    for elem in input_mesh.elems
+        elem.tag = elem.role == :solid ? "solid" : "marker"
+    end
+
+    mktempdir() do dir
+        filename = joinpath(dir, "crack-marked.vtu")
+        save(input_mesh, filename, quiet=true)
+
+        mesh = load_crack_marked_mesh(filename, tag="crack")
+
+        solids = select(mesh.elems, :solid)
+        cohesives = select(mesh.elems, :cohesive)
+        crack_cohesives = select(mesh.elems, :cohesive, "crack")
+        unmarked_cohesives = select(select(mesh.elems, :cohesive), "crack", invert=true)
+
+        @test length(solids) == 4
+        @test all(elem.tag == "solid" for elem in solids)
+        @test isempty(select(mesh.elems, :line))
+        @test length(cohesives) == 4
+        @test length(crack_cohesives) == 1
+        @test length(unmarked_cohesives) == 3
+        @test all(elem.tag == "" for elem in unmarked_cohesives)
+        @test all(.!cohesive_pairwise_identity_flags(mesh))
+    end
+end

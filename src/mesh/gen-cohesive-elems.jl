@@ -215,7 +215,7 @@ function add_cohesive_elements(
 end
 
 
-export load_cracked_mesh
+export load_cracked_mesh, load_crack_marked_mesh
 
 
 """
@@ -245,7 +245,6 @@ Pre-processing of fractured or pre-cracked meshes for cohesive-zone FEM
 simulations, where cracks are prescribed geometrically rather than inserted
 during analysis.
 """
-
 function load_cracked_mesh(filename::String; tag::String="")
     mesh = Mesh(filename)
     ndim = mesh.ctx.ndim
@@ -274,6 +273,63 @@ function load_cracked_mesh(filename::String; tag::String="")
     # Remove all markers
     mesh.elems = filter(e -> e.role != role, mesh.elems)
     synchronize(mesh, sort=true, cleandata=true)
+
+    return mesh
+end
+
+
+"""
+    load_crack_marked_mesh(filename::String; tag::String="") -> Mesh
+
+Load a mesh containing crack marker elements and generate explicit cohesive elements.
+
+This function reads a mesh from `filename`, adds conventional cohesive
+elements and tags cohesive elements according to crack marker elements.
+Remaining cohesive elements keep an empty tag.
+
+Marker elements definition by dimension:
+- In 2D, crack paths are marked by line elements located on element edges.
+- In 3D, crack surfaces are marked by flat (surface) elements.
+
+# Arguments
+- `filename::String`: Path to the input mesh file containing crack markers.
+
+# Keyword Arguments
+- `tag::String=""`: Optional tag assigned only to marker-matching cohesive elements.
+
+# Returns
+- `Mesh`: A new mesh with marker elements removed and explicit cohesive elements
+  generated across solid interfaces.
+"""
+function load_crack_marked_mesh(filename::String; tag::String="")
+    mesh = Mesh(filename)
+
+    # Collect marker footprints before removing them from the mesh
+    role = mesh.ctx.ndim == 2 ? :line : :surface
+    markers = select(mesh.elems, role)
+
+    _pos_key(n) = (round(n.coord.x, digits=8)+0.0, round(n.coord.y, digits=8)+0.0, round(n.coord.z, digits=8)+0.0)
+
+    marker_keys = Set{Vector{Tuple{Float64,Float64,Float64}}}()
+    for marker in markers
+        push!(marker_keys, sort([_pos_key(n) for n in marker.nodes]))
+    end
+
+    # Remove marker elements so they do not participate in cohesive generation
+    mesh.elems = filter(e -> e.role != role, mesh.elems)
+    synchronize(mesh, sort=true, cleandata=true)
+
+    # Generate all possible cohesive elements with distinct nodes on each face
+    add_cohesive_elements(mesh; tag="", implicit=false, quiet=true)
+
+    # Tag only cohesive elements whose first-face footprint matches a marker
+    for cohesive in select(mesh.elems, :cohesive)
+        n = div(length(cohesive.nodes), 2)
+        cohesive_key = sort([_pos_key(node) for node in cohesive.nodes[1:n]])
+        if cohesive_key in marker_keys
+            cohesive.tag = tag
+        end
+    end
 
     return mesh
 end
