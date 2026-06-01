@@ -113,7 +113,7 @@ function resolve_quadrature(elem::Element{MechBeam}, quadrature::Tuple)
         if nt == 0
             nt = 2
         end
-        @check nt in (2, 3, 4) "MechBeam: unsupported number of integration points through the beam thickness (nt=$nt). Available values are (2, 3, 4)"
+        @check nt in (2, 3, 4, 5) "MechBeam: unsupported number of integration points through the beam thickness (nt=$nt). Available values are (2, 3, 4, 5)"
     end
 
     nt2 = elem.ctx.ndim==3 ? nt : 1
@@ -154,8 +154,18 @@ function set_quadrature(elem::Element{MechBeam}, quadrature::Tuple; state::Named
 
     else # rectangular section
         ipL = get_ip_coords(LIN2, nl)
-        ipTY = get_ip_coords(LIN2, nj)
-        ipTZ = ndim == 3 ? get_ip_coords(LIN2, nk) : ipTY
+        if nj==2
+            ipTY = get_ip_coords(LIN2, nj)
+        else
+            ipTY = [
+                QPoint( -0.7886751345948129, 0.0, 0.0, 0.5),
+                QPoint( -0.2113248654051871, 0.0, 0.0, 0.5),
+                QPoint(  0.2113248654051871, 0.0, 0.0, 0.5),
+                QPoint(  0.7886751345948129, 0.0, 0.0, 0.5)
+            ]
+        end
+
+        ipTZ = ipTY
 
         resize!(elem.ips, nl*nj*nk)
         for i in 1:nl

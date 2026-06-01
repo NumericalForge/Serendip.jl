@@ -108,20 +108,37 @@ end
 
 function set_quadrature(elem::Element{MechShell}, quadrature::Tuple; state::NamedTuple=NamedTuple())
     n = length(quadrature)
+
+    LIN_2p2 = [
+        QPoint( -0.7886751345948129, 0.0, 0.0, 0.5),
+        QPoint( -0.2113248654051871, 0.0, 0.0, 0.5),
+        QPoint(  0.2113248654051871, 0.0, 0.0, 0.5),
+        QPoint(  0.7886751345948129, 0.0, 0.0, 0.5)
+    ]
+
     if n==3
         elem.shape.base_shape == QUAD4 || error("MechShell: three-entry directional quadrature is only supported for quadrilateral shells `(nr, ns, nt)`")
-        ip2d = get_ip_coords(elem.shape, (quadrature[1], quadrature[2]))
-        ip1d = get_ip_coords(LIN2, quadrature[3])
+        quad_plane = (quadrature[1], quadrature[2])
+        quad_thick = quadrature[3]
     elseif n==2
         elem.shape.base_shape == TRI3 || error("MechShell: two-entry directional quadrature is only supported for triangular shells `(nsurf, nt)`")
-        ip2d = get_ip_coords(elem.shape, quadrature[1])
-        ip1d = get_ip_coords(LIN2, quadrature[2])
+        quad_plane = quadrature[1]
+        quad_thick = quadrature[2]
     else
-        ip2d = get_ip_coords(elem.shape, quadrature[1])
-        ip1d = get_ip_coords(LIN2, 2)
+        quad_plane = quadrature[1]
+        quad_thick = 4
     end
 
-    return set_shell_quadrature(elem, ip2d, ip1d; state=state)
+    ip_plane = get_ip_coords(elem.shape, quad_plane)
+    quad_thick in (2,4) || error("MechShell: Invalid thickness quadrature. Got $(quad_thick). Only 2 and 4 are supported.")
+
+    ip_thick = if quad_thick==2
+        get_ip_coords(LIN2, 2)
+    else
+        LIN_2p2
+    end
+
+    return set_shell_quadrature(elem, ip_plane, ip_thick; state=state)
 end
 
 function set_quadrature(elem::Element{MechShell}, quadrature::Int=0; state::NamedTuple=NamedTuple())
