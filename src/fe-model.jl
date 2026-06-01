@@ -503,7 +503,7 @@ function get_node_and_elem_vals(model::FEModel)
 end
 
 
-function reg_terms(x::Float64, y::Float64, nterms::Int64)
+function _reg_terms(x::Float64, y::Float64, nterms::Int64)
     nterms==6 && return ( 1.0, x, y, x*y, x^2, y^2 )
     nterms==4 && return ( 1.0, x, y, x*y )
     nterms==3 && return ( 1.0, x, y )
@@ -511,7 +511,7 @@ function reg_terms(x::Float64, y::Float64, nterms::Int64)
 end
 
 
-function reg_terms(x::Float64, y::Float64, z::Float64, nterms::Int64)
+function _reg_terms(x::Float64, y::Float64, z::Float64, nterms::Int64)
     nterms==10 && return ( 1.0, x, y, z, x*y, y*z, x*z, x^2, y^2, z^2 )
     nterms==7  && return ( 1.0, x, y, z, x*y, y*z, x*z )
     nterms==4  && return ( 1.0, x, y, z )
@@ -662,9 +662,9 @@ function nodal_patch_recovery(model::FEModel)
                     for (i,ip) in enumerate(subpatch_ips)
                         x, y, z = ip.coord
                         if ndim==3
-                            M[i,:] .= reg_terms(x, y, z, nterms)
+                            M[i,:] .= _reg_terms(x, y, z, nterms)
                         else
-                            M[i,:] .= reg_terms(x, y, nterms)
+                            M[i,:] .= _reg_terms(x, y, nterms)
                         end
                     end
                     invM = pinv(M)
@@ -674,9 +674,9 @@ function nodal_patch_recovery(model::FEModel)
                     for (i,node) in enumerate(subpatch_nodes)
                         x, y, z = node.coord
                         if ndim==3
-                            N[i,:] .= reg_terms(x, y, z, nterms)
+                            N[i,:] .= _reg_terms(x, y, z, nterms)
                         else
-                            N[i,:] .= reg_terms(x, y, nterms)
+                            N[i,:] .= _reg_terms(x, y, nterms)
                         end
                     end
                 end
