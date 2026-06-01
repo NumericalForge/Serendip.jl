@@ -7,8 +7,8 @@ Creates an object that represents a Degree of Freedom in a finite element analys
 `Node` objects include a field called `dofs` which is an array of `Dof` objects.
 """
 mutable struct Dof
-    name      ::Symbol # essential variable name
-    natname   ::Symbol # natural value name
+    name      ::Symbol # essential variable name (primal)
+    natname   ::Symbol # natural value name  (dual)
     eq_id     ::Int64  # number of equation in the global system
     prescribed::Bool   # flag for prescribed dof
     vals      ::OrderedDict{Symbol,Float64}
