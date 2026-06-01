@@ -9,6 +9,11 @@ mutable struct Logger{T}
 end
 
 
+function Base.summary(logger::Logger)
+    return "Logger kind=$(repr(logger.kind))"
+end
+
+
 """
     add_logger(ana::Analysis, kind::Symbol, selector::Any, filename::String = "")
 

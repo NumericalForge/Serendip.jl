@@ -20,6 +20,12 @@ mutable struct CellShape
     end
 end
 
+
+function Base.summary(shape::CellShape)
+    return "CellShape $(shape.kind)"
+end
+
+
 const SHAPE_BY_SYMBOL = Dict{Symbol,CellShape}()
 
 function get_shape(shape::Symbol)::CellShape

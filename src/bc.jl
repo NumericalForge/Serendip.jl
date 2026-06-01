@@ -7,6 +7,10 @@ mutable struct BoundaryCondition{T}
     target::Vector{T}
 end
 
+function Base.summary(bc::BoundaryCondition)
+    return "BoundaryCondition kind=$(repr(bc.kind))"
+end
+
 
 function configure_bc_dofs(bc::BoundaryCondition)
     if bc.kind == :node

@@ -24,6 +24,11 @@ mutable struct  Element{T}<:AbstractCell where T<:ElementFormulation
 end
 
 
+function Base.summary(elem::Element)
+    return "Element{$(typeof(elem.etype))}  id=$(elem.id)  $(repr(elem.shape.kind))  role=$(repr(elem.role))  $(elem.tag!="" ? "tag="*repr(elem.tag) : "")"
+end
+
+
 
 # Functions that should be available in all concrete types derived from Element
 

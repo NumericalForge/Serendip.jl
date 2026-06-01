@@ -17,6 +17,10 @@ mutable struct Dof
     end
 end
 
+function Base.summary(dof::Dof)
+    return "Dof $(dof.name)  eq_id=$(dof.eq_id)  $(dof.prescribed ? "prescribed" : "")"
+end
+
 
 function Base.copy(dof::Dof)
     newdof = Dof(dof.name, dof.natname)

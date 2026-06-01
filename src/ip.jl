@@ -48,6 +48,11 @@ mutable struct Ip
 end
 
 
+function Base.summary(ip::Ip)
+    return "Ip id=$(ip.id)  $(ip.tag!="" ? "tag="*repr(ip.tag) : "")"
+end
+
+
 # Get node coordinates for a collection of nodes as a matrix
 function get_coords(ips::Vector{Ip}, ndim::Int=3)
     nips = length(ips)

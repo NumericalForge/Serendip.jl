@@ -12,6 +12,10 @@ mutable struct Monitor{T}
     table   ::DataTable
 end
 
+function Base.summary(monitor::Monitor)
+    return "Monitor kind=$(repr(monitor.kind))"
+end
+
 _monitor_expr_name(expr::Symbol) = expr
 _monitor_expr_name(expr::Expr) = expr.head == :(=) ? expr.args[1] : expr
 

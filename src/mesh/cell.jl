@@ -28,6 +28,10 @@ const CellFace=Cell
 const CellEdge=Cell
 const Facet=Cell
 
+function Base.summary(cell::Cell)
+    return "Cell id=$(cell.id)  $(repr(cell.shape.kind))  role=$(repr(cell.role))  $(cell.tag!="" ? "tag="*repr(cell.tag) : "")"
+end
+
 
 ### Cell methods
 

@@ -47,6 +47,11 @@ const null_Node = Node(NaN, NaN, NaN)
 @inline null(::Type{Node}) = null_Node
 
 
+function Base.summary(node::Node)
+    return "Node id=$(node.id)  $(node.tag!="" ? "tag="*repr(node.tag) : "")"
+end
+
+
 function Base.copy(node::Node)
     newnode = Node(node.coord, tag=node.tag, id=node.id)
     for dof in node.dofs

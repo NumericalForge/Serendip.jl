@@ -53,33 +53,17 @@ function _show(io::IO, x, maxdepth::Int, indent::String="", tab::String="    ")
         print(io, repr(x))
         return
     end
-    
-    summ = split(summary(x), ".")[end]
 
-    print(io, summ)
-    pnames = propertynames(x)
-
-    if maxdepth==0 && !contains(summ, " ")
-        if :kind in pnames && isdefined(x, :kind)
-            print(io, " ", repr(getfield(x, :kind)))
-        end
-        if :name in pnames && isdefined(x, :name)
-            print(io, "  name=", repr(getfield(x, :name)))
-        end
-        if :id in pnames && isdefined(x, :id )
-            print(io, "  id=", getfield(x, :id))
-        end
-        if :eq_id in pnames && isdefined(x, :eq_id )
-            print(io, "  eq_id=", getfield(x, :eq_id))
-        end
-        if :tag in pnames && isdefined(x, :tag )
-            tag = getfield(x, :tag)
-            tag=="" || print(io, "  tag=", repr(tag))
-        end
+    if maxdepth==0
+        print(io, summary(x))
+        return
     end
 
-    maxdepth==0 && return
-    
+    summ = replace(string(typeof(x)), r"^\w+\." => "")
+    print(io, summ)
+
+    pnames = propertynames(x)
+
     for name in pnames
         
         fname = string(name)
