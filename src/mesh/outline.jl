@@ -18,7 +18,7 @@ function get_facet_normal(face::AbstractCell)
 end
 
 
-function get_outline_edges(cells::Vector{<:AbstractCell}; angle=120)
+function get_outline_edges(cells::Vector{<:AbstractCell}; angle=120, tol::Union{Nothing,Real}=nothing)
 
     boundary_faces = Dict{Tuple, Cell}()
 
@@ -26,7 +26,7 @@ function get_outline_edges(cells::Vector{<:AbstractCell}; angle=120)
     for cell in cells
         cell.role in (:solid, :surface) || continue # only bulk cells
         if cell.shape.ndim==2
-            key = _cell_key(cell)
+            key = _cell_key(cell, tol=tol)
             if haskey(boundary_faces, key)
                 delete!(boundary_faces, key)
             else
@@ -36,7 +36,7 @@ function get_outline_edges(cells::Vector{<:AbstractCell}; angle=120)
         end
 
         for face in get_facets(cell)
-            key = _cell_key(face)
+            key = _cell_key(face, tol=tol)
             if haskey(boundary_faces, key)
                 delete!(boundary_faces, key)
             else
@@ -56,7 +56,7 @@ function get_outline_edges(cells::Vector{<:AbstractCell}; angle=120)
     for face in faces
         n1 = normals[face]
         for edge in get_edges(face)
-            key = _cell_key(edge)
+            key = _cell_key(edge, tol=tol)
             edge0 = get(pending_edges, key, nothing)
             if edge0===nothing
                 pending_edges[key] = edge
