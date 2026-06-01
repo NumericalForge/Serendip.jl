@@ -1,73 +1,120 @@
+function _refine_node!(nodes::Vector{Node}, nodes_d::NodePosMap, coord, shared::Bool)
+    node = Node(coord)
+
+    if shared
+        existing = get(nodes_d, node, nothing)
+        if existing === nothing
+            nodes_d[node] = node
+            push!(nodes, node)
+        else
+            node = existing
+        end
+    else
+        push!(nodes, node)
+    end
+
+    return node
+end
+
+
+function _refine_cell(cell::Cell, shape::CellShape, nodes::Vector{Node})
+    newcell = Cell(shape, cell.role, nodes, tag=cell.tag, active=cell.active)
+    newcell.embedded = cell.embedded
+    newcell.crossed = cell.crossed
+    return newcell
+end
+
+
+function refine(mesh::Mesh; mode::Symbol=:h, n=2, quiet=true)
+    if mode == :h
+        return hrefine(mesh, n=n, quiet=quiet)
+    elseif mode == :p
+        return prefine(mesh, n=n, quiet=quiet)
+    end
+
+    error("refine: unknown refinement mode $(repr(mode)). Expected :h or :p")
+end
+
+
 function hrefine(mesh::Mesh; n=2, quiet=true)
-    n==1 && return copy(mesh)
-    newmesh = Mesh()
+    n == 1 && return copy(mesh)
+    n > 0 || error("hrefine: n must be positive")
+
+    newmesh = Mesh(mesh.ctx.ndim)
+    nodes = Node[]
+    nodes_d = NodePosMap()
+    cells = Cell[]
 
     for cell in mesh.elems
-        coords =get_coords(cell.nodes)
+        coords = get_coords(cell.nodes)
 
-        if cell.shape==TRI3
+        if cell.shape == TRI3
             p_arr = Array{Node}(undef, n+1, n+1)
             for j = 1:n+1
                 for i = 1:n+1
-                    i+j > n+2 && continue
-                    r = (1.0/n)*(i-1)
-                    s = (1.0/n)*(j-1)
+                    i + j > n + 2 && continue
 
-                    N = cell.shape.func([r, s])
-                    C = round.(N'*coords, digits=8)
-                    if i==1 || j==1 || i+j==n+2
-                        p = get_node(newmesh._pointdict, C)
-                        if p===nothing
-                            p = Node(C); push!(newmesh.nodes, p)
-                            newmesh._pointdict[hash(p)] = p
-                        end
-                    else
-                        p = Node(C); push!(newmesh.nodes, p)
-                    end
-                    p_arr[i,j] = p
+                    r = (i - 1) / n
+                    s = (j - 1) / n
+                    C = cell.shape.func([r, s])' * coords
+                    shared = i == 1 || j == 1 || i + j == n + 2
+                    p_arr[i, j] = _refine_node!(nodes, nodes_d, C, shared)
                 end
             end
 
             for j = 1:n
                 for i = 1:n
-                    i+j >= n+2 && continue
+                    i + j >= n + 2 && continue
+
                     p1 = p_arr[i  , j  ]
                     p2 = p_arr[i+1, j  ]
                     p3 = p_arr[i  , j+1]
+                    push!(cells, _refine_cell(cell, TRI3, [p1, p2, p3]))
 
-                    cell1 = Cell(cell.shape, [p1, p2, p3], tag=cell.tag)
-                    push!(newmesh.elems, cell1)
-
-                    if i+j < n+1
+                    if i + j < n + 1
                         p4 = p_arr[i+1, j+1]
-                        cell2 = Cell(cell.shape, [p2, p4, p3], tag=cell.tag)
-                        push!(newmesh.elems, cell2)
+                        push!(cells, _refine_cell(cell, TRI3, [p2, p4, p3]))
                     end
                 end
             end
             continue
         end
 
-        if cell.shape==HEX8
+        if cell.shape == QUAD4
+            p_arr = Array{Node}(undef, n+1, n+1)
+            for j = 1:n+1
+                for i = 1:n+1
+                    r = -1.0 + 2.0 * (i - 1) / n
+                    s = -1.0 + 2.0 * (j - 1) / n
+                    C = cell.shape.func([r, s])' * coords
+                    shared = i in (1, n+1) || j in (1, n+1)
+                    p_arr[i, j] = _refine_node!(nodes, nodes_d, C, shared)
+                end
+            end
+
+            for j = 1:n
+                for i = 1:n
+                    p1 = p_arr[i  , j  ]
+                    p2 = p_arr[i+1, j  ]
+                    p3 = p_arr[i+1, j+1]
+                    p4 = p_arr[i  , j+1]
+                    push!(cells, _refine_cell(cell, QUAD4, [p1, p2, p3, p4]))
+                end
+            end
+            continue
+        end
+
+        if cell.shape == HEX8
             p_arr = Array{Node}(undef, n+1, n+1, n+1)
             for k = 1:n+1
                 for j = 1:n+1
                     for i = 1:n+1
-                        r = (2.0/n)*(i-1) - 1.0
-                        s = (2.0/n)*(j-1) - 1.0
-                        t = (2.0/n)*(k-1) - 1.0
-                        N = cell.shape.func([r, s, t])
-                        C = round.(N'*coords, digits=8)
-                        if i in (1, n+1) || j in (1, n+1) || k in (1, n+1)
-                            p =get_node(newmesh._pointdict, C)
-                            if p===nothing
-                                p = Node(C); push!(newmesh.nodes, p)
-                                newmesh._pointdict[hash(p)] = p
-                            end
-                        else
-                            p = Node(C); push!(newmesh.nodes, p)
-                        end
-                        p_arr[i,j,k] = p
+                        r = -1.0 + 2.0 * (i - 1) / n
+                        s = -1.0 + 2.0 * (j - 1) / n
+                        t = -1.0 + 2.0 * (k - 1) / n
+                        C = cell.shape.func([r, s, t])' * coords
+                        shared = i in (1, n+1) || j in (1, n+1) || k in (1, n+1)
+                        p_arr[i, j, k] = _refine_node!(nodes, nodes_d, C, shared)
                     end
                 end
             end
@@ -83,9 +130,7 @@ function hrefine(mesh::Mesh; n=2, quiet=true)
                         p6 = p_arr[i+1, j  , k+1]
                         p7 = p_arr[i+1, j+1, k+1]
                         p8 = p_arr[i  , j+1, k+1]
-
-                        cell = Cell(cell.shape, [p1, p2, p3, p4, p5, p6, p7, p8], tag=cell.tag)
-                        push!(newmesh.elems, cell)
+                        push!(cells, _refine_cell(cell, HEX8, [p1, p2, p3, p4, p5, p6, p7, p8]))
                     end
                 end
             end
@@ -93,47 +138,50 @@ function hrefine(mesh::Mesh; n=2, quiet=true)
         end
 
         error("hrefine: Cannot refine mesh containing elements of type $(cell.shape.kind)")
-
     end
 
+    newmesh.nodes = nodes
+    newmesh.elems = cells
     synchronize(newmesh, sort=true)
+
     return newmesh
 end
 
 
 function prefine(mesh::Mesh; n=2, quiet=true)
-    #newmesh = Mesh()
+    _ = (n, quiet)
 
-    NS = Dict{CellShape,CellShape}(TRI3=>TRI6, TET4=>TET10)
+    newshape_d = Dict{CellShape, CellShape}(
+        TRI3  => TRI6,
+        QUAD4 => QUAD8,
+        TET4  => TET10,
+        HEX8  => HEX20,
+    )
 
-    # Generate new cells
     cells = Cell[]
+    nodes = Node[]
+    nodes_d = NodePosMap()
 
     for cell in mesh.elems
-        newshape = NS[cell.shape]
+        newshape = get(newshape_d, cell.shape, nothing)
+        newshape === nothing && error("prefine: Cannot refine mesh containing elements of type $(cell.shape.kind)")
+
         coords = get_coords(cell.nodes)
         points = Node[]
         for i in 1:newshape.npoints
-            R = newshape.nat_coords[i,:]
-            N = cell.shape.func(R)
-            C = coords'*N
-            p = Node(C);
-            push!(points, p)
+            R = newshape.nat_coords[i, :]
+            C = coords' * cell.shape.func(R)
+            node = Node(C)
+            node = get!(nodes_d, node, node)
+            push!(points, node)
         end
-        newcell = Cell(newshape, points, tag=cell.tag)
-        push!(cells, newcell)
+
+        push!(cells, _refine_cell(cell, newshape, points))
     end
 
-    # Merge points
-    node_dict = Dict{UInt64,Node}( hash(n) => n for c in cells for n in c.nodes )
+    nodes = collect(values(nodes_d.store))
 
-    for cell in cells
-        cell.nodes = Node[ node_dict[hash(n)] for n in cell.nodes ]
-    end
-    nodes = collect(values(node_dict))
-
-    # New mesh
-    newmesh = Mesh()
+    newmesh = Mesh(mesh.ctx.ndim)
     newmesh.nodes = nodes
     newmesh.elems = cells
     synchronize(newmesh, sort=true)
