@@ -51,6 +51,15 @@ initial_q = mean(mesh.elem_fields["quality"])
 result = smooth(mesh; quiet = false, maxit = 10)
 final_q = mean(mesh.elem_fields["quality"])
 @test final_q > initial_q
+@test result === mesh
+
+println("\nExplicit Laplacian dispatcher:")
+mesh = tri_mesh()
+perturb_center(mesh, dx=0.18, dy=-0.12)
+initial_q = mean(mesh.elem_fields["quality"])
+smooth(mesh; algorithm = :laplacian, quiet = false, maxit = 10)
+final_q = mean(mesh.elem_fields["quality"])
+@test final_q > initial_q
 
 println("\nSmart Laplacian smoothing preserves minimum quality:")
 mesh = tri_mesh()
@@ -78,3 +87,34 @@ boundary_before = copy(get_coords([mesh.nodes[id] for id in boundary_ids], mesh.
 smooth(mesh; quiet = false, maxit = 10, fixed_boundary = true)
 boundary_after = get_coords([mesh.nodes[id] for id in boundary_ids], mesh.ctx.ndim)
 @test boundary_after ≈ boundary_before
+
+println("\nDeformation smoothing updates quality data:")
+mesh = tri_mesh()
+perturb_center(mesh, dx=0.18, dy=-0.12)
+result = smooth(mesh; algorithm = :deformation, quiet = true, maxit = 2)
+@test result === mesh
+@test haskey(mesh.elem_fields, "quality")
+@test all(isfinite, mesh.elem_fields["quality"])
+@test minimum(mesh.elem_fields["quality"]) > 0.0
+
+println("\nDeformation smoothing preserves fixed boundary:")
+mesh = tri_mesh()
+perturb_center(mesh, dx=0.2, dy=-0.15)
+surf_cells = get_outer_facets(mesh.elems)
+surf_nodes, _ = get_patches(surf_cells)
+boundary_ids = sort([node.id for node in surf_nodes])
+boundary_before = copy(get_coords([mesh.nodes[id] for id in boundary_ids], mesh.ctx.ndim))
+smooth(mesh; algorithm = :deformation, quiet = true, maxit = 2, fixed_boundary = true)
+boundary_after = get_coords([mesh.nodes[id] for id in boundary_ids], mesh.ctx.ndim)
+@test boundary_after ≈ boundary_before
+
+println("\nSmart deformation smoothing smoke test:")
+mesh = tri_mesh()
+perturb_center(mesh, dx=-0.12, dy=0.10)
+smooth(mesh; algorithm = :deformation, quiet = true, maxit = 1, smart = true)
+@test haskey(mesh.elem_fields, "quality")
+@test all(isfinite, mesh.elem_fields["quality"])
+
+println("\nUnknown smoothing algorithm:")
+mesh = tri_mesh()
+@test_throws Exception smooth(mesh; algorithm = :unknown)
