@@ -45,7 +45,7 @@ mutable struct Colorbar<:FigureComponent
                 ticks       = ticks,
                 tick_labels = tick_labels,
                 tick_length = tick_length,
-                bins        = bins,
+                nticks      = bins,
             )
         end
 

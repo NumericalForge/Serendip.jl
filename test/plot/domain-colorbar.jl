@@ -10,24 +10,16 @@ add_mapping(mapper, "solids", MechSolid, LinearElastic, E=1e4, nu=0.25)
 model = FEModel(mesh, mapper, quiet=true)
 model.node_fields["temp"] = collect(1.0:length(model.nodes))
 
-grid = ChartGrid(
-    title="DomainPlot Colorbar Locations",
-    size=(16cm, 12cm),
-)
-
 function colorbar_plot(model, location)
     plot = DomainPlot(quiet=true)
     add_plot(plot, model; field="temp", field_kind=:node, colorbar=location)
     return plot
 end
 
-add_chart(grid, colorbar_plot(model, :left), (1, 1))
-add_chart(grid, colorbar_plot(model, :right), (1, 2))
-add_chart(grid, colorbar_plot(model, :top), (2, 1))
-add_chart(grid, colorbar_plot(model, :bottom), (2, 2))
-
-save(grid, "output/domainplot.pdf")
-save(grid, "output/domainplot.png")
-
-@test isfile("output/domainplot.pdf")
-@test isfile("output/domainplot.png")
+for location in (:left, :right, :top, :bottom)
+    plot = colorbar_plot(model, location)
+    save(plot, "output/domainplot-colorbar-$(location).pdf")
+    save(plot, "output/domainplot-colorbar-$(location).png")
+    @test isfile("output/domainplot-colorbar-$(location).pdf")
+    @test isfile("output/domainplot-colorbar-$(location).png")
+end

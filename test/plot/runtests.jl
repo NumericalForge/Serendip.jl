@@ -3,6 +3,7 @@ using Serendip
     "axis.jl",
     "chart.jl",
     "bar-chart.jl",
+    "colormap.jl",
     "domain-colorbar.jl",
     "domain-layers.jl",
     "domain-markers.jl",

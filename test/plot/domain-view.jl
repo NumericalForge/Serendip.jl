@@ -36,6 +36,31 @@ function layer_plot(mesh; kwargs...)
     return plot.layers[1]
 end
 
+function two_hex_interface_mesh()
+    geo = GeoModel(quiet=true)
+    add_block(geo, [0, 0, 0], 1, 1, 1, nx=2, ny=1, nz=1, tag="solids")
+    mesh = Mesh(geo, quiet=true)
+
+    for cell in select(mesh.elems, :solid)
+        xmid = sum(node.coord.x for node in cell.nodes) / length(cell.nodes)
+        cell.tag = xmid < 0.5 ? "left" : "right"
+    end
+
+    return mesh
+end
+
+function configured_outline_geom_keys(mesh; warp=0.0)
+    plot = DomainPlot(quiet=true)
+    add_plot(plot, mesh; warp=warp)
+    Serendip.configure!(plot)
+
+    keys = Tuple[]
+    for edge in values(plot.layers[1].outline_edges_d)
+        push!(keys, Tuple(sort!(collect(Serendip.node_pos_key(node) for node in edge.nodes))))
+    end
+    return sort!(keys)
+end
+
 function surface_role_mesh(ndim)
     mesh = Mesh(ndim)
     mesh.nodes = Node[
@@ -205,6 +230,22 @@ correction_chain = sort([late_line; many_surfaces], by=Serendip._domain_render_d
 Serendip._domain_correct_render_order_3d!(correction_chain, depth_tol)
 @test correction_chain[end] === late_line
 
+@testset "Outline smoke test across cohesive/contact interfaces" begin
+    base_mesh = two_hex_interface_mesh()
+    base_outline = configured_outline_geom_keys(base_mesh)
+    @test length(base_outline) == 16
+
+    cohesive_mesh = two_hex_interface_mesh()
+    add_cohesive_elements(cohesive_mesh, "left", tag="cohesive", implicit=false, quiet=true)
+    cohesive_outline = configured_outline_geom_keys(cohesive_mesh)
+    @test cohesive_outline == base_outline
+
+    contact_mesh = two_hex_interface_mesh()
+    add_contact_elements(contact_mesh, "left", "right", tag="contact", quiet=true)
+    contact_outline = configured_outline_geom_keys(contact_mesh)
+    @test contact_outline == base_outline
+end
+
 @testset "Tolerant geometric matching" begin
     quad_a = Cell(get_shape(:quad4), :solid, Node[
         Node(0.0, 0.0, 0.0, id=1),
@@ -244,14 +285,7 @@ for (coord, expected) in zip(yup_coords, [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1
     @test coord ≈ expected
 end
 
-axes_grid = ChartGrid(
-    title="DomainPlot Transformations",
-    size=(16cm, 12cm),
-)
-
-add_chart(axes_grid, view_plot(mesh2d, title="2D", axes=:bottom_left), (1, 1))
-add_chart(axes_grid, view_plot(model, title="up = :z", axes=:top_right, up=:z), (1, 2))
-add_chart(axes_grid, view_plot(model, title="up = :x", axes=:top_right, up=:x), (2, 1))
-add_chart(axes_grid, view_plot(model, title="up = :y", axes=:top_right, up=:y), (2, 2))
-
-save(axes_grid, "output/domainplot-up-axes.pdf")
+save(view_plot(mesh2d, title="2D", axes=:bottom_left), "output/domainplot-up-axes-2d.pdf")
+save(view_plot(model, title="up = :z", axes=:top_right, up=:z), "output/domainplot-up-axes-z.pdf")
+save(view_plot(model, title="up = :x", axes=:top_right, up=:x), "output/domainplot-up-axes-x.pdf")
+save(view_plot(model, title="up = :y", axes=:top_right, up=:y), "output/domainplot-up-axes-y.pdf")

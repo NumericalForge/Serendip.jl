@@ -19,6 +19,15 @@ using StaticArrays, FixedSizeArrays, SparseArrays, Arpack, Pardiso
 using Printf, DelimitedFiles, Glob, Dates, JSON
 using Gmsh
 using Cairo
+using QuickCharts: Chart, ChartGrid, DataSeries, Legend, Annotation, Color, Colormap, cm
+using QuickCharts: render, lighten, darken, gray
+import QuickCharts: save, Figure, FigureComponent, Frame, TextBox, RenderContext, Canvas, Axis
+import QuickCharts: configure!, draw!, draw_background!, draw_contents!, reset_matrix!, set_local_matrix!
+import QuickCharts: draw_text, getsize, get_font, draw_mark, resolve_color, rgb, rgba
+import QuickCharts: data2user, user2data, _draw_figure_background!, _draw_text_box!
+import QuickCharts: compute_auto_limits, _figure_renderable, _png_raster_scale
+import QuickCharts: resize
+import QuickCharts: add_series, add_line, add_scatter, add_bar, add_annotation, add_chart
 import FreeTypeAbstraction
 import DataStructures: OrderedDict, OrderedSet
 
@@ -76,6 +85,9 @@ export get_nodes, change_quadrature, get_ips
 # Plotting
 include("plot/include.jl")
 export cm
+export Color
+export gray, lighten, darken
+export render
 export Chart, ChartGrid, DataSeries, Legend, Colormap, DomainPlot, Annotation
 export add_line, add_scatter, add_bar, add_annotation
 export add_chart, add_plot
@@ -90,6 +102,7 @@ abstract type Analysis end
 # Boundary conditions and constraints
 include("bc.jl")
 include("constraint.jl")
+
 export add_bc, add_constraint
 
 include("stage.jl")

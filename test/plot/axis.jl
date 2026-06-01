@@ -31,13 +31,13 @@ Serendip.configure!(amanual)
 @test amanual.tick_labels == ["A", "B", "C"]
 @test isempty(amanual.exponent_box.text)
 
-line_chart = Chart(quiet=true)
+line_chart = Chart()
 add_line(line_chart, [1.0e4, 2.0e4, 3.0e4], [1.0e-5, 2.0e-5, 3.0e-5]; label="scaled")
 Serendip.configure!(line_chart)
 @test line_chart.xaxis.tick_exponent == 4
 @test line_chart.yaxis.tick_exponent == -5
 
-bar_chart = Chart(quiet=true)
+bar_chart = Chart()
 add_bar(bar_chart, [1.0, 2.0], [3.0, 4.0]; bar_base=-2.0, label="bars")
 Serendip.configure!(bar_chart)
 @test bar_chart.yaxis.limits[1] < -2.0

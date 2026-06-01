@@ -214,7 +214,7 @@ function draw!(aw::AxesWidget, ctx::RenderContext)
         return x, y
     end
 
-    colors = [_colors_dict[:indianred], _colors_dict[:green], _colors_dict[:blue]]
+    colors = [rgb(Color(:indianred)), rgb(Color(:green)), rgb(Color(:blue))]
     order = length(aw.labels) == 3 ? sortperm([point[3] for point in aw.projected_axes], rev=true) : collect(eachindex(aw.projected_axes))
     origin_x, origin_y = to_screen(aw.projected_origin)
     label_pad = 0.09*aw.arrow_length

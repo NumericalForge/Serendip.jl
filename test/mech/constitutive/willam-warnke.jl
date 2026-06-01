@@ -47,7 +47,6 @@ table = log.table
 chart = Chart(
     xlabel="ezz x 1000",
     ylabel="szz",
-    xmult=1e3,
 )
-add_series(chart, table["εzz"], table["σzz"])
+add_series(chart, 1e3 .* table["εzz"], table["σzz"])
 save(chart, "chart.pdf")

@@ -271,6 +271,8 @@ mutable struct DomainPlot <: Figure
     end
 end
 
+_figure_renderable(::DomainPlot) = true
+
 
 function DomainPlot(mesh;
     size::Tuple{<:Real,<:Real}=(220,150),
@@ -882,9 +884,21 @@ function _domain_configure_layer_field!(layer::DomainPlotLayer, mesh::AbstractDo
 end
 
 
+function _domain_geom_match_tolerance(mesh::AbstractDomain)
+    isempty(mesh.nodes) && return 1e-5
+
+    xmin, xmax = extrema(node.coord.x for node in mesh.nodes)
+    ymin, ymax = extrema(node.coord.y for node in mesh.nodes)
+    zmin, zmax = extrema(node.coord.z for node in mesh.nodes)
+    diag = norm(Vec3(xmax - xmin, ymax - ymin, zmax - zmin))
+    return max(1e-3, 1e-3 * diag)
+end
+
+
 function _domain_prepare_layer!(mplot::DomainPlot, layer::DomainPlotLayer)
     mesh = copy(layer.mesh)
     ndim = mesh.ctx.ndim
+    geom_tol = _domain_geom_match_tolerance(layer.mesh)
 
     if layer.warp > 0.0
         U = get(mesh.node_fields, "U", nothing)
@@ -901,7 +915,7 @@ function _domain_prepare_layer!(mplot::DomainPlot, layer::DomainPlotLayer)
     if ndim == 2
         areacells = [elem for elem in active_elems if elem.shape.ndim == 2 && elem.role in (:solid, :surface)]
         linecells = [elem for elem in active_elems if elem.role == :line]
-        outline_edges = get_outer_facets(areacells)
+        outline_edges = get_outer_facets(areacells, tol=geom_tol)
 
         layer.elems = AbstractCell[areacells; linecells]
         layer.nodes = get_nodes(layer.elems)
@@ -910,9 +924,9 @@ function _domain_prepare_layer!(mplot::DomainPlot, layer::DomainPlotLayer)
         volcells = [elem for elem in active_elems if elem.role == :solid && elem.shape.ndim == 3]
         areacells = [elem for elem in active_elems if elem.shape.ndim == 2 && elem.role in (:solid, :surface)]
         linecells = [elem for elem in active_elems if elem.role == :line]
-        surfcells = get_outer_facets(volcells)
+        surfcells = get_outer_facets(volcells, tol=geom_tol)
         all_surfcells = AbstractCell[surfcells; areacells]
-        outline_edges = get_outline_edges(all_surfcells, angle=layer.outline_angle)
+        outline_edges = get_outline_edges(all_surfcells, angle=layer.outline_angle, tol=geom_tol)
 
         for cell in surfcells
             cell.id = cell.owner.id
@@ -1199,7 +1213,7 @@ function _domain_build_render_elems!(mplot::DomainPlot)
     if mplot.ndim == 3
         tol = _domain_render_depth_tolerance(mplot)
         sort!(mplot.render_elems, by=_domain_render_depth_key)
-        _domain_correct_render_order_3d!(mplot.render_elems, tol)
+        # _domain_correct_render_order_3d!(mplot.render_elems, tol)
         _domain_correct_shared_edge_priority_3d!(mplot.render_elems, tol)
     else
         sort!(mplot.render_elems, by=_domain_render_2d_key)
@@ -1508,7 +1522,7 @@ function draw_contents!(mplot::DomainPlot, ctx::RenderContext)
             for node in elem.nodes
                 x, y = data2user(mplot.canvas, node.coord[1], node.coord[2])
                 y += mplot.font_size
-                set_source_rgb(cairo_ctx, _colors_dict[:blue]...)
+                set_source_rgb(cairo_ctx, rgb(Color(:blue))...)
                 draw_text(cairo_ctx, x, y, string(node.id), halign="center", valign="center", angle=0)
             end
         end

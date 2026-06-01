@@ -2,7 +2,7 @@ using Test
 using Serendip
 using Cairo: read_from_png, width, height, image_surface_get_data
 
-chart = Chart(size=(5cm, 4cm), quiet=true)
+chart = Chart(size=(5cm, 4cm))
 @test isapprox(chart.width, 5cm)
 @test isapprox(chart.height, 4cm)
 
@@ -15,7 +15,7 @@ chart_png = read_from_png("output/chart-cm.png")
 @test Int(height(chart_png)) == round(Int, Serendip._png_raster_scale * chart.height)
 @test unsafe_load(image_surface_get_data(chart_png)) == 0xffffffff
 
-grid = ChartGrid(size=(12cm, 8cm), quiet=true)
+grid = ChartGrid(size=(12cm, 8cm))
 @test isapprox(grid.width, 12cm)
 @test isapprox(grid.height, 8cm)
 add_chart(grid, chart, (1, 1))
