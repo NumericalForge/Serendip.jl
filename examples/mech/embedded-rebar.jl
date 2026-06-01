@@ -52,7 +52,7 @@ add_plot(plot, model;
     field_mult = 1e-3,
     colormap = :rainbow,
     view_mode = :wireframe,
-    label = t"σ_(x')",
+    label = "`σ_(x')`",
     warp = 20,
 )
 save(plot, "embedded-rebar.pdf")

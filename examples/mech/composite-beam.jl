@@ -126,11 +126,11 @@ add_plot(plot, model;
     field = "σx´", # stress in the bars (local axis likely aligns with bar, so this might stay)
     field_mult = 1e-3,
     colormap = :rainbow,
-    edge_color = :gray,
-    edge_width = 0.1,
+    line_color = :gray,
+    line_width = 0.1,
     view_mode = :wireframe,
     colorbar = :bottom,
-    label = t"σ_(x')",
+    label = "`σ_(x')`",
     warp = 20,
 )
 save(plot, "composite-beam.pdf")

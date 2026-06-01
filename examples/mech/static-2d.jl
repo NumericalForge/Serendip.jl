@@ -36,7 +36,7 @@ plot = DomainPlot()
 add_plot(plot, model;
     field = "σxx",
     colormap = :coolwarm,
-    label = t"σ_x",
+    label = "`σ_x`",
     warp = 10000,
 )
 save(plot, "static-2d.pdf")

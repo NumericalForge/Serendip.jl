@@ -15,7 +15,6 @@ chart = Chart(
     title="Axial `sigma_n`",
     xlabel="`x`",
     ylabel="`u_x`",
-    quiet=true,
 )
 add_line(chart, [0.0, 1.0], [0.0, 1.0]; label="`u_x`")
 add_annotation(chart, Annotation(raw"Load `P` at $x$", 0.2, 0.2))

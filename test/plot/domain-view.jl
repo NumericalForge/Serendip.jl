@@ -166,7 +166,6 @@ Serendip.configure!(surface3d_plot)
 @test length(surface3d_plot.render_elems) == 2
 render_tol = Serendip._domain_render_depth_tolerance(surface3d_plot)
 sorted_render_elems = sort(copy(surface3d_plot.render_elems), by=Serendip._domain_render_depth_key)
-Serendip._domain_correct_render_order_3d!(sorted_render_elems, render_tol)
 Serendip._domain_correct_shared_edge_priority_3d!(sorted_render_elems, render_tol)
 @test surface3d_plot.render_elems == sorted_render_elems
 
@@ -211,12 +210,7 @@ disjoint_back_surface = make_render_elem(render_layer, :surface, [0.0, 0.0, 0.0,
 @test !Serendip._domain_render_overlap_2d(disjoint_front_line, disjoint_back_surface, depth_tol)
 @test Serendip._domain_render_order_3d(disjoint_front_line, disjoint_back_surface, depth_tol) < 0
 
-baseline_pair = sort([ambiguous_far_surface, ambiguous_near_surface], by=Serendip._domain_render_depth_key)
-Serendip._domain_correct_render_order_3d!(baseline_pair, depth_tol)
-@test baseline_pair == [ambiguous_near_surface, ambiguous_far_surface]
-
 shared_edge_chain = sort([shared_edge_line, shared_edge_surface], by=Serendip._domain_render_depth_key)
-Serendip._domain_correct_render_order_3d!(shared_edge_chain, depth_tol)
 Serendip._domain_correct_shared_edge_priority_3d!(shared_edge_chain, depth_tol)
 @test shared_edge_chain[end] === shared_edge_line
 
@@ -227,8 +221,6 @@ many_surfaces = [
 late_line = make_render_elem(render_layer, :line, [0.0, 0.0], index_in_layer=199)
 correction_chain = sort([late_line; many_surfaces], by=Serendip._domain_render_depth_key)
 @test correction_chain[1] === late_line
-Serendip._domain_correct_render_order_3d!(correction_chain, depth_tol)
-@test correction_chain[end] === late_line
 
 @testset "Outline smoke test across cohesive/contact interfaces" begin
     base_mesh = two_hex_interface_mesh()

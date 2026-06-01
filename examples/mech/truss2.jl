@@ -28,7 +28,7 @@ plot = DomainPlot()
 add_plot(plot, model;
     field = "σx´",
     colormap = :coolwarm,
-    label = t"$σ_x$ [kN]",
+    label = "`σ_x` [kN]",
     warp = 0.2,
 )
 save(plot, "truss.pdf")

@@ -1120,29 +1120,6 @@ function _domain_shared_edge_target_3d(renders::Vector{DomainRenderElem}, i::Int
 end
 
 
-function _domain_correct_render_order_3d!(renders::Vector{DomainRenderElem}, tol::Float64)
-    n = length(renders)
-    n <= 1 && return nothing
-
-    last_unsorted = n
-    while last_unsorted > 1
-        changed = false
-        last_swap = 1
-        for i in 1:last_unsorted-1
-            if _domain_render_order_3d(renders[i], renders[i+1], tol) > 0
-                renders[i], renders[i+1] = renders[i+1], renders[i]
-                changed = true
-                last_swap = i + 1
-            end
-        end
-        changed || break
-        last_unsorted = last_swap
-    end
-
-    return nothing
-end
-
-
 function _domain_correct_shared_edge_priority_3d!(renders::Vector{DomainRenderElem}, tol::Float64)
     n = length(renders)
     n <= 1 && return nothing
@@ -1213,7 +1190,6 @@ function _domain_build_render_elems!(mplot::DomainPlot)
     if mplot.ndim == 3
         tol = _domain_render_depth_tolerance(mplot)
         sort!(mplot.render_elems, by=_domain_render_depth_key)
-        # _domain_correct_render_order_3d!(mplot.render_elems, tol)
         _domain_correct_shared_edge_priority_3d!(mplot.render_elems, tol)
     else
         sort!(mplot.render_elems, by=_domain_render_2d_key)

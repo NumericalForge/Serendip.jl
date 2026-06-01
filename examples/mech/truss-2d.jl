@@ -36,7 +36,7 @@ plot = DomainPlot()
 add_plot(plot, model;
     field = "σx´",
     colormap = :coolwarm,
-    label = t"$σ_x$ [MPa]",
+    label = "`σ_x` [MPa]",
     warp = 100,
     node_labels = true,
 )

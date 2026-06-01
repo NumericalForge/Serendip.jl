@@ -33,7 +33,7 @@ plot = DomainPlot(
 add_plot(plot, model;
     field = "σzz",
     colormap = :spectral,
-    label = t"σ_z",
+    label = "`σ_z`",
     warp = 50,
 )
 save(plot, "static-3d.pdf")

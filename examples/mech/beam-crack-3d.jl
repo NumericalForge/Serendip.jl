@@ -61,16 +61,16 @@ add_plot(plot, model;
     warp       = 200,
     colormap   = :spectral,
     diverging  = true,
-    edge_color = :gray,
-    # edge_width = 0.1,
+    line_color = :gray,
+    # line_width = 0.1,
     colorbar   = :bottom,
-    label      = t"$σ_(x x)$ [MPa]",
+    label      = "`σ_(x x)` [MPa]",
 )
 save(plot, "beam-crack-3d.pdf")
 
 chart = Chart(
-    xlabel = t"$u_z$ [mm]",
-    ylabel = t"$σ_(z z)$ [kN]",
+    xlabel = "`u_z` [mm]",
+    ylabel = "`σ_(z z)` [kN]",
 )
 add_line(chart, -log1.table[:uz]*1e3, -log1.table[:fz], mark=:circle)
 save(chart, "beam-crack-3d-chart.pdf")
