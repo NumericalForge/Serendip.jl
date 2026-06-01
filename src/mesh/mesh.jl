@@ -148,18 +148,19 @@ end
 # end
 
 
-function get_outer_facets(cells::Vector{<:AbstractCell})
+function get_outer_facets(cells::Vector{<:AbstractCell}; tol::Union{Nothing,Real}=nothing)
     # This function assumes two facets are the same if their nodes
     # occupy the same position in space, regardless of node IDs.
 
     # Build the map: Position Key -> Unique Node ID
     # It generates local ids
-    pos_to_id = Dict{Tuple{Float64,Float64,Float64}, Int}()
+    pos_to_id = Dict{Tuple, Int}()
     next_id = 1
+    keyfn = tol === nothing ? node_pos_key : node -> node_pos_key(node, tol)
 
     for c in cells
         for node in c.nodes
-            k = node_pos_key(node)
+            k = keyfn(node)
             if !haskey(pos_to_id, k)
                 pos_to_id[k] = next_id
                 next_id += 1
@@ -177,7 +178,7 @@ function get_outer_facets(cells::Vector{<:AbstractCell})
             # We use the map to translate Node -> Unique Geo ID
             face_geo_ids = ntuple(length(facet_idxs)) do i
                 n = cell.nodes[facet_idxs[i]]
-                return pos_to_id[node_pos_key(n)]
+                return pos_to_id[keyfn(n)]
             end
 
             # Sorting to get a unique key
@@ -502,8 +503,12 @@ function synchronize(mesh::Mesh; sort=false, cleandata=false)
 end
 
 
-function _cell_key(cell::AbstractCell)
-    return Tuple(sort!(collect(node_pos_key(node) for node in cell.nodes)))
+function _cell_key(cell::AbstractCell; tol::Union{Nothing,Real}=nothing)
+    if tol === nothing
+        return Tuple(sort!(collect(node_pos_key(node) for node in cell.nodes)))
+    else
+        return Tuple(sort!(collect(node_pos_key(node, tol) for node in cell.nodes)))
+    end
 end
 
 
