@@ -53,6 +53,31 @@ end
 end
 
 
+@testset "Mesh refinement" begin
+    geo_h = GeoModel(quiet=true)
+    add_block(geo_h, [0, 0, 0], 1, 1, 0, nx=1, ny=1, shape=:quad4, tag="href-quad4")
+    mesh_h = Mesh(geo_h, quiet=true)
+    refined_h = refine(mesh_h, mode=:h, n=2)
+
+    @test length(refined_h.nodes) == 9
+    @test length(refined_h.elems) == 4
+    @test all(cell.shape.kind == :quad4 for cell in refined_h.elems)
+    @test all(cell.role == :solid for cell in refined_h.elems)
+    @test all(cell.tag == "href-quad4" for cell in refined_h.elems)
+
+    geo_p = GeoModel(quiet=true)
+    add_block(geo_p, [0, 0, 0], 2, 1, 0, nx=2, ny=1, shape=:quad4, tag="pref-quad4")
+    mesh_p = Mesh(geo_p, quiet=true)
+    refined_p = refine(mesh_p, mode=:p)
+
+    @test length(refined_p.nodes) == 13
+    @test length(refined_p.elems) == 2
+    @test all(cell.shape.kind == :quad8 for cell in refined_p.elems)
+    @test all(cell.role == :solid for cell in refined_p.elems)
+    @test all(cell.tag == "pref-quad4" for cell in refined_p.elems)
+end
+
+
 nodes_count = [ 1331, 4961, 9261, 1331, 9261 ]
 shapes = [:hex8, :hex20, :hex27, :tet4, :tet10]
 

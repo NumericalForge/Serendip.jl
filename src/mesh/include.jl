@@ -15,13 +15,13 @@ include("gen-line-interface-elems.jl")
 include("gen-mesh.jl")
 
 include("io.jl")
-export Mesh, save, mesh_json, get_outer_facets, threshold, add_mesh, join_mesh!, join_meshes
+export Mesh, save, mesh_json, get_outer_facets, threshold, add_mesh, join_meshes
 
 include("refine.jl")
-export hrefine, prefine
+export refine
 
 include("operators.jl")
-export move, array, copy, mirror, rotate!, polar, scale, permute_coordinates
+export move, array, copy, mirror, rotate, polar, scale, permute_coordinates
 
 include("extrude.jl")
 export extrude

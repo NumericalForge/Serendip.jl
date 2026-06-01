@@ -122,12 +122,14 @@ end
 
 """
     GeoModel(; size=0.0, quiet = false)
+    GeoModel(filename; size=0.0, quiet = false)
 
 Creates a new geometry model (`GeoModel`) using Gmsh's OpenCASCADE (OCC) backend
 or blocks for structured meshing.
 This struct serves as a container for user-defined geometry entities and geometric paths (e.g., composed by line or arc definitions).
 
 # Arguments
+- `filename::AbstractString`: Optional STEP, IGES, or BREP file imported through Gmsh OCC.
 - `size::Real=0.0`: If greater than zero, sets the maximum element size for all entities in the model.
 - `quiet::Bool=false`: If `true`, suppresses Gmsh initialization messages in the console.
 
@@ -141,6 +143,7 @@ This struct serves as a container for user-defined geometry entities and geometr
 ```julia
 geo = GeoModel(size=0.5)       # set the maximum element size
 geo = GeoModel(quiet=true)     # silent initialization
+geo = GeoModel("part.step")    # import an OpenCASCADE CAD file
 ```
 """
 mutable struct GeoModel
@@ -173,6 +176,42 @@ mutable struct GeoModel
             AbstractDomain[]
         )
     end
+end
+
+
+const _OCC_IMPORT_EXTENSIONS = (".step", ".stp", ".iges", ".igs", ".brep", ".brp")
+
+function _check_occ_import_extension(filename::AbstractString)
+    ext = lowercase(splitext(filename)[2])
+    ext in _OCC_IMPORT_EXTENSIONS ||
+        error("GeoModel: unsupported OpenCASCADE CAD file extension '$ext'. Supported extensions are: $(join(_OCC_IMPORT_EXTENSIONS, ", "))")
+
+    return nothing
+end
+
+
+function GeoModel(
+    filename::AbstractString;
+    size=0.0,
+    min_size=0.0,
+    max_size=0.0,
+    quiet::Bool=false,
+    highest_dim_only::Bool=true,
+)
+    isfile(filename) || error("GeoModel: file not found: $filename")
+    _check_occ_import_extension(filename)
+
+    geo = GeoModel(; size=size, min_size=min_size, max_size=max_size, quiet=quiet)
+    dimids = gmsh.model.occ.importShapes(filename, highest_dim_only)
+    gmsh.model.occ.synchronize()
+    isempty(dimids) && error("GeoModel: no OpenCASCADE entities imported from $filename")
+
+    for ((dim, id), entity) in zip(dimids, _get_entities_from_dimids(geo, dimids))
+        geo.entities[(Int(dim), Int(id))] = entity
+    end
+
+    quiet || printstyled("  file $filename imported\n", color=:cyan)
+    return geo
 end
 
 

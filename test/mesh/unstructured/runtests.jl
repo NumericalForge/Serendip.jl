@@ -7,6 +7,7 @@ using Serendip
     "square.jl",
     "pull.jl",
     "cube.jl",
+    "step-import.jl",
     "revolve.jl",
     "circular-wedge.jl",
 ]
