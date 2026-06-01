@@ -46,7 +46,7 @@ function MakeLIN2()
     shape.edge_idxs   = ()
     shape.facet_shape = ()
     shape.nat_coords  = coords_LIN2
-    shape.quadrature  = Dict{Int, Array}(0=>LIN_IP2, 1=>LIN_IP1, 2=>LIN_IP2, 3=>LIN_IP3, 4=>LIN_IP4)
+    shape.quadrature  = Dict{Int, Array}(0=>LIN_IP2, 1=>LIN_IP1, 2=>LIN_IP2, 3=>LIN_IP3, 4=>LIN_IP4, 5=>LIN_IP5)
     shape.func        = shape_func_LIN2
     shape.deriv       = shape_deriv_LIN2
     shape.deriv2      = shape_deriv2_LIN2
@@ -102,7 +102,7 @@ function MakeLIN3()
     shape.edge_idxs   = ()
     shape.facet_shape = ()
     shape.nat_coords  = coords_LIN3
-    shape.quadrature  = Dict( 0=>LIN_IP3, 1=>LIN_IP1, 2=>LIN_IP2, 3=>LIN_IP3, 4=>LIN_IP4 )
+    shape.quadrature  = Dict( 0=>LIN_IP3, 1=>LIN_IP1, 2=>LIN_IP2, 3=>LIN_IP3, 4=>LIN_IP4, 5=>LIN_IP5 )
     shape.func        = shape_func_LIN3
     shape.deriv       = shape_deriv_LIN3
     shape.deriv2      = shape_deriv2_LIN3
