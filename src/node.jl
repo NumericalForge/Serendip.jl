@@ -79,9 +79,19 @@ end
 # Internal helper: "Position/coordinate key"
 @inline function node_pos_key(n::Node)
     # Rounding +0.0 handles -0.0 vs +0.0 equivalence
-    return (round(n.coord.x, digits=8)+0.0, 
-            round(n.coord.y, digits=8)+0.0, 
+    return (round(n.coord.x, digits=8)+0.0,
+            round(n.coord.y, digits=8)+0.0,
             round(n.coord.z, digits=8)+0.0)
+end
+
+@inline function node_pos_key(n::Node, tol::Real)
+    tol > 0 || throw(ArgumentError("node_pos_key: tol must be positive. Got $tol"))
+    invtol = inv(float(tol))
+    return (
+        round(Int, n.coord.x * invtol),
+        round(Int, n.coord.y * invtol),
+        round(Int, n.coord.z * invtol),
+    )
 end
 
 Base.setindex!(d::NodePosMap, v::Node, k::Node) = d.store[node_pos_key(k)] = v

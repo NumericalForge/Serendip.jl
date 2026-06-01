@@ -205,6 +205,24 @@ correction_chain = sort([late_line; many_surfaces], by=Serendip._domain_render_d
 Serendip._domain_correct_render_order_3d!(correction_chain, depth_tol)
 @test correction_chain[end] === late_line
 
+@testset "Tolerant geometric matching" begin
+    quad_a = Cell(get_shape(:quad4), :solid, Node[
+        Node(0.0, 0.0, 0.0, id=1),
+        Node(1.0, 0.0, 0.0, id=2),
+        Node(1.0, 1.0, 0.0, id=3),
+        Node(0.0, 1.0, 0.0, id=4),
+    ])
+    quad_b = Cell(get_shape(:quad4), :solid, Node[
+        Node(5e-6, 0.0, 0.0, id=5),
+        Node(1.0 + 5e-6, 0.0, 0.0, id=6),
+        Node(1.0 + 5e-6, 1.0, 0.0, id=7),
+        Node(5e-6, 1.0, 0.0, id=8),
+    ])
+
+    @test length(get_outline_edges([quad_a, quad_b])) == 8
+    @test isempty(get_outline_edges([quad_a, quad_b], tol=1e-5))
+end
+
 default_coords = configured_coords(view_plot(model))
 explicit_z_coords = configured_coords(view_plot(model, up=:z))
 for (coord_default, coord_explicit) in zip(default_coords, explicit_z_coords)
