@@ -63,6 +63,6 @@ run(ana, autoinc=true, tol=0.01, maxits=3)
 # ❱❱❱ Post-processing
 
 table = logg.table
-chart = Chart(xlabel=t"$u_r$", ylabel=t"$τ$", legend=:bottom_right)
+chart = Chart(xlabel="`u_r`", ylabel="`τ`", legend=:bottom_right)
 add_series(chart, :line, table["sl"], table["τl"], mark=:circle, color=:red)
 save(chart, "chart.pdf")

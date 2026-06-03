@@ -27,8 +27,8 @@ curve_x, curve_y = mirrored_curve(collect(σx), collect(σy))
 diag = range(-1.15, 0.15, 100)
 
 chart = Chart(
-    xlabel=t"$macron(σ)_1 / f_0$",
-    ylabel=t"$macron(σ)_2 / f_0$",
+    xlabel="`macron(σ)_1 / f_0`",
+    ylabel="`macron(σ)_2 / f_0`",
     legend=:bottom_right,
     xlimits=[-1.4, 0.2],
     ylimits=[-1.4, 0.2],

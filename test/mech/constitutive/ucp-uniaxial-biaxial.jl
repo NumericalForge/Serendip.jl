@@ -98,8 +98,8 @@ table_b = log_b.table
 table_t = log_t.table
 
 chart = Chart(
-    xlabel=t"$ε$",
-    ylabel=t"$σ$",
+    xlabel="`ε`",
+    ylabel="`σ`",
     legend=:top_left,
 )
 add_line(chart, table_c["εzz"], table_c["σzz"], mark=:circle, label="uniaxial compression")
@@ -109,8 +109,8 @@ add_line(chart, table_t["εzz"], table_t["σzz"], mark=:utriangle, mark_size=1, 
 save(chart, "ucp-σ-ε.pdf")
 
 chart = Chart(
-    xlabel=t"$ξ$",
-    ylabel=t"$ρ$",
+    xlabel="`ξ`",
+    ylabel="`ρ`",
     legend=:top_left,
 )
 add_line(chart, table_c["ξ"], table_c["ρ"], mark=:circle, label="uniaxial compression")

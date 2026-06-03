@@ -4,9 +4,8 @@ table = DataTable("cscp.dat")
 
 
 chart = Chart(
-    xlabel = t"xi",
-    ylabel = t"rho",
-    xmult = 1e-3,
+    xlabel = "`xi`",
+    ylabel = "`rho`",
 )
 
 rθ = table.r[2]
@@ -39,9 +38,9 @@ k = table.kappa[end]
 
 
 series = [
-    DataSeries(ξ0, ρ0, color=:red),
-    DataSeries(ξ1, ρ1, color=:blue),
-    DataSeries(table.xi, table.rho, mark=:circle),
+    DataSeries(1e-3 .* ξ0, ρ0, color=:red),
+    DataSeries(1e-3 .* ξ1, ρ1, color=:blue),
+    DataSeries(1e-3 .* table.xi, table.rho, mark=:circle),
 ]
 
 add_series(chart, series)
@@ -50,14 +49,13 @@ save(chart, "chart.pdf")
 # chart2
 
 chart = Chart(
-    xlabel = t"varepsilon_(y y)times 1000",
-    ylabel = t"σ_(y y)",
-    xmult = 1e3,
+    xlabel = "`varepsilon_(y y)` times 1000",
+    ylabel = "`σ_(y y)`",
 )
 
 
 series = [
-    DataSeries(table.eyy, table.syy, mark=:circle),
+    DataSeries(1e3 .* table.eyy, table.syy, mark=:circle),
 ]
 
 add_series(chart, series)
@@ -66,14 +64,13 @@ save(chart, "chart2.pdf")
 # chart3
 
 chart = Chart(
-    xlabel = t"ε_(x x) × 1000",
-    ylabel = t"σ_(x x)",
-    xmult = 1e3,
+    xlabel = "`ε_(x x)` × 1000",
+    ylabel = "`σ_(x x)`",
 )
 
 
 series = [
-    DataSeries(table.eyy, table.sxx, mark=:circle),
+    DataSeries(1e3 .* table.eyy, table.sxx, mark=:circle),
 ]
 
 add_series(chart, series)
