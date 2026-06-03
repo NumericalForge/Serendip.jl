@@ -325,6 +325,7 @@ function Mesh(geo::GeoModel;
                    length(source_meshes)==1 ? copy(source_meshes[1]) :
                    join_meshes(source_meshes..., check=true)
         end
+        synchronize(mesh, sort=sort)
     end
 
     mesh.ctx.ndim = max(mesh.ctx.ndim, ndim)

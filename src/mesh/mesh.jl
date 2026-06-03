@@ -327,7 +327,7 @@ The same `mesh` object, modified in place, with reordered nodes and elements.
 function sort_mesh(mesh::Mesh; reverse::Bool=true)
     nnodes = length(mesh.nodes)
 
-    # Build node–node adjacency from cell connectivities
+    # Build node–node adjacency from cell connectivities (do not rely on node.elems)
     adjacents = [Int[] for _ in 1:nnodes]
     for cell in mesh.elems
         ids = getfield.(cell.nodes, :id)
