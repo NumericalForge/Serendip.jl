@@ -45,7 +45,6 @@ grid = ChartGrid(
     background=:old_paper, 
     row_headers=trajectories,
     column_headers=[ "`σ_n` vs `τ`", "`w` vs `σ_n`" ],
-    quiet=true,
 )
 
 for (i,trajectory) in enumerate(trajectories)

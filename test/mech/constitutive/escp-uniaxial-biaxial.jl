@@ -140,7 +140,6 @@ add_line(chart31, table_t["ξ"], table_t["ρ"], mark=:utriangle, label="uniaxial
 grid = ChartGrid(
     size = (14cm, 18cm),
     background =:old_paper, 
-    quiet=true,
 )
 
 add_chart(grid, chart11, (1, 1))
