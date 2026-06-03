@@ -37,13 +37,13 @@ function configured_coords(plot)
 end
 
 function view_plot(mesh; up=:z, title="", axes=:none)
-    plot = DomainPlot(up=up, title=title, axes=axes, quiet=true)
+    plot = DomainPlot(up=up, title=title, axes=axes)
     add_plot(plot, mesh)
     return plot
 end
 
 function layer_plot(mesh; kwargs...)
-    plot = DomainPlot(quiet=true)
+    plot = DomainPlot()
     add_plot(plot, mesh; kwargs...)
     return plot.layers[1]
 end
@@ -62,7 +62,7 @@ function two_hex_interface_mesh()
 end
 
 function configured_outline_geom_keys(mesh; warp=0.0)
-    plot = DomainPlot(quiet=true)
+    plot = DomainPlot()
     add_plot(plot, mesh; warp=warp)
     Serendip.configure!(plot)
 
@@ -126,16 +126,19 @@ function make_render_elem(layer, role::Symbol, zcoords::Vector{Float64}; layer_i
     return Serendip.DomainRenderElem(layer, elem, 1.0, layer_index, index_in_layer, xmin, xmax, ymin, ymax, zmin, zmax, zavg, fallback_depth)
 end
 
-@test DomainPlot(quiet=true).up == :z
+@test DomainPlot().up == :z
+@test DomainPlot().shade_strength == 1.0
 @test DomainPlot(mesh2d, vector_field="flow").vector_field == "flow"
 @test DomainPlot(mesh2d, vector_field="flow").arrow_length == 12.0
 @test DomainPlot(mesh2d, vector_field="flow").arrow_width == 0.5
 @test DomainPlot(mesh2d, vector_field="flow").arrow_color == Color(:black)
 @test view_plot(model).layers[1].field_kind == :auto
-@test DomainPlot(up=:x, quiet=true).up == :x
-@test DomainPlot(up=:y, quiet=true).up == :y
-@test DomainPlot(up=:z, quiet=true).up == :z
-@test_throws ArgumentError DomainPlot(up=:w, quiet=true)
+@test DomainPlot(up=:x).up == :x
+@test DomainPlot(up=:y).up == :y
+@test DomainPlot(up=:z).up == :z
+@test DomainPlot(shade_strength=0.5).shade_strength == 0.5
+@test_throws ArgumentError DomainPlot(up=:w)
+@test_throws ArgumentError DomainPlot(shade_strength=-0.1)
 @testset "Line element styling" begin
     default_line_elem_layer = layer_plot(mesh2d)
     @test default_line_elem_layer.line_elem_color == :auto
@@ -240,6 +243,11 @@ Serendip.configure!(cube_vector_plot)
 @test size(cube_vector_plot.layers[1].vector_values) == (length(mesh.nodes), 2)
 @test maximum(norm.(eachrow(cube_vector_plot.layers[1].vector_values))) > 0.0
 @test length(Serendip._domain_overlay_nodes(cube_vector_plot)[1]) < length(cube_vector_plot.layers[1].nodes)
+
+surface3d_flat_shade_plot = DomainPlot(shade_strength=0.0)
+add_plot(surface3d_flat_shade_plot, surface_role_mesh(3))
+Serendip.configure!(surface3d_flat_shade_plot)
+@test all(isapprox(shade, 1.0) for shade in surface3d_flat_shade_plot.layers[1].shades)
 
 render_layer = surface3d_plot.layers[1]
 depth_tol = 1e-6

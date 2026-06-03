@@ -32,7 +32,7 @@ mapper = RegionMapper()
 add_mapping(mapper, "solids", MechSolid, LinearElastic, E=1e4, nu=0.25)
 model = FEModel(mesh, mapper, quiet=true)
 
-plot = DomainPlot(size=(5cm, 4cm), quiet=true)
+plot = DomainPlot(size=(5cm, 4cm))
 add_plot(plot, model)
 @test isapprox(plot.width, 5cm)
 @test isapprox(plot.height, 4cm)

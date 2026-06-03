@@ -55,7 +55,7 @@ case2d = make_square_case()
 @test maximum(abs, case2d.model.node_fields["U"]) > 0.0
 case2d.mesh.node_fields["temp"] = collect(1.0:length(case2d.mesh.nodes))
 
-plot2d = DomainPlot(size=(5cm, 4cm), quiet=true)
+plot2d = DomainPlot(size=(5cm, 4cm))
 add_plot(plot2d, case2d.mesh, face_color=:aliceblue, view_mode=:surface_with_edges, field="temp", field_kind=:node, colorbar=:left)
 add_plot(plot2d, case2d.model, warp=5.0, view_mode=:outline, line_color=:red, field="ux", field_kind=:node, vector_field="U", arrow_color=:red, colorbar=:right)
 
@@ -79,7 +79,7 @@ case3d = make_cube_case()
 @test maximum(abs, case3d.model.node_fields["U"]) > 0.0
 case3d.mesh.node_fields["temp"] = collect(1.0:length(case3d.mesh.nodes))
 
-plot3d = DomainPlot(size=(5cm, 4cm), quiet=true)
+plot3d = DomainPlot(size=(5cm, 4cm))
 add_plot(plot3d, case3d.mesh, face_color=:aliceblue, view_mode=:surface_with_edges, field="temp", field_kind=:node, colorbar=:top)
 add_plot(plot3d, case3d.model, warp=5.0, view_mode=:outline, line_color=:red, field="ux", field_kind=:node, vector_field="U", arrow_color=:red, colorbar=:bottom)
 

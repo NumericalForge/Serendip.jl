@@ -7,10 +7,9 @@
         colorbar=:right, colorbar_ratio=0.9,
         font="NewComputerModern", font_size=7.0,
         title="",
-        light_vector=[0,0,0],
+        light_vector=[0,0,0], shade_strength=1.0,
         azimuth=30, elevation=30, distance=0.0, up=:z,
-        axes=:none, axis_labels=String[],
-        quiet=false)
+        axes=:none, axis_labels=String[])
 
     DomainPlot(mesh;
         size=(220,150), face_color=:aliceblue, warp=0.0,
@@ -26,11 +25,10 @@
         interpolation=:linear,
         azimuth=30, elevation=30, distance=0.0, up=:z,
         show_outline=true, view_mode=:surface_with_edges,
-        light_vector=[0,0,0],
+        light_vector=[0,0,0], shade_strength=1.0,
         mark=:none, mark_size=2.5, stage=nothing,
         node_labels=false,
-        axes=:none, axis_labels=String[],
-        quiet=false)
+        axes=:none, axis_labels=String[])
 
 Create a customizable domain plot for meshes and FE models.
 
@@ -123,6 +121,7 @@ mutable struct DomainPlot <: Figure
 
     interpolation::Symbol
     light_vector::Vector{Float64}
+    shade_strength::Float64
 
     width::Float64
     height::Float64
@@ -169,8 +168,6 @@ mutable struct DomainPlot <: Figure
     layers::Vector{DomainPlotLayer}
     render_elems::Vector{DomainRenderElem}
     ndim::Int
-    quiet::Bool
-
     function DomainPlot(;
         size::Tuple{<:Real,<:Real}=(220,150),
         colorbar::Symbol=:right,
@@ -179,6 +176,7 @@ mutable struct DomainPlot <: Figure
         font_size::Real=7.0,
         title::AbstractString="",
         light_vector::Vector{<:Real}=[0.0,0.0,0.0],
+        shade_strength::Real=1.0,
         azimuth::Real=30.0,
         elevation::Real=30.0,
         distance::Real=0.0,
@@ -186,11 +184,11 @@ mutable struct DomainPlot <: Figure
         axes::Symbol=:none,
         axis_labels::Vector{<:AbstractString}=String[],
         outerpad=0.0,
-        quiet::Bool=false,
     )
         @check !isempty(font) "font must be a non-empty string"
         @check font_size > 0 "font_size must be positive"
         @check colorbar_ratio > 0 "colorbar_ratio must be positive"
+        @check shade_strength >= 0 "shade_strength must be non-negative"
         @check distance >= 0 "distance must be non-negative"
         @check up in (:x, :y, :z) "up must be one of :x, :y, :z. Got $up"
 
@@ -211,11 +209,9 @@ mutable struct DomainPlot <: Figure
             arrow_length=axis_arrow_length,
         )
 
-        if !quiet
-            printstyled("Domain plot\n", bold=true, color=:cyan)
-            println("  size: $(width) x $(height) pt")
-            title != "" && println("  title: $(title)")
-        end
+        printstyled("Domain plot\n", bold=true, color=:cyan)
+        println("  size: $(width) x $(height) pt")
+        title != "" && println("  title: $(title)")
 
         return new(
             nothing,
@@ -238,6 +234,7 @@ mutable struct DomainPlot <: Figure
             up,
             :linear,
             Float64[float(v) for v in light_vector],
+            float(shade_strength),
             width,
             height,
             0.3,
@@ -282,7 +279,6 @@ mutable struct DomainPlot <: Figure
             DomainPlotLayer[],
             DomainRenderElem[],
             0,
-            quiet,
         )
     end
 end
@@ -319,6 +315,7 @@ function DomainPlot(mesh;
     font_size::Real=7.0,
     title::AbstractString="",
     light_vector::Vector{<:Real}=[0.0,0.0,0.0],
+    shade_strength::Real=1.0,
     interpolation::Symbol=:linear,
     azimuth::Real=30.0,
     elevation::Real=30.0,
@@ -333,7 +330,6 @@ function DomainPlot(mesh;
     axes::Symbol=:none,
     axis_labels::Vector{<:AbstractString}=String[],
     outerpad=0.0,
-    quiet::Bool=false,
 )
     mplot = DomainPlot(
         size=size,
@@ -343,6 +339,7 @@ function DomainPlot(mesh;
         font_size=font_size,
         title=title,
         light_vector=light_vector,
+        shade_strength=shade_strength,
         azimuth=azimuth,
         elevation=elevation,
         distance=distance,
@@ -350,7 +347,6 @@ function DomainPlot(mesh;
         axes=axes,
         axis_labels=axis_labels,
         outerpad=outerpad,
-        quiet=quiet,
     )
 
     add_plot(
@@ -587,7 +583,8 @@ save(plot, "out.pdf")
 
 # Notes
 - All layers in one `DomainPlot` must have the same dimension.
-- Shared figure options such as camera, axes, title, font, and `light_vector`
+- Shared figure options such as camera, axes, title, font, `light_vector`,
+  and `shade_strength`
   belong to `DomainPlot`.
 - Figure-level `colorbar` and `colorbar_ratio` act as defaults for layers unless
   overridden in `add_plot`.
@@ -1094,12 +1091,13 @@ function _domain_prepare_layer!(mplot::DomainPlot, layer::DomainPlotLayer)
             R = normalize(2*N*dot(L, N) - L)
             dot(V, R) < 0 && (R = -R)
 
-            Ia = 0.68
-            Id = 0.34
-            Is = 0.20
-            sh = 2.00
+            Ia = 0.68  # ambient light
+            Id = 0.34  # diffuse light
+            Is = 0.20  # specular light
+            sh = 2.00  # shininess exponent
 
-            shades[i] = Ia + Id*max(0, dot(L, N)) + Is*max(0, dot(V, R))^sh
+            raw_shade = Ia + Id*max(0, dot(L, N)) + Is*max(0, dot(V, R))^sh
+            shades[i] = 1.0 + mplot.shade_strength*(raw_shade - 1.0)
         end
         layer.shades = shades
     end
@@ -1591,21 +1589,23 @@ function _domain_assign_side_frames!(mplot::DomainPlot, items::Vector{FigureComp
 
     canvas = mplot.canvas.frame
     if side in (:left, :right)
-        slot_length = canvas.height / length(items)
+        gap = length(items) > 1 ? 0.05 * canvas.height : 0.0
+        slot_length = (canvas.height - (length(items) - 1) * gap) / length(items)
         pane_x = side == :left ? canvas.x - pane_size : canvas.x + canvas.width
         for (i, item) in enumerate(items)
             cb = item::Colorbar
-            slot_y = canvas.y + (i - 1) * slot_length
+            slot_y = canvas.y + (i - 1) * (slot_length + gap)
             cb.height = cb.length_factor * slot_length
             cb.axis.height = cb.height
             cb.frame = Frame(pane_x, slot_y, pane_size, slot_length)
         end
     else
-        slot_length = canvas.width / length(items)
+        gap = length(items) > 1 ? 0.05 * canvas.width : 0.0
+        slot_length = (canvas.width - (length(items) - 1) * gap) / length(items)
         pane_y = side == :top ? canvas.y - pane_size : canvas.y + canvas.height
         for (i, item) in enumerate(items)
             cb = item::Colorbar
-            slot_x = canvas.x + (i - 1) * slot_length
+            slot_x = canvas.x + (i - 1) * (slot_length + gap)
             cb.width = cb.length_factor * slot_length
             cb.axis.width = cb.width
             cb.frame = Frame(slot_x, pane_y, slot_length, pane_size)

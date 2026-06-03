@@ -33,7 +33,7 @@ end
 model, stage = marker_model_2d()
 
 function marker_plot(model; mark=:none, mark_size=2.5, stage=nothing)
-    plot = DomainPlot(quiet=true)
+    plot = DomainPlot()
     add_plot(plot, model; mark=mark, mark_size=mark_size, stage=stage)
     return plot
 end
