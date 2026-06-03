@@ -45,6 +45,8 @@ add_bc(stage, :node, x==ℓ, uy=-0.002)
 
 run(ana, autoinc=true, maxits=3, tol=0.1, rspan=0.03, quiet=false)
 
+save(model, "crack-2d.vtk")
+
 # ❱❱❱ Post-processing
 
 plot = DomainPlot()
