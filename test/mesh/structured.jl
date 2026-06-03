@@ -78,6 +78,43 @@ end
 end
 
 
+@testset "remove_elements compacts field data" begin
+    geo_rm = GeoModel(quiet=true)
+    add_block(geo_rm, [0, 0, 0], 2, 1, 0, nx=2, ny=1, shape=:quad4, tag="bulk")
+    mesh_rm = Mesh(geo_rm, quiet=true)
+
+    for elem in mesh_rm.elems
+        xmid = sum(node.coord.x for node in elem.nodes) / length(elem.nodes)
+        elem.tag = xmid < 1.0 ? "left" : "right"
+    end
+
+    mesh_rm.node_fields["scalar"] = collect(10:10:10*length(mesh_rm.nodes))
+    mesh_rm.node_fields["vec"] = hcat(collect(1.0:length(mesh_rm.nodes)), collect(101.0:100.0+length(mesh_rm.nodes)))
+    mesh_rm.elem_fields["scalar"] = collect(1.0:length(mesh_rm.elems))
+    mesh_rm.elem_fields["vec"] = hcat(collect(11.0:10.0+length(mesh_rm.elems)), collect(21.0:20.0+length(mesh_rm.elems)))
+
+    kept_elems = select(mesh_rm, :element, "left")
+    kept_nodes = unique!(n -> n.id, [node for elem in kept_elems for node in elem.nodes])
+    kept_node_ids = getfield.(kept_nodes, :id)
+    kept_elem_ids = getfield.(kept_elems, :id)
+
+    expected_node_scalar = mesh_rm.node_fields["scalar"][kept_node_ids]
+    expected_node_vec = mesh_rm.node_fields["vec"][kept_node_ids, :]
+    expected_elem_scalar = mesh_rm.elem_fields["scalar"][kept_elem_ids]
+    expected_elem_vec = mesh_rm.elem_fields["vec"][kept_elem_ids, :]
+
+    remove_elements(mesh_rm, "right")
+
+    @test length(mesh_rm.elems) == length(kept_elems)
+    @test length(mesh_rm.nodes) == length(kept_nodes)
+    @test mesh_rm.node_fields["scalar"] == expected_node_scalar
+    @test mesh_rm.node_fields["vec"] == expected_node_vec
+    @test mesh_rm.elem_fields["scalar"] == expected_elem_scalar
+    @test mesh_rm.elem_fields["vec"] == expected_elem_vec
+    @test mesh_rm.elem_fields["quality"] == [cell.quality for cell in mesh_rm.elems]
+end
+
+
 nodes_count = [ 1331, 4961, 9261, 1331, 9261 ]
 shapes = [:hex8, :hex20, :hex27, :tet4, :tet10]
 

@@ -67,7 +67,7 @@ export GeoModel, Block, Path, GPath, Point, Edge, Surface, Volume
 
 # Mesh
 include("mesh/include.jl")
-export get_coords
+export get_coords, remove_elements
 
 include("context.jl")
 export Context

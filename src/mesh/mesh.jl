@@ -933,6 +933,12 @@ function get_segment_data(msh::AbstractDomain, X1::Array{<:Real,1}, X2::Array{<:
 end
 
 
+function _subset_entity_field_data(data::AbstractArray, ids::Vector{Int})
+    inds = (ids, ntuple(_ -> Colon(), ndims(data) - 1)...)
+    return data[inds...]
+end
+
+
 """
     remove_elements(mesh, selectors...)
 
@@ -952,6 +958,16 @@ function remove_elements(mesh::Mesh, selectors::Union{Symbol,Expr,Symbolic,Strin
 
     nodes = [ node for elem in mesh.elems for node in elem.nodes ]
     mesh.nodes = unique!( n -> n.id, nodes )
+    kept_node_ids = getfield.(mesh.nodes, :id)
+    kept_elem_ids = getfield.(mesh.elems, :id)
+
+    for (key, data) in mesh.node_fields
+        mesh.node_fields[key] = _subset_entity_field_data(data, kept_node_ids)
+    end
+
+    for (key, data) in mesh.elem_fields
+        mesh.elem_fields[key] = _subset_entity_field_data(data, kept_elem_ids)
+    end
 
     synchronize(mesh, sort=false)
     return mesh
