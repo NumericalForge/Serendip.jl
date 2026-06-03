@@ -1,5 +1,6 @@
 using Serendip
 using Test
+using LinearAlgebra
 
 geo = GeoModel(quiet=true)
 add_block(geo, [0, 0, 0], 1, 1, 1, nx=1, ny=1, nz=1, tag="solids")
@@ -12,6 +13,17 @@ model = FEModel(mesh, mapper, quiet=true)
 geo2d = GeoModel(quiet=true)
 add_block(geo2d, [0, 0, 0], 1, 1, 0, nx=1, ny=1, shape=:quad4, tag="solids")
 mesh2d = Mesh(geo2d, quiet=true)
+mesh.node_fields["flow"] = hcat([node.coord[1] + 1.0 for node in mesh.nodes], [0.5 * node.coord[2] + 0.25 for node in mesh.nodes], ones(length(mesh.nodes)))
+mesh.node_fields["zero_flow"] = zeros(length(mesh.nodes), 3)
+mesh.node_fields["short_flow"] = ones(length(mesh.nodes), 2)
+mesh.node_fields["bad_flow"] = collect(1.0:length(mesh.nodes))
+mesh2d.node_fields["flow"] = hcat([node.coord[1] + 1.0 for node in mesh2d.nodes], [0.5 * node.coord[2] + 0.25 for node in mesh2d.nodes])
+mesh2d.node_fields["edge_flow"] = hcat(fill(0.5, length(mesh2d.nodes)), zeros(length(mesh2d.nodes)))
+mesh2d.node_fields["tiny_flow"] = hcat(fill(1e-4, length(mesh2d.nodes)), zeros(length(mesh2d.nodes)))
+mesh2d.node_fields["zero_flow"] = zeros(length(mesh2d.nodes), 2)
+mesh2d.node_fields["short_flow"] = ones(length(mesh2d.nodes), 1)
+mesh2d.node_fields["bad_flow"] = collect(1.0:length(mesh2d.nodes))
+mesh2d.node_fields["temp"] = collect(1.0:length(mesh2d.nodes))
 
 function projected_xy(coords, up)
     nodes = [Node(coord; id=i) for (i, coord) in enumerate(coords)]
@@ -115,6 +127,10 @@ function make_render_elem(layer, role::Symbol, zcoords::Vector{Float64}; layer_i
 end
 
 @test DomainPlot(quiet=true).up == :z
+@test DomainPlot(mesh2d, vector_field="flow").vector_field == "flow"
+@test DomainPlot(mesh2d, vector_field="flow").arrow_length == 12.0
+@test DomainPlot(mesh2d, vector_field="flow").arrow_width == 0.5
+@test DomainPlot(mesh2d, vector_field="flow").arrow_color == Color(:black)
 @test view_plot(model).layers[1].field_kind == :auto
 @test DomainPlot(up=:x, quiet=true).up == :x
 @test DomainPlot(up=:y, quiet=true).up == :y
@@ -153,6 +169,56 @@ end
     @test Serendip._domain_default_line_elem_rgb(outline_default_layer) == (0.0, 0.0, 0.0)
 end
 
+@testset "Vector overlay configuration" begin
+    vector_layer = layer_plot(mesh2d, vector_field="flow", arrow_length=9.0, arrow_width=0.8, arrow_color=:red)
+    @test vector_layer.vector_field == "flow"
+    @test vector_layer.arrow_length == 9.0
+    @test vector_layer.arrow_width == 0.8
+    @test vector_layer.arrow_color == Color(:red)
+
+    scalar_vector_plot = DomainPlot(mesh2d, field="temp", field_kind=:node, vector_field="flow", arrow_color=:green)
+    Serendip.configure!(scalar_vector_plot)
+    scalar_vector_layer = scalar_vector_plot.layers[1]
+    @test scalar_vector_layer.field == "temp"
+    @test scalar_vector_layer.vector_field == "flow"
+    @test length(scalar_vector_layer.values) == length(mesh2d.nodes)
+    @test size(scalar_vector_layer.vector_values) == (length(mesh2d.nodes), 2)
+    @test maximum(norm.(eachrow(scalar_vector_layer.vector_values))) > 0.0
+
+    zero_vector_plot = DomainPlot(mesh2d, vector_field="zero_flow")
+    Serendip.configure!(zero_vector_plot)
+    @test all(iszero, zero_vector_plot.layers[1].vector_values)
+
+    save(zero_vector_plot, "output/domain-vectors-zero.pdf")
+    @test isfile("output/domain-vectors-zero.pdf")
+
+    plain_plot = DomainPlot(mesh2d)
+    Serendip.configure!(plain_plot)
+    endpoint_plot = DomainPlot(mesh2d, vector_field="tiny_flow")
+    Serendip.configure!(endpoint_plot)
+    @test endpoint_plot.canvas.limits[3] - plain_plot.canvas.limits[3] > 0.01
+
+    @test_throws ArgumentError layer_plot(mesh2d, arrow_length=0.0)
+    @test_throws ArgumentError layer_plot(mesh2d, arrow_width=0.0)
+    @test_throws ArgumentError layer_plot(mesh2d, arrow_color=:notacolor)
+    @test_throws ErrorException begin
+        plot = DomainPlot(mesh2d, vector_field="missing_flow")
+        Serendip.configure!(plot)
+    end
+    @test_throws ErrorException begin
+        plot = DomainPlot(mesh2d, vector_field="bad_flow")
+        Serendip.configure!(plot)
+    end
+    @test_throws ErrorException begin
+        plot = DomainPlot(mesh2d, vector_field="short_flow")
+        Serendip.configure!(plot)
+    end
+    @test_throws ErrorException begin
+        plot = DomainPlot(mesh, vector_field="short_flow")
+        Serendip.configure!(plot)
+    end
+end
+
 surface2d_plot = view_plot(surface_role_mesh(2))
 Serendip.configure!(surface2d_plot)
 @test length(surface2d_plot.layers[1].elems) == 1
@@ -168,6 +234,12 @@ render_tol = Serendip._domain_render_depth_tolerance(surface3d_plot)
 sorted_render_elems = sort(copy(surface3d_plot.render_elems), by=Serendip._domain_render_depth_key)
 Serendip._domain_correct_shared_edge_priority_3d!(sorted_render_elems, render_tol)
 @test surface3d_plot.render_elems == sorted_render_elems
+
+cube_vector_plot = DomainPlot(mesh, vector_field="flow")
+Serendip.configure!(cube_vector_plot)
+@test size(cube_vector_plot.layers[1].vector_values) == (length(mesh.nodes), 2)
+@test maximum(norm.(eachrow(cube_vector_plot.layers[1].vector_values))) > 0.0
+@test length(Serendip._domain_overlay_nodes(cube_vector_plot)[1]) < length(cube_vector_plot.layers[1].nodes)
 
 render_layer = surface3d_plot.layers[1]
 depth_tol = 1e-6

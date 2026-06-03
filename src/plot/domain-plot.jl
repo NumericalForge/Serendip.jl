@@ -18,6 +18,7 @@
         outline_angle=120,
         line_elem_width=nothing, line_elem_color=:auto,
         field="", limits=Float64[], field_kind=:auto, field_mult=1.0,
+        vector_field="", arrow_length=12.0, arrow_width=0.5, arrow_color=:black,
         label="", colormap=:coolwarm, diverging=false,
         colorbar=:right, colorbar_ratio=0.9, bins=6,
         font="NewComputerModern", font_size=7.0,
@@ -45,6 +46,7 @@ mutable struct DomainPlotLayer
     outline_edges_d::Dict
     values::Vector{Float64}
     shades::Vector{Float64}
+    vector_values::Matrix{Float64}
     field_kind::Symbol
     node_marker_kinds::Dict{Int,Symbol}
 
@@ -60,6 +62,10 @@ mutable struct DomainPlotLayer
     auto_limits::Bool
     limits::Vector{Float64}
     field_mult::Float64
+    vector_field::String
+    arrow_length::Float64
+    arrow_width::Float64
+    arrow_color::Color
     warp::Float64
     label::String
     colormap::Colormap
@@ -109,6 +115,7 @@ mutable struct DomainPlot <: Figure
     values::Vector{Float64}
     outerpad::Float64
     shades::Vector{Float64}
+    vector_values::Matrix{Float64}
     azimuth::Float64
     elevation::Float64
     distance::Float64
@@ -133,6 +140,10 @@ mutable struct DomainPlot <: Figure
     limits::Vector{Float64}
     auto_limits::Bool
     field_mult::Float64
+    vector_field::String
+    arrow_length::Float64
+    arrow_width::Float64
+    arrow_color::Color
     warp::Float64
     label::AbstractString
     colormap::Colormap
@@ -220,6 +231,7 @@ mutable struct DomainPlot <: Figure
             Float64[],
             float(outerpad),
             Float64[],
+            zeros(Float64, 0, 2),
             float(azimuth),
             float(elevation),
             float(distance),
@@ -241,6 +253,10 @@ mutable struct DomainPlot <: Figure
             [0.0, 0.0],
             true,
             1.0,
+            "",
+            12.0,
+            0.5,
+            Color(:black),
             0.0,
             "",
             Colormap(:coolwarm),
@@ -289,6 +305,10 @@ function DomainPlot(mesh;
     field_kind::Symbol=:auto,
     limits::AbstractVector{<:Real}=Float64[],
     field_mult::Real=1.0,
+    vector_field::AbstractString="",
+    arrow_length::Real=12.0,
+    arrow_width::Real=0.5,
+    arrow_color::Union{Symbol,Color,Tuple}=:black,
     label::AbstractString="",
     colormap::Union{Symbol,Colormap}=:coolwarm,
     diverging::Bool=false,
@@ -349,6 +369,10 @@ function DomainPlot(mesh;
         field_kind=field_kind,
         limits=limits,
         field_mult=field_mult,
+        vector_field=vector_field,
+        arrow_length=arrow_length,
+        arrow_width=arrow_width,
+        arrow_color=arrow_color,
         label=label,
         colormap=colormap,
         diverging=diverging,
@@ -460,6 +484,11 @@ function _domain_layer_has_field(layer::DomainPlotLayer)
 end
 
 
+function _domain_layer_has_vector_field(layer::DomainPlotLayer)
+    return !isempty(layer.vector_field)
+end
+
+
 function _domain_layer_field_kind(layer::DomainPlotLayer)
     return _domain_layer_has_field(layer) ? layer.field_kind : :none
 end
@@ -470,6 +499,7 @@ function _domain_sync_legacy_layer_fields!(mplot::DomainPlot, layer::DomainPlotL
     mplot.outline_edges_d = layer.outline_edges_d
     mplot.values = layer.values
     mplot.shades = layer.shades
+    mplot.vector_values = layer.vector_values
 
     mplot.line_width = layer.line_width
     mplot.line_color = layer.line_color
@@ -484,6 +514,10 @@ function _domain_sync_legacy_layer_fields!(mplot::DomainPlot, layer::DomainPlotL
     mplot.limits = layer.limits
     mplot.auto_limits = layer.auto_limits
     mplot.field_mult = layer.field_mult
+    mplot.vector_field = layer.vector_field
+    mplot.arrow_length = layer.arrow_length
+    mplot.arrow_width = layer.arrow_width
+    mplot.arrow_color = layer.arrow_color
     mplot.warp = layer.warp
     mplot.label = layer.label
     mplot.colormap = layer.colormap
@@ -533,6 +567,10 @@ save(plot, "out.pdf")
 - `field_kind::Symbol`: `:auto | :none | :node | :element`.
 - `limits::Vector{<:Real}`: field range `[min,max]`; empty vector enables auto range.
 - `field_mult::Real`: multiplier applied to field values.
+- `vector_field::AbstractString`: nodal vector field name for arrow overlay; empty disables arrows.
+- `arrow_length::Real`: maximum arrow length per layer in screen-space points.
+- `arrow_width::Real`: arrow stroke width in points.
+- `arrow_color::Union{Symbol,Color,Tuple}`: arrow color.
 - `label::AbstractString`: colorbar label for the field-bearing layer.
 - `colormap::Union{Symbol,Colormap}`: layer colormap.
 - `diverging::Bool`: center the colormap at zero.
@@ -573,6 +611,10 @@ function add_plot(
     field_kind::Symbol=:auto,
     limits::AbstractVector{<:Real}=Float64[],
     field_mult::Real=1.0,
+    vector_field::AbstractString="",
+    arrow_length::Real=12.0,
+    arrow_width::Real=0.5,
+    arrow_color::Union{Symbol,Color,Tuple}=:black,
     label::AbstractString="",
     colormap::Union{Symbol,Colormap}=:coolwarm,
     diverging::Bool=false,
@@ -591,6 +633,8 @@ function add_plot(
     @check length(limits) in (0, 2) "limits must have length 2 (manual) or be empty (auto)"
     @check mark in _domain_mark_list "mark must be one of $(_domain_mark_list). Got $mark"
     @check mark_size > 0 "mark_size must be positive"
+    @check arrow_length > 0 "arrow_length must be positive"
+    @check arrow_width > 0 "arrow_width must be positive"
     @check mark != :support || stage !== nothing "DomainPlot: mark=:support requires a stage"
     @check stage === nothing || hasproperty(stage, :bcs) "DomainPlot: stage must provide a bcs field"
     @check view_mode in (:surface_with_edges, :surface, :wireframe, :outline) "DomainPlot: invalid view_mode $(repr(view_mode))"
@@ -606,6 +650,7 @@ function add_plot(
     outline_color = _domain_resolve_color(outline_color, "outline_color"; auto=true)
     line_elem_width = _domain_resolve_line_elem_width(line_elem_width, view_mode, outline_width)
     line_elem_color = _domain_resolve_color(line_elem_color, "line_elem_color"; auto=true)
+    arrow_color = _domain_resolve_color(arrow_color, "arrow_color")
     layer_colorbar = something(colorbar, mplot.colorbar_location)
     layer_colorbar_ratio = float(something(colorbar_ratio, mplot.colorbar_ratio))
 
@@ -616,6 +661,7 @@ function add_plot(
         Dict(),
         Float64[],
         Float64[],
+        zeros(Float64, 0, 2),
         field_kind,
         Dict{Int,Symbol}(),
         float(line_width),
@@ -630,6 +676,10 @@ function add_plot(
         length(limits) == 0,
         length(limits) == 0 ? [0.0, 0.0] : collect(float.(limits)),
         float(field_mult),
+        string(vector_field),
+        float(arrow_length),
+        float(arrow_width),
+        arrow_color,
         float(warp),
         string(label),
         colormap isa Symbol ? Colormap(colormap) : colormap,
@@ -789,6 +839,63 @@ function _domain_draw_node_markers!(ctx::RenderContext, mplot::DomainPlot, layer
 end
 
 
+function _domain_draw_node_labels!(ctx::RenderContext, mplot::DomainPlot, layer::DomainPlotLayer, nodes)
+    layer.node_labels || return
+    cairo_ctx = ctx.cairo_ctx
+
+    Cairo.save(cairo_ctx)
+    reset_matrix!(ctx)
+    for node in nodes
+        x, y = data2user(mplot.canvas, node.coord[1], node.coord[2])
+        y += mplot.font_size
+        set_source_rgb(cairo_ctx, rgb(Color(:blue))...)
+        draw_text(cairo_ctx, x, y, string(node.id), halign="center", valign="center", angle=0)
+    end
+    Cairo.restore(cairo_ctx)
+end
+
+
+function _domain_draw_node_arrows!(ctx::RenderContext, mplot::DomainPlot, layer::DomainPlotLayer, nodes)
+    _domain_layer_has_vector_field(layer) || return
+    isempty(nodes) && return
+
+    valid = Tuple{Node,Float64,Float64,Float64}[]
+    maxnorm = 0.0
+    for node in nodes
+        node.id <= size(layer.vector_values, 1) || continue
+        dx = layer.vector_values[node.id, 1]
+        dy = layer.vector_values[node.id, 2]
+        isfinite(dx) && isfinite(dy) || continue
+
+        x1, y1 = data2user(mplot.canvas, node.coord[1], node.coord[2])
+        x2, y2 = data2user(mplot.canvas, node.coord[1] + dx, node.coord[2] + dy)
+        Δx = x2 - x1
+        Δy = y2 - y1
+        ℓ = hypot(Δx, Δy)
+        ℓ > 1e-12 || continue
+
+        push!(valid, (node, Δx, Δy, ℓ))
+        maxnorm = max(maxnorm, ℓ)
+    end
+
+    maxnorm > 0 || return
+
+    cairo_ctx = ctx.cairo_ctx
+    scale = layer.arrow_length / maxnorm
+    head_length = min(4.0, 0.6 * layer.arrow_length)
+
+    Cairo.save(cairo_ctx)
+    reset_matrix!(ctx)
+    set_line_width(cairo_ctx, layer.arrow_width * ctx.width_scale)
+    set_source_rgb(cairo_ctx, _domain_rgb(layer.arrow_color)...)
+    for (node, Δx, Δy, _) in valid
+        x1, y1 = data2user(mplot.canvas, node.coord[1], node.coord[2])
+        draw_arrow(cairo_ctx, x1, y1, x1 + scale * Δx, y1 + scale * Δy; head_length=head_length)
+    end
+    Cairo.restore(cairo_ctx)
+end
+
+
 function bezier_points(edge::AbstractCell)
     p1 = edge.nodes[1].coord[1:2]
     p4 = edge.nodes[2].coord[1:2]
@@ -805,25 +912,42 @@ function bezier_points(edge::AbstractCell)
 end
 
 
+function _domain_projection_state(points, azimuth, elevation, distance, up::Symbol=:z)
+    isempty(points) && return (center=Vec3(0.0, 0.0, 0.0), reflength=1.0, xmin=0.0, ymin=0.0, scale=1.0, azimuth=float(azimuth), elevation=float(elevation), distance=float(distance), up=up)
+
+    xmin, xmax = extrema(point[1] for point in points)
+    ymin, ymax = extrema(point[2] for point in points)
+    zmin, zmax = extrema(point[3] for point in points)
+    reflength = max(xmax - xmin, ymax - ymin, zmax - zmin)
+    reflength > 1e-12 || (reflength = 1.0)
+
+    center = 0.5 * Vec3(xmin + xmax, ymin + ymax, zmin + zmax)
+    projected = [
+        project_view_point(point, azimuth, elevation, distance, up=up, center=center, reflength=reflength)
+        for point in points
+    ]
+
+    xmin, xmax = extrema(point[1] for point in projected)
+    ymin, ymax = extrema(point[2] for point in projected)
+    scale = max(xmax - xmin, ymax - ymin)
+    scale > 1e-12 || (scale = 1.0)
+
+    return (center=center, reflength=reflength, xmin=xmin, ymin=ymin, scale=scale, azimuth=float(azimuth), elevation=float(elevation), distance=float(distance), up=up)
+end
+
+
+function _domain_project_point(point, state)
+    projected = project_view_point(point, state.azimuth, state.elevation, state.distance, up=state.up, center=state.center, reflength=state.reflength)
+    x = (projected[1] - state.xmin) / state.scale
+    y = (projected[2] - state.ymin) / state.scale
+    return Vec3(x, y, projected[3])
+end
+
+
 function project_to_2d!(nodes, azimuth, elevation, distance, up::Symbol=:z)
-    xmin, xmax = extrema(node.coord[1] for node in nodes)
-    ymin, ymax = extrema(node.coord[2] for node in nodes)
-    zmin, zmax = extrema(node.coord[3] for node in nodes)
-    reflength = max(xmax-xmin, ymax-ymin, zmax-zmin)
-
-    center = 0.5*Vec3(xmin+xmax, ymin+ymax, zmin+zmax)
+    state = _domain_projection_state(getfield.(nodes, :coord), azimuth, elevation, distance, up)
     for node in nodes
-        node.coord = project_view_point(node.coord, azimuth, elevation, distance, up=up, center=center, reflength=reflength)
-    end
-
-    xmin, xmax = extrema(node.coord[1] for node in nodes)
-    ymin, ymax = extrema(node.coord[2] for node in nodes)
-
-    l = max(xmax-xmin, ymax-ymin)
-    for node in nodes
-        x = (node.coord[1]-xmin)/l
-        y = (node.coord[2]-ymin)/l
-        node.coord = Vec3(x, y, node.coord[3])
+        node.coord = _domain_project_point(node.coord, state)
     end
 end
 
@@ -880,6 +1004,30 @@ function _domain_configure_layer_field!(layer::DomainPlotLayer, mesh::AbstractDo
     end
 
     layer.colormap = resize(layer.colormap, fmin, fmax, diverging=layer.diverging)
+    return true
+end
+
+
+function _domain_configure_layer_vector_field!(layer::DomainPlotLayer, mesh::AbstractDomain, nodes)
+    if !_domain_layer_has_vector_field(layer)
+        layer.vector_values = zeros(Float64, 0, 2)
+        return false
+    end
+
+    vector_field = layer.vector_field
+    node_fields = mesh.node_fields
+    fields = string.(collect(keys(node_fields)))
+    haskey(node_fields, vector_field) || error("DomainPlot: vector field $vector_field not found. Available node fields are: $(join(fields, ", ", " and "))")
+
+    values = node_fields[vector_field]
+    values isa AbstractMatrix || error("DomainPlot: vector field $(repr(vector_field)) must be a nodal matrix field")
+
+    required_cols = mesh.ctx.ndim == 3 ? 3 : 2
+    size(values, 2) >= required_cols || error("DomainPlot: vector field $(repr(vector_field)) must have at least $required_cols columns")
+    max_node_id = isempty(nodes) ? 0 : maximum(node.id for node in nodes)
+    size(values, 1) >= max_node_id || error("DomainPlot: vector field $(repr(vector_field)) is missing nodal rows up to id $max_node_id")
+
+    layer.vector_values = collect(float.(values[:, 1:required_cols]))
     return true
 end
 
@@ -962,6 +1110,7 @@ function _domain_prepare_layer!(mplot::DomainPlot, layer::DomainPlotLayer)
     end
 
     _domain_configure_layer_field!(layer, mesh, layer.nodes)
+    _domain_configure_layer_vector_field!(layer, mesh, layer.nodes)
     layer.node_marker_kinds = layer.mark in (:auto, :support) ? _domain_resolve_node_marker_kinds(layer.stage, ndim) : Dict{Int,Symbol}()
     return nothing
 end
@@ -1168,6 +1317,33 @@ function _domain_prepare_layers!(mplot::DomainPlot)
 end
 
 
+function _domain_prepare_vector_overlays!(mplot::DomainPlot)
+    if mplot.ndim == 2
+        for layer in mplot.layers
+            _domain_layer_has_vector_field(layer) || continue
+            layer.vector_values = collect(layer.vector_values[:, 1:2])
+        end
+        return nothing
+    end
+
+    state = _domain_projection_state(getfield.(mplot.nodes, :coord), mplot.azimuth, mplot.elevation, mplot.distance, mplot.up)
+    for layer in mplot.layers
+        _domain_layer_has_vector_field(layer) || continue
+        projected = zeros(Float64, size(layer.vector_values, 1), 2)
+        for node in layer.nodes
+            node.id <= size(layer.vector_values, 1) || continue
+            vector = layer.vector_values[node.id, :]
+            p1 = _domain_project_point(node.coord, state)
+            p2 = _domain_project_point(node.coord + vector, state)
+            projected[node.id, 1] = p2[1] - p1[1]
+            projected[node.id, 2] = p2[2] - p1[2]
+        end
+        layer.vector_values = projected
+    end
+    return nothing
+end
+
+
 function _domain_build_render_elems!(mplot::DomainPlot)
     for (layer_index, layer) in enumerate(mplot.layers)
         for (index_in_layer, elem) in enumerate(layer.elems)
@@ -1307,11 +1483,58 @@ function _domain_assign_title_frame!(mplot::DomainPlot, title_height)
 end
 
 
-function _domain_assign_canvas_limits!(mplot::DomainPlot)
+function _domain_node_bounds(mplot::DomainPlot)
     xmin_data, xmax_data = extrema(node.coord[1] for node in mplot.nodes)
     ymin_data, ymax_data = extrema(node.coord[2] for node in mplot.nodes)
+    return xmin_data, xmax_data, ymin_data, ymax_data
+end
 
+
+function _domain_vector_overlay_bounds(mplot::DomainPlot, ratio::Float64)
+    xmin_data, xmax_data, ymin_data, ymax_data = _domain_node_bounds(mplot)
+
+    for (layer, nodes) in zip(mplot.layers, _domain_overlay_nodes(mplot))
+        _domain_layer_has_vector_field(layer) || continue
+        valid = Tuple{Node,Float64,Float64,Float64}[]
+        maxnorm = 0.0
+
+        for node in nodes
+            node.id <= size(layer.vector_values, 1) || continue
+            dx = layer.vector_values[node.id, 1]
+            dy = layer.vector_values[node.id, 2]
+            isfinite(dx) && isfinite(dy) || continue
+            ℓ = hypot(dx, dy)
+            ℓ > 1e-12 || continue
+            push!(valid, (node, dx, dy, ℓ))
+            maxnorm = max(maxnorm, ℓ)
+        end
+
+        maxnorm > 0 || continue
+        scale = layer.arrow_length / (ratio * maxnorm)
+
+        for (node, dx, dy, _) in valid
+            x = node.coord[1] + scale * dx
+            y = node.coord[2] + scale * dy
+            xmin_data = min(xmin_data, x)
+            xmax_data = max(xmax_data, x)
+            ymin_data = min(ymin_data, y)
+            ymax_data = max(ymax_data, y)
+        end
+    end
+
+    return xmin_data, xmax_data, ymin_data, ymax_data
+end
+
+
+function _domain_assign_canvas_limits!(mplot::DomainPlot)
     frame = mplot.canvas.frame
+    xmin_data, xmax_data, ymin_data, ymax_data = _domain_node_bounds(mplot)
+
+    for _ in 1:3
+        ratio = min(frame.width/(xmax_data-xmin_data), frame.height/(ymax_data-ymin_data))
+        xmin_data, xmax_data, ymin_data, ymax_data = _domain_vector_overlay_bounds(mplot, ratio)
+    end
+
     ratio = min(frame.width/(xmax_data-xmin_data), frame.height/(ymax_data-ymin_data))
     dX = 0.5 * (frame.width - ratio*(xmax_data-xmin_data))
     dY = 0.5 * (frame.height - ratio*(ymax_data-ymin_data))
@@ -1401,6 +1624,7 @@ function configure!(mplot::DomainPlot)
     field_layers = _domain_prepare_layers!(mplot)
 
     @check !isempty(mplot.nodes) "DomainPlot: no drawable entities found"
+    _domain_prepare_vector_overlays!(mplot)
 
     if mplot.ndim == 3
         project_to_2d!(mplot.nodes, mplot.azimuth, mplot.elevation, mplot.distance, mplot.up)
@@ -1445,6 +1669,37 @@ function iscounterclockwise(points::Vector{Node})
 end
 
 
+function _domain_render_elem_visible(layer::DomainPlotLayer, elem::AbstractCell)
+    if elem.owner !== nothing && layer.view_mode in (:surface, :surface_with_edges)
+        if elem.owner.shape.ndim == 3
+            nnodes_basic = elem.shape.base_shape.npoints
+            return iscounterclockwise(elem.nodes[1:nnodes_basic])
+        end
+    end
+    return true
+end
+
+
+function _domain_overlay_nodes(mplot::DomainPlot)
+    if mplot.ndim != 3
+        return [layer.nodes for layer in mplot.layers]
+    end
+
+    visible_node_ids = [Set{Int}() for _ in mplot.layers]
+    for render in mplot.render_elems
+        _domain_render_elem_visible(render.layer, render.elem) || continue
+        for node in render.elem.nodes
+            push!(visible_node_ids[render.layer_index], node.id)
+        end
+    end
+
+    return [
+        [node for node in layer.nodes if node.id in visible_node_ids[layer_index]]
+        for (layer_index, layer) in enumerate(mplot.layers)
+    ]
+end
+
+
 function draw_contents!(mplot::DomainPlot, ctx::RenderContext)
     cairo_ctx = ctx.cairo_ctx
 
@@ -1462,19 +1717,14 @@ function draw_contents!(mplot::DomainPlot, ctx::RenderContext)
 
     ratio = (Xmax-Xmin)/(xmax-xmin)
     set_local_matrix!(ctx, CairoMatrix([ratio, 0, 0, -ratio, Xmin-xmin*ratio, Ymax+ymin*ratio]...))
+    overlay_nodes = _domain_overlay_nodes(mplot)
 
     for render in mplot.render_elems
         layer = render.layer
         elem = render.elem
 
         elem.role in (:line, :solid, :surface) || continue
-
-        if elem.owner !== nothing && layer.view_mode in (:surface, :surface_with_edges)
-            if elem.owner.shape.ndim == 3
-                nnodes_basic = elem.shape.base_shape.npoints
-                !iscounterclockwise(elem.nodes[1:nnodes_basic]) && continue
-            end
-        end
+        _domain_render_elem_visible(layer, elem) || continue
 
         if elem.role == :line
             x, y = elem.nodes[1].coord
@@ -1487,29 +1737,12 @@ function draw_contents!(mplot::DomainPlot, ctx::RenderContext)
         else
             draw_surface_cell!(ctx, layer, elem, render.shade)
         end
-
-        if mplot.ndim == 3
-            _domain_draw_node_markers!(ctx, mplot, layer, elem.nodes)
-        end
-
-        Cairo.save(cairo_ctx)
-        reset_matrix!(ctx)
-        if layer.node_labels
-            for node in elem.nodes
-                x, y = data2user(mplot.canvas, node.coord[1], node.coord[2])
-                y += mplot.font_size
-                set_source_rgb(cairo_ctx, rgb(Color(:blue))...)
-                draw_text(cairo_ctx, x, y, string(node.id), halign="center", valign="center", angle=0)
-            end
-        end
-        Cairo.restore(cairo_ctx)
-        set_local_matrix!(ctx, CairoMatrix([ratio, 0, 0, -ratio, Xmin-xmin*ratio, Ymax+ymin*ratio]...))
     end
 
-    if mplot.ndim != 3
-        for layer in mplot.layers
-            _domain_draw_node_markers!(ctx, mplot, layer, layer.nodes)
-        end
+    for (layer, nodes) in zip(mplot.layers, overlay_nodes)
+        _domain_draw_node_arrows!(ctx, mplot, layer, nodes)
+        _domain_draw_node_markers!(ctx, mplot, layer, nodes)
+        _domain_draw_node_labels!(ctx, mplot, layer, nodes)
     end
 
     for cb in mplot.colorbars

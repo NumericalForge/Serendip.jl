@@ -64,3 +64,6 @@ Serendip.configure!(aw3d_x)
 aw3d_rot = Serendip.AxesWidget(labels=["x", "y", "z"], azimuth=55.0, elevation=20.0, distance=10.0, up=:z)
 Serendip.configure!(aw3d_rot)
 @test any(i -> !isapprox(aw3d.projected_axes[i][1], aw3d_rot.projected_axes[i][1]) || !isapprox(aw3d.projected_axes[i][2], aw3d_rot.projected_axes[i][2]), eachindex(aw3d.projected_axes))
+
+@test Serendip.effective_arrow_head_length(20.0, 7.0) == 7.0
+@test isapprox(Serendip.effective_arrow_head_length(6.0, 7.0), 3.6)

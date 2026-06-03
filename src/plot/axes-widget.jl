@@ -154,10 +154,16 @@ function configure!(aw::AxesWidget)
 end
 
 
+function effective_arrow_head_length(length::Real, requested::Real)
+    return min(float(requested), 0.6 * float(length))
+end
+
+
 function draw_arrow(ctx::CairoContext, x1, y1, x2, y2; head_length=7)
     Δx = x2 - x1
     Δy = y2 - y1
     ℓ = hypot(Δx, Δy)
+    head_length = effective_arrow_head_length(ℓ, head_length)
 
     # Draw the shaft
     move_to(ctx, x1, y1)

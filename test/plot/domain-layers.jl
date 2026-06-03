@@ -57,7 +57,7 @@ case2d.mesh.node_fields["temp"] = collect(1.0:length(case2d.mesh.nodes))
 
 plot2d = DomainPlot(size=(5cm, 4cm), quiet=true)
 add_plot(plot2d, case2d.mesh, face_color=:aliceblue, view_mode=:surface_with_edges, field="temp", field_kind=:node, colorbar=:left)
-add_plot(plot2d, case2d.model, warp=5.0, view_mode=:outline, line_color=:red, field="ux", field_kind=:node, colorbar=:right)
+add_plot(plot2d, case2d.model, warp=5.0, view_mode=:outline, line_color=:red, field="ux", field_kind=:node, vector_field="U", arrow_color=:red, colorbar=:right)
 
 Serendip.configure!(plot2d)
 @test length(plot2d.layers) == 2
@@ -67,6 +67,8 @@ Serendip.configure!(plot2d)
 @test minimum(getfield.(plot2d.layers[1].nodes, :id)) == 1
 @test minimum(getfield.(plot2d.layers[2].nodes, :id)) == 1
 @test max_layer_offset(plot2d) > 0.0
+@test plot2d.layers[2].vector_field == "U"
+@test maximum(norm.(eachrow(plot2d.layers[2].vector_values))) > 0.0
 
 save(plot2d, "output/domain-layers-2d.pdf")
 @test isfile("output/domain-layers-2d.pdf")
@@ -79,7 +81,7 @@ case3d.mesh.node_fields["temp"] = collect(1.0:length(case3d.mesh.nodes))
 
 plot3d = DomainPlot(size=(5cm, 4cm), quiet=true)
 add_plot(plot3d, case3d.mesh, face_color=:aliceblue, view_mode=:surface_with_edges, field="temp", field_kind=:node, colorbar=:top)
-add_plot(plot3d, case3d.model, warp=5.0, view_mode=:outline, line_color=:red, field="ux", field_kind=:node, colorbar=:bottom)
+add_plot(plot3d, case3d.model, warp=5.0, view_mode=:outline, line_color=:red, field="ux", field_kind=:node, vector_field="U", arrow_color=:red, colorbar=:bottom)
 
 Serendip.configure!(plot3d)
 @test length(plot3d.layers) == 2
@@ -87,6 +89,8 @@ Serendip.configure!(plot3d)
 @test length(plot3d.top_items) == 1
 @test length(plot3d.bottom_items) == 1
 @test max_layer_offset(plot3d) > 0.0
+@test plot3d.layers[2].vector_field == "U"
+@test maximum(norm.(eachrow(plot3d.layers[2].vector_values))) > 0.0
 
 save(plot3d, "output/domain-layers-3d.pdf")
 @test isfile("output/domain-layers-3d.pdf")
