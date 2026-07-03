@@ -77,7 +77,8 @@ Uw_vals = [] # A list with porepressure vectors
 for tspan in lapses
     addstage!(model, bcs, tspan=tspan, nincs=20, nouts=1)
     solve!(model, tol=1e-2)
-    push!( Uw_vals, log1.book[end][:uw] )
+    snapshots = split_by(log1.table, "T")
+    push!(Uw_vals, snapshots[end][:uw])
 end
 
 
@@ -97,9 +98,9 @@ if @isdefined(makeplots) && makeplots
 
 
     # numerical curves
-    book  = log1.book
-    Uwini = book.tables[2][:uw]       # hydrostatic porepressure
-    Z     = 1 .- book.tables[2][:z]/hd # normalized depth
+    snapshots = split_by(log1.table, "T")
+    Uwini = snapshots[2][:uw]       # hydrostatic porepressure
+    Z     = 1 .- snapshots[2][:z]/hd # normalized depth
     for Uw in Uw_vals
         dUw = (Uw - Uwini)/load       # excess of porepressure
         plot(dUw, Z, "-o")

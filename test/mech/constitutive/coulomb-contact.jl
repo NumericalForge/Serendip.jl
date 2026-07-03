@@ -91,12 +91,3 @@ w  = log.table["w"][end]
 @test w < 0.0
 @test σn <= 1.0e-8
 @test τ >= 0.0
-
-
-chart = Chart(xlabel="`σ_n`", ylabel="`τ`")
-add_line(chart, log.table["σn"], log.table["τ"], mark=:circle)
-save(chart, "coulomb-contact.pdf")
-
-# chart = Chart(xlabel="`w`", ylabel="`σ_n`")
-# add_line(chart, log.table["w"]*1000, log.table["σn"], mark=:circle)
-# save(chart, "coulomb-contact.pdf")

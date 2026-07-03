@@ -130,10 +130,12 @@ function set_quadrature(elem::Element{MechShell}, quadrature::Tuple; state::Name
     end
 
     ip_plane = get_ip_coords(elem.shape, quad_plane)
-    quad_thick in (2,4) || error("MechShell: Invalid thickness quadrature. Got $(quad_thick). Only 2 and 4 are supported.")
+    quad_thick in (2,3,4) || error("MechShell: Invalid thickness quadrature. Got $(quad_thick). Only 2, 3 and 4 are supported.")
 
     ip_thick = if quad_thick==2
         get_ip_coords(LIN2, 2)
+    elseif quad_thick==3
+        get_ip_coords(LIN2, 3)
     else
         LIN_2p2
     end
@@ -446,3 +448,6 @@ function elem_vals(elem::Element{MechShell})
     
     return vals
 end
+
+
+recoverable_fields(elem::Element{MechShell}) = [:σvm]

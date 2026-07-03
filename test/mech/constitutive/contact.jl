@@ -38,28 +38,16 @@ trajectories = [
 ]
 
 models = (
-    (cmodel=MohrCoulombContact, props=(ks=ks, kn=kn, ft=ft, wc=wc, mu=1.4), mark=:triangle),
-    (cmodel=CoulombContact, props=(kn=kn, ks=ks, mu=mu), mark=:circle),
+    (cmodel=MohrCoulombContact, props=(ks=ks, kn=kn, ft=ft, wc=wc, mu=1.4)),
+    (cmodel=CoulombContact, props=(kn=kn, ks=ks, mu=mu)),
 )
 
-grid = ChartGrid(
-    # size=(16cm, 6cm), 
-    size=(16cm, 24cm),
-    background=:old_paper, 
-    row_headers=trajectories,
-    column_headers=[ "`σ_n` vs `τ`", "`w` vs `σ_n`" ],
-)
-
-for (i,trajectory) in enumerate(trajectories)
+for trajectory in trajectories
     printstyled("\n\nTrajectory: $(trajectory)\n\n", color=:yellow, bold=true)
-    
-    chart1 = Chart(legend=:top_left, xlabel="`σ_n`", ylabel="`τ`")
-    chart2 = Chart(legend=:top_right, xlabel="`w`", ylabel="`σ_n`")
 
     for model in models
         cmodel = model.cmodel
         props  = model.props
-        mark   = model.mark
 
         printstyled("\n$(string(cmodel))\n\n", color=:yellow, bold=true)
 
@@ -91,14 +79,5 @@ for (i,trajectory) in enumerate(trajectories)
 
         status = run(ana, autoinc=true, tol=0.1, rspan=0.03, dTmax=0.1, quiet=false)
         # @show log1.table
-        
-        add_line(chart1, log1.table["σn"], log1.table["τ"], label=string(cmodel), mark=mark)
-        add_line(chart2, log1.table["w"], log1.table["σn"], label=string(cmodel), mark=mark)
-
     end
-    add_chart(grid, chart1, (i, 1))
-    add_chart(grid, chart2, (i, 2))
-
 end
-
-save(grid, "contact-models.pdf")

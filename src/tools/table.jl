@@ -294,7 +294,7 @@ end
 
 
 function Base.Array(table::DataTable)
-    return reduce(hcat, getcolumns(table))
+    return stack(getcolumns(table), dims=2)
 end
 
 
@@ -347,23 +347,6 @@ function Base.filter(table::DataTable, expr::Expr)
     return table[idxs]
 end
 
-
-@inline function _table_mean(v::AbstractVector{<:Real})
-    return sum(v)/length(v)
-end
-
-
-@inline function _table_median(v::AbstractVector{<:Real})
-    w = sort(collect(v))
-    n = length(w)
-    n == 0 && return NaN
-    if isodd(n)
-        return w[(n+1) ÷ 2]
-    else
-        i = n ÷ 2
-        return 0.5*(w[i] + w[i+1])
-    end
-end
 
 
 function _quadratic_extremum_time(t1::Float64, y1::Float64, t2::Float64, y2::Float64, t3::Float64, y3::Float64)
@@ -461,7 +444,7 @@ function get_frequency(
     n = length(t)
     @check n >= 3 "get_frequency: not enough finite samples"
 
-    y0 = y .- _table_mean(y)
+    y0 = y .- mean(y)
     amp = maximum(abs, y0)
     amp > 0.0 || error("get_frequency: signal amplitude is zero.")
     threshold = min_rel_amplitude*amp
@@ -485,14 +468,14 @@ function get_frequency(
 
     # Reject strong outliers when enough cycles are available.
     if length(periods) >= 3
-        pmed = _table_median(periods)
+        pmed = median(periods)
         keep = abs.(periods .- pmed) .<= 0.25*pmed
         if count(keep) >= 1
             periods = periods[keep]
         end
     end
 
-    T = _table_mean(periods)
+    T = mean(periods)
     return 1.0/T
 end
 
@@ -610,7 +593,7 @@ function compress!(table::DataTable, n::Int)
     columns = getcolumns(table)
     nr = size(table)[1]
 
-    nr<=n && return table[:]
+    nr<=n && return table
 
     factor = (nr-1)/(n-1)
     idxs   = [ round(Int, 1+factor*(i-1)) for i in 1:n ]
@@ -708,7 +691,7 @@ function cut!(table::DataTable, field, value=0.0; after=false)
             W[idx] = W[idx-1] + α*(W[idx]-W[idx-1])
         end
         rng = 1:idx
-        after && (rng=1:length(V))
+        after && (rng=idx:length(V))
 
         columns = getcolumns(table)
         for (i,col) in enumerate(columns)
@@ -744,7 +727,7 @@ function smooth!(table::DataTable, fieldx, fieldy=nothing; knots=[0.0, 1.0])
         Xi = X[Idxs[i]]
         Yi = Y[Idxs[i]]
         M = Float64[ ones(length(Xi)) Xi Xi.^3 ]
-        a, b, d = inv(M'*M)*M'*Yi
+        a, b, d = M \ Yi
         Y[Idxs[i]] .= a .+ b*Xi .+ d*Xi.^3
     end
 
@@ -766,7 +749,6 @@ function denoise!(table::DataTable, fieldx, fieldy=nothing; noise=0.05, npatch=4
 
     # Regression along patches
     M  = ones(npatch,2)
-    A  = zeros(2)
     ΔY = [ Float64[] for i in 1:nr ]
 
     for i in 1:nr-npatch+1
@@ -776,7 +758,7 @@ function denoise!(table::DataTable, fieldx, fieldy=nothing; noise=0.05, npatch=4
 
         # Linear regression
         M[:,2] .= Xp
-        A   = pinv(M)*Yp
+        A   = M \ Yp
         ΔYp = abs.(Yp .- M*A)
 
         for (j,k) in enumerate(rng)
@@ -786,25 +768,9 @@ function denoise!(table::DataTable, fieldx, fieldy=nothing; noise=0.05, npatch=4
 
     # Get indexes to keep
     idxs = minimum.(ΔY) .<= noise*(maximum(Y)-minimum(Y))
-    # idxs[1:npatch] .= 1
-    # idxs[end-npatch+1:end] .= 1
-
-    # newtable = table[:]
-    # for i in (1:nr)[idxs]
-    #     j = findprev(!iszero, idxs, i-1)
-    #     k = findnext(!iszero, idxs, i+1)
-    #     r = (X[i]-X[j])/(X[k]-X[j])
-
-    #     for fieldx in header
-    #         V = newtable[fieldx]
-    #         V[i] = V[j] + r*(V[k]-V[j])
-    #     end
-    # end
 
     # Linear interpolation of dropped points
-    cols = Vector{Any}[]
     for column in getcolumns(table)
-        # V = copy(column)
         V = column
         for i in (1:nr)[.!idxs]
             j = findprev(!iszero, idxs, i-1)
@@ -820,11 +786,9 @@ function denoise!(table::DataTable, fieldx, fieldy=nothing; noise=0.05, npatch=4
             r = (X[i]-X[j])/(X[k]-X[j])
             V[i] = V[j] + r*(V[k]-V[j])
         end
-        push!(cols, V)
     end
 
     return table
-    # return DataTable(header, cols)
 end
 
 
@@ -969,23 +933,28 @@ end
 function DataTable(filename::String, delim::Char='\t')
     @check isfile(filename) "DataTable: file $filename does not exists"
     _, format = splitext(filename)
-    formats = (".dat", ".table", ".csv")
+    formats = (".dat", ".table", ".csv", ".json")
     format in formats || error("DataTable: cannot read \"$format\". Suitable formats are $formats")
-    
+
+    if format == ".json"
+        raw = JSON.parsefile(filename, dicttype=OrderedDict)
+        cols_raw = raw["data"]
+        header  = collect(String, keys(cols_raw))
+        columns = AbstractVector[ collect(values(col)) for col in values(cols_raw) ]
+        return DataTable(header, columns, name=get(raw, "name", ""))
+    end
+
     local matrix, headstr
 
-    if format in formats
-        success = true
-        try 
-            matrix, headstr = readdlm(filename, delim, header=true, use_mmap=false)
-        catch err
-            success = false
-        end
-        !success && error("DataTable: Invalid file content `$filename`")
-        header = vec(strip.(headstr))
-        table  = DataTable(header, matrix)
-        return table
+    success = true
+    try
+        matrix, headstr = readdlm(filename, delim, header=true, use_mmap=false)
+    catch err
+        success = false
     end
+    !success && error("DataTable: Invalid file content `$filename`")
+    header = vec(strip.(headstr))
+    return DataTable(header, matrix)
 end
 
 

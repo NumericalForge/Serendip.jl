@@ -1,4 +1,5 @@
 using Serendip
+using QuickCharts
 using Test
 
 geo = GeoModel(quiet=true)
@@ -30,5 +31,7 @@ add_plot(multi_plot, model; field="temp", field_kind=:node, colorbar=:bottom, la
 Serendip.configure!(multi_plot)
 
 cb1, cb2 = multi_plot.bottom_items
+@test cb1 isa QuickCharts.Colorbar
+@test cb2 isa QuickCharts.Colorbar
 frame_gap = cb2.frame.x - (cb1.frame.x + cb1.frame.width)
 @test isapprox(frame_gap, 0.05 * multi_plot.canvas.frame.width)

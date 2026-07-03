@@ -461,7 +461,7 @@ using Serendip
 nodelog = NodeLogger("nodelog.dat")
 iplog = IpLogger("nodelog.dat")
 facelog = FacesSumLogger("nodelog.dat")
-nodeslog = NodeGroupLogger("nodes.book")
+nodeslog = NodeGroupLogger("nodes.table")
 nothing # hide
 ```
 
@@ -494,9 +494,9 @@ bcs = [
 loggers = [
     :(x==1) => FacesSumLogger("tip.dat"),
     [0.05, 0.05, 0.1] => IpLogger("ip.dat"),
-    :(y==0.1 && z==0.1) => NodeGroupLogger("topgroup.book"),
-    [0 0.05 0.1; 1 0.05 0.1] => SegmentLogger("top.book", n=40),
-    [0 0.05 0.0; 1 0.05 0.0] => SegmentLogger("bottom.book", n=40),
+    :(y==0.1 && z==0.1) => NodeGroupLogger("topgroup.table"),
+    [0 0.05 0.1; 1 0.05 0.1] => SegmentLogger("top.table", n=40),
+    [0 0.05 0.0; 1 0.05 0.0] => SegmentLogger("bottom.table", n=40),
 ]
 
 setloggers!(model, loggers)
@@ -507,10 +507,10 @@ solve!(model, tol=0.01, autoinc=true, quiet=true)
 nothing # hide
 ```
 
-The loggers are classified single loggers and group loggers.
-Single loggers record a table of data. Group loggers record a book, which is a set of tables.
-Once the analysis is finished, the loggers data can be recovered in another script 
-calling the constructors of the types `DataTable` and `DataBook`.
+All loggers record their data in a `DataTable`. For group loggers, each snapshot is
+identified by the `T` column and can be recovered with `split_by`.
+Once the analysis is finished, the logger data can be recovered in another script
+by constructing a `DataTable` from the output file.
 
 ```@example
 using Serendip
@@ -521,13 +521,13 @@ tip = DataTable("tip.dat")
 ```@example
 using Serendip
 
-long = DataBook("topgroup.book").tables[end]
+long = split_by(DataTable("topgroup.table"), "T")[end]
 ```
 
 ## Plotting
 
 Serendip provides a chart ploting function `cplot`
-to ease the visualization of the data stored in `DataTable` and `DataBook` objects.
+to ease the visualization of the data stored in `DataTable` objects.
 
 ```@example plot
 using Serendip
@@ -541,7 +541,7 @@ cplot(
     ylabel = raw"$f_z$ [kN]",
 )
 
-topgroup = DataBook("topgroup.book").tables[end]
+topgroup = split_by(DataTable("topgroup.table"), "T")[end]
 cplot(
     (x=topgroup.x, y=topgroup.uz, mark="o"),
     "x_vs_uz.svg",
@@ -550,8 +550,8 @@ cplot(
     ylabel = raw"$u_z$ [mm]",
 )
 
-top = DataBook("top.book").tables[end]
-bottom = DataBook("bottom.book").tables[end]
+top = split_by(DataTable("top.table"), "T")[end]
+bottom = split_by(DataTable("bottom.table"), "T")[end]
 cplot(
     (x=top.x, y=top.sxx, mark="o", label="top"),
     (x=bottom.x, y=bottom.sxx, mark="o", label="bottom"),

@@ -21,6 +21,8 @@ add_monitor(ana, :ip, (x>0.5, y>0.5, z>0.5), :σyy, "ip.dat")
 add_monitor(ana, :ip, [0.5,0.5,0.0], :σyy)
 add_monitor(ana, :ipgroup, (x>0.5, y>0.5), :σyy, "ips.dat")
 
+@test first(Serendip.output(ana.data.monitors[1])) == "node at (x==1, y==1, z==1)"
+
 stage = add_stage(ana, nincs=4, nouts=4)
 add_bc(stage, :node, z==0, ux=0, uy=0, uz=0 )
 add_bc(stage, :face, z==1, tz=-10.0)

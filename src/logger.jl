@@ -150,8 +150,6 @@ function update_logger!(logger::Logger, ana::Analysis)
 
         table[:T] = fill(T, length(logger.target))
         append!(logger.table, table)
-
-        # push!(logger.book, table)
     elseif logger.kind == :nodalreduce
         tableU = DataTable()
         tableF = DataTable()
@@ -177,8 +175,4 @@ end
 
 function save(logger::Logger, filename::String; quiet=false)
     save(logger.table, filename, quiet=quiet)
-    # if kind in (:node, :ip, :nodalreduce)
-    # else
-    #     save(logger.book, filename, quiet=quiet)
-    # end
 end

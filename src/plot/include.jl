@@ -2,5 +2,4 @@
 
 include("view3d.jl")
 include("axes-widget.jl")
-include("colorbar.jl")
 include("domain-plot.jl")

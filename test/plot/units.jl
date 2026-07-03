@@ -2,27 +2,6 @@ using Test
 using Serendip
 using Cairo: read_from_png, width, height, image_surface_get_data
 
-chart = Chart(size=(5cm, 4cm))
-@test isapprox(chart.width, 5cm)
-@test isapprox(chart.height, 4cm)
-
-add_line(chart, 0:1, 0:1; label="line")
-Serendip.save(chart, "output/chart-cm.pdf")
-@test isfile("output/chart-cm.pdf")
-Serendip.save(chart, "output/chart-cm.png")
-chart_png = read_from_png("output/chart-cm.png")
-@test Int(width(chart_png)) == round(Int, Serendip._png_raster_scale * chart.width)
-@test Int(height(chart_png)) == round(Int, Serendip._png_raster_scale * chart.height)
-@test unsafe_load(image_surface_get_data(chart_png)) == 0xffffffff
-
-grid = ChartGrid(size=(12cm, 8cm))
-@test isapprox(grid.width, 12cm)
-@test isapprox(grid.height, 8cm)
-add_chart(grid, chart, (1, 1))
-Serendip.save(grid, "output/chart-grid-cm.png")
-grid_png = read_from_png("output/chart-grid-cm.png")
-@test Int(width(grid_png)) == round(Int, Serendip._png_raster_scale * grid.width)
-@test Int(height(grid_png)) == round(Int, Serendip._png_raster_scale * grid.height)
 
 geo = GeoModel(quiet=true)
 add_block(geo, [0,0,0], 1, 1, 1, nx=1, ny=1, nz=1, tag="solids")

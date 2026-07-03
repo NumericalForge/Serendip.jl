@@ -80,6 +80,18 @@ function elem_recover_nodal_values(elem::Element)
 end
 
 
+"""
+`recoverable_fields(elem)`
+
+Returns a list of integration-point fields that may participate in nodal patch
+recovery for non-solid elements handled by specialized patch pipelines, such as
+surface elements.
+"""
+function recoverable_fields(elem::Element)
+    return Symbol[]
+end
+
+
 
 # Auxiliary functions for elements
 # ================================
@@ -156,32 +168,6 @@ end
 # Get all ips from a collection of elements
 function get_ips(elems::Array{<:Element,1})
     return Ip[ ip for elem in elems for ip in elem.ips ]
-end
-
-
-# General element sorting
-function Base.sort!(elems::Array{<:Element,1})
-    length(elems)==0 && return
-
-    # General sorting
-    sorted = sort(elems, by=elem->sum(get_coords(elem.nodes)))
-
-    # Check type of elements
-    shapes = [ elem.shape for elem in elems ]
-    shape  = shapes[1]
-
-    if all(shapes.==shape)
-        if shape in (LIN2, LIN3)
-            node_ids = Set(node.id for elem in sorted for node in elem.nodes)
-            for elem in sorted
-
-            end
-        elseif shape in (JLIN3, JLIN4)
-        end
-    end
-
-    # General sorting
-    return sorted
 end
 
 

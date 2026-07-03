@@ -1,12 +1,12 @@
 using Serendip
 using Test
 
-#❱❱❱ Mesh
+# ❱❱❱ Mesh
 geo = GeoModel()
 add_block(geo, [0,0,0], 2, 0, 0, tag="beam", nx=6, shape=:lin3)
 
 mesh = Mesh(geo, ndim=2)
-#❱❱❱ FEM analysis
+# ❱❱❱ FEM analysis
 mapper = RegionMapper()
 add_mapping(mapper, "beam", MechBeam, LinearElastic, E=300e3, b=0.05, h=0.2)
 
@@ -33,17 +33,16 @@ run(ana)
 
 # ❱❱❱ Post-processing
 plot = DomainPlot(
-    size=(280,100),
-    font_size=8,
-    outerpad=15.0,
+    font_size = 8,
+    outerpad  = 15.0,
 )
 add_plot(plot, model;
-    warp=2,
-    field="σx´",
-    colormap=:coolwarm,
-    line_elem_width=3,
-    colorbar_ratio=1,
-    node_labels=true,
+    warp            = 2,
+    field           = "σx´",
+    colormap        = :coolwarm,
+    line_elem_width = 3,
+    colorbar_ratio  = 1,
+    node_labels     = true,
 )
 
 save(plot, "beam.pdf")

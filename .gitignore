@@ -7,7 +7,6 @@
 *.vtu
 *.dat
 *.table
-*.book
 *.log
 *.pdf
 *.svg

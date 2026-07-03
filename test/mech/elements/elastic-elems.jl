@@ -9,7 +9,7 @@ for shape in (:tri3, :tri6, :quad4, :quad8, :quad9)
     printstyled(shape, color=:cyan); println()
     geo = GeoModel()
     add_block(geo, [0, 0], 1, 1, 0, nx=2, ny=2, shape=shape)
-    mesh = Mesh(geo)
+    mesh = Mesh(geo, sort=false)
     select(mesh, :face, y==0, tag="bottom") # bottom face
     select(mesh, :face, y==1, tag="top") # top face
 
@@ -37,7 +37,7 @@ for shape in (:tet4, :tet10, :hex8, :hex20, :hex27)
     printstyled(shape, color=:cyan); println()
     geo = GeoModel()
     add_block(geo, [0, 0, 0], 1, 1, 1, nx=2, ny=2, nz=2, shape=shape)
-    mesh = Mesh(geo)
+    mesh = Mesh(geo, sort=false)
 
     select(mesh, :face, z==0, tag="bottom") # bottom face
     select(mesh, :face, z==1, tag="top") # top face

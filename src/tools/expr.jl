@@ -24,7 +24,9 @@ function getexpr(symbolic::Symbolic)
 end
 
 
-getexpr(symbolic::Any) = symbolic
+getexpr(value::Real) = value
+getexpr(symbol::Symbol) = symbol
+getexpr(expr::Expr) = expr
 
 
 function Base.show(io::IO, symbolic::Symbolic)
@@ -36,13 +38,26 @@ function Base.show(io::IO, symbolic::Symbolic)
     print(io, str)
 end
 
-for op in (:+, :-, :*, :/, :^, :>, :(>=), :<, :(<=), :(==), :(!=))
+const _SymbolicOperand = Union{Symbolic,Real}
+
+
+function _symbolic_expr(op::Symbol, lhs::_SymbolicOperand, rhs::_SymbolicOperand)
+    return Symbolic(Expr(:call, op, getexpr(lhs), getexpr(rhs)))
+end
+
+
+for op in (:+, :-, :*, :/, :^, :<, :(<=), :(==))
     @eval begin
-        Base.$op(x::Symbolic, y::Symbolic) = Symbolic(Expr(:call, Symbol($op), getexpr(x), getexpr(y)))
-        Base.$op(x::Symbolic, y) = Symbolic(Expr(:call, Symbol($op), getexpr(x), y))
-        Base.$op(x, y::Symbolic) = Symbolic(Expr(:call, Symbol($op), x, getexpr(y)))
+        Base.$op(lhs::Symbolic, rhs::Symbolic) = _symbolic_expr($(QuoteNode(op)), lhs, rhs)
+        Base.$op(lhs::Symbolic, rhs::Real) = _symbolic_expr($(QuoteNode(op)), lhs, rhs)
+        Base.$op(lhs::Real, rhs::Symbolic) = _symbolic_expr($(QuoteNode(op)), lhs, rhs)
     end
 end
+
+
+Base.:-(value::Symbolic) = Symbolic(Expr(:call, :-, getexpr(value)))
+Base.:!(value::Symbolic) = Symbolic(Expr(:call, :!, getexpr(value)))
+
 
 for fun in (:abs, :sin, :cos, :tan, :log, :exp, :sqrt)
     @eval begin
@@ -51,10 +66,13 @@ for fun in (:abs, :sin, :cos, :tan, :log, :exp, :sqrt)
 end
 
 
+const _SymbolicBoolean = Union{Symbolic,Bool}
+
+
 for (fun, op) in zip((:and, :or), (:&&, :||))
     @eval begin
-        $fun(x, y) = Symbolic(Expr($(QuoteNode(op)), getexpr(x), getexpr(y)))
-        $fun(x, y, z) = $fun($fun(x,y), z)
+        $fun(x::_SymbolicBoolean, y::_SymbolicBoolean) = Symbolic(Expr($(QuoteNode(op)), getexpr(x), getexpr(y)))
+        $fun(x::_SymbolicBoolean, y::_SymbolicBoolean, z::_SymbolicBoolean) = $fun($fun(x,y), z)
         export $fun
     end
 end
@@ -112,6 +130,7 @@ const op_dict = Dict{Symbol,Function}(
     :max => (a,b) -> max(a,b),
     :min => (a,b) -> min(a,b),
     :length => (a,) -> length(a),
+    :! => !,
 )
 
 
@@ -168,7 +187,7 @@ end
 evaluate(expr::Real; vars...) = expr
 evaluate(expr::Symbol; vars...) = reduce!(expr; vars...)
 evaluate(expr::Expr; vars...) = reduce!(copy(expr); vars...)
-evaluate(expr::Symbolic; vars...) = reduce!(copy(expr.expr); vars...)
+evaluate(expr::Symbolic; vars...) = evaluate(getexpr(expr); vars...)
 
 @doc """
     evaluate(expr, vars...)
@@ -178,7 +197,7 @@ Returns the result of the arithmetic expression `expr` using values defined in `
 
 
 function getvars(symbolic::Symbol)
-    if symbolic in ( :<, :<=, :>, >= )
+    if symbolic in (:<, :<=, :>, :>=, :(==), :(!=))
         return []
     end
     return [ symbolic ]
@@ -274,7 +293,7 @@ check_affine(expr::Symbolic, terms, rhs; tol=1e-10) = check_affine(getexpr(expr)
 
 
 # replace a symbol
-function Base.replace(expr::Expr, pair::Pair)
+function _replace_symbol(expr::Expr, pair::Pair{Symbol})
     src    = pair.first
     tgt    = pair.second
     expr   = copy(expr)
@@ -286,7 +305,7 @@ function Base.replace(expr::Expr, pair::Pair)
         if isa(arg, Symbol) && arg==src
             expr.args[i] = tgt
         elseif isa(arg, Expr)
-            expr.args[i] = replace(arg, pair)
+            expr.args[i] = _replace_symbol(arg, pair)
         end
     end
     return expr

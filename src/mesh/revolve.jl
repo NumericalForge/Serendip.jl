@@ -170,8 +170,6 @@ function revolve(
     end
     nodes = collect(values(point_d))
     
-    # point_d = Dict{UInt64,Node}( hash(n) => n for c in cells for n in c.nodes )
-    # cell.nodes = Node[ point_d[hash(n)] for n in cell.nodes ]
 
 
     if collapse

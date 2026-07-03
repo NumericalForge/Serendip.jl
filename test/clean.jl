@@ -7,7 +7,7 @@ println("  deleting temporary files...")
 for (root, dirs, files) in walkdir(path)
     for file in files
         ext = split(file*".", ".")[2]
-        if ext in ["vtk", "vtu", "dat", "log", "table", "book"]
+        if ext in ["vtk", "vtu", "dat", "log", "table"]
             fullname = joinpath(root, file)
             rm(fullname, force=true)
         end

@@ -61,9 +61,6 @@ function Base.copy(node::Node)
     return newnode
 end
 
-# Base.hash(n::Node) = hash( (n.coord.x+1.0, n.coord.y+2.0, n.coord.z+3.0) ) # 1,2,3 aim to avoid clash in some arrays of nodes.
-# Base.isequal(n1::Node, n2::Node) = hash(n1)==hash(n2)
-
 """
     NodePosMap()
 
@@ -164,112 +161,6 @@ function get_ndim(nodes::Vector{Node})
     any( node->node.coord[3] != 0.0, nodes ) && return 3
     any( node->node.coord[2] != 0.0, nodes ) && return 2
     return 1
-end
-
-
-"""
-    select(nodes::Vector{Node}, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag=nothing)
-
-Select nodes from a collection using one or more filters. Filters are applied
-sequentially (logical AND), starting from all nodes. Tuple selectors are
-flattened and applied in order.
-
-Supported selectors:
-- `:all` keeps the current selection unchanged.
-- `:none` clears the selection.
-- `String` matches `node.tag`.
-- `Expr` or `Symbolic` evaluates a coordinate condition using `x`, `y`, `z`.
-- `AbstractVector{<:Real}` selects by point coordinates.
-
-Point-coordinate selection behavior:
-- If one or more exact matches exist within tolerance `1e-8`, all exact matches
-  are returned.
-- If no exact match exists and `nearest=true`, the nearest node in the current
-  candidate set is returned.
-- If no exact match exists and `nearest=false`, the result is empty.
-
-# Keyword Arguments
-- `invert::Bool=false`: return the complement of the final selection.
-- `nearest::Bool=false`: enable nearest fallback for coordinate-vector selectors.
-- `quiet::Bool=false`: suppress point-selection notifications.
-- `prefix::AbstractString="select"`: prefix used in point-selection notifications.
-- `tag::Union{String,Nothing}=nothing`: if a string is provided, assigns it to
-  all selected nodes.
-"""
-function select(
-    nodes::Vector{Node},
-    selectors...;
-    invert = false,
-    nearest = false,
-    quiet = false,
-    prefix::AbstractString = "select",
-    tag::Union{String, Nothing} = nothing
-    )
-
-    selectors = _flatten_selectors(selectors)
-
-    selected = collect(1:length(nodes))
-
-    for selector in selectors
-        if selector isa Symbol
-            if selector == :all
-                continue
-            elseif selector == :none
-                selected = Int[]
-            else
-                error("select: unknown symbol selector $(repr(selector))")
-            end
-        elseif typeof(selector) in (Expr, Symbolic)
-            fnodes = nodes[selected]
-
-            T = Bool[]
-            for node in fnodes
-                x, y, z = node.coord.x, node.coord.y, node.coord.z
-                push!(T, evaluate(selector, x=x, y=y, z=z))
-            end
-
-            selected = selected[T]
-        elseif selector isa String
-            selected = [ i for i in selected if nodes[i].tag==selector ]
-        elseif selector isa AbstractVector{<:Real}
-            X = Vec3(selector)
-            exact = Int[ i for i in selected if norm(nodes[i].coord-X) < 1e-8 ]
-
-            if !isempty(exact)
-                selected = exact
-            elseif nearest && !isempty(selected)
-                node = Serendip.nearest(nodes[selected], X)
-                i = findfirst(isequal(node), nodes[selected])
-                selected = [ selected[i] ]
-                if !quiet
-                    selector_str = replace(string(selector), r"(?<!\,)\s+" => "")
-                    Xn = round.(nodes[selected[1]].coord, sigdigits=4)
-                    notify("$prefix: No node found at $selector_str. Using nearest at $Xn")
-                end
-            else
-                selected = Int[]
-                if !quiet
-                    selector_str = replace(string(selector), r"(?<!\,)\s+" => "")
-                    notify("$prefix: No node found at $selector_str")
-                end
-            end
-        else
-            error("select: unknown selector type $(typeof(selector))")
-        end
-    end
-
-    if invert
-        selected = setdiff(1:length(nodes), selected)
-    end
-
-    # Set tag for selected nodes
-    if tag !== nothing
-        for i in selected
-            nodes[i].tag = tag
-        end
-    end
-
-    return nodes[selected]
 end
 
 

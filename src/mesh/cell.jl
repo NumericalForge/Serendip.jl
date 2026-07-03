@@ -35,10 +35,6 @@ end
 
 ### Cell methods
 
-Base.hash(cell::Cell) = sum(hash(node) for node in cell.nodes)
-Base.isequal(c1::Cell, c2::Cell) = hash(c1)==hash(c2)
-
-
 Base.copy(cell::Cell)  = Cell(cell.shape, cell.nodes, tag=cell.tag, owner=cell.owner, acet_idx=cell.facet_idx)
 
 
@@ -68,192 +64,13 @@ function get_nodes(elems::Vector{<:AbstractCell})
 end
 
 
-"""
-    select(elems::Vector{<:AbstractCell}, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag=nothing)
-
-Select entities from an element list using one or more filters. By default this
-function filters cells, but `:node` and `:ip` can redirect selection to nodes or
-integration points. Filters are applied sequentially (logical AND), starting
-from all indices. Tuple selectors are flattened and applied as independent
-filters.
-
-Supported selectors:
-- `Symbol`:
-  - `:all` keeps the current selection unchanged.
-  - `:none` clears the selection.
-  - `:solid`, `:bulk` (alias of `:solid`), `:line`, `:surface`, `:contact`,
-    `:cohesive`, `:line_interface`, `:tip` filter by `cell.role`.
-  - `:node` returns `select(get_nodes(elems), ...)` using the remaining selectors.
-  - `:ip` returns `select(get_ips(elems), ...)` using the remaining selectors.
-  - `:active` keeps only active cells.
-  - `:embedded` keeps embedded line cells (`role == :line` with couplings).
-- `String`: keep cells whose `tag` matches exactly.
-- `Expr` or `Symbolic`: keep cells whose nodes all satisfy the coordinate
-  expression (variables `x`, `y`, `z`).
-- `Vector{Int}`: intersect the current selection with explicit element indices.
-- `Tuple`: flattened into individual selectors and applied in order.
-
-Point-coordinate selectors are not applied directly to cells, but they are
-supported after redirection with `:node` or `:ip`.
-
-# Keyword Arguments
-- `invert::Bool=false`: if `true`, returns the complement of the final selection.
-- `nearest::Bool=false`: forwarded to redirected node/IP selection.
-- `quiet::Bool=false`: forwarded to redirected node/IP selection.
-- `prefix::AbstractString="select"`: forwarded to redirected node/IP selection.
-- `tag::Union{String,Nothing}=nothing`: if a string is provided, assigns it to
-  the selected cells.
-
-# Returns
-- A vector of selected entities:
-  - cells for standard element filtering;
-  - nodes if redirected with `:node`;
-  - integration points if redirected with `:ip`.
-"""
-function select(
-    elems::Vector{<:AbstractCell},
-    selectors...;
-    invert = false,
-    nearest = false,
-    quiet = false,
-    prefix::AbstractString = "select",
-    tag::Union{String, Nothing} = nothing
-    )
-
-    selectors = _flatten_selectors(selectors)
-    selected = collect(1:length(elems)) # selected indexes
-
-    for (i,selector) in enumerate(selectors)
-        
-        if isa(selector, Symbol)
-            if selector == :all
-                # do nothing (don't filter)
-            elseif selector == :none
-                selected = Int[]
-            elseif selector in (:bulk, :solid, :line, :surface, :cohesive, :contact, :line_interface, :tip)
-                selector = selector==:bulk ? :solid : selector # fix for :bulk => :solid
-                selected = Int[ i for i in selected if elems[i].role==selector ]
-            elseif selector == :ip
-                return select(get_ips(elems[selected]), selectors[i+1:end]...; invert=invert, nearest=nearest, quiet=quiet, prefix=prefix, tag=tag)
-            elseif selector == :node
-                return select(get_nodes(elems[selected]), selectors[i+1:end]...; invert=invert, nearest=nearest, quiet=quiet, prefix=prefix, tag=tag)
-            elseif selector == :active
-                selected = Int[ i for i in selected if elems[i].active ]
-            elseif selector == :embedded
-                selected = Int[ i for i in selected if elems[i].role==:line && length(elems[i].couplings)>0 ]
-            else
-                error("select: cannot filter array of Cell with symbol $(repr(selector))")
-            end
-        elseif isa(selector, String)
-            selected = Int[ i for i in selected if elems[i].tag==selector ]
-        elseif isa(selector, Expr) || isa(selector, Symbolic)
-            nodes = [ node for cell in elems for node in cell.nodes ]
-            max_id = maximum( n->n.id, nodes )
-            pointmap = zeros(Int, max_id) # points and pointmap may have different sizes
-
-            T = Bool[]
-            for (i,node) in enumerate(nodes)
-                pointmap[node.id] = i
-                x, y, z = node.coord.x, node.coord.y, node.coord.z
-                push!(T, evaluate(selector, x=x, y=y, z=z))
-            end
-
-            selected = Int[ i for i in selected if all( T[pointmap[node.id]] for node in elems[i].nodes ) ]
-        elseif isa(selector, Vector{Int}) # selector is a vector of indexes
-            selected = intersect(selected, selector)
-        else
-            error("select: unknown selector type $(typeof(selector))")
-        end
-    end
-
-    if invert
-        selected = setdiff(1:length(elems), selected)
-    end
-
-    selection = elems[selected]
-
-    # Set tag for selected elements
-    if tag !== nothing
-        for elem in selection
-            elem.tag = tag
-        end
-    end
-
-    return elems[selected]
+function _topology_key(nodes::AbstractVector{Node})
+    ids = UInt64[node.id > 0 ? UInt64(node.id) : objectid(node) for node in nodes]
+    return Tuple(sort!(ids))
 end
 
 
-"""
-    select(domain::AbstractDomain, kind::Symbol, selectors...; invert=false, nearest=false, quiet=false, prefix="select", tag=nothing)
-
-Filters entities from a finite element domain (`domain`) by type and selection criteria.
-
-# Arguments
-- `domain::AbstractDomain`: The mesh or domain containing entities.
-- `kind::Symbol`: Entity family to start from:
-  - `:element` (domain elements),
-  - `:face` (domain faces),
-  - `:edge` (domain edges),
-  - `:node` (domain nodes),
-  - `:ip` (all integration points from elements that expose `ips`).
-- `selectors`: One or more selectors.
-
-Selectors can be:
-- `:all`             → select all entities in the current family
-- `:bulk`, `:line`, `:surface`, `:contact`, `:cohesive`, `:line_interface`, `:tip` → select by element role (when selecting cells)
-- `:active`          → select only active elements
-- `:embedded`        → select embedded line elements (with couplings)
-- `String`           → match element tag
-- `Expr` or `Symbolic` → spatial condition using coordinates `x`, `y`, `z`
-- `Vector{<:Real}`   → point coordinates for `:node` and `:ip` selection
-- `Vector{Int}`      → list of element indices to select
-- `Tuple`            → multiple selectors applied in sequence
-
-When `kind == :element`, selectors may include `:node` or `:ip` to redirect
-the selection to nodes or integration points of the currently selected elements
-for the remaining selectors (for example: `select(mesh, :element, :solid, :node, x>0)` or
-`select(mesh, :element, "left", :ip, [0.25, 0.5, 0.5], nearest=true)`).
-
-# Keyword Arguments
-- `invert::Bool`: If `true`, returns the entities not matching the selectors.
-- `nearest::Bool`: Enables nearest fallback for point-coordinate selectors.
-- `quiet::Bool`: Suppresses point-selection notifications.
-- `prefix::AbstractString`: Prefix used in point-selection notifications.
-- `tag::Union{String,Nothing}`: if a string is provided, assigns it to selected
-  entities.
-
-# Returns
-- A vector of selected entities. The entity type follows `kind`, except when
-  `kind == :element` and selectors redirect with `:node` or `:ip`.
-"""
-function select(
-    domain::AbstractDomain,
-    kind::Symbol,
-    selectors...;
-    invert = false,
-    nearest = false,
-    quiet = false,
-    prefix::AbstractString = "select",
-    tag::Union{String, Nothing} = nothing,
-    )
-
-    if kind == :element
-        return select(domain.elems, selectors...; invert=invert, nearest=nearest, quiet=quiet, prefix=prefix, tag=tag)
-    elseif kind == :face
-        return select(domain.faces, selectors...; invert=invert, nearest=nearest, quiet=quiet, prefix=prefix, tag=tag)
-    elseif kind == :edge
-        return select(domain.edges, selectors...; invert=invert, nearest=nearest, quiet=quiet, prefix=prefix, tag=tag)
-    elseif kind == :node
-        return select(domain.nodes, selectors...; invert=invert, nearest=nearest, quiet=quiet, prefix=prefix, tag=tag)
-    elseif kind == :ip
-        length(domain.elems)>0 && hasfield(typeof(domain.elems[1]), :ips) || return []
-        ips = [ ip for elem in domain.elems for ip in elem.ips ]
-        return select(ips, selectors...; invert=invert, nearest=nearest, quiet=quiet, prefix=prefix, tag=tag)
-    else
-        error("select: unknown kind $(repr(kind))")
-    end
-
-end
+_topology_key(cell::AbstractCell) = _topology_key(cell.nodes)
 
 
 # Gets the coordinates of a bounding box for an array of nodes
@@ -487,15 +304,7 @@ end
 
 # Get an array with shares for all nodes
 function get_patches(cells::Array{<:AbstractCell,1})
-    # get all nodes from cells if needed
-    pointsd = Dict{UInt64, Node}()
-    for cell in cells
-        for node in cell.nodes
-            pointsd[hash(node)] = node
-        end
-    end
-
-    nodes = collect(values(pointsd))
+    nodes = get_nodes(cells)
     np     = length(nodes)
 
     # backup nodes ids

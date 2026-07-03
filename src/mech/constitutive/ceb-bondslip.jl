@@ -56,6 +56,7 @@ mutable struct CebBondSlip<:Constitutive
         @check s1 > 0.0 "CebBondSlip: s1 must be > 0.0. Got $(s1)"
         @check s2 > 0.0 "s2 must be > 0.0. Got $(s2)"
         @check s3 > 0.0 "s3 must be > 0.0. Got $(s3)"
+        @check s1 < s2 < s3 "CebBondSlip: must satisfy s1 < s2 < s3. Got s1=$(s1), s2=$(s2), s3=$(s3)"
         @check 0.0 <= alpha <= 1.0 "CebBondSlip: alpha must be in [0.0, 1.0]. Got $(alpha)"
 
         ks = isnan(ks) ? 10*taumax/s1 : ks

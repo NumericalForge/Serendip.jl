@@ -76,7 +76,7 @@ function save_xml(model::FEModel, filename::String)
                            "nodes"=>join((n.id for n in elem.nodes), ","),
                            "couplings"=>join((e.id for e in elem.couplings), ","),
                           )
-        elemname = split(string(typeof(elem)), ".")[end]
+        elemname = string(nameof(typeof(elem.etype)))
         xelem = XmlElement(elemname, attributes=atts)
         for ip in elem.ips
             atts = OrderedDict(

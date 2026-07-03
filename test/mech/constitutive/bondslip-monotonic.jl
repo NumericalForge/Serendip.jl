@@ -13,14 +13,6 @@ kn     = 5.0e3
 p      = 0.25
 outer_ip_coord = [0.5, 5.95, 0.5] # near loaded end (outermost bond-slip IP)
 
-chart = Chart(
-    xlabel="slip s",
-    ylabel="bond stress τ",
-    ylimits=[0.0, 1.4*τmax],
-    xlimits=[0.0, 1.5*s_res],
-    legend=:top_right,
-)
-
 cases = [
     (
         name = "LinearBondSlip",
@@ -79,14 +71,10 @@ for case in cases
 
     table = joint_log.table
 
-    add_series(chart, :line, table["sl"], table["τl"], label=case.name, mark=:circle)
-
     case.name == "LinearBondSlip" && continue # skip assertions for linear case
 
     @test maximum(abs.(table["τl"])) ≈ τmax atol=0.01*τmax
     @test abs(table["τl"][end]) ≈ τres atol=0.01*τres
 end
-
-save(chart, "bondslip-monotonic-comparison.pdf")
 
 nothing

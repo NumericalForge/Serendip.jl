@@ -169,13 +169,6 @@ function Base.copy(block::Block)
     # return Block(copy(block.points), nx=block.nx, ny=block.ny, nz=block.nz, shape=block.shape, tag=block.tag)
 end
 
-
-
-function Base.copy(blocks::Vector{Block})
-    return [ copy(bl) for bl in blocks ]
-end
-
-
 function BlockGrid(
     X::Array{<:Real},            # list of x coordinates
     Y::Array{<:Real},            # list of y coordinates

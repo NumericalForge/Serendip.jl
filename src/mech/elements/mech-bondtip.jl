@@ -45,7 +45,7 @@ function mountB(elem::Element{MechBondTip}, Ch, Cm)
     member  = elem.couplings[2]
     nsnodes = length(host.nodes)
 
-    if hash(tip)==hash(member.nodes[1])
+    if tip === member.nodes[1]
         R = [-1.0, 0, 0]
         D = member.shape.deriv(R)
         J = Cm'*D

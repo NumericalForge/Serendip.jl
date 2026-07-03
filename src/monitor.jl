@@ -16,6 +16,15 @@ function Base.summary(monitor::Monitor)
     return "Monitor kind=$(repr(monitor.kind))"
 end
 
+
+function _monitor_selector_string(selector)
+    if selector isa String || selector isa Symbol
+        return repr(selector)
+    end
+    return replace(string(selector), r"(?<!\,)\s+" => "")
+end
+
+
 _monitor_expr_name(expr::Symbol) = expr
 _monitor_expr_name(expr::Expr) = expr.head == :(=) ? expr.args[1] : expr
 
@@ -208,7 +217,7 @@ function add_monitor(
         stops[i] = ex
     end
 
-    selector_str = selector isa String || selector isa Symbol ? repr(selector) : replace(string(selector), r"(?<!\,)\s+" => "")
+    selector_str = _monitor_selector_string(selector)
 
     use_nearest = kind in (:node, :ip)
     target = select(ana.model, item_kind, selector; nearest=use_nearest, prefix="add_monitor")
@@ -322,16 +331,7 @@ end
 
 
 function output(monitor::Monitor)
-    selector = monitor.selector
-
-    if selector isa Expr || selector isa Tuple
-        loc = replace( string(round_floats!(getexpr(selector))), " " => "")
-    elseif selector isa Integer
-        loc = "$item_name $selector"
-    else
-        loc = repr(selector)
-    end
-
+    loc = _monitor_selector_string(monitor.selector)
     head = string(monitor.kind) * " at " * loc
 
     labels = String[]

@@ -2,6 +2,8 @@ using Serendip
 
 @run_files [
          # Meshing
+         "identity.jl",
+         "select.jl",
          "shape/shape_deriv.jl",
          "shape/extrapolation.jl",
          "structured.jl",

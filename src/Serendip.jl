@@ -19,15 +19,16 @@ using StaticArrays, FixedSizeArrays, SparseArrays, Arpack, Pardiso
 using Printf, DelimitedFiles, Glob, Dates, JSON
 using Gmsh
 using Cairo
-using QuickCharts: Chart, ChartGrid, DataSeries, Legend, Annotation, Color, Colormap, cm
+using QuickCharts: Chart, ChartGrid, DataSeries, Legend, Annotation, Color, Colormap, Colorbar, VideoBuilder, cm
 using QuickCharts: render, lighten, darken, gray
 import QuickCharts: save, Figure, FigureComponent, Frame, TextBox, RenderContext, Canvas, Axis
 import QuickCharts: configure!, draw!, draw_background!, draw_contents!, reset_matrix!, set_local_matrix!
 import QuickCharts: draw_text, getsize, get_font, draw_mark, resolve_color, rgb, rgba
 import QuickCharts: data2user, user2data, _draw_figure_background!, _draw_text_box!
 import QuickCharts: compute_auto_limits, _figure_renderable, _png_raster_scale
+import QuickCharts: _capture_scaling_state, _apply_scaling_state!
 import QuickCharts: resize
-import QuickCharts: add_series, add_line, add_scatter, add_bar, add_annotation, add_chart
+import QuickCharts: add_series, add_line, add_scatter, add_bar, add_annotation, add_chart, add_frame
 import FreeTypeAbstraction
 import DataStructures: OrderedDict, OrderedSet
 
@@ -82,15 +83,17 @@ include("element.jl")
 export Element
 export get_nodes, change_quadrature, get_ips
 
+include("select.jl")
+
 # Plotting
 include("plot/include.jl")
 export cm
 export Color
 export gray, lighten, darken
 export render
-export Chart, ChartGrid, DataSeries, Legend, Colormap, DomainPlot, Annotation
+export Chart, ChartGrid, DataSeries, Legend, Colormap, DomainPlot, Annotation, VideoBuilder
 export add_line, add_scatter, add_bar, add_annotation
-export add_chart, add_plot
+export add_chart, add_plot, add_frame
 # Deprecated/Aliases
 export add_series
 

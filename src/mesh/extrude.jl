@@ -204,13 +204,13 @@ function extrude(mesh::Mesh; length::Real=1.0, n::Int=1, axis=nothing, quiet=tru
         end
     end
 
-    # merge points
-    node_dict = Dict{UInt64,Node}( hash(n) => n for c in cells for n in c.nodes )
+    # Merge coincident points by spatial position, not object identity.
+    point_d = NodePosMap(n => n for c in cells for n in c.nodes)
 
     for cell in cells
-        cell.nodes = Node[ node_dict[hash(n)] for n in cell.nodes ]
+        cell.nodes = Node[point_d[n] for n in cell.nodes]
     end
-    nodes = collect(values(node_dict))
+    nodes = collect(values(point_d))
 
     # new mesh
     newmesh = Mesh()

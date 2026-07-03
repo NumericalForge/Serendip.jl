@@ -267,23 +267,6 @@ Filter = x -> x === Serendip.DataTable
 
 ```@raw html
 <details>
-<summary><code>DataBook</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.DataBook
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
 <summary><code>split_by</code></summary>
 ```
 
@@ -445,23 +428,6 @@ Modules = [Serendip]
 Private = false
 Public = true
 Filter = x -> x === Serendip.randtable
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>randbook</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.randbook
 ```
 
 ```@raw html

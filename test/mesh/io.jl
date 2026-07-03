@@ -5,14 +5,14 @@ using JSON
 function io_test_mesh()
     geo = GeoModel()
     add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 1.0, nx=2, ny=2, nz=2, shape=:hex8)
-    mesh = Mesh(geo, quiet=true)
+    mesh = Mesh(geo, quiet=true, sort=false)
     mesh.elems[1].tag = "outer-tag"
     mesh.elems[end].tag = "inner-tag-123456"
     return mesh
 end
 
-function test_round_trip(mesh::Mesh, filename::String)
-    @test save(mesh, filename, quiet=true) === nothing
+function test_round_trip(mesh::Mesh, filename::String; options...)
+    @test save(mesh, filename, quiet=true; options...) === nothing
 
     saved = Mesh(filename)
     @test length(saved.nodes) == length(mesh.nodes)
@@ -31,8 +31,12 @@ end
             test_round_trip(io_test_mesh(), joinpath(dir, "mesh.vtk"))
         end
 
-        @testset "VTU round-trip" begin
-            test_round_trip(io_test_mesh(), joinpath(dir, "mesh.vtu"))
+        @testset "Compressed VTU round-trip" begin
+            test_round_trip(io_test_mesh(), joinpath(dir, "mesh-compressed.vtu"), compress=true)
+        end
+
+        @testset "ASCII VTU round-trip" begin
+            test_round_trip(io_test_mesh(), joinpath(dir, "mesh-ascii.vtu"), compress=false)
         end
 
         @testset "JSON output" begin

@@ -34,7 +34,6 @@ add_bc(stage, :face, (x==L), tz=P/(H*W))
 # run(ana, alpha=4.2038, beta=174.2803e-6)
 run(ana)
 
-t = Float64.(log1.table[:t])
 uz = Float64.(log1.table[:uz])
 
 # Step load on an undamped linear oscillator gives u_max = 2*u_static.
@@ -48,10 +47,3 @@ f_expected = beta1^2/(2*pi)*sqrt(E*I/(rho*A*L^4))
 f_num = get_frequency(log1.table, :uz; extrema=:minima)
 println("Frequency: ", f_num, " Hz")
 @test isapprox(f_num, f_expected; rtol=0.15)
-
-chart = Chart(
-    xlabel = "Time [s]",
-    ylabel = "z displacement",
-)
-add_line(chart, t, uz, mark=:circle)
-save(chart, "cantilever-solid-uz-vs-time.pdf")

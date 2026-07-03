@@ -570,6 +570,8 @@ function flip(elem::AbstractCell)
         nidx = [1,3,2,4,6,5,9,8,7,12,11,10,13,15,14]
     elseif elem.shape==HEX20
         nidx = [1,4,3,2,5,8,7,6, 12,11,10,9, 16,15,14,13, 17,20,19,18]
+    elseif elem.shape==HEX27
+        nidx = [1,4,3,2,5,8,7,6, 12,11,10,9, 16,15,14,13, 17,20,19,18, 23,24,21,22, 25,26,27]
     else
         error("flip: Cell shape $(elem.shape.kind) is not supported")
     end

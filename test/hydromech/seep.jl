@@ -39,11 +39,9 @@ solve!(model, tol=0.1)
 # Output
 if @isdefined(makeplots) && makeplots
     using PyPlot
-    save(log1, "book.dat")
+    save(log1, "log.table")
 
-    book = log1.book
-    for (i,table) in enumerate(book.tables)
+    for table in split_by(log1.table, "T")
         plot(table[:uw], table[:y], "-o")
     end
 end
-

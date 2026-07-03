@@ -391,7 +391,7 @@ function update_output_data!(model::FEModel)
         end
     end
 
-    # add nodal values from patch recovery (solid elements) : regression + averaging
+    # add nodal values from patch recovery (solid and surface elements) : regression + averaging
     V_rec, fields_rec = nodal_patch_recovery(model)
     for (i,field) in enumerate(fields_rec)
         model.node_fields[string(field)] = V_rec[:,i]
@@ -474,7 +474,7 @@ function get_node_and_elem_vals(model::FEModel)
         end
     end
 
-    # add nodal values from patch recovery (solid elements) : regression + averaging
+    # add nodal values from patch recovery (solid and surface elements) : regression + averaging
     V_rec, fields_rec = nodal_patch_recovery(model)
     NV = [ NV V_rec ]
     node_fields = [ collect(node_fields_set); fields_rec ]
@@ -519,12 +519,41 @@ function _reg_terms(x::Float64, y::Float64, z::Float64, nterms::Int64)
 end
 
 
-function nodal_patch_recovery(model::FEModel)
+function _merge_recovered_fields(nnodes::Int, results...)
+    all_fields_set = OrderedSet{Symbol}()
+    for (_, _, fields) in results
+        union!(all_fields_set, fields)
+    end
+
+    fields = collect(all_fields_set)
+    nfields = length(fields)
+    nfields == 0 && return zeros(Float64, nnodes, 0), fields
+
+    field_idx = OrderedDict(field => i for (i, field) in enumerate(fields))
+    V_vals = zeros(Float64, nnodes, nfields)
+    V_reps = zeros(Int64, nnodes, nfields)
+
+    for (vals, reps, local_fields) in results
+        for (j, field) in enumerate(local_fields)
+            idx = field_idx[field]
+            V_vals[:, idx] .+= vals[:, j]
+            V_reps[:, idx] .+= reps[:, j]
+        end
+    end
+
+    V_vals ./= V_reps
+    V_vals[isnan.(V_vals)] .= 0.0
+
+    return V_vals, fields
+end
+
+
+function _nodal_patch_recovery(model::FEModel, role::Symbol; use_recoverable_fields::Bool=false)
     # Note: nodal ids must be numbered starting from 1
 
     ndim = model.ctx.ndim
     nnodes = length(model.nodes)
-    length(model.faces)==0 && return zeros(nnodes,0), Symbol[]
+    length(model.faces)==0 && return zeros(Float64, nnodes, 0), zeros(Int64, nnodes, 0), Symbol[]
 
     # get node field symbols (to skip if later found at ips)
     node_fields_set = OrderedSet{Symbol}()
@@ -544,11 +573,24 @@ function nodal_patch_recovery(model::FEModel)
         at_bound[node.id] = true
     end
 
-    # generate patches for solid elements
+    # identify elements participating in this patch recovery
+    participating = falses(length(model.elems))
+    recovered_fields = Vector{Vector{Symbol}}(undef, length(model.elems))
+    for elem in model.elems
+        rec_fields = if use_recoverable_fields
+            collect(recoverable_fields(elem))
+        else
+            Symbol[]
+        end
+        recovered_fields[elem.id] = rec_fields
+        participating[elem.id] = elem.role == role && (!use_recoverable_fields || !isempty(rec_fields))
+    end
+
+    # generate patches for participating elements
     patches     = [ Element[] for i in 1:nnodes ] # internal patches
     bry_patches = [ Element[] for i in 1:nnodes ] # boundary patches
     for elem in model.elems
-        elem.role != :solid && continue
+        participating[elem.id] || continue
         for node in elem.nodes[1:elem.shape.base_shape.npoints] # only at corners
             if at_bound[node.id]
                 push!(bry_patches[node.id], elem)
@@ -597,13 +639,20 @@ function nodal_patch_recovery(model::FEModel)
     all_ips_vals   = Array{Array{OrderedDict{Symbol,Float64}},1}()
     all_fields_set = OrderedSet{Symbol}()
     for elem in model.elems
-        if elem.role==:solid
+        if participating[elem.id]
             ips_vals = [ state_values(elem.cmodel, ip.state) for ip in elem.ips ]
+            if use_recoverable_fields
+                wanted = recovered_fields[elem.id]
+                ips_vals = [
+                    OrderedDict{Symbol,Float64}(key => dict[key] for key in wanted if haskey(dict, key))
+                    for dict in ips_vals
+                ]
+            end
             push!(all_ips_vals, ips_vals)
-            union!(all_fields_set, keys(ips_vals[1]))
+            isempty(ips_vals) || union!(all_fields_set, keys(ips_vals[1]))
 
-        else # skip data from non solid elements
-            push!(all_ips_vals, [])
+        else # skip data from non-participating elements
+            push!(all_ips_vals, OrderedDict{Symbol,Float64}[])
         end
     end
 
@@ -611,7 +660,7 @@ function nodal_patch_recovery(model::FEModel)
     all_fields_idx = OrderedDict( key=>i for (i,key) in enumerate(all_fields_set) )
     nfields = length(all_fields_set)
 
-    nfields==0 && return zeros(Float64, nnodes, nfields), Symbol[]
+    nfields==0 && return zeros(Float64, nnodes, nfields), zeros(Int64, nnodes, nfields), Symbol[]
 
     @withthreads begin
         # matrices for all nodal values and repetitions
@@ -700,11 +749,18 @@ function nodal_patch_recovery(model::FEModel)
 
     end
 
-    # average values
-    V_vals ./= V_reps
-    V_vals[isnan.(V_vals)] .= 0.0
+    return V_vals, V_reps, collect(all_fields_set)
 
-    return V_vals, collect(all_fields_set)
+end
+
+
+function nodal_patch_recovery(model::FEModel)
+    nnodes = length(model.nodes)
+
+    solid_result = _nodal_patch_recovery(model, :solid)
+    surface_result = _nodal_patch_recovery(model, :surface, use_recoverable_fields=true)
+
+    return _merge_recovered_fields(nnodes, solid_result, surface_result)
 
 end
 

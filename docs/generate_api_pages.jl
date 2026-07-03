@@ -235,7 +235,6 @@ const API_PAGES = [
             ]),
             ("Data Containers", [
                 "DataTable",
-                "DataBook",
                 "split_by",
                 "LinearSpline",
                 "CubicSpline",
@@ -246,7 +245,6 @@ const API_PAGES = [
                 "getheader",
                 "get_frequency",
                 "randtable",
-                "randbook",
             ]),
             ("Symbolic and XML Utilities", [
                 "Symbolic",

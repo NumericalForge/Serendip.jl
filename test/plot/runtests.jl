@@ -1,14 +1,11 @@
 using Serendip
 @run_files [
-    "axis.jl",
-    "chart.jl",
-    "bar-chart.jl",
-    "colormap.jl",
+    "axes-widget.jl",
     "domain-colorbar.jl",
     "domain-layers.jl",
     "domain-markers.jl",
+    "domain-selectors.jl",
     "domain-view.jl",
-    "chart-grid.jl",
-    "typesetting.jl",
+    "video.jl",
     "units.jl",
 ]

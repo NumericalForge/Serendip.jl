@@ -184,20 +184,19 @@ function slice(
     end
 
     # get all mesh edges
-    edgedict = Dict{UInt, CellEdge}()
+    edgedict = Dict{Tuple{Vararg{UInt64}}, CellEdge}()
     for cell in mesh.elems
         cell.role == :solid || continue
         for edge in get_edges(cell)
-            hs = hash(edge)
-            edgedict[hs] = edge
+            edgedict[_topology_key(edge)] = edge
         end
     end
 
     edges = collect(values(edgedict))
 
     # find intersection points between edges and the plane
-    int_nodes_d = Dict{UInt, Node}()
-    edge_node_d = Dict{UInt, Node}()
+    int_nodes_d = NodePosMap()
+    edge_node_d = Dict{Tuple{Vararg{UInt64}}, Node}()
     tolf = 1e-8
     maxits = 100
     for edge in edges
@@ -243,12 +242,8 @@ function slice(
 
         Xi = round.(Xi, digits=6)
         int_node = Node(Xi)
-        if haskey(int_nodes_d, hash(int_node))
-            int_node = int_nodes_d[hash(int_node)]
-        else
-            int_nodes_d[hash(int_node)] = int_node
-        end
-        edge_node_d[hash(edge)] = int_node
+        int_node = get!(int_nodes_d, int_node, int_node)
+        edge_node_d[_topology_key(edge)] = int_node
     end
 
     # mount slice elements
@@ -256,15 +251,14 @@ function slice(
     for cell in mesh.elems
         cell.role == :solid || continue
 
-        nodedict = Dict{UInt,Node}()
+        nodedict = IdDict{Node,Nothing}()
         for edge in get_edges(cell)
-            Xi = get(edge_node_d, hash(edge), nothing)
+            Xi = get(edge_node_d, _topology_key(edge), nothing)
             Xi === nothing && continue
-            Xi = int_nodes_d[hash(Xi)]
-            nodedict[hash(Xi)] = Xi
+            nodedict[Xi] = nothing
         end
 
-        nodes = collect(values(nodedict))
+        nodes = collect(keys(nodedict))
         nnodes = length(nodes)
         nnodes > 2 || continue
 
@@ -277,7 +271,7 @@ function slice(
         end
     end
 
-    bulk_elems = unique(bulk_elems)
+    bulk_elems = unique(_topology_key, bulk_elems)
     new_nodes = get_nodes(bulk_elems)
 
     # non bulk elements
@@ -397,4 +391,3 @@ function slice(
 
     return newmesh
 end
-

@@ -74,7 +74,7 @@ macro withthreads(ex)
         for (i,ini) in enumerate(initializers)
             var = ini.args[1]
             newvar = Symbol("#_$var")
-            ex = replace(ex, var => newvar)
+            ex = _replace_symbol(ex, var => newvar)
 
             push!(locals_exp.args, var)
 
@@ -241,7 +241,7 @@ macro withthreads_spawn(ex) # crashes sometimes
         for (i,ini) in enumerate(initializers)
             var = ini.args[1]
             newvar = Symbol("#_$var")
-            ex = replace(ex, var => newvar)
+            ex = _replace_symbol(ex, var => newvar)
 
             push!(locals_exp.args, var)
 

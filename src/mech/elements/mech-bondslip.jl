@@ -34,6 +34,77 @@ mutable struct MechBondSlipCache <: ElementCache
 end
 
 
+function recover_confinement_pressure(elem::Element{MechBondSlip})
+    state_ty = typeof(elem.ips[1].state)
+    hasfield(state_ty, :p) || return zeros(length(elem.ips))
+
+    ndim = elem.ctx.ndim
+    host = elem.couplings[1]
+    bar  = elem.couplings[2]
+    Ct   = get_coords(bar)
+
+    neighbor_ips = host.ips
+    n_neighbor_ips = length(neighbor_ips)
+    n_interface_ips = length(elem.ips)
+
+    @inline function reg_terms(x::Float64, y::Float64, nterms::Int)
+        nterms == 4 && return (1.0, x, y, x*y)
+        nterms == 3 && return (1.0, x, y)
+        return (1.0,)
+    end
+
+    @inline function reg_terms(x::Float64, y::Float64, z::Float64, nterms::Int)
+        nterms == 4 && return (1.0, x, y, z)
+        return (1.0,)
+    end
+
+    nterms = if ndim == 3
+        n_neighbor_ips >= 4 ? 4 : 1
+    else
+        n_neighbor_ips >= 4 ? 4 : n_neighbor_ips >= 3 ? 3 : 1
+    end
+
+    Mreg = FMat(undef, n_neighbor_ips, nterms)
+    for (i, ip) in enumerate(neighbor_ips)
+        x, y, z = ip.coord
+        Mreg[i, :] .= ndim == 3 ? reg_terms(x, y, z, nterms) : reg_terms(x, y, nterms)
+    end
+
+    p_sample = FVec(undef, n_neighbor_ips)
+    coeffs   = FVec(undef, nterms)
+    reg_solver = qr(Mreg)
+    p_eval = zeros(n_interface_ips)
+
+    for (i, ip) in enumerate(elem.ips)
+        D = bar.shape.deriv(ip.R)
+        J = Ct' * D
+        T = mount_T(J)
+
+        if ndim == 3
+            l2 = vec(T[2, :])
+            l3 = vec(T[3, :])
+        else
+            l2 = Vec3(T[2,1], T[2,2], 0.0)
+            l3 = Vec3(0.0, 0.0, 1.0)
+        end
+
+        for (j, hip) in enumerate(neighbor_ips)
+            σ = hip.cstate.σ
+            t2 = dott(σ, l2)
+            t3 = dott(σ, l3)
+            p_sample[j] = min(0.5*(dot(t2, l2) + dot(t3, l3)), 0.0)
+        end
+
+        coeffs .= reg_solver \ p_sample
+        x, y, z = ip.coord
+        terms = ndim == 3 ? reg_terms(x, y, z, nterms) : reg_terms(x, y, nterms)
+        p_eval[i] = dot(coeffs, terms)
+    end
+
+    return p_eval
+end
+
+
 function set_quadrature(elem::Element{MechBondSlip}, n::Int=0; state::NamedTuple=NamedTuple())
 
     bar   = elem.couplings[2]
@@ -198,6 +269,7 @@ function elem_internal_forces(elem::Element{MechBondSlip}, ΔU::Vector{Float64}=
     ndim   = elem.ctx.ndim
     nnodes = length(elem.nodes)
     p = elem.etype.p
+    p_conf = recover_confinement_pressure(elem)
 
     map  = dof_map(elem)
 
@@ -209,6 +281,7 @@ function elem_internal_forces(elem::Element{MechBondSlip}, ΔU::Vector{Float64}=
     ΔF = zeros(nnodes*ndim)
 
     for (i,ip) in enumerate(elem.ips)
+        hasfield(typeof(ip.state), :p) && (ip.state.p = p_conf[i])
         B    = elem.cache.B_list[i]
         detJ = elem.cache.detJ_list[i]
 

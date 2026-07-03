@@ -1,44 +1,10 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 
-"""
-    DomainPlot(;
-        size=(220,150),
-        colorbar=:right, colorbar_ratio=0.9,
-        font="NewComputerModern", font_size=7.0,
-        title="",
-        light_vector=[0,0,0], shade_strength=1.0,
-        azimuth=30, elevation=30, distance=0.0, up=:z,
-        axes=:none, axis_labels=String[])
-
-    DomainPlot(mesh;
-        size=(220,150), face_color=:aliceblue, warp=0.0,
-        line_width=0.3, line_color=:auto, outline_width=0.4, outline_color=:auto,
-        outline_angle=120,
-        line_elem_width=nothing, line_elem_color=:auto,
-        field="", limits=Float64[], field_kind=:auto, field_mult=1.0,
-        vector_field="", arrow_length=12.0, arrow_width=0.5, arrow_color=:black,
-        label="", colormap=:coolwarm, diverging=false,
-        colorbar=:right, colorbar_ratio=0.9, bins=6,
-        font="NewComputerModern", font_size=7.0,
-        title="",
-        interpolation=:linear,
-        azimuth=30, elevation=30, distance=0.0, up=:z,
-        show_outline=true, view_mode=:surface_with_edges,
-        light_vector=[0,0,0], shade_strength=1.0,
-        mark=:none, mark_size=2.5, stage=nothing,
-        node_labels=false,
-        axes=:none, axis_labels=String[])
-
-Create a customizable domain plot for meshes and FE models.
-
-`DomainPlot(mesh; ...)` is the compatibility constructor for single-domain plots.
-For layered compositions, construct an empty `DomainPlot(; ...)` and append
-layers with `add_plot`.
-"""
 
 mutable struct DomainPlotLayer
     mesh::AbstractDomain
+    selectors::Tuple
     nodes::Vector{Node}
     elems::Vector{AbstractCell}
     outline_edges_d::Dict
@@ -98,7 +64,63 @@ struct DomainRenderElem
     fallback_depth::Float64
 end
 
+abstract type DomainPlotScalingState end
 
+struct DomainPlotScalingState2D <: DomainPlotScalingState
+    ndim::Int
+    canvas_limits::Vector{Float64}
+end
+
+struct DomainPlotScalingState3D <: DomainPlotScalingState
+    ndim::Int
+    center::Vec3
+    reflength::Float64
+    xmin::Float64
+    ymin::Float64
+    scale::Float64
+    canvas_limits::Vector{Float64}
+    azimuth::Float64
+    elevation::Float64
+    distance::Float64
+    up::Symbol
+end
+
+
+"""
+    DomainPlot(;
+        size=(220,150),
+        colorbar=:right, colorbar_ratio=0.9,
+        font="NewComputerModern", font_size=7.0,
+        title="",
+        light_vector=[0,0,0], shade_strength=1.0,
+        azimuth=30, elevation=30, distance=0.0, up=:z,
+        axes=:none, axis_labels=String[])
+
+    DomainPlot(mesh, selectors...;
+        size=(220,150), face_color=:aliceblue, warp=0.0,
+        line_width=0.3, line_color=:auto, outline_width=0.4, outline_color=:auto,
+        outline_angle=120,
+        line_elem_width=nothing, line_elem_color=:auto,
+        field="", limits=Float64[], field_kind=:auto, field_mult=1.0,
+        vector_field="", arrow_length=12.0, arrow_width=0.5, arrow_color=:black,
+        label="", colormap=:coolwarm, diverging=false,
+        colorbar=:right, colorbar_ratio=0.9, bins=6,
+        font="NewComputerModern", font_size=7.0,
+        title="",
+        interpolation=:linear,
+        azimuth=30, elevation=30, distance=0.0, up=:z,
+        show_outline=true, view_mode=:surface_with_edges,
+        light_vector=[0,0,0], shade_strength=1.0,
+        mark=:none, mark_size=2.5, stage=nothing,
+        node_labels=false,
+        axes=:none, axis_labels=String[])
+
+Create a customizable domain plot for meshes and FE models.
+
+`DomainPlot(mesh, selectors...; ...)` is the compatibility constructor for single-domain plots.
+For layered compositions, construct an empty `DomainPlot(; ...)` and append
+layers with `add_plot`.
+"""
 mutable struct DomainPlot <: Figure
     mesh::Union{AbstractDomain,Nothing}
     figure_frame::Frame
@@ -118,6 +140,7 @@ mutable struct DomainPlot <: Figure
     elevation::Float64
     distance::Float64
     up::Symbol
+    projection_state::Any
 
     interpolation::Symbol
     light_vector::Vector{Float64}
@@ -168,6 +191,7 @@ mutable struct DomainPlot <: Figure
     layers::Vector{DomainPlotLayer}
     render_elems::Vector{DomainRenderElem}
     ndim::Int
+    frozen_scaling_state::Union{Nothing,DomainPlotScalingState}
     function DomainPlot(;
         size::Tuple{<:Real,<:Real}=(220,150),
         colorbar::Symbol=:right,
@@ -209,9 +233,9 @@ mutable struct DomainPlot <: Figure
             arrow_length=axis_arrow_length,
         )
 
-        printstyled("Domain plot\n", bold=true, color=:cyan)
-        println("  size: $(width) x $(height) pt")
-        title != "" && println("  title: $(title)")
+        # printstyled("Domain plot\n", bold=true, color=:cyan)
+        # println("  size: $(width) x $(height) pt")
+        # title != "" && println("  title: $(title)")
 
         return new(
             nothing,
@@ -232,6 +256,7 @@ mutable struct DomainPlot <: Figure
             float(elevation),
             float(distance),
             up,
+            nothing,
             :linear,
             Float64[float(v) for v in light_vector],
             float(shade_strength),
@@ -279,6 +304,7 @@ mutable struct DomainPlot <: Figure
             DomainPlotLayer[],
             DomainRenderElem[],
             0,
+            nothing,
         )
     end
 end
@@ -286,7 +312,7 @@ end
 _figure_renderable(::DomainPlot) = true
 
 
-function DomainPlot(mesh;
+function DomainPlot(mesh, selectors...;
     size::Tuple{<:Real,<:Real}=(220,150),
     face_color::Union{Symbol,Color,Tuple}=:aliceblue,
     warp::Real=0.0,
@@ -351,7 +377,8 @@ function DomainPlot(mesh;
 
     add_plot(
         mplot,
-        mesh;
+        mesh,
+        selectors...;
         face_color=face_color,
         warp=warp,
         line_width=line_width,
@@ -532,7 +559,7 @@ end
 
 
 """
-    add_plot(plot::DomainPlot, mesh; kwargs...)
+    add_plot(plot::DomainPlot, mesh, selectors...; kwargs...)
 
 Append one mesh layer to a `DomainPlot`.
 
@@ -541,13 +568,14 @@ Use this with the composable constructor:
 ```julia
 plot = DomainPlot(size=(8cm, 6cm))
 add_plot(plot, mesh1; face_color=:aliceblue)
-add_plot(plot, model2; warp=1.0, view_mode=:outline, line_color=:red)
+add_plot(plot, model2, "loaded"; warp=1.0, view_mode=:outline, line_color=:red)
 save(plot, "out.pdf")
 ```
 
 # Arguments
 - `plot::DomainPlot`: Target plot figure (mutated).
 - `mesh::Union{AbstractDomain,FEModel}`: Source mesh or FE model for this layer.
+- `selectors`: Optional element selectors defining which cells are visible in this layer.
 
 # Layer keywords
 - `face_color::Union{Symbol,Color,Tuple}`: surface color for area/surface cells.
@@ -594,7 +622,8 @@ save(plot, "out.pdf")
 """
 function add_plot(
     mplot::DomainPlot,
-    mesh;
+    mesh,
+    selectors...;
     face_color::Union{Symbol,Color,Tuple}=:aliceblue,
     warp::Real=0.0,
     line_width::Real=0.3,
@@ -638,6 +667,7 @@ function add_plot(
     @check interpolation in (:constant, :linear, :nonlinear) "DomainPlot: invalid interpolation $(repr(interpolation))"
     colorbar === nothing || @check colorbar in (:none, :left, :right, :top, :bottom) "DomainPlot: invalid colorbar location $(repr(colorbar))"
     colorbar_ratio === nothing || @check colorbar_ratio > 0 "DomainPlot: colorbar_ratio must be positive"
+    !_selector_contains_redirect(selectors) || throw(ArgumentError("DomainPlot: layer selectors cannot contain :node or :ip"))
 
     if !isempty(mplot.layers)
         @check mesh.ctx.ndim == mplot.layers[1].mesh.ctx.ndim "DomainPlot: all layers must have the same dimension"
@@ -653,6 +683,7 @@ function add_plot(
 
     layer = DomainPlotLayer(
         mesh,
+        selectors,
         Node[],
         AbstractCell[],
         Dict(),
@@ -932,6 +963,33 @@ function _domain_projection_state(points, azimuth, elevation, distance, up::Symb
     return (center=center, reflength=reflength, xmin=xmin, ymin=ymin, scale=scale, azimuth=float(azimuth), elevation=float(elevation), distance=float(distance), up=up)
 end
 
+function _domain_expand_limits(limits::AbstractVector{<:Real}, factor::Real)
+    factor >= 1.0 || throw(ArgumentError("padding factor must be at least 1.0"))
+    xmin, ymin, xmax, ymax = float.(limits)
+    cx = 0.5 * (xmin + xmax)
+    cy = 0.5 * (ymin + ymax)
+    hx = 0.5 * (xmax - xmin) * factor
+    hy = 0.5 * (ymax - ymin) * factor
+    return [cx - hx, cy - hy, cx + hx, cy + hy]
+end
+
+function _domain_expand_projection_state(state, factor::Real)
+    factor >= 1.0 || throw(ArgumentError("padding factor must be at least 1.0"))
+    newscale = state.scale * factor
+    δ = 0.5 * (newscale - state.scale)
+    return (
+        center=state.center,
+        reflength=state.reflength,
+        xmin=state.xmin - δ,
+        ymin=state.ymin - δ,
+        scale=newscale,
+        azimuth=float(state.azimuth),
+        elevation=float(state.elevation),
+        distance=float(state.distance),
+        up=state.up,
+    )
+end
+
 
 function _domain_project_point(point, state)
     projected = project_view_point(point, state.azimuth, state.elevation, state.distance, up=state.up, center=state.center, reflength=state.reflength)
@@ -943,9 +1001,15 @@ end
 
 function project_to_2d!(nodes, azimuth, elevation, distance, up::Symbol=:z)
     state = _domain_projection_state(getfield.(nodes, :coord), azimuth, elevation, distance, up)
+    return project_to_2d!(nodes, state)
+end
+
+
+function project_to_2d!(nodes, state)
     for node in nodes
         node.coord = _domain_project_point(node.coord, state)
     end
+    return state
 end
 
 
@@ -1056,7 +1120,7 @@ function _domain_prepare_layer!(mplot::DomainPlot, layer::DomainPlotLayer)
         end
     end
 
-    active_elems = select(mesh.elems, :active)
+    active_elems = select(mesh.elems, :active, layer.selectors...)
     if ndim == 2
         areacells = [elem for elem in active_elems if elem.shape.ndim == 2 && elem.role in (:solid, :surface)]
         linecells = [elem for elem in active_elems if elem.role == :line]
@@ -1299,6 +1363,7 @@ function _domain_reset_render_state!(mplot::DomainPlot)
     mplot.outline_edges_d = Dict()
     mplot.values = Float64[]
     mplot.shades = Float64[]
+    mplot.projection_state = nothing
 end
 
 
@@ -1324,7 +1389,7 @@ function _domain_prepare_vector_overlays!(mplot::DomainPlot)
         return nothing
     end
 
-    state = _domain_projection_state(getfield.(mplot.nodes, :coord), mplot.azimuth, mplot.elevation, mplot.distance, mplot.up)
+    state = _domain_active_projection_state(mplot)
     for layer in mplot.layers
         _domain_layer_has_vector_field(layer) || continue
         projected = zeros(Float64, size(layer.vector_values, 1), 2)
@@ -1339,6 +1404,64 @@ function _domain_prepare_vector_overlays!(mplot::DomainPlot)
         layer.vector_values = projected
     end
     return nothing
+end
+
+
+function _domain_validate_frozen_scaling_state!(mplot::DomainPlot)
+    state = mplot.frozen_scaling_state
+    state === nothing && return nothing
+
+    state.ndim == mplot.ndim || throw(SerendipException("DomainPlot: frozen scaling state dimension $(state.ndim) does not match current plot dimension $(mplot.ndim)"))
+
+    if state isa DomainPlotScalingState3D
+        isapprox(state.azimuth, mplot.azimuth; atol=1.0e-8) || throw(SerendipException("DomainPlot: frozen scaling state azimuth does not match the current plot"))
+        isapprox(state.elevation, mplot.elevation; atol=1.0e-8) || throw(SerendipException("DomainPlot: frozen scaling state elevation does not match the current plot"))
+        isapprox(state.distance, mplot.distance; atol=1.0e-8) || throw(SerendipException("DomainPlot: frozen scaling state distance does not match the current plot"))
+        state.up == mplot.up || throw(SerendipException("DomainPlot: frozen scaling state up direction does not match the current plot"))
+    end
+
+    return nothing
+end
+
+
+function _domain_active_projection_state(mplot::DomainPlot)
+    if mplot.frozen_scaling_state isa DomainPlotScalingState3D
+        return mplot.frozen_scaling_state
+    end
+    return _domain_projection_state(getfield.(mplot.nodes, :coord), mplot.azimuth, mplot.elevation, mplot.distance, mplot.up)
+end
+
+
+function _capture_scaling_state(mplot::DomainPlot; bounds_factor::Real=1.0)
+    bounds_factor >= 1.0 || throw(ArgumentError("bounds_factor must be at least 1.0"))
+
+    limits = _domain_expand_limits(mplot.canvas.limits, bounds_factor)
+    if mplot.ndim == 2
+        return DomainPlotScalingState2D(2, limits)
+    end
+
+    state = mplot.projection_state
+    state === nothing && throw(SerendipException("DomainPlot: no projection state available to capture"))
+    state = _domain_expand_projection_state(state, bounds_factor)
+    return DomainPlotScalingState3D(
+        3,
+        state.center,
+        state.reflength,
+        state.xmin,
+        state.ymin,
+        state.scale,
+        limits,
+        state.azimuth,
+        state.elevation,
+        state.distance,
+        state.up,
+    )
+end
+
+
+function _apply_scaling_state!(mplot::DomainPlot, state::DomainPlotScalingState)
+    mplot.frozen_scaling_state = state
+    return mplot
 end
 
 
@@ -1525,6 +1648,11 @@ end
 
 
 function _domain_assign_canvas_limits!(mplot::DomainPlot)
+    if mplot.frozen_scaling_state !== nothing
+        mplot.canvas.limits = copy(mplot.frozen_scaling_state.canvas_limits)
+        return nothing
+    end
+
     frame = mplot.canvas.frame
     xmin_data, xmax_data, ymin_data, ymax_data = _domain_node_bounds(mplot)
 
@@ -1621,13 +1749,17 @@ function configure!(mplot::DomainPlot)
 
     mplot.ndim = mplot.layers[1].mesh.ctx.ndim
     _domain_reset_render_state!(mplot)
+    _domain_validate_frozen_scaling_state!(mplot)
     field_layers = _domain_prepare_layers!(mplot)
 
     @check !isempty(mplot.nodes) "DomainPlot: no drawable entities found"
     _domain_prepare_vector_overlays!(mplot)
 
     if mplot.ndim == 3
-        project_to_2d!(mplot.nodes, mplot.azimuth, mplot.elevation, mplot.distance, mplot.up)
+        mplot.projection_state = _domain_active_projection_state(mplot)
+        project_to_2d!(mplot.nodes, mplot.projection_state)
+    else
+        mplot.projection_state = nothing
     end
 
     _domain_build_render_elems!(mplot)

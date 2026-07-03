@@ -40,7 +40,7 @@ function laplacian_smooth(
     patch_nodes = Vector{Node}[]
     for (node, patch) in zip(nodes, patches)
         curr_patch_nodes = get_nodes(patch)
-        idx = findfirst(p -> hash(p) == hash(node), curr_patch_nodes)
+        idx = findfirst(p -> p === node, curr_patch_nodes)
         idx !== nothing && splice!(curr_patch_nodes, idx)
         push!(patch_nodes, curr_patch_nodes)
     end

@@ -34,15 +34,17 @@ end
 printstyled("\nPoint Selection Through select\n", color=:yellow, bold=true)
 
 nodes = Node[
-    Node(0.0, 0.0, 0.0, id=1),
-    Node(0.0, 0.0, 0.0, id=2),
-    Node(1.0, 0.0, 0.0, id=3),
+    Node(0.0, 0.0, 0.0, tag="left", id=1),
+    Node(0.0, 0.0, 0.0, tag="left", id=2),
+    Node(1.0, 0.0, 0.0, tag="right", id=3),
 ]
 
 @test length(select(nodes, [0.0, 0.0, 0.0])) == 2
 @test length(select(nodes, [0.0, 0.0, 0.0]; nearest=true)) == 2
 @test isempty(select(nodes, [0.25, 0.0, 0.0]))
 @test select(nodes, [0.25, 0.0, 0.0]; nearest=true)[1].id == 1
+@test length(select(nodes, any_of("left", x == 1.0))) == 3
+@test [node.id for node in select(nodes, none_of("left"))] == [3]
 
 out = capture_stdout() do
     select(nodes, [0.25, 0.0, 0.0])
@@ -66,11 +68,16 @@ ips[3].coord = Serendip.Vec3(1.0, 0.0, 0.0)
 ips[1].id = 1
 ips[2].id = 2
 ips[3].id = 3
+ips[1].tag = "left"
+ips[2].tag = "left"
+ips[3].tag = "right"
 
 @test length(select(ips, [0.5, 0.0, 0.0])) == 2
 @test length(select(ips, [0.5, 0.0, 0.0]; nearest=true)) == 2
 @test isempty(select(ips, [0.75, 0.0, 0.0]))
 @test select(ips, [0.75, 0.0, 0.0]; nearest=true)[1].id == 1
+@test length(select(ips, any_of("left", x == 1.0))) == 3
+@test [ip.id for ip in select(ips, none_of("left"))] == [3]
 
 out = capture_stdout() do
     select(ips, [0.75, 0.0, 0.0]; prefix="custom")

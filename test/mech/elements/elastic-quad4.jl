@@ -9,7 +9,7 @@ using Test
 
 geo = GeoModel()
 add_block(geo, [0, 0], 1, 1, 0, nx=1, ny=1, shape=:quad4)
-mesh = Mesh(geo, quiet=true)
+mesh = Mesh(geo, quiet=true, sort=false)
 
 mapper = RegionModel(MechSolid, LinearElastic, E=1.0, nu=0.25)
 

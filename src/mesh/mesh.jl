@@ -42,7 +42,6 @@ function Base.copy(mesh::AbstractDomain)
 
     compute_facets(newmesh)
 
-    # newmesh._pointdict = Dict( hash(node) => node for node in newmesh.nodes )
     newmesh.node_fields = copy(mesh.node_fields)
     newmesh.elem_fields = copy(mesh.elem_fields)
 
@@ -220,7 +219,7 @@ function get_edges(surf_cells::Array{<:AbstractCell,1})
     # canonical key for local node-index lists
     edgekey(idxs) = Tuple(sort(idxs))
 
-    edges_dict = Dict{UInt64, Cell}()
+    edges_dict = Dict{Tuple{Vararg{UInt64}}, Cell}()
 
     # cache by owner shape + owner face idx + face-edge idx
     fmap_cache = Dict{Tuple{CellShape,Int,Int},Int}()
@@ -233,7 +232,7 @@ function get_edges(surf_cells::Array{<:AbstractCell,1})
         if owner === face || face.facet_idx == 0
             for edge in get_edges(face)
                 edge.owner = owner
-                edges_dict[hash(edge)] = edge
+                edges_dict[_topology_key(edge)] = edge
             end
             continue
         end
@@ -262,7 +261,7 @@ function get_edges(surf_cells::Array{<:AbstractCell,1})
             # edge.facet_idx will take the number of local edge in the solid element
             edge.owner = owner
             edge.facet_idx = owner_edge_idx
-            edges_dict[hash(edge)] = edge
+            edges_dict[_topology_key(edge)] = edge
         end
     end
 
@@ -414,10 +413,13 @@ end
 
 
 function compute_facets(mesh::Mesh)
+    empty!(mesh.faces)
+    empty!(mesh.edges)
 
     if mesh.ctx.ndim==2
-        mesh.edges = get_outer_facets(mesh.elems)
-        mesh.faces = mesh.edges
+        surfaces = filter(elem -> elem.shape.ndim == 2, mesh.elems)
+        mesh.edges = get_outer_facets(surfaces)
+        mesh.faces = copy(mesh.edges)
     elseif mesh.ctx.ndim==3
         solids = filter( elem->elem.shape.ndim==3, mesh.elems )
         surfaces = filter( elem-> elem.role==:surface || (elem.shape.ndim==2 && elem.role==:solid), mesh.elems )
