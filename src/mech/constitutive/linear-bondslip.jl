@@ -1,6 +1,6 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-export LinearBondSlip, ElasticRSJoint, ElasticBondSlip
+export LinearBondSlip
 
 mutable struct LinearBondSlipState<:ConstState
     ctx::Context
@@ -14,13 +14,27 @@ mutable struct LinearBondSlipState<:ConstState
     end
 end
 
-# LinearBondSlip_params = [
-#     FunInfo(:LinearBondSlip, "Elastic material for a rod-solid interface."),
-#     KwArgInfo(:ks, "Shear stiffness", cond=:(ks>=0)),
-#     KwArgInfo(:kn, "Normal stiffness", cond=:(kn>0)),
-# ]
-# @doc docstring(LinearBondSlip_params) LinearBondSlip(; kwargs...)
+"""
+    LinearBondSlip(; ks, kn)
 
+Linear elastic bond-slip interface model.
+
+Applies a linear relation between relative displacement and traction for
+rod-solid bond-slip interfaces. The first local direction uses the tangential
+stiffness `ks`, while the remaining directions use the normal stiffness `kn`.
+
+# Keyword arguments
+- `ks::Float64`
+  Tangential bond-slip stiffness (≥ 0).
+- `kn::Float64`
+  Normal stiffness (> 0).
+
+# Returns
+A `LinearBondSlip` constitutive object.
+
+# Notes
+- Compatible with `MechBondSlip` elements.
+"""
 mutable struct LinearBondSlip<:Constitutive
     ks::Float64
     kn::Float64
@@ -31,9 +45,6 @@ mutable struct LinearBondSlip<:Constitutive
         return new(ks, kn)
     end
 end
-
-const ElasticBondSlip = LinearBondSlip
-const ElasticRSJoint = LinearBondSlip
 
 
 # Type of corresponding state structure

@@ -212,39 +212,9 @@ Filter = x -> x === Serendip.threshold
 ```
 
 
-```@raw html
-<details>
-<summary><code>get_feature_edges</code></summary>
-```
+- `get_feature_edges`
 
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.get_feature_edges
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>get_feature_mesh</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.get_feature_mesh
-```
-
-```@raw html
-</details>
-```
-
+- `get_feature_mesh`
 
 ```@raw html
 <details>
@@ -637,3 +607,4 @@ Filter = x -> x === Serendip.save
 ```@raw html
 </details>
 ```
+

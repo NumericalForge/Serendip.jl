@@ -16,6 +16,8 @@ Install the package using the package manager, type `]` and then:
 ] add Serendip
 ```
 
+Serendip currently requires Julia `1.12` or newer.
+
 To use Serendip in Julia REPL:
 
 ```

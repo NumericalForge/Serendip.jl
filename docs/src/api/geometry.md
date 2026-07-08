@@ -520,141 +520,21 @@ Filter = x -> x === Serendip.get_entities
 ```
 
 
-```@raw html
-<details>
-<summary><code>get_points</code></summary>
-```
+- `get_points`
 
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.get_points
-```
+- `get_curves`
 
-```@raw html
-</details>
-```
+- `get_surfaces`
 
+- `get_volumes`
 
-```@raw html
-<details>
-<summary><code>get_curves</code></summary>
-```
+- `get_point`
 
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.get_curves
-```
+- `get_curve`
 
-```@raw html
-</details>
-```
+- `get_surface`
 
-
-```@raw html
-<details>
-<summary><code>get_surfaces</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.get_surfaces
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>get_volumes</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.get_volumes
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>get_point</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.get_point
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>get_curve</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.get_curve
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>get_surface</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.get_surface
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>get_volume</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.get_volume
-```
-
-```@raw html
-</details>
-```
-
+- `get_volume`
 
 ```@raw html
 <details>

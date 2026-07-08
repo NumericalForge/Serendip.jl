@@ -16,6 +16,29 @@ mutable struct LinearCohesiveState<:ConstState
 end
 
 
+"""
+    LinearCohesive(; E, nu=0.0, zeta=5.0)
+
+Linear elastic cohesive interface model.
+
+Computes normal and shear interface stiffness from the bulk elastic properties
+`E` and `nu`, scaled by the characteristic interface length `h` and the factor
+`zeta`.
+
+# Keyword arguments
+- `E::Real`
+  Young's modulus (> 0).
+- `nu::Real=0.0`
+  Poisson's ratio (≥ 0).
+- `zeta::Real=5.0`
+  Elastic displacement scaling factor (> 0).
+
+# Returns
+A `LinearCohesive` constitutive object.
+
+# Notes
+- Compatible with `MechCohesive` elements.
+"""
 mutable struct LinearCohesive<:Constitutive
     E::Float64
     ν::Float64

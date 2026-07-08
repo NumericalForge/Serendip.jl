@@ -590,22 +590,7 @@ Filter = x -> x === Serendip.WillamWarnke
 ```
 
 
-```@raw html
-<details>
-<summary><code>ECP</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.ECP
-```
-
-```@raw html
-</details>
-```
-
+- `ECP`
 
 ```@raw html
 <details>
@@ -781,138 +766,18 @@ Filter = x -> x === Serendip.LinearElasticThermo
 
 ## Acoustic and Coupled Acoustic
 
-```@raw html
-<details>
-<summary><code>AcousticContext</code></summary>
-```
+- `AcousticContext`
 
-```@autodocs; canonical=false
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.AcousticContext
-```
+- `AcousticAnalysis`
 
-```@raw html
-</details>
-```
+- `AcousticMechAnalysis`
 
+- `AcousticModalAnalysis`
 
-```@raw html
-<details>
-<summary><code>AcousticAnalysis</code></summary>
-```
+- `AcousticFluid`
 
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.AcousticAnalysis
-```
+- `AcousticMechInterface`
 
-```@raw html
-</details>
-```
+- `AcousticMechInterfaceCoupling`
 
-
-```@raw html
-<details>
-<summary><code>AcousticMechAnalysis</code></summary>
-```
-
-```@autodocs; canonical=false
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.AcousticMechAnalysis
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>AcousticModalAnalysis</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.AcousticModalAnalysis
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>AcousticFluid</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.AcousticFluid
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>AcousticMechInterface</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.AcousticMechInterface
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>AcousticMechInterfaceCoupling</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.AcousticMechInterfaceCoupling
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>LinearAcousticFluid</code></summary>
-```
-
-```@autodocs
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.LinearAcousticFluid
-```
-
-```@raw html
-</details>
-```
-
+- `LinearAcousticFluid`

@@ -4,6 +4,8 @@ Serendip is a finite element library for research and engineering prototyping in
 
 ## Install
 
+Serendip currently requires Julia `1.12` or newer.
+
 ```julia
 using Pkg
 Pkg.add("Serendip")
