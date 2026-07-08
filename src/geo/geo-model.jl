@@ -1,5 +1,5 @@
 
-function Path(edges::Vector{Edge})
+function Path(edges::Vector{Edge}; closed::Union{Bool,Symbol}=:auto)
     # points = Point[]
     pos = 1
     cmds = [ PathCmd(:M, [1]) ]
@@ -35,8 +35,7 @@ function Path(edges::Vector{Edge})
         end
     end
 
-    closed = edges[1].points[1] == points[end]
-    return Path(points, cmds, closed=closed)
+    return _build_path(points, cmds; closed=closed)
 
 end
 
@@ -339,7 +338,7 @@ end
 
 
 """
-    add_path(geometry, edges; mode=:interface, quadratic=true, tag="", interface_tag="", tip_tag="", tips=:none, n=1)
+    add_path(geometry, edges; mode=:interface, quadratic=true, tag="", interface_tag="", tip_tag="", tips=:none, n=1, closed=:auto)
 
 Adds a logical path structure (`GPath`) to the geometric model from a sequence of connected `Edge` objects.
 This is useful for modeling discrete and embedded 1D elements such as reinforcement bars, drains, or inclusions.
@@ -360,6 +359,7 @@ The `mode` argument defines how the path is converted into line cells when `Mesh
 - `tip_tag::String=""`: Optional tag for used for tip elements at endpoints.
 - `tips::Symbol=:none`: Specifies which endpoint elements are generated (e.g., `:start`, `:end`, `:both`). If tips is `:none`, no tips elements are created.
 - `n::Int=1`: Number of line elements created per path edge in `:free` mode.
+- `closed=:auto`: Path closure policy. Use `:auto` to close only when the start and end points coincide, `false` to keep the path open, or `true` to force closure with an implicit final straight segment when needed.
 
 # Returns
 - `GPath`: The path structure added to the model.
@@ -378,10 +378,10 @@ edge2 = add_line(geo, p2, p3)
 path = add_path(geo, [edge1, edge2]; tag="reinforcement", interface_tag="contact")
 ```
 """
-function add_path(geometry::GeoModel, edges::Vector{Edge}; mode::Symbol=:interface, quadratic::Bool=true, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none, n::Int=1)
+function add_path(geometry::GeoModel, edges::Vector{Edge}; mode::Symbol=:interface, quadratic::Bool=true, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none, n::Int=1, closed::Union{Bool,Symbol}=:auto)
     @check tips in (:none, :start, :end, :both) "'tips' must be one of :none, :start, :end, :both"
 
-    path = Path(edges)
+    path = Path(edges; closed=closed)
     gpath = GPath(path; tag=tag, mode=mode, quadratic=quadratic, interface_tag=interface_tag, tip_tag=tip_tag, tips=tips, n=n)
     push!(geometry.gpaths, gpath)
 
@@ -396,10 +396,21 @@ function add_path(geometry::GeoModel, edges::Vector{Edge}; mode::Symbol=:interfa
 end
 
 
-function add_path(geometry::GeoModel, coords::Vector{<:Real}...; mode::Symbol=:interface, quadratic::Bool=true, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none, n::Int=1)
+"""
+    add_path(geometry, coords...; mode=:interface, quadratic=true, tag="", interface_tag="", tip_tag="", tips=:none, n=1, closed=:auto)
+
+Adds a logical path structure (`GPath`) to the geometric model from an ordered sequence of point coordinates.
+Consecutive coordinates are connected by straight line segments.
+
+Keyword arguments follow the same rules as [`add_path(geometry, edges; ...)`](@ref), including `closed`:
+- `:auto`: close only when the first and last coordinates coincide.
+- `false`: keep the path open even when the endpoint coordinates coincide.
+- `true`: force closure by adding an implicit final straight segment when needed.
+"""
+function add_path(geometry::GeoModel, coords::Vector{<:Real}...; mode::Symbol=:interface, quadratic::Bool=true, tag::String="", interface_tag::String="", tip_tag::String="", tips=:none, n::Int=1, closed::Union{Bool,Symbol}=:auto)
     @check tips in (:none, :start, :end, :both)
 
-    path = Path(coords...)
+    path = Path(coords...; closed=closed)
 
     gpath = GPath(path; tag=tag, mode=mode, quadratic=quadratic, interface_tag=interface_tag, tip_tag=tip_tag, tips=tips, n=n)
     push!(geometry.gpaths, gpath)

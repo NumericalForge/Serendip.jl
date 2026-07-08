@@ -69,14 +69,28 @@ mutable struct Path
 end
 
 
-function Path(pts::Vector{<:Real}...; closed::Bool=false)
+function _resolve_path_closed(points::Vector{Point}, closed; context::String="Path")
+    closed in (true, false, :auto) || error("$context: 'closed' must be true, false, or :auto")
+    return closed === :auto ? !isempty(points) && points[1].coord == points[end].coord : closed
+end
+
+
+function _build_path(points::Vector{Point}, cmds::Vector{PathCmd}; closed=:auto, context::String="Path")
+    is_closed = _resolve_path_closed(points, closed; context=context)
+    if is_closed && length(points) > 1 && points[1].coord != points[end].coord
+        push!(cmds, PathCmd(:L, [length(points), 1]))
+    end
+    return Path(points, cmds; closed=is_closed)
+end
+
+
+function Path(pts::Vector{<:Real}...; closed::Union{Bool,Symbol}=:auto)
     points = [ Point(pts[i]) for i in 1:length(pts) ]
     cmds = [ PathCmd(:M, [1]) ]
     for i in 2:length(points)
         push!(cmds, PathCmd(:L, [i-1, i]))
     end
-    # create a new Path
-    return Path(points, cmds; closed=closed)
+    return _build_path(points, cmds; closed=closed)
 end
 
 
@@ -95,76 +109,6 @@ function Base.copy(path::Path)
 
     return Path(points, cmds, closed=path.closed)
 
-end
-
-
-function Path(tokens::Union{Symbol,Number}...; closed=false)
-    # any( t->isa(t, Point), tokens ) || return path_from_numbers(tokens...; closed=closed)
-
-    n  = length(tokens)
-    idx = 1
-    cmds = PathCmd[]
-    points = Point[]
-
-    # local startpoint, endpoint
-    while idx<=n
-        token = tokens[idx]
-        if token==:M
-            p1 = tokens[idx+1]
-            cmd = PathCmd(token, [ p1 ])
-            push!(points, p1)
-            push!(cmds, cmd)
-            idx+=2
-        elseif token==:L
-            p1 = points[end]
-            p2 = tokens[idx+1]
-            cmd = PathCmd(token, [ p1, p2 ])
-            push!(points, p2)
-            push!(cmds, cmd)
-            idx+=2
-        elseif token==:A
-            p1 = points[end]
-            p2 = tokens[idx+1]
-            p3 = tokens[idx+2]
-            cmd = PathCmd(token, [p1, p2, p3])
-            push!(points, p2)
-            push!(points, p3)
-            push!(cmds, cmd)
-            idx+=3
-        elseif token==:C
-            p1 = points[end]
-            p2 = tokens[idx+1]
-            p3 = tokens[idx+2]
-            p4 = tokens[idx+3]
-            cmd = PathCmd(token, [p1, p2, p3, p4])
-            push!(points, p2)
-            push!(points, p3)
-            push!(points, p4)
-            push!(cmds, cmd)
-            idx+=4
-        else
-            error("Invalid token $token")
-        end
-
-    end
-
-    if closed && points[1]!==points[end]
-        cmd = LineCmd(endpoint, startpoint)
-        push!(cmds, cmd)
-    end
-
-    if !closed && points[1]===points[end]
-        closed = true
-    end
-
-    # get unique points in case of repeated points
-    points = unique(points)
-
-    # normalized length
-    L = cumsum( length(pc) for pc in cmds )
-    L = L./L[end] # normalize
-
-    return Path(points, cmds, closed, L)
 end
 
 

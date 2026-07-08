@@ -3,6 +3,29 @@ using Test
 using LinearAlgebra: norm
 
 @testset "Path modes" begin
+    @testset "Path closure policy is consistent" begin
+        path_coords_auto = Path([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]; closed=:auto)
+        path_coords_open = Path([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]; closed=false)
+        path_coords_forced = Path([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0]; closed=true)
+
+        p1 = Point([0.0, 0.0, 0.0])
+        p2 = Point([1.0, 0.0, 0.0])
+        p3 = Point([0.0, 0.0, 0.0])
+        edge1 = Edge(-1, "Line", [p1, p2])
+        edge2 = Edge(-1, "Line", [p2, p3])
+        path_edges_auto = Path([edge1, edge2]; closed=:auto)
+        path_edges_open = Path([edge1, edge2]; closed=false)
+
+        @test path_coords_auto.closed
+        @test !path_coords_open.closed
+        @test path_coords_forced.closed
+        @test length(path_coords_forced.cmds) == 4
+        @test path_coords_forced.cmds[end].key == :L
+        @test path_coords_forced.cmds[end].idxs == [3, 1]
+        @test path_edges_auto.closed
+        @test !path_edges_open.closed
+    end
+
     @testset "Invalid path mode" begin
         geo = GeoModel(quiet=true)
         add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=1, ny=1, shape=:quad4)
@@ -133,6 +156,20 @@ using LinearAlgebra: norm
         lines = select(mesh.elems, :line, "bars")
 
         @test length(lines) == 6
+        @test all(line.shape.kind == :lin2 for line in lines)
+    end
+
+    @testset "Free mode adds implicit closing segment when forced closed" begin
+        geo = GeoModel(quiet=true)
+        add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=1, ny=1, shape=:quad4)
+
+        add_path(geo, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0];
+            mode=:free, tag="bars", quadratic=false, closed=true)
+
+        mesh = Mesh(geo, quiet=true)
+        lines = select(mesh.elems, :line, "bars")
+
+        @test length(lines) == 3
         @test all(line.shape.kind == :lin2 for line in lines)
     end
 

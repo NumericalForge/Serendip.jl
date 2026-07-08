@@ -47,3 +47,28 @@ using LinearAlgebra: norm
     @test has_tip_at(coords_both, Xstart)
     @test has_tip_at(coords_both, Xend)
 end
+
+
+@testset "Open Paths Can Have Coincident Endpoint Coordinates" begin
+    Xstart = [0.1, 0.2, 0.0]
+    Xmid   = [0.5, 0.5, 0.0]
+    atol   = 1e-6
+
+    geo = GeoModel(quiet=true)
+    add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=8, ny=8, shape=:quad4)
+
+    p1 = add_point(geo, Xstart)
+    p2 = add_point(geo, Xmid)
+    p3 = add_point(geo, Xstart)
+    l1 = add_line(geo, p1, p2)
+    l2 = add_line(geo, p2, p3)
+
+    add_path(geo, [l1, l2], tag="bars", interface_tag="joints", tips=:both, tip_tag="tips", closed=false)
+    mesh = Mesh(geo)
+
+    tip_coords(mesh) = [e.nodes[end].coord for e in mesh.elems if e.role == :tip]
+    coords = tip_coords(mesh)
+
+    @test length(coords) == 2
+    @test all(norm(c - Xstart) <= atol for c in coords)
+end
