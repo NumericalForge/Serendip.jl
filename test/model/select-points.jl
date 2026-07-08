@@ -30,113 +30,109 @@ function capture_stdout(f)
     return read(pipe, String)
 end
 
+@announced_testset "Direct point selection" begin
+    nodes = Node[
+        Node(0.0, 0.0, 0.0, tag="left", id=1),
+        Node(0.0, 0.0, 0.0, tag="left", id=2),
+        Node(1.0, 0.0, 0.0, tag="right", id=3),
+    ]
 
-printstyled("\nPoint Selection Through select\n", color=:yellow, bold=true)
+    @test length(select(nodes, [0.0, 0.0, 0.0])) == 2
+    @test length(select(nodes, [0.0, 0.0, 0.0]; nearest=true)) == 2
+    @test isempty(select(nodes, [0.25, 0.0, 0.0]))
+    @test select(nodes, [0.25, 0.0, 0.0]; nearest=true)[1].id == 1
+    @test length(select(nodes, any_of("left", x == 1.0))) == 3
+    @test [node.id for node in select(nodes, none_of("left"))] == [3]
 
-nodes = Node[
-    Node(0.0, 0.0, 0.0, tag="left", id=1),
-    Node(0.0, 0.0, 0.0, tag="left", id=2),
-    Node(1.0, 0.0, 0.0, tag="right", id=3),
-]
+    out = capture_stdout() do
+        select(nodes, [0.25, 0.0, 0.0])
+    end
+    @test occursin("select: No node found", out)
 
-@test length(select(nodes, [0.0, 0.0, 0.0])) == 2
-@test length(select(nodes, [0.0, 0.0, 0.0]; nearest=true)) == 2
-@test isempty(select(nodes, [0.25, 0.0, 0.0]))
-@test select(nodes, [0.25, 0.0, 0.0]; nearest=true)[1].id == 1
-@test length(select(nodes, any_of("left", x == 1.0))) == 3
-@test [node.id for node in select(nodes, none_of("left"))] == [3]
+    out = capture_stdout() do
+        select(nodes, [0.25, 0.0, 0.0]; quiet=true)
+    end
+    @test isempty(out)
 
-out = capture_stdout() do
-    select(nodes, [0.25, 0.0, 0.0])
+    owner = Cell(Serendip.LIN2, :line, [Node(0.0, id=1), Node(1.0, id=2)])
+    ips = Ip[
+        Ip([0.0], 1.0, owner, DummyState(0.0)),
+        Ip([0.0], 1.0, owner, DummyState(0.0)),
+        Ip([0.0], 1.0, owner, DummyState(0.0)),
+    ]
+    ips[1].coord = Serendip.Vec3(0.5, 0.0, 0.0)
+    ips[2].coord = Serendip.Vec3(0.5, 0.0, 0.0)
+    ips[3].coord = Serendip.Vec3(1.0, 0.0, 0.0)
+    ips[1].id = 1
+    ips[2].id = 2
+    ips[3].id = 3
+    ips[1].tag = "left"
+    ips[2].tag = "left"
+    ips[3].tag = "right"
+
+    @test length(select(ips, [0.5, 0.0, 0.0])) == 2
+    @test length(select(ips, [0.5, 0.0, 0.0]; nearest=true)) == 2
+    @test isempty(select(ips, [0.75, 0.0, 0.0]))
+    @test select(ips, [0.75, 0.0, 0.0]; nearest=true)[1].id == 1
+    @test length(select(ips, any_of("left", x == 1.0))) == 3
+    @test [ip.id for ip in select(ips, none_of("left"))] == [3]
+
+    out = capture_stdout() do
+        select(ips, [0.75, 0.0, 0.0]; prefix="custom")
+    end
+    @test occursin("custom: No ip found", out)
 end
-@test occursin("select: No node found", out)
 
-out = capture_stdout() do
-    select(nodes, [0.25, 0.0, 0.0]; quiet=true)
+@announced_testset "Chained point selection" begin
+    model, _ = make_point_test_model()
+
+    left_node = select(model, :element, "left", :node, [0.0, 0.0, 0.0])
+    @test length(left_node) == 1
+    @test left_node[1].coord == Serendip.Vec3(0.0, 0.0, 0.0)
+
+    left_ip_exact = select(model, :element, "left", :ip, collect(select(model, :element, "left", :ip, :all)[1].coord))
+    @test length(left_ip_exact) >= 1
+    @test all(ip.tag != "left_ips" for ip in select(model, :ip, :all))
+
+    selected_ips = select(model, :element, "left", :ip, [0.75, 0.5, 0.5]; nearest=true, tag="left_ips")
+    @test length(selected_ips) == 1
+    @test selected_ips[1].tag == "left_ips"
+
+    left_candidates = select(model, :element, "left", :ip, :all)
+    right_candidates = select(model, :element, "right", :ip, :all)
+    @test selected_ips[1] in left_candidates
+    @test !(selected_ips[1] in right_candidates)
 end
-@test isempty(out)
 
-owner = Cell(Serendip.LIN2, :line, [Node(0.0, id=1), Node(1.0, id=2)])
-ips = Ip[
-    Ip([0.0], 1.0, owner, DummyState(0.0)),
-    Ip([0.0], 1.0, owner, DummyState(0.0)),
-    Ip([0.0], 1.0, owner, DummyState(0.0)),
-]
-ips[1].coord = Serendip.Vec3(0.5, 0.0, 0.0)
-ips[2].coord = Serendip.Vec3(0.5, 0.0, 0.0)
-ips[3].coord = Serendip.Vec3(1.0, 0.0, 0.0)
-ips[1].id = 1
-ips[2].id = 2
-ips[3].id = 3
-ips[1].tag = "left"
-ips[2].tag = "left"
-ips[3].tag = "right"
+@announced_testset "Logger and monitor point selectors" begin
+    model, ana = make_point_test_model()
+    select(model, :element, "left", :ip, tag="left_ips")
 
-@test length(select(ips, [0.5, 0.0, 0.0])) == 2
-@test length(select(ips, [0.5, 0.0, 0.0]; nearest=true)) == 2
-@test isempty(select(ips, [0.75, 0.0, 0.0]))
-@test select(ips, [0.75, 0.0, 0.0]; nearest=true)[1].id == 1
-@test length(select(ips, any_of("left", x == 1.0))) == 3
-@test [ip.id for ip in select(ips, none_of("left"))] == [3]
+    logger = add_logger(ana, :ip, ("left_ips", [0.75, 0.5, 0.5]))
+    @test length(logger.target) == 1
+    @test logger.target[1] in select(model, :element, "left", :ip, :all)
 
-out = capture_stdout() do
-    select(ips, [0.75, 0.0, 0.0]; prefix="custom")
+    monitor = add_monitor(ana, :ip, ("left_ips", [0.75, 0.5, 0.5]), :σyy)
+    @test length(monitor.target) == 1
+    @test monitor.target[1] in select(model, :element, "left", :ip, :all)
+
+    out = capture_stdout() do
+        add_logger(ana, :ip, ("left_ips", [0.75, 0.5, 0.5]))
+    end
+    @test occursin("add_logger: No ip found", out)
+
+    out = capture_stdout() do
+        add_monitor(ana, :ip, ("left_ips", [0.75, 0.5, 0.5]), :σyy)
+    end
+    @test occursin("add_monitor: No ip found", out)
 end
-@test occursin("custom: No ip found", out)
 
+@announced_testset "Boundary condition point selector" begin
+    model, ana = make_point_test_model()
+    stage = add_stage(ana)
 
-printstyled("\nChained Point Selection\n", color=:yellow, bold=true)
-
-model, _ = make_point_test_model()
-
-left_node = select(model, :element, "left", :node, [0.0, 0.0, 0.0])
-@test length(left_node) == 1
-@test left_node[1].coord == Serendip.Vec3(0.0, 0.0, 0.0)
-
-left_ip_exact = select(model, :element, "left", :ip, collect(select(model, :element, "left", :ip, :all)[1].coord))
-@test length(left_ip_exact) >= 1
-@test all(ip.tag != "left_ips" for ip in select(model, :ip, :all))
-
-selected_ips = select(model, :element, "left", :ip, [0.75, 0.5, 0.5]; nearest=true, tag="left_ips")
-@test length(selected_ips) == 1
-@test selected_ips[1].tag == "left_ips"
-
-left_candidates = select(model, :element, "left", :ip, :all)
-right_candidates = select(model, :element, "right", :ip, :all)
-@test selected_ips[1] in left_candidates
-@test !(selected_ips[1] in right_candidates)
-
-
-printstyled("\nLogger and Monitor Point Selectors\n", color=:yellow, bold=true)
-
-model, ana = make_point_test_model()
-select(model, :element, "left", :ip, tag="left_ips")
-
-logger = add_logger(ana, :ip, ("left_ips", [0.75, 0.5, 0.5]))
-@test length(logger.target) == 1
-@test logger.target[1] in select(model, :element, "left", :ip, :all)
-
-monitor = add_monitor(ana, :ip, ("left_ips", [0.75, 0.5, 0.5]), :σyy)
-@test length(monitor.target) == 1
-@test monitor.target[1] in select(model, :element, "left", :ip, :all)
-
-out = capture_stdout() do
-    add_logger(ana, :ip, ("left_ips", [0.75, 0.5, 0.5]))
+    bc = add_bc(stage, :node, [0.0, 0.0, 0.0], ux=0.0)
+    @test length(bc.target) == 1
+    @test bc.target[1].coord == Serendip.Vec3(0.0, 0.0, 0.0)
+    @test bc.selector == :(x == 0.0 && y == 0.0 && z == 0.0)
 end
-@test occursin("add_logger: No ip found", out)
-
-out = capture_stdout() do
-    add_monitor(ana, :ip, ("left_ips", [0.75, 0.5, 0.5]), :σyy)
-end
-@test occursin("add_monitor: No ip found", out)
-
-
-printstyled("\nBoundary Condition Point Selector\n", color=:yellow, bold=true)
-
-model, ana = make_point_test_model()
-stage = add_stage(ana)
-
-bc = add_bc(stage, :node, [0.0, 0.0, 0.0], ux=0.0)
-@test length(bc.target) == 1
-@test bc.target[1].coord == Serendip.Vec3(0.0, 0.0, 0.0)
-@test bc.selector == :(x == 0.0 && y == 0.0 && z == 0.0)

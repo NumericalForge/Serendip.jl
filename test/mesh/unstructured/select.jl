@@ -1,6 +1,6 @@
 using Serendip, Test
 
-@testset "GeoModel select" begin
+@announced_testset "GeoModel select" begin
     geo = GeoModel(quiet=true)
     base = add_rectangle(geo, [0.0, 0.0, 0.0], 2.0, 1.0, tag="body")
 
@@ -29,7 +29,7 @@ using Serendip, Test
     @test top[1] === base
 end
 
-@testset "GeoModel select uses bbox corners conservatively" begin
+@announced_testset "GeoModel select uses bbox corners conservatively" begin
     geo = GeoModel(quiet=true)
     p1 = add_point(geo, [0.0, 0.0, 0.0])
     p2 = add_point(geo, [1.0, 1.0, 0.0])
@@ -39,7 +39,7 @@ end
     @test length(select(geo, :edge, "diag")) == 1
 end
 
-@testset "GeoModel select isolates transfinite vertical lines" begin
+@announced_testset "GeoModel select isolates transfinite vertical lines" begin
     geo = GeoModel(quiet=true)
     p1 = add_point(geo, [0, 0, -0.5])
     p2 = add_point(geo, [0, 0, 0])

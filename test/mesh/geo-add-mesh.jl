@@ -38,8 +38,8 @@ function geo_split_quad8_mesh(; tag)
 end
 
 
-@testset "Geometry stored meshes" begin
-    @testset "Adjacent OCC region conforms to stored mesh boundary" begin
+@announced_testset "Geometry stored meshes" begin
+    @announced_testset "Adjacent OCC region conforms to stored mesh boundary" begin
         old = geo_split_quad_mesh(tag="old")
         geo = GeoModel(quiet=true)
         add_mesh(geo, old)
@@ -56,7 +56,7 @@ end
         @test length(interface_nodes) == length(interface_keys)
     end
 
-    @testset "Quadratic stored mesh constrains with vertex nodes" begin
+    @announced_testset "Quadratic stored mesh constrains with vertex nodes" begin
         old = geo_split_quad8_mesh(tag="old")
         geo = GeoModel(quiet=true)
         add_mesh(geo, old)
@@ -72,7 +72,7 @@ end
         @test interface_y == [0.0, 0.25, 0.5, 0.75, 1.0]
     end
 
-    @testset "Stored mesh combines with structured block" begin
+    @announced_testset "Stored mesh combines with structured block" begin
         geo = GeoModel(quiet=true)
         old = geo_split_quad_mesh(tag="old")
         add_mesh(geo, old)
@@ -86,7 +86,7 @@ end
         @test length(old.elems) == 2
     end
 
-    @testset "Structured block constrains adjacent OCC region" begin
+    @announced_testset "Structured block constrains adjacent OCC region" begin
         geo = GeoModel(quiet=true)
         add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=1, ny=1, shape=:quad4, tag="block")
         add_rectangle(geo, [1.0, 0.0, 0.0], 1.0, 1.0, tag="new")

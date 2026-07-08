@@ -24,22 +24,22 @@ function test_round_trip(mesh::Mesh, filename::String; options...)
     @test saved.elems[end].tag == "inner-tag-123456"
 end
 
-@testset "Mesh IO" begin
+@announced_testset "Mesh IO" begin
     # dir = "."
     mktempdir() do dir
-        @testset "VTK round-trip" begin
+        @announced_testset "VTK round-trip" begin
             test_round_trip(io_test_mesh(), joinpath(dir, "mesh.vtk"))
         end
 
-        @testset "Compressed VTU round-trip" begin
+        @announced_testset "Compressed VTU round-trip" begin
             test_round_trip(io_test_mesh(), joinpath(dir, "mesh-compressed.vtu"), compress=true)
         end
 
-        @testset "ASCII VTU round-trip" begin
+        @announced_testset "ASCII VTU round-trip" begin
             test_round_trip(io_test_mesh(), joinpath(dir, "mesh-ascii.vtu"), compress=false)
         end
 
-        @testset "JSON output" begin
+        @announced_testset "JSON output" begin
             mesh = io_test_mesh()
             filename = joinpath(dir, "mesh.json")
             json = mesh_json(mesh)

@@ -40,39 +40,38 @@ models = (
 )
 
 for trajectory in trajectories
-    printstyled("\nTrajectory: $(trajectory)\n\n", color=:cyan, bold=true)
-
     for model in models
-        cmodel = model.cmodel
-        props  = model.props
+        @announced_testset "$(trajectory) / $(model.cmodel)" begin
+            cmodel = model.cmodel
+            props = model.props
 
-        printstyled("\n$(string(cmodel)):\n\n", color=:yellow, bold=true)
+            mapper = RegionMapper()
+            add_mapping(mapper, "solid", MechSolid, LinearElastic, E=E, nu=nu)
+            add_mapping(mapper, "interface", MechCohesive, cmodel; props...)
 
-        mapper = RegionMapper()
-        add_mapping(mapper, "solid", MechSolid, LinearElastic, E=E, nu=nu)
-        add_mapping(mapper, "interface", MechCohesive, cmodel; props...)
-        
-        model = FEModel(mesh, mapper, stress_state=:plane_stress, thickness=1.0)
-        ana = MechAnalysis(model)
-        
-        select(model, :element, "interface", :ip, tag="jips" )
-        log1 = add_logger(ana, :ip, "jips", string(cmodel)*".dat")
-        add_monitor(ana, :ip, "jips", (:σn, :τ))
-        
-        stage = add_stage(ana, nincs=80, nouts=20)
+            fe_model = FEModel(mesh, mapper, stress_state=:plane_stress, thickness=1.0)
+            ana = MechAnalysis(fe_model)
 
-        add_bc(stage, :node, "left", ux=0, uy=0)
+            select(fe_model, :element, "interface", :ip, tag="jips")
+            log1 = add_logger(ana, :ip, "jips", string(cmodel) * ".dat")
+            add_monitor(ana, :ip, "jips", (:σn, :τ))
 
-        if trajectory == "pure extension"
-            add_bc(stage, :node, "right", ux=0.0002)
-        elseif trajectory == "extension with shear"
-            add_bc(stage, :node, "right", ux=0.00001, uy=0.0001)
-        elseif trajectory == "pure shear"
-            add_bc(stage, :node, "right", ux=0.0, uy=0.001)
-        elseif trajectory == "compression with shear"
-            add_bc(stage, :node, "right", ux=-0.000001, uy=0.0002)
+            stage = add_stage(ana, nincs=80, nouts=20)
+            add_bc(stage, :node, "left", ux=0, uy=0)
+
+            if trajectory == "pure extension"
+                add_bc(stage, :node, "right", ux=0.0002)
+            elseif trajectory == "extension with shear"
+                add_bc(stage, :node, "right", ux=0.00001, uy=0.0001)
+            elseif trajectory == "pure shear"
+                add_bc(stage, :node, "right", ux=0.0, uy=0.001)
+            elseif trajectory == "compression with shear"
+                add_bc(stage, :node, "right", ux=-0.000001, uy=0.0002)
+            end
+
+            status = run(ana, autoinc=true, tol=0.1, rspan=0.03, dTmax=0.1, quiet=true)
+            @test status.successful
+            @test size(log1.table, 1) > 0
         end
-
-        status = run(ana, autoinc=true, tol=0.1, rspan=0.03, dTmax=0.1, quiet=false)
     end
 end

@@ -58,4 +58,8 @@ stage = add_stage(ana)
 add_bc(stage, :node, "fixed", ux=0, uy=0, uz=0)
 add_bc(stage, :node, "tip", uy=+0.005)
 
-run(ana, autoinc=true, tol=0.01, maxits=3)
+status = run(ana, autoinc=true, tol=0.01, maxits=3)
+
+@test status.successful
+@test size(logg.table, 1) > 0
+@test any(size(monitor.table, 1) > 0 for monitor in ana.data.monitors)

@@ -139,7 +139,7 @@ end
 @test DomainPlot(shade_strength=0.5).shade_strength == 0.5
 @test_throws ArgumentError DomainPlot(up=:w)
 @test_throws ArgumentError DomainPlot(shade_strength=-0.1)
-@testset "Line element styling" begin
+@announced_testset "Line element styling" begin
     default_line_elem_layer = layer_plot(mesh2d)
     @test default_line_elem_layer.line_elem_color == :auto
     @test default_line_elem_layer.line_elem_width == 0.6
@@ -172,7 +172,7 @@ end
     @test Serendip._domain_default_line_elem_rgb(outline_default_layer) == (0.0, 0.0, 0.0)
 end
 
-@testset "Vector overlay configuration" begin
+@announced_testset "Vector overlay configuration" begin
     vector_layer = layer_plot(mesh2d, vector_field="flow", arrow_length=9.0, arrow_width=0.8, arrow_color=:red)
     @test vector_layer.vector_field == "flow"
     @test vector_layer.arrow_length == 9.0
@@ -302,7 +302,7 @@ late_line = make_render_elem(render_layer, :line, [0.0, 0.0], index_in_layer=199
 correction_chain = sort([late_line; many_surfaces], by=Serendip._domain_render_depth_key)
 @test correction_chain[1] === late_line
 
-@testset "Outline smoke test across cohesive/contact interfaces" begin
+@announced_testset "Outline smoke test across cohesive/contact interfaces" begin
     base_mesh = two_hex_interface_mesh()
     base_outline = configured_outline_geom_keys(base_mesh)
     @test length(base_outline) == 16
@@ -318,7 +318,7 @@ correction_chain = sort([late_line; many_surfaces], by=Serendip._domain_render_d
     @test contact_outline == base_outline
 end
 
-@testset "Tolerant geometric matching" begin
+@announced_testset "Tolerant geometric matching" begin
     quad_a = Cell(get_shape(:quad4), :solid, Node[
         Node(0.0, 0.0, 0.0, id=1),
         Node(1.0, 0.0, 0.0, id=2),

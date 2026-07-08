@@ -2,7 +2,7 @@ using Serendip
 using Test
 
 
-@testset "Symbolic arithmetic" begin
+@announced_testset "Symbolic arithmetic" begin
     @test evaluate(x; x=3.0) == 3.0
 
     @test evaluate(x + 2; x=3.0) == 5.0
@@ -28,7 +28,7 @@ using Test
 end
 
 
-@testset "Symbolic comparisons and logic" begin
+@announced_testset "Symbolic comparisons and logic" begin
     @test evaluate(x < 2; x=1.0)
     @test evaluate(x <= 1; x=1.0)
     @test evaluate(x == 1; x=1.0 + 0.5e-6)
@@ -46,7 +46,7 @@ end
 end
 
 
-@testset "Symbolic affine expressions" begin
+@announced_testset "Symbolic affine expressions" begin
     constraint = Symbolic(:(2ux - 3uy = 4))
     terms, rhs = get_affine_terms(constraint)
 
@@ -60,7 +60,7 @@ end
 end
 
 
-@testset "Symbol replacement" begin
+@announced_testset "Symbol replacement" begin
     original = :(a + f(a, b))
     replaced = Serendip._replace_symbol(original, :a => :c)
 
@@ -69,7 +69,7 @@ end
 end
 
 
-@testset "Symbolic method ambiguities" begin
+@announced_testset "Symbolic method ambiguities" begin
     ambiguities = Test.detect_ambiguities(Serendip; recursive=true)
     symbolic_ambiguities = filter(ambiguities) do ambiguity
         occursin("Symbolic", sprint(show, ambiguity))

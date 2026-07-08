@@ -16,6 +16,6 @@ surf = add_plane_surface(geo, loop, tag="body")
 extrude(geo, surf, [0.0, 0.0, 0.5])
 
 mesh = Mesh(geo)
-println(@test mesh.ctx.ndim == 3)
-println(@test length(mesh.elems) > 0)
-println(@test mesh.elems[1].tag == "body")
+@test mesh.ctx.ndim == 3
+@test length(mesh.elems) > 0
+@test mesh.elems[1].tag == "body"

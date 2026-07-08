@@ -33,6 +33,10 @@ add_bc(stage, :node, (y==0, z==0), ux=0, uy=0, uz=0)
 add_bc(stage, :node, (y==ℓ, z==0), ux=0, uy=0, uz=0)
 add_bc(stage, :face, (z==h), tz=-1000)
 
-run(ana, autoinc=true)
+status = run(ana, autoinc=true)
 
 save(model, "embedded.vtu")
+
+@test status.successful
+@test !isempty(select(model, :element, "embedded"))
+@test isfile("embedded.vtu")

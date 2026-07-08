@@ -1,4 +1,5 @@
 using Serendip
+using Test
 
 # Finite element entities
 geo = GeoModel()
@@ -17,11 +18,17 @@ stage = add_stage(ana, nincs=3)
 add_bc(stage, :node, (y==0), ux=0, uy=0)
 add_bc(stage, :face, (y==1), ty=2)
 
-run(ana)
+status = run(ana, quiet=true)
 
 
 table1 = DataTable("output/node.dat")
 table2  = DataTable("output/nodes.dat")
+
+@test status.successful
+@test isfile("output/node.dat")
+@test isfile("output/nodes.dat")
+@test size(table1, 1) > 0
+@test size(table2, 1) > 0
 
 println(mesh)
 println(log1)
@@ -36,3 +43,7 @@ println(model)
 
 println(table1)
 println(table2)
+
+for obj in (mesh, log1, stage.bcs, model.nodes[1].dofs[1], model.nodes[1].dofs, model.nodes[1], model.nodes, model.elems[1], model.elems, model, table1, table2)
+    @test !isempty(sprint(show, obj))
+end

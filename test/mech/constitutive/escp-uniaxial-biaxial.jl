@@ -19,63 +19,60 @@ ft = 3.0e3
 mapper = RegionMapper()
 add_mapping( mapper, "solids", MechSolid, ESCP, E=30.0e6, nu= 0.25, beta=1.15, fc= fc, epsc=-0.002, ft=ft, wc=0.0001 )
 
-# Uniaxial compression
+@announced_testset "Uniaxial compression" begin
+    model = FEModel(mesh, mapper)
+    ana = MechAnalysis(model)
+    log_c = add_logger(ana, :ip, [ℓ/2, ℓ/2, h/2])
+    add_logger(ana, :nodalreduce, z==h)
 
-printstyled("\nUniaxial compression:\n\n", color=:yellow, bold=true)
-model = FEModel(mesh, mapper)
-ana = MechAnalysis(model)
-log_c = add_logger(ana, :ip, [ℓ/2, ℓ/2, h/2])
-log_c_top = add_logger(ana, :nodalreduce, z==h)
+    stage = add_stage(ana)
+    add_bc(stage, :node, x == 0, ux=0)
+    add_bc(stage, :node, y == 0, uy=0)
+    add_bc(stage, :node, z == 0, uz=0)
+    add_bc(stage, :node, z == h, uz=-0.0015)
 
-stage = add_stage(ana)
-add_bc(stage, :node, x == 0, ux=0)
-add_bc(stage, :node, y == 0, uy=0)
-add_bc(stage, :node, z == 0, uz=0)
-add_bc(stage, :node, z == h, uz=-0.0015)
+    status = run(ana, autoinc=true, tol=0.1, rspan=0.02, dT0=0.002, quiet=true)
+    @test status.successful
+    @test minimum(log_c.table["σzz"]) < 0.5 * fc
+    @test log_c.table["εcp"][end] > 0.0
+end
 
-status = run(ana, autoinc=true, tol=0.1, rspan=0.02, dT0=0.002, quiet=false)
-@test status.successful
-@test minimum(log_c.table["σzz"]) < 0.5*fc
-@test log_c.table["εcp"][end] > 0.0
+@announced_testset "Biaxial compression" begin
+    model = FEModel(mesh, mapper)
+    ana = MechAnalysis(model)
+    log_b = add_logger(ana, :ip, [ℓ/2, ℓ/2, h/2])
+    add_logger(ana, :nodalreduce, x==ℓ)
+    add_logger(ana, :nodalreduce, y==ℓ)
 
-# Biaxial compression
+    stage = add_stage(ana)
+    ub = -0.0006
+    add_bc(stage, :node, x == 0, ux=0)
+    add_bc(stage, :node, y == 0, uy=0)
+    add_bc(stage, :node, z == 0, uz=0)
+    add_bc(stage, :node, x == ℓ, ux=ub)
+    add_bc(stage, :node, y == ℓ, uy=ub)
 
-printstyled("\nBiaxial compression:\n\n", color=:yellow, bold=true)
-model = FEModel(mesh, mapper)
-ana = MechAnalysis(model)
-log_b = add_logger(ana, :ip, [ℓ/2, ℓ/2, h/2])
-log_b_xl = add_logger(ana, :nodalreduce, x==ℓ)
-log_b_yl = add_logger(ana, :nodalreduce, y==ℓ)
+    status = run(ana, autoinc=true, tol=0.1, rspan=0.02, dT0=0.002, quiet=true)
+    @test status.successful
+    @test minimum(log_b.table["σxx"]) < 0.5 * fc
+    @test minimum(log_b.table["σyy"]) < 0.5 * fc
+    @test log_b.table["εcp"][end] > 0.0
+end
 
-stage = add_stage(ana)
-ub = -0.0006
-add_bc(stage, :node, x == 0, ux=0)
-add_bc(stage, :node, y == 0, uy=0)
-add_bc(stage, :node, z == 0, uz=0)
-add_bc(stage, :node, x == ℓ, ux=ub)
-add_bc(stage, :node, y == ℓ, uy=ub)
+@announced_testset "Uniaxial tension" begin
+    model = FEModel(mesh, mapper)
+    ana = MechAnalysis(model)
+    log_t = add_logger(ana, :ip, [ℓ/2, ℓ/2, h/2])
+    add_logger(ana, :nodalreduce, z==h)
 
-status = run(ana, autoinc=true, tol=0.1, rspan=0.02, dT0=0.002, quiet=false)
-@test status.successful
-@test minimum(log_b.table["σxx"]) < 0.5*fc
-@test minimum(log_b.table["σyy"]) < 0.5*fc
-@test log_b.table["εcp"][end] > 0.0
+    stage = add_stage(ana, nouts=20)
+    add_bc(stage, :node, x == 0, ux=0)
+    add_bc(stage, :node, y == 0, uy=0)
+    add_bc(stage, :node, z == 0, uz=0)
+    add_bc(stage, :node, z == h, uz=0.00035)
 
-# Tension
-
-printstyled("\nUniaxial tension:\n\n", color=:yellow, bold=true)
-model = FEModel(mesh, mapper)
-ana = MechAnalysis(model)
-log_t = add_logger(ana, :ip, [ℓ/2, ℓ/2, h/2])
-log_t_top = add_logger(ana, :nodalreduce, z==h)
-
-stage = add_stage(ana, nouts=20)
-add_bc(stage, :node, x == 0, ux=0)
-add_bc(stage, :node, y == 0, uy=0)
-add_bc(stage, :node, z == 0, uz=0)
-add_bc(stage, :node, z == h, uz=0.00035)
-
-status = run(ana, autoinc=true, tol=0.01, dT0=0.001, dTmax=0.004, quiet=false)
-@test status.successful
-@test maximum(log_t.table["σzz"]) > 0.5*ft
-@test log_t.table["εtp"][end] > 0.0
+    status = run(ana, autoinc=true, tol=0.01, dT0=0.001, dTmax=0.004, quiet=true)
+    @test status.successful
+    @test maximum(log_t.table["σzz"]) > 0.5 * ft
+    @test log_t.table["εtp"][end] > 0.0
+end

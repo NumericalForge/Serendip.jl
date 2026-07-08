@@ -1,9 +1,6 @@
 using Serendip
 using Test, Statistics
 
-printstyled("\nMesh smoothing\n", color = :blue, bold = true)
-
-
 function tri_mesh()
     coordinates = [
         0.0 0.0;
@@ -44,77 +41,86 @@ function perturb_center(mesh; dx, dy)
 end
 
 
-println("\nDefault Laplacian:")
-mesh = tri_mesh()
-perturb_center(mesh, dx=0.18, dy=-0.12)
-initial_q = mean(mesh.elem_fields["quality"])
-result = smooth(mesh; quiet = false, maxit = 10)
-final_q = mean(mesh.elem_fields["quality"])
-@test final_q > initial_q
-@test result === mesh
+@announced_testset "Default Laplacian" begin
+    mesh = tri_mesh()
+    perturb_center(mesh, dx=0.18, dy=-0.12)
+    initial_q = mean(mesh.elem_fields["quality"])
+    result = smooth(mesh; quiet=false, maxit=10)
+    final_q = mean(mesh.elem_fields["quality"])
+    @test final_q > initial_q
+    @test result === mesh
+end
 
-println("\nExplicit Laplacian dispatcher:")
-mesh = tri_mesh()
-perturb_center(mesh, dx=0.18, dy=-0.12)
-initial_q = mean(mesh.elem_fields["quality"])
-smooth(mesh; algorithm = :laplacian, quiet = false, maxit = 10)
-final_q = mean(mesh.elem_fields["quality"])
-@test final_q > initial_q
+@announced_testset "Explicit Laplacian dispatcher" begin
+    mesh = tri_mesh()
+    perturb_center(mesh, dx=0.18, dy=-0.12)
+    initial_q = mean(mesh.elem_fields["quality"])
+    smooth(mesh; algorithm=:laplacian, quiet=false, maxit=10)
+    final_q = mean(mesh.elem_fields["quality"])
+    @test final_q > initial_q
+end
 
-println("\nSmart Laplacian smoothing preserves minimum quality:")
-mesh = tri_mesh()
-perturb_center(mesh, dx=0.18, dy=-0.12)
-initial_qmin = minimum(mesh.elem_fields["quality"])
-smooth(mesh; quiet = false, maxit = 10, smart = true)
-final_qmin = minimum(mesh.elem_fields["quality"])
-@test final_qmin >= initial_qmin
+@announced_testset "Smart Laplacian preserves minimum quality" begin
+    mesh = tri_mesh()
+    perturb_center(mesh, dx=0.18, dy=-0.12)
+    initial_qmin = minimum(mesh.elem_fields["quality"])
+    smooth(mesh; quiet=false, maxit=10, smart=true)
+    final_qmin = minimum(mesh.elem_fields["quality"])
+    @test final_qmin >= initial_qmin
+end
 
-println("\nWeighted Laplacian smoothing updates quality data:")
-mesh = tri_mesh()
-perturb_center(mesh, dx=-0.18, dy=0.14)
-smooth(mesh; quiet = false, maxit = 10, weighted = true)
-@test haskey(mesh.elem_fields, "quality")
-@test all(isfinite, mesh.elem_fields["quality"])
-@test minimum(mesh.elem_fields["quality"]) > 0.0
+@announced_testset "Weighted Laplacian updates quality data" begin
+    mesh = tri_mesh()
+    perturb_center(mesh, dx=-0.18, dy=0.14)
+    smooth(mesh; quiet=false, maxit=10, weighted=true)
+    @test haskey(mesh.elem_fields, "quality")
+    @test all(isfinite, mesh.elem_fields["quality"])
+    @test minimum(mesh.elem_fields["quality"]) > 0.0
+end
 
-println("\nBoundary nodes remain fixed when requested:")
-mesh = tri_mesh()
-perturb_center(mesh, dx=0.2, dy=-0.15)
-surf_cells = get_outer_facets(mesh.elems)
-surf_nodes, _ = get_patches(surf_cells)
-boundary_ids = sort([node.id for node in surf_nodes])
-boundary_before = copy(get_coords([mesh.nodes[id] for id in boundary_ids], mesh.ctx.ndim))
-smooth(mesh; quiet = false, maxit = 10, fixed_boundary = true)
-boundary_after = get_coords([mesh.nodes[id] for id in boundary_ids], mesh.ctx.ndim)
-@test boundary_after ≈ boundary_before
+@announced_testset "Fixed boundary stays fixed" begin
+    mesh = tri_mesh()
+    perturb_center(mesh, dx=0.2, dy=-0.15)
+    surf_cells = get_outer_facets(mesh.elems)
+    surf_nodes, _ = get_patches(surf_cells)
+    boundary_ids = sort([node.id for node in surf_nodes])
+    boundary_before = copy(get_coords([mesh.nodes[id] for id in boundary_ids], mesh.ctx.ndim))
+    smooth(mesh; quiet=false, maxit=10, fixed_boundary=true)
+    boundary_after = get_coords([mesh.nodes[id] for id in boundary_ids], mesh.ctx.ndim)
+    @test boundary_after ≈ boundary_before
+end
 
-println("\nDeformation smoothing updates quality data:")
-mesh = tri_mesh()
-perturb_center(mesh, dx=0.18, dy=-0.12)
-result = smooth(mesh; algorithm = :deformation, quiet = true, maxit = 2)
-@test result === mesh
-@test haskey(mesh.elem_fields, "quality")
-@test all(isfinite, mesh.elem_fields["quality"])
-@test minimum(mesh.elem_fields["quality"]) > 0.0
+@announced_testset "Deformation smoothing updates quality data" begin
+    mesh = tri_mesh()
+    perturb_center(mesh, dx=0.18, dy=-0.12)
+    result = smooth(mesh; algorithm=:deformation, quiet=true, maxit=2)
+    @test result === mesh
+    @test haskey(mesh.elem_fields, "quality")
+    @test all(isfinite, mesh.elem_fields["quality"])
+    @test minimum(mesh.elem_fields["quality"]) > 0.0
+end
 
-println("\nDeformation smoothing preserves fixed boundary:")
-mesh = tri_mesh()
-perturb_center(mesh, dx=0.2, dy=-0.15)
-surf_cells = get_outer_facets(mesh.elems)
-surf_nodes, _ = get_patches(surf_cells)
-boundary_ids = sort([node.id for node in surf_nodes])
-boundary_before = copy(get_coords([mesh.nodes[id] for id in boundary_ids], mesh.ctx.ndim))
-smooth(mesh; algorithm = :deformation, quiet = true, maxit = 2, fixed_boundary = true)
-boundary_after = get_coords([mesh.nodes[id] for id in boundary_ids], mesh.ctx.ndim)
-@test boundary_after ≈ boundary_before
+@announced_testset "Deformation smoothing preserves fixed boundary" begin
+    mesh = tri_mesh()
+    perturb_center(mesh, dx=0.2, dy=-0.15)
+    surf_cells = get_outer_facets(mesh.elems)
+    surf_nodes, _ = get_patches(surf_cells)
+    boundary_ids = sort([node.id for node in surf_nodes])
+    boundary_before = copy(get_coords([mesh.nodes[id] for id in boundary_ids], mesh.ctx.ndim))
+    smooth(mesh; algorithm=:deformation, quiet=true, maxit=2, fixed_boundary=true)
+    boundary_after = get_coords([mesh.nodes[id] for id in boundary_ids], mesh.ctx.ndim)
+    @test boundary_after ≈ boundary_before
+end
 
-println("\nSmart deformation smoothing smoke test:")
-mesh = tri_mesh()
-perturb_center(mesh, dx=-0.12, dy=0.10)
-smooth(mesh; algorithm = :deformation, quiet = true, maxit = 1, smart = true)
-@test haskey(mesh.elem_fields, "quality")
-@test all(isfinite, mesh.elem_fields["quality"])
+@announced_testset "Smart deformation smoothing smoke test" begin
+    mesh = tri_mesh()
+    perturb_center(mesh, dx=-0.12, dy=0.10)
+    smooth(mesh; algorithm=:deformation, quiet=true, maxit=1, smart=true)
+    @test haskey(mesh.elem_fields, "quality")
+    @test all(isfinite, mesh.elem_fields["quality"])
+end
 
-println("\nUnknown smoothing algorithm:")
-mesh = tri_mesh()
-@test_throws Exception smooth(mesh; algorithm = :unknown)
+@announced_testset "Unknown smoothing algorithm" begin
+    mesh = tri_mesh()
+    @test_throws Exception smooth(mesh; algorithm=:unknown)
+end

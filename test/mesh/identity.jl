@@ -2,7 +2,7 @@ using Serendip
 using Test
 
 
-@testset "Mesh identity and topology keys" begin
+@announced_testset "Mesh identity and topology keys" begin
     n1 = Node(0.0, 0.0)
     n2 = Node(1.0, 0.0)
     n1_equivalent = Node(0.0, 0.0)
@@ -33,7 +33,7 @@ using Test
 end
 
 
-@testset "Explicit collection operations" begin
+@announced_testset "Explicit collection operations" begin
     block = Block(
         [0.0, 0.0],
         1.0,
@@ -57,7 +57,7 @@ end
 end
 
 
-@testset "Explicit edge and slice keys" begin
+@announced_testset "Explicit edge and slice keys" begin
     geometry = GeoModel(quiet=true)
     add_block(
         geometry,

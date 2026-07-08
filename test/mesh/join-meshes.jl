@@ -37,8 +37,8 @@ function hex_mesh(x1, x2; tag)
     return Mesh(coords, [[1, 2, 3, 4, 5, 6, 7, 8]], [:hex8], tag=tag, quiet=true)
 end
 
-@testset "Mesh joining" begin
-    @testset "add_mesh mutates one mesh" begin
+@announced_testset "Mesh joining" begin
+    @announced_testset "add_mesh mutates one mesh" begin
         left = quad_mesh(0.0, 1.0, tag="left")
         right = quad_mesh(1.0, 2.0, tag="right")
 
@@ -54,7 +54,7 @@ end
         @test length(right.elems) == 1
     end
 
-    @testset "join_meshes is non-mutating and variadic" begin
+    @announced_testset "join_meshes is non-mutating and variadic" begin
         m1 = quad_mesh(0.0, 1.0, tag="one")
         m2 = quad_mesh(1.0, 2.0, tag="two")
         m3 = quad_mesh(2.0, 3.0, tag="three")
@@ -70,7 +70,7 @@ end
         @test_throws Exception join_meshes(m1)
     end
 
-    @testset "3D conforming interface" begin
+    @announced_testset "3D conforming interface" begin
         left = hex_mesh(0.0, 1.0, tag="left")
         right = hex_mesh(1.0, 2.0, tag="right")
 
@@ -81,7 +81,7 @@ end
         @test sort(getfield.(left.elems, :tag)) == ["left", "right"]
     end
 
-    @testset "Invalid joins" begin
+    @announced_testset "Invalid joins" begin
         @test_throws Exception add_mesh(quad_mesh(0.0, 1.0, tag="a"), quad_mesh(0.0, 1.0, tag="b"))
         @test_throws Exception add_mesh(quad_mesh(0.0, 1.0, tag="coarse"), split_quad_mesh(1.0, 2.0, tag="fine"))
     end

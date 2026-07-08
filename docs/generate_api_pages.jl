@@ -5,7 +5,7 @@ const API_PAGES = [
         file = "core.md",
         title = "Core Structures",
         sections = [
-            ("Module Helpers", ["@t_str", "@L_str", "@run_files"]),
+            ("Module Helpers", ["@t_str", "@L_str"]),
             ("Basic FEM Objects", ["Context", "Constitutive", "Dof", "Node", "Ip", "Element"]),
             ("Node and Element Utilities", [
                 "add_dof",

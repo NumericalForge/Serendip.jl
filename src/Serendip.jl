@@ -177,16 +177,4 @@ Base.show(io::IO, obj::Stage) = _show(io, obj, 2, "")
 
 
 
-# testing
-export @run_files
-macro run_files(files)
-    return esc(quote
-        for file in $files
-            printstyled("\nRunning file ", file, "...\n", color=:yellow, bold=true)
-            include(file)
-            # println()
-        end
-    end)
-end
-
 end#module

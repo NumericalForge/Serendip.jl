@@ -19,5 +19,5 @@ revolve(geo, [surf], [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 2pi)
 select(geo, :volume, [0.5, 0.0, 0.5], tag="body")
 
 mesh = Mesh(geo)
-println(@test mesh.ctx.ndim == 3)
-println(@test mesh.elems[1].tag == "body")
+@test mesh.ctx.ndim == 3
+@test mesh.elems[1].tag == "body"

@@ -2,7 +2,7 @@ using Serendip
 using Test
 
 
-@testset "FEModel XML generation" begin
+@announced_testset "FEModel XML generation" begin
     geometry = GeoModel()
     add_block(
         geometry,

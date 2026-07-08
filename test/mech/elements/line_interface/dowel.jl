@@ -1,4 +1,5 @@
 using Serendip
+using Test
 
 geo = GeoModel(size=0.1)
 
@@ -33,6 +34,10 @@ stage = add_stage(ana, nincs=10, nouts=2)
 add_bc(stage, :node, y==0, ux=0, uy=0)
 add_bc(stage, :node, (x==1.2, y==0.5), ux=0.01, uy=-0.01)
 
-run(ana, tol=0.01, maxits=3, autoinc=true)
+status = run(ana, tol=0.01, maxits=3, autoinc=true)
 
 save(model, "dowel.vtu")
+
+@test status.successful
+@test !isempty(select(model, :element, "linejoints"))
+@test isfile("dowel.vtu")

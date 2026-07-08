@@ -27,48 +27,44 @@ u_circ = P*ℓ^3/(3*E*I) + P*ℓ/(αs*G*A)
 
 for section in (:rectangular,:circular)
     for ndim in (2,3)
-
         for shape in (:lin2, :lin3)
-            printstyled("section: ", section, "  ndim: ", ndim, "  shape: ", shape, "\n", color= :yellow)
+            @announced_testset "$(section)-$(ndim)d-$(shape)" begin
+                geo = GeoModel()
+                add_block(geo, [0,0,0], ℓ, 0, 0, n=n, shape=shape, tag="beam")
+                mesh = Mesh(geo, ndim=ndim)
 
-            geo = GeoModel()
-            add_block(geo, [0,0,0], ℓ, 0, 0, n=n, shape=shape, tag="beam")
-            mesh = Mesh(geo, ndim=ndim)
+                mapper = RegionMapper()
+                if section == :rectangular
+                    add_map(mapper, "beam", MechBeam, LinearElastic, E=E, nu=0.0, b=b, h=h)
+                else
+                    add_map(mapper, "beam", MechBeam, LinearElastic, E=E, nu=0.0, d=d)
+                end
 
-            mapper = RegionMapper()
-            if section == :rectangular
-                add_map(mapper, "beam", MechBeam, LinearElastic, E=E, nu=0.0, b=b, h=h)
-            else
-                add_map(mapper, "beam", MechBeam, LinearElastic, E=E, nu=0.0, d=d)
+                model = FEModel(mesh, mapper)
+                ana = MechAnalysis(model)
+
+                if ndim == 2
+                    m = add_monitor(ana, :node, x==1, :uy)
+                    stage = add_stage(ana)
+                    add_bc(stage, :node, x==0, rz=0, ux=0, uy=0)
+                    add_bc(stage, :node, x==ℓ, fy=P)
+                    @test run(ana, quiet=true).successful
+                    u = m.table[:uy][end]
+                else
+                    m = add_monitor(ana, :node, x==1, :uz)
+                    stage = add_stage(ana)
+                    add_bc(stage, :node, x==0, rx=0, ry=0, rz=0, ux=0, uy=0, uz=0)
+                    add_bc(stage, :node, x==ℓ, fz=P)
+                    @test run(ana, quiet=true).successful
+                    u = m.table[:uz][end]
+                end
+
+                if section == :rectangular
+                    @test u ≈ u_rect atol=0.1
+                else
+                    @test u ≈ u_circ atol=0.1
+                end
             end
-
-            model = FEModel(mesh, mapper)
-            ana   = MechAnalysis(model)
-
-            if ndim==2
-                m = add_monitor(ana, :node, x==1, :uy)
-                stage = add_stage(ana)
-                add_bc(stage, :node, x==0, rz=0, ux=0, uy=0)
-                add_bc(stage, :node, x==ℓ, fy=P)
-                run(ana, quiet=false)
-                u = m.table[:uy][end]
-            else
-                m = add_monitor(ana, :node, x==1, :uz)
-                stage = add_stage(ana)
-                add_bc(stage, :node, x==0, rx=0, ry=0, rz=0, ux=0, uy=0, uz=0)
-                add_bc(stage, :node, x==ℓ, fz=P)
-                run(ana, quiet=false)
-                u = m.table[:uz][end]
-            end
-            
-            if section == :rectangular
-                T = @test u ≈ u_rect atol=0.1
-            else
-                T = @test u ≈ u_circ atol=0.1
-            end
-            println(T)
-            
-            println()
         end
     end
 end

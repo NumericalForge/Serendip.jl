@@ -8,8 +8,8 @@ struct XmlTestRecord
 end
 
 
-@testset "Lightweight XML" begin
-    @testset "Parsing" begin
+@announced_testset "Lightweight XML" begin
+    @announced_testset "Parsing" begin
         xml = "﻿<?xml version='1.0' encoding=\"UTF-8\"?>\n" *
               "<!--generated > safely-->\n" *
               "<model-root xmlns:serendip=\"urn:serendip\" enabled = 'true' ν='0.2'>\n" *
@@ -40,7 +40,7 @@ end
         end
     end
 
-    @testset "Writing and round-trip" begin
+    @announced_testset "Writing and round-trip" begin
         mktempdir() do dir
             root = XmlElement(
                 "model-root",
@@ -74,7 +74,7 @@ end
         end
     end
 
-    @testset "Invalid or unsupported input" begin
+    @announced_testset "Invalid or unsupported input" begin
         invalid = [
             "<first/><second/>",
             "<root><child></root>",
@@ -110,7 +110,7 @@ end
         end
     end
 
-    @testset "to_xml_node" begin
+    @announced_testset "to_xml_node" begin
         attributes = Dict("source" => "test")
         array_node = to_xml_node(view([1, 2, 3], :), "values", attributes)
         @test array_node.attributes["format"] == "ascii"

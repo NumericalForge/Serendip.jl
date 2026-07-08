@@ -18,5 +18,5 @@ nsurfs = length([e for e in out if e isa Surface])
 
 mesh = Mesh(geo)
 
-println(@test nsurfs >= 3)
-println(@test mesh.elems[1].tag == "outer")
+@test nsurfs >= 3
+@test mesh.elems[1].tag == "outer"

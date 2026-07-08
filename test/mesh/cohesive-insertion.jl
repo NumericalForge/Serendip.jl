@@ -1,8 +1,6 @@
 using Serendip
 using Test
 
-printstyled("\nCohesive insertion (implicit/explicit, whole/partial)\n", color=:blue, bold=true)
-
 function initial_mesh()
     geo = GeoModel()
     add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=4, ny=4, shape=:quad4)
@@ -22,7 +20,7 @@ end
 
 unique_node_objects(nodes) = length(unique(objectid.(nodes)))
 
-@testset "Whole mesh insertion" begin
+@announced_testset "Whole mesh insertion" begin
     mesh = initial_mesh()
     add_cohesive_elements(mesh, tag="coh", implicit=true)
 
@@ -40,7 +38,7 @@ unique_node_objects(nodes) = length(unique(objectid.(nodes)))
     @test length(mesh_exp.nodes) == 64
 end
 
-@testset "Partial region insertion" begin
+@announced_testset "Partial region insertion" begin
     mesh = initial_mesh()
     add_cohesive_elements(mesh, x <= 0.5, tag="coh", implicit=true)
 
@@ -58,7 +56,7 @@ end
     @test length(mesh_exp.nodes) == 47
 end
 
-@testset "Boundary shell generation stays connected after explicit split" begin
+@announced_testset "Boundary shell generation stays connected after explicit split" begin
     mesh = initial_mesh()
     add_cohesive_elements(mesh, tag="coh", implicit=false, quiet=true)
     add_boundary_shell_elements(mesh, x == 0.0, tag="shell", contact_tag="shell-contact", quiet=true)
@@ -77,7 +75,7 @@ end
     end
 end
 
-@testset "Boundary shells without contact stay attached to boundary faces" begin
+@announced_testset "Boundary shells without contact stay attached to boundary faces" begin
     mesh = initial_mesh()
     add_boundary_shell_elements(mesh, x == 0.0, tag="shell", quiet=true)
 
@@ -94,7 +92,7 @@ end
     end
 end
 
-@testset "Crack-marked mesh loader" begin
+@announced_testset "Crack-marked mesh loader" begin
     coords = [
         0.0 0.0
         1.0 0.0

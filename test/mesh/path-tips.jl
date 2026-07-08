@@ -2,7 +2,7 @@ using Serendip
 using Test
 using LinearAlgebra: norm
 
-@testset "Path Tips Are Global Endpoints" begin
+@announced_testset "Path Tips Are Global Endpoints" begin
     Xstart = [0.1, 0.2, 0.0]
     Xmid   = [0.5, 0.5, 0.0]
     Xend   = [0.9, 0.8, 0.0]
@@ -49,7 +49,7 @@ using LinearAlgebra: norm
 end
 
 
-@testset "Open Paths Can Have Coincident Endpoint Coordinates" begin
+@announced_testset "Open Paths Can Have Coincident Endpoint Coordinates" begin
     Xstart = [0.1, 0.2, 0.0]
     Xmid   = [0.5, 0.5, 0.0]
     atol   = 1e-6

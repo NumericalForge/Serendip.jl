@@ -17,5 +17,5 @@ extrude(geo, top, [0.0, 0.0, 0.7])
 select(geo, :volume, [0.5, 0.5, 1.2], tag="body")
 
 mesh = Mesh(geo)
-println(@test mesh.ctx.ndim == 3)
-println(@test mesh.elems[1].tag == "body")
+@test mesh.ctx.ndim == 3
+@test mesh.elems[1].tag == "body"

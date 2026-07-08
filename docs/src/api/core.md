@@ -10,8 +10,6 @@ CurrentModule = Serendip
 
 - `@L_str`
 
-- `@run_files`
-
 ## Basic FEM Objects
 
 ```@raw html
@@ -477,4 +475,3 @@ Filter = x -> x === Serendip.save
 ```@raw html
 </details>
 ```
-

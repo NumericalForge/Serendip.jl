@@ -2,8 +2,8 @@ using Serendip
 using Test
 using LinearAlgebra: norm
 
-@testset "Path modes" begin
-    @testset "Path closure policy is consistent" begin
+@announced_testset "Path modes" begin
+    @announced_testset "Path closure policy is consistent" begin
         path_coords_auto = Path([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]; closed=:auto)
         path_coords_open = Path([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]; closed=false)
         path_coords_forced = Path([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0]; closed=true)
@@ -26,7 +26,7 @@ using LinearAlgebra: norm
         @test !path_edges_open.closed
     end
 
-    @testset "Invalid path mode" begin
+    @announced_testset "Invalid path mode" begin
         geo = GeoModel(quiet=true)
         add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=1, ny=1, shape=:quad4)
 
@@ -40,7 +40,7 @@ using LinearAlgebra: norm
         @test_throws Exception add_path(geo, [l1]; mode=:embedded, n=2)
     end
 
-    @testset "Interface mode creates interface elements" begin
+    @announced_testset "Interface mode creates interface elements" begin
         geo = GeoModel(quiet=true)
         add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=2, ny=2, shape=:quad4)
 
@@ -59,7 +59,7 @@ using LinearAlgebra: norm
         @test all(!line.embedded for line in lines)
     end
 
-    @testset "Embedded mode couples line elements to hosts" begin
+    @announced_testset "Embedded mode couples line elements to hosts" begin
         geo = GeoModel(quiet=true)
         add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=2, ny=2, shape=:quad4)
 
@@ -77,7 +77,7 @@ using LinearAlgebra: norm
         @test isempty(select(mesh.elems, :line_interface))
     end
 
-    @testset "Conforming mode reuses linear mesh edges" begin
+    @announced_testset "Conforming mode reuses linear mesh edges" begin
         geo = GeoModel(quiet=true)
         add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=2, ny=2, shape=:quad4)
 
@@ -95,7 +95,7 @@ using LinearAlgebra: norm
         @test isempty(select(mesh.elems, :line_interface))
     end
 
-    @testset "Conforming mode reuses quadratic mesh edges" begin
+    @announced_testset "Conforming mode reuses quadratic mesh edges" begin
         geo = GeoModel(quiet=true)
         add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=1, ny=1, shape=:quad8)
 
@@ -113,7 +113,7 @@ using LinearAlgebra: norm
         @test lines[1].nodes[3] in mesh.nodes
     end
 
-    @testset "Conforming mode requires existing endpoints" begin
+    @announced_testset "Conforming mode requires existing endpoints" begin
         geo = GeoModel(quiet=true)
         add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=1, ny=1, shape=:quad4)
 
@@ -125,7 +125,7 @@ using LinearAlgebra: norm
         @test_throws Exception Mesh(geo, quiet=true)
     end
 
-    @testset "Free mode creates standalone path elements" begin
+    @announced_testset "Free mode creates standalone path elements" begin
         geo = GeoModel(quiet=true)
         add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=1, ny=1, shape=:quad4)
 
@@ -146,7 +146,7 @@ using LinearAlgebra: norm
         @test isempty(select(mesh.elems, :tip))
     end
 
-    @testset "Free mode subdivides each command with scalar n" begin
+    @announced_testset "Free mode subdivides each command with scalar n" begin
         geo = GeoModel(quiet=true)
         add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=1, ny=1, shape=:quad4)
 
@@ -159,7 +159,7 @@ using LinearAlgebra: norm
         @test all(line.shape.kind == :lin2 for line in lines)
     end
 
-    @testset "Free mode adds implicit closing segment when forced closed" begin
+    @announced_testset "Free mode adds implicit closing segment when forced closed" begin
         geo = GeoModel(quiet=true)
         add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=1, ny=1, shape=:quad4)
 
@@ -173,7 +173,7 @@ using LinearAlgebra: norm
         @test all(line.shape.kind == :lin2 for line in lines)
     end
 
-    @testset "Free mode subdivides higher-order line shapes" begin
+    @announced_testset "Free mode subdivides higher-order line shapes" begin
         geo = GeoModel(quiet=true)
         add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=1, ny=1, shape=:quad4)
 
@@ -192,7 +192,7 @@ using LinearAlgebra: norm
         @test length(intersect(endpoints1, endpoints2)) == 1
     end
 
-    @testset "Free mode uses arc-length subdivision on curved paths" begin
+    @announced_testset "Free mode uses arc-length subdivision on curved paths" begin
         geo = GeoModel(quiet=true)
         add_block(geo, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0, nx=1, ny=1, shape=:quad4)
 

@@ -1,7 +1,7 @@
 using Serendip
 using Test
 
-@testset "Mapping-level quadrature for generic elements" begin
+@announced_testset "Mapping-level quadrature for generic elements" begin
     geo_line = GeoModel()
     add_block(geo_line, [0.0, 0.0], 1.0, 0.0, 0.0; nx=1, shape=:lin3, tag="bar")
     mesh_line = Mesh(geo_line, ndim=2, quiet=true)
@@ -34,7 +34,7 @@ using Test
     @test length(model_hex.elems[1].ips) == 8
 end
 
-@testset "Mapping-level quadrature for MechBeam" begin
+@announced_testset "Mapping-level quadrature for MechBeam" begin
     geo = GeoModel()
     add_block(geo, [0.0, 0.0], 1.0, 0.0, 0.0; nx=1, shape=:lin3, tag="beam")
     mesh = Mesh(geo, ndim=2, quiet=true)
@@ -57,7 +57,7 @@ end
     @test length(model_tuple.elems[1].ips) == 6
 end
 
-@testset "Mapping-level quadrature for 3D MechBeam" begin
+@announced_testset "Mapping-level quadrature for 3D MechBeam" begin
     geo = GeoModel()
     add_block(geo, [0.0, 0.0, 0.0], 1.0, 0.0, 0.0; nx=1, shape=:lin3, tag="beam")
     mesh = Mesh(geo, ndim=3, quiet=true)
@@ -68,7 +68,7 @@ end
     @test length(model.elems[1].ips) == 8
 end
 
-@testset "Mapping-level quadrature for MechShell" begin
+@announced_testset "Mapping-level quadrature for MechShell" begin
     geo_quad = GeoModel()
     add_block(geo_quad, [0.0, 0.0, 0.0], 1.0, 1.0, 0.0; nx=1, ny=1, shape=:quad4, tag="shell")
     mesh_quad = Mesh(geo_quad, ndim=3, quiet=true)
@@ -90,7 +90,7 @@ end
     @test length(model_tri.elems[1].ips) == 6
 end
 
-@testset "Invalid mapping-level quadrature" begin
+@announced_testset "Invalid mapping-level quadrature" begin
     mapper = RegionMapper()
     @test_throws ErrorException add_mapping(mapper, :all, MechSolid, LinearElastic; quadrature=-1, E=1.0, nu=0.25)
     # @test_throws ErrorException add_mapping(mapper, :all, MechSolid, LinearElastic; quadrature=(2, 0), E=1.0, nu=0.25)

@@ -57,31 +57,24 @@ dis_list = [
             [ 0.0, 0.0, 0.0, 0.0, -0.5   ,   -0.5,    -0.5,     -0.5 ] ]
 
 for (lc, bcs, dis) in zip(lc_list, bcs_list, dis_list)
+    @announced_testset "$lc" begin
+        global model = FEModel(mesh, mapper)
+        ana = MechAnalysis(model)
+        stage = add_stage(ana, nouts=1)
+        for bc in bcs
+            selector, kind, conds = bc
+            add_bc(stage, kind, selector; conds...)
+        end
 
-    println("\nLoad case: $lc \n")
+        @test run(ana).successful
 
-    global model = FEModel(mesh, mapper)
-    ana = MechAnalysis(model)
-    stage = add_stage(ana, nouts=1)
-    for bc in bcs
-        selector, kind, conds = bc
-        add_bc(stage, kind, selector; conds...)
+        D = get_values(model.nodes)[[:ux, :uy, :uz]]
+        @test dis ≈ D[:uz] atol=1e-5
+
+        S = get_values(model.elems[1])[[:σxx, :σyy, :σzz, :σyz, :σxz, :σxy]]
+        @test size(S, 1) > 0
+
+        F = get_values(select(model, :node, z==0))[[:fx, :fy, :fz]]
+        @test size(F, 1) > 0
     end
-
-    run(ana)
-
-    println("Displacements:")
-    D = get_values(model.nodes)[[:ux, :uy, :uz]]
-    println(D)
-
-    println(@test dis ≈ D[:uz] atol=1e-5)
-
-    println("Stress:")
-    S = get_values(model.elems[1])[[:σxx, :σyy, :σzz, :σyz, :σxz, :σxy]]
-    println(S)
-
-    println("Support reactions:")
-    # F = get_values(model.nodes[:(z==0)])[[:fx, :fy, :fz]]
-    F = get_values(select(model, :node, z==0))[[:fx, :fy, :fz]]
-    println(F)
 end

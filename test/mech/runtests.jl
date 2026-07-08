@@ -1,9 +1,7 @@
 using Serendip
+include("../test-helpers.jl")
 
-@run_files [
-    # Elements
-
-    # bulk
+for file in [
     # "elements/elastic-solid.jl",
     "elements/elastic-elems.jl",
     "elements/variable-thickness.jl",
@@ -13,30 +11,16 @@ using Serendip
     "elements/elastic-hex8.jl",
     "elements/axisymmetric.jl",
     "elements/constraints.jl",
-
-    # frame
     "elements/rod/frame.jl",
-
-    # rod
     "elements/rod/truss.jl",
-    
-    # beam
     "elements/beam/cantilever.jl",
     "elements/beam/simple-beam.jl",
     "elements/beam/curved-beam.jl",
-
-    # shell
     "elements/shell/shell.jl",
-    
-    # joint
     "elements/line_interface/dowel.jl",
     "elements/line_interface/joint1d.jl",
-    
-    # embeddeed and semi-embedded
     "elements/bar/embedded.jl",
     "elements/tip/tip.jl",
-    
-    # Constitutive models
     "constitutive/vm-bar.jl",
     "constitutive/vm-2d.jl",
     "constitutive/vm-3d.jl",
@@ -47,9 +31,13 @@ using Serendip
     "constitutive/dp.jl",
     "constitutive/escp-uniaxial-biaxial.jl",
     "constitutive/bondslip-monotonic.jl",
-
     "constitutive/cohesive.jl",
     "constitutive/contact.jl",
     # "constitutive/coulomb-contact-update.jl",
     "constitutive/coulomb-contact.jl",
 ]
+    printstyled("\nRunning file ", file, "...\n", color=:yellow, bold=true)
+    @testset "$file" begin
+        include(file)
+    end
+end
