@@ -1685,7 +1685,7 @@ function _domain_configure_axes!(mplot::DomainPlot)
     canvas = mplot.canvas.frame
     mplot.axes = AxesWidget(
         location=mplot.axes_loc,
-        font_size=mplot.font_size,
+        font_size=0.8*mplot.font_size,
         font=mplot.font,
         azimuth=mplot.azimuth,
         elevation=mplot.elevation,

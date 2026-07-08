@@ -28,6 +28,9 @@ mutable struct Mesh<:AbstractDomain
 end
 
 
+_sorted_tuple(values) = Tuple(sort!(collect(values)))
+
+
 function Base.copy(mesh::AbstractDomain)
     ndim = mesh.ctx.ndim
     newmesh = Mesh(ndim)
@@ -181,7 +184,7 @@ function get_outer_facets(cells::Vector{<:AbstractCell}; tol::Union{Nothing,Real
             end
 
             # Sorting to get a unique key
-            key = sort(face_geo_ids)
+            key = _sorted_tuple(face_geo_ids)
 
             # Toggle Logic (XOR)
             if haskey(face_counts, key)
@@ -217,7 +220,7 @@ end
 
 function get_edges(surf_cells::Array{<:AbstractCell,1})
     # canonical key for local node-index lists
-    edgekey(idxs) = Tuple(sort(idxs))
+    edgekey(idxs) = _sorted_tuple(idxs)
 
     edges_dict = Dict{Tuple{Vararg{UInt64}}, Cell}()
 

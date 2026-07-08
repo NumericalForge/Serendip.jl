@@ -8,4 +8,13 @@ Serendip is a Finite Element library written in Julia language. The purpose of t
 
 Generic chart plotting in Serendip is provided by `QuickCharts` and re-exported from `Serendip`. Domain-specific visualization remains in Serendip through `DomainPlot`.
 
+## Installation
+
+Serendip currently requires Julia `1.12` or newer.
+
+```julia
+using Pkg
+Pkg.add("Serendip")
+```
+
 <!-- [Documentation](https://NumericalForge.github.io/Serendip.jl/dev/) -->

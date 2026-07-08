@@ -5,6 +5,7 @@
 *.swp
 *.vtk
 *.vtu
+*.mp4
 *.dat
 *.table
 *.log

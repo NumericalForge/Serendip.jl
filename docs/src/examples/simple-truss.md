@@ -66,7 +66,7 @@ plot = DomainPlot()
 add_plot(plot, model;
     field = "σx´",
     colormap = :coolwarm,
-    label = t"$σ_x$ [kN]",
+    label = "`σ_x` [kN]",
     warp = 10,
 )
 save(plot, "simple-truss.svg")
@@ -82,3 +82,4 @@ save(plot, "simple-truss.svg")
 ---
 
 *This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
+

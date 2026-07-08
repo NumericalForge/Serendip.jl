@@ -7,7 +7,7 @@ function axis_widget_label(label::AbstractString)
     return "\$" * label * "\$"
 end
 
-axis_widget_head_length(aw) = 7.0
+axis_widget_head_length(aw) = 4.0
 
 """
     AxesWidget(;
@@ -60,7 +60,7 @@ mutable struct AxesWidget<:FigureComponent
         location::Symbol = :bottom_left,
         labels::Vector{<:AbstractString} = ["`x`", "`y`"],
         font::String = "NewComputerModern",
-        font_size::Real = 9.0,
+        font_size::Real = 7.0,
         azimuth::Real = 0.0,
         elevation::Real = 0.0,
         distance::Real = 0.0,
@@ -207,7 +207,7 @@ function draw!(aw::AxesWidget, ctx::RenderContext)
     select_font_face(cairo_ctx, font, Cairo.FONT_SLANT_NORMAL, Cairo.FONT_WEIGHT_NORMAL )
     set_font_size(cairo_ctx, aw.font_size)
     ndim = length(aw.labels)
-    line_width = ndim == 3 ? 1.0 * ctx.width_scale : 0.7 * ctx.width_scale
+    line_width = ndim == 3 ? 0.6 * ctx.width_scale : 0.6 * ctx.width_scale
     set_line_width(cairo_ctx, line_width)
 
     reset_matrix!(ctx)

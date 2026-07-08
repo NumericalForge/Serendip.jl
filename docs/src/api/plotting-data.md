@@ -6,8 +6,6 @@ CurrentModule = Serendip
 
 ## Plotting
 
-Generic chart plotting in `Serendip` is provided by `QuickCharts` and re-exported here. `DomainPlot` remains a Serendip-specific figure for mesh and field visualization.
-
 ```@raw html
 <details>
 <summary><code>Color</code></summary>
@@ -832,3 +830,4 @@ Filter = x -> x === Serendip.sound_alert
 ```@raw html
 </details>
 ```
+
