@@ -369,9 +369,9 @@ Note: Original OCC edges are removed from the geometry after constructing the pa
 # Example
 ```julia
 geo = GeoModel()
-point1 = add_point(geo, [0,0,0])
-point2 = add_point(geo, [1,0,0])
-point3 = add_point(geo, [2,0,0])
+p1 = add_point(geo, [0,0,0])
+p2 = add_point(geo, [1,0,0])
+p3 = add_point(geo, [2,0,0])
 edge1 = add_line(geo, p1, p2)
 edge2 = add_line(geo, p2, p3)
 
@@ -402,7 +402,7 @@ end
 Adds a logical path structure (`GPath`) to the geometric model from an ordered sequence of point coordinates.
 Consecutive coordinates are connected by straight line segments.
 
-Keyword arguments follow the same rules as [`add_path(geometry, edges; ...)`](@ref), including `closed`:
+Keyword arguments follow the same rules as [`add_path`](@ref), including `closed`:
 - `:auto`: close only when the first and last coordinates coincide.
 - `false`: keep the path open even when the endpoint coordinates coincide.
 - `true`: force closure by adding an implicit final straight segment when needed.

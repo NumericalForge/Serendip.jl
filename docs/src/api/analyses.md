@@ -352,39 +352,9 @@ Filter = x -> x === Serendip.LinearBondSlip
 ```
 
 
-```@raw html
-<details>
-<summary><code>ElasticBondSlip</code></summary>
-```
+- `ElasticBondSlip`
 
-```@autodocs; canonical=false
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.ElasticBondSlip
-```
-
-```@raw html
-</details>
-```
-
-
-```@raw html
-<details>
-<summary><code>ElasticRSJoint</code></summary>
-```
-
-```@autodocs; canonical=false
-Modules = [Serendip]
-Private = false
-Public = true
-Filter = x -> x === Serendip.ElasticRSJoint
-```
-
-```@raw html
-</details>
-```
-
+- `ElasticRSJoint`
 
 ```@raw html
 <details>
