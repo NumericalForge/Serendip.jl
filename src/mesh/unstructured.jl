@@ -1,215 +1,263 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
-function mesh_unstructured(geo::GeoModel; kwargs...)
-    args      = checkargs([geo], kwargs, Mesh_Geo_params)
-    size      = args.size
-    quadratic = args.quadratic
-    recombine = args.recombine
-    algorithm = args.algorithm
-    quiet     = args.quiet
 
-    if !quiet
-        println("  Geometry:")
-        nsurfs = length(geo.faces)
-        nvols  = length(geo.volumes)
-        @printf "  %5d surfaces\n" nsurfs
-        nvols>0 && @printf "  %5d volumes\n" nvols
-    end
+function _candidate_constraint_hosts(node::Node, host_dimtags; tol=1e-8)
+    X = node.coord
+    hosts = Tuple{Int,Int}[]
 
-    gmsh.initialize()
-    gmsh.option.setNumber("General.Terminal", 0)
-    gmsh.model.add("t1")
-    # if geo.size>0
-    #     gmsh.option.setNumber("Mesh.CharacteristicLengthMin", geo.size)
-    #     gmsh.option.setNumber("Mesh.CharacteristicLengthMax", geo.size)
-    # end
-
-    isvolumemesh = length(geo.volumes)>0
-
-    # add points
-    for p in geo.points
-        sz = p.size==0 ? size : p.size
-        gmsh.model.geo.addPoint(p.coord.x, p.coord.y, p.coord.z, sz, p.id)
-    end
-
-    # add lines
-    for l in geo.edges
-        if l isa Line
-            p1 = l.points[1].id
-            p2 = l.points[2].id
-            gmsh.model.geo.addLine(p1, p2, l.id)
-        elseif l isa Arc
-            p1 = l.points[1].id
-            pc = l.points[2].id
-            p2 = l.points[3].id
-
-            gmsh.model.geo.addCircleArc(p1, pc, p2, l.id)
-        else
-            error("Not implemented")
+    for (dim, id) in host_dimtags
+        xmin, ymin, zmin, xmax, ymax, zmax = gmsh.model.occ.getBoundingBox(dim, id)
+        if xmin - tol <= X.x <= xmax + tol &&
+           ymin - tol <= X.y <= ymax + tol &&
+           zmin - tol <= X.z <= zmax + tol
+            push!(hosts, (Int(dim), Int(id)))
         end
     end
 
-    # add loops
-    for loop in geo.loops
-        idxs = Int[]
-        for dart in loop.darts
-            idx = dart.forward ? dart.edge.id : -dart.edge.id
-            push!(idxs, idx)
+    return hosts
+end
+
+
+function _add_mesh_constraints!(meshes, target_dim::Integer)
+    target_dim in (2, 3) || return 0
+
+    dim_ids         = gmsh.model.occ.getEntities(target_dim)
+    host_dimtags    = gmsh.model.getBoundary(dim_ids, false, false, false)
+    point_hosts     = Tuple{Int,Vector{Tuple{Int,Int}}}[]
+    curve_node_keys = Dict{Int,Set{Tuple{Float64,Float64,Float64}}}()
+    node_keys       = Set{Tuple{Float64,Float64,Float64}}()
+    nconstraints    = 0
+
+    for mesh in meshes
+        facets = get_outer_facets(select(mesh.elems, :solid))
+        for facet in facets
+            facet.shape.ndim == target_dim - 1 || continue
+
+            nvertices = facet.shape.base_shape.npoints
+            for node in facet.nodes[1:nvertices]
+                key = node_pos_key(node)
+                key in node_keys && continue
+                push!(node_keys, key)
+
+                hosts = _candidate_constraint_hosts(node, host_dimtags)
+                isempty(hosts) && continue
+
+                for (dim, host) in hosts
+                    dim == 1 || continue
+                    keys = get!(curve_node_keys, host, Set{Tuple{Float64,Float64,Float64}}())
+                    push!(keys, key)
+                end
+
+                tag = gmsh.model.occ.addPoint(node.coord.x, node.coord.y, node.coord.z)
+                push!(point_hosts, (tag, hosts))
+            end
         end
-
-        gmsh.model.geo.addCurveLoop(idxs, loop.id)
     end
 
-    # add surfaces
-    for surf in geo.faces
-        lo_idxs = [ lo.id for lo in surf.loops ]
-        if surf.flat
-            gmsh.model.geo.addPlaneSurface(lo_idxs, surf.id) # plane surface
-        else
-            gmsh.model.geo.addSurfaceFilling(lo_idxs, surf.id) # filling surf
-        end
-    end
-    surf_idxs = [ surf.id for surf in geo.faces ]
+    isempty(point_hosts) && return 0
 
-    # add volumes
-    for vol in geo.volumes
-        surf_idxs = [ spin.face.id for spin in vol.spins ]
+    gmsh.model.occ.synchronize()
 
-        gmsh.model.geo.addSurfaceLoop(surf_idxs, vol.id)
-        gmsh.model.geo.addVolume([vol.id], vol.id) # not considering volume holes
-    end
-    vol_idxs = [ vol.id for vol in geo.volumes ]
-
-    gmsh.model.geo.synchronize() # only after geometry entities are defined
-
-    for l in geo.edges
-        # transfinite
-        if l.n>0
-            gmsh.model.mesh.set_transfinite_curve(l.id, l.n+1)
+    # When stored mesh nodes constrain a boundary curve, keep Gmsh from adding
+    # extra curve nodes that would later become hanging nodes at the interface.
+    if target_dim == 2
+        for (curve, keys) in curve_node_keys
+            length(keys) >= 2 || continue
+            gmsh.model.mesh.set_transfinite_curve(curve, length(keys))
         end
     end
 
-    # generate mesh
+    for (tag, hosts) in point_hosts
+        for (dim, host) in hosts
+            gmsh.model.mesh.embed(0, [tag], dim, host)
+            nconstraints += 1
+        end
+    end
+
+    return nconstraints
+end
+
+
+"""
+    mesh_unstructured(geo, constraint_meshes; ndim=0, recombine=false,
+                      quadratic=false, algorithm=:delaunay, sort=true,
+                      quiet=false) -> Mesh
+
+Generate the OCC portion of a `GeoModel` with Gmsh. Meshes in
+`constraint_meshes` constrain matching OCC boundaries but are not joined into
+the returned mesh.
+
+This is an internal generator used by `Mesh(geo)`. Point tags are transferred
+to mesh nodes through Gmsh's geometric-entity classification.
+"""
+function mesh_unstructured(
+    geo               ::GeoModel,
+    constraint_meshes ::AbstractVector{<:AbstractDomain};
+    ndim      ::Int = 0,
+    recombine ::Bool = false,
+    quadratic ::Bool = false,
+    algorithm ::Symbol = :delaunay,
+    sort      ::Bool = true,
+    quiet     ::Bool = false,
+)
+    quiet || printstyled("Unstructured mesh generation:\n", bold=true, color=:cyan)
+    quadratic && gmsh.option.setNumber("Mesh.ElementOrder", 2)
+
     if algorithm==:delaunay
-        gmsh.option.setNumber("Mesh.Algorithm", 5)
+        gmsh.option.setNumber("Mesh.Algorithm", 5) # delaunay
+        gmsh.option.setNumber("Mesh.Algorithm3D", 1) # delaunay
+    elseif algorithm==:mesh_adapt
+        gmsh.option.setNumber("Mesh.Algorithm", 1) # mesh adapt
+        gmsh.option.setNumber("Mesh.Algorithm3D", 1) # delaunay
+    elseif algorithm==:best
+        gmsh.option.setNumber("Mesh.Algorithm", 6) # frontal delaunay
+        gmsh.option.setNumber("Mesh.Algorithm3D", 1) # delaunay
     elseif algorithm==:frontal
-        gmsh.option.setNumber("Mesh.Algorithm", 6)
-    else
-        error("Mesh: Wrong algorithm")
+        gmsh.option.setNumber("Mesh.Algorithm", 6) # frontal delaunay
+        gmsh.option.setNumber("Mesh.Algorithm3D", 4) # frontal
     end
 
-    for s in geo.faces
-        s.recombine && gmsh.model.mesh.set_recombine(2, s.id)
-        s.transfinite && gmsh.model.mesh.set_transfinite_surface(s.id)
+    gmsh_ndim = gmsh.model.getDimension()
+    dim_ids = gmsh.model.occ.getEntities(gmsh_ndim)
+
+    # Set physical groups by tags from synchronized OCC entity ids:
+    # - tagged entities are grouped together by tag
+    # - untagged entities keep one physical group per entity
+    tag_to_ids = Dict{String, Vector{Int}}()
+    ordered_tags = String[]
+    untagged_ids = Int[]
+
+    for (_, id) in dim_ids
+        ent = get(geo.entities, (gmsh_ndim, id), nothing)
+        if ent === nothing || ent.tag == ""
+            push!(untagged_ids, id)
+            continue
+        end
+
+        if !haskey(tag_to_ids, ent.tag)
+            tag_to_ids[ent.tag] = Int[]
+            push!(ordered_tags, ent.tag)
+        end
+        push!(tag_to_ids[ent.tag], id)
     end
 
-    if !isvolumemesh
-        tagset = Set([ surf.tag for surf in geo.faces ])
-        tagsdict = Dict( tag=>i for (i,tag) in enumerate(tagset) )
-        for (tag, gidx) in tagsdict
-            surf_idxs = [ surf.id for surf in geo.faces if surf.tag==tag ]
-            gmsh.model.addPhysicalGroup(2, surf_idxs, gidx) # ndim, entities, group_id
-        end
-    else
-        tagset = Set([ vol.tag for vol in geo.volumes  ])
-        tagsdict = Dict( tag=>i for (i,tag) in enumerate(tagset) )
-        for (tag, gidx) in tagsdict
-            vol_idxs = [ vol.id for vol in geo.volumes if vol.tag==tag]
-            gmsh.model.addPhysicalGroup(3, vol_idxs, gidx) # ndim, entities, group_id
-        end
+    gidx = 1
+    for tag in ordered_tags
+        gmsh.model.addPhysicalGroup(gmsh_ndim, tag_to_ids[tag], gidx)
+        gmsh.model.setPhysicalName(gmsh_ndim, gidx, tag)
+        gidx += 1
     end
 
-    # embed points
-    for p in geo.points
-        length(p.edges)==0 || continue
-
-        # search in sub-paths
-        found = false
-        for spath in geo.subpaths
-            if p in spath.path.points
-                found = true
-                break
-            end
-        end
-        found && continue
-
-        # search surfaces
-        for s in geo.faces
-            s.loops[1].flat || continue
-            if inside(p, s.loops[1])
-                gmsh.model.mesh.embed(0,[p.id],2,s.id)
-            end
-        end
+    for id in untagged_ids
+        gmsh.model.addPhysicalGroup(gmsh_ndim, [id], gidx)
+        gidx += 1
     end
 
-    # embed lines
-    for l in geo.edges
-        l isa Line || continue
-        length(l.faces)==0 || continue
-        for s in geo.faces
-            s.loops[1].flat || continue
-            if insidepolygon(l.points, getpoints(s.loops[1]))
-                gmsh.model.mesh.embed(1,[l.id],2,s.id)
-            end
-        end
+    gmsh.model.occ.synchronize()
+
+    embedded_points = [p for p in values(geo.entities) if p isa Point && p.embedded]
+    for point in embedded_points
+        ent = _get_entity(2, point.coord)
+        ent === nothing && error("No surface found at point $(point.coord)")
+        gmsh.model.mesh.embed(0, [point.id], ent...)
     end
 
-    tempfile = "_temp.vtk"
+    gmsh.model.occ.synchronize()
+
+    if !isempty(geo.fields)
+        field_ids = Int[]
+        for field in geo.fields
+            size1, size2 = field.size1, field.size2
+            a, b, c = field.rx, field.ry, field.rz
+            x, y, z = field.coord
+
+            field_id = gmsh.model.mesh.field.add("MathEval")
+            n = 2/max(field.roundness,0.01) # roundness 1 -> n=2 (ellipsoid), roundness 0 -> n=∞ (box)
+            g = field.transition # 0 -> sharp, 1 -> linear
+
+            an, bn, cn = a^n, b^n, c^n
+            expr = "$size2 + ($size1 - $size2) * abs( 1 - (abs(x-$x)^$n/$an + abs(y-$y)^$n/$bn + abs(z-$z)^$n/$cn)^(1/$n))^$g * step(1 - ( abs(x-$x)^$n/$an + abs(y-$y)^$n/$bn + abs(z-$z)^$n/$cn ))"
+
+            gmsh.model.mesh.field.setString(field_id, "F", expr)
+            push!(field_ids, field_id)
+        end
+
+        fmin = gmsh.model.mesh.field.add("Min")
+        gmsh.model.mesh.field.setNumbers(fmin, "FieldsList", field_ids)
+        gmsh.model.mesh.field.setAsBackgroundMesh(fmin)
+    end
+
+    # Orphan points do not participate in the requested mesh and must not
+    # survive solely because they carry metadata.
+    for (_, id) in gmsh.model.getEntities(0)
+        upward, _ = gmsh.model.getAdjacencies(0, id)
+        isempty(upward) && gmsh.model.occ.remove([(0, id)], true)
+    end
+    gmsh.model.occ.synchronize()
+
+    _add_mesh_constraints!(constraint_meshes, gmsh_ndim)
+
     logfile = "_gmsh.log"
     try
         open(logfile, "w") do out
             redirect_stdout(out) do
-                # gmsh.write("_temp.geo_unrolled")
-                gmsh.model.mesh.generate(isvolumemesh ? 3 : 2)
-                quadratic && gmsh.model.mesh.setOrder(2) # quadratic elements
+                gmsh.model.mesh.generate(gmsh_ndim)
+                quadratic && gmsh.model.mesh.setOrder(2)
                 recombine && gmsh.model.mesh.recombine()
-                gmsh.write(tempfile)
             end
         end
-    catch err
+    catch
         error("Error generating unstructured mesh.")
     end
 
-    gmsh.finalize()
-    mesh = Mesh(tempfile)
-    rm(tempfile, force=true)
-    rm(logfile, force=true)
+    node_ids, coord_list, _ = gmsh.model.mesh.getNodes()
+    nnodes = length(node_ids)
+    nodes = [Node(coord_list[3*(i-1)+1 : 3*i], id=i) for i in 1:nnodes]
+    node_by_gmsh_id = Dict{Int,Node}(Int(node_ids[i]) => nodes[i] for i in 1:nnodes)
 
-    # flip elements
-    for elem in mesh.elems
-        isinverted(elem) && flip(elem)
-    end
+    active_point_ids = Set(Int(id) for (_, id) in gmsh.model.getEntities(0))
+    for ent in values(geo.entities)
+        ent isa Point || continue
+        isempty(ent.tag) && continue
+        ent.id in active_point_ids || continue
 
-    # set tags for elements
-    if !isvolumemesh
-        invtagsdict = Dict( i=>tag for (tag,i) in tagsdict )
-        for elem in mesh.elems
-            elem.tag = invtagsdict[ mesh.elem_fields["CellEntityIds"][elem.id] ]
-        end
-    else
-        invtagsdict = Dict( i=>tag for (tag,i) in tagsdict )
-        for elem in mesh.elems
-            elem.tag = invtagsdict[ mesh.elem_fields["CellEntityIds"][elem.id] ]
+        point_node_ids, _, _ = gmsh.model.mesh.getNodes(0, ent.id)
+        for node_id in point_node_ids
+            node = get(node_by_gmsh_id, Int(node_id), nothing)
+            node === nothing && continue
+            isempty(node.tag) && (node.tag = ent.tag)
         end
     end
 
-    delete!(mesh.elem_fields, "CellEntityIds")
+    shape_dict = Dict(1=>LIN2, 2=>TRI3, 3=>QUAD4, 4=>TET4, 5=>HEX8, 6=>WED6, 7=>PYR5, 8=>LIN3, 9=>TRI6, 10=>QUAD9, 11=>TET10, 12=>HEX27, 16=>QUAD8, 17=>HEX20)
+    nnodes_dict = Dict(1=>2, 2=>3, 3=>4, 4=>4, 5=>8, 6=>6, 7=>5, 8=>3, 9=>6, 10=>9, 11=>10, 12=>27, 16=>8, 17=>20)
 
-    # set tag for nodes
-    ptagdict = Dict()
-    for p in geo.points
-        p.tag!="" || continue
-        ptagdict[p.coord] = p.tag
+    cells = Cell[]
+    for (_, ent_id) in gmsh.model.getEntities(gmsh_ndim)
+        ent = get(geo.entities, (gmsh_ndim, ent_id), nothing)
+        ent_tag = ent === nothing ? "" : ent.tag
+
+        elem_types, elem_ids, elem_conns = gmsh.model.mesh.getElements(gmsh_ndim, ent_id)
+        for (i, ty) in enumerate(elem_types)
+            shape = shape_dict[ty]
+            nenodes = nnodes_dict[ty]
+            role = ty in (1,8) ? :line : :solid
+            for (j, id) in enumerate(elem_ids[i])
+                conn = elem_conns[i][(j-1)*nenodes + 1 : j*nenodes]
+                if shape == TET10 # Convert Gmsh TET10 ordering to Serendip's FE convention
+                    conn[9], conn[10] = conn[10], conn[9] # swap last two nodes
+                end
+                enodes = Node[node_by_gmsh_id[Int(node_id)] for node_id in conn]
+                cell = Cell(shape, role, enodes, tag=ent_tag, id=Int(id))
+                push!(cells, cell)
+            end
+        end
     end
 
-    for node in mesh.nodes
-        tag = get(ptagdict, node.coord, "")
-        tag != "" || continue
-        node.tag = tag
-    end
-
-    synchronize(mesh, sort=true)
+    mesh = Mesh(max(gmsh_ndim, ndim))
+    mesh.nodes = isempty(constraint_meshes) ? nodes : get_nodes(cells)
+    mesh.elems = cells
+    synchronize(mesh, sort=sort)
 
     return mesh
-
 end

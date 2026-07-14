@@ -81,6 +81,25 @@ end
         @test sort(getfield.(left.elems, :tag)) == ["left", "right"]
     end
 
+    @announced_testset "Node tags follow canonical-node precedence" begin
+        left = quad_mesh(0.0, 1.0, tag="left")
+        right = quad_mesh(1.0, 2.0, tag="right")
+        only(select(right, :node, :(x == 1.0 && y == 0.0))).tag = "incoming"
+
+        add_mesh(left, right)
+
+        @test only(select(left, :node, :(x == 1.0 && y == 0.0))).tag == "incoming"
+
+        left = quad_mesh(0.0, 1.0, tag="left")
+        right = quad_mesh(1.0, 2.0, tag="right")
+        only(select(left, :node, :(x == 1.0 && y == 0.0))).tag = "canonical"
+        only(select(right, :node, :(x == 1.0 && y == 0.0))).tag = "incoming"
+
+        add_mesh(left, right)
+
+        @test only(select(left, :node, :(x == 1.0 && y == 0.0))).tag == "canonical"
+    end
+
     @announced_testset "Invalid joins" begin
         @test_throws Exception add_mesh(quad_mesh(0.0, 1.0, tag="a"), quad_mesh(0.0, 1.0, tag="b"))
         @test_throws Exception add_mesh(quad_mesh(0.0, 1.0, tag="coarse"), split_quad_mesh(1.0, 2.0, tag="fine"))

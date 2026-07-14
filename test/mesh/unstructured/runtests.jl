@@ -3,6 +3,7 @@ include("../../test-helpers.jl")
 
 for file in [
     "select.jl",
+    "point-tags.jl",
     "loops.jl",
     "hole.jl",
     "square.jl",

@@ -572,8 +572,10 @@ end
 Adds `other` to `mesh` in place and returns `mesh`.
 
 Nodes with the same rounded coordinate key are welded, preserving existing
-nodes from `mesh` first. Cells from both meshes are copied into the destination
-with their shape, role, tag, active state, embedded flag, crossed flag and local
+nodes from `mesh` first. If the preserved node has an empty tag, it inherits a
+non-empty tag from the matching node in `other`; conflicting non-empty tags keep
+the tag from `mesh`. Cells from both meshes are copied into the destination with
+their shape, role, tag, active state, embedded flag, crossed flag and local
 couplings preserved where possible. Mesh fields are cleared during the final
 synchronization.
 
@@ -601,7 +603,11 @@ function add_mesh(mesh::Mesh, other::Mesh; check::Bool=true)
 
     for node in other.nodes
         if haskey(pointdict, node)
-            nodemap[node] = pointdict[node]
+            canonical = pointdict[node]
+            if isempty(canonical.tag) && !isempty(node.tag)
+                canonical.tag = node.tag
+            end
+            nodemap[node] = canonical
         else
             newnode = copy(node)
             pointdict[newnode] = newnode

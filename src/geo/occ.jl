@@ -19,7 +19,8 @@ Add a point to the geometric model `geo` at the coordinates `X = [x, y, z]`.
 - `X::Vector{<:Real}`: Coordinates of the point `[x, y, z]`.
 - `size::Real=0`: Optional characteristic mesh size at the point.
 - `embedded::Bool=false`: Whether the point is embedded into an existing entity.
-- `tag::String=""`: Optional identifier for the point.
+- `tag::String=""`: Optional identifier for the point. When the point is represented
+  by a generated mesh node, the tag is transferred to that node.
 
 # Returns
 - `Point`: The created point entity.
