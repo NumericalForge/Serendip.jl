@@ -19,7 +19,9 @@ save(plot, "simple-beam-mesh.pdf")
 
 # ❱❱❱ Finite element analysis
 
-mapper = RegionModel(MechSolid, LinearElastic, E=22.0e6, nu=0.25)
+mapper = RegionMapper()
+add_mapping(mapper, :solid, MechSolid, LinearElastic, E=22.0e6, nu=0.25)
+
 model = FEModel(mesh, mapper)
 
 ana   = MechAnalysis(model, outkey="simple-beam")
@@ -27,12 +29,18 @@ stage = add_stage(ana, nincs=10, nouts=5)
 
 add_bc(stage, :node, (x==0, z==0), ux=0, uy=0, uz=0) # fixed support
 add_bc(stage, :node, (x==l, z==0), uy=0, uz=0) # roller support
-add_bc(stage, :face, (z==h), tz=-10) # surface load
+add_bc(stage, :face, (z==h), tz=-1000) # surface load
 
 run(ana)
 
 # ❱❱❱ Post-processing
 
 plot = DomainPlot()
-add_plot(plot, model; field="uy", colormap=:spectral)
+add_plot(plot, model;
+    warp=50,
+    field_mult=1e3,
+    field="uz",
+    label="\$u_z\$ [m]",
+    colormap=:spectral
+)
 save(plot, "simple-beam.pdf")
