@@ -208,7 +208,13 @@ function stage_iterator(ana::Analysis, solver_settings::SolverSettings; quiet::B
 
     data.log = open("$outdir/analysis.log", "a")
 
+    if data.stage == 0
+        println(data.log, "Serendip - Finite Element Simulation Log")
+    end
+
     for stage in ana.data.stages[cstage:end]
+        println(data.log, "\n$(ana.name)  Stage $(stage.id)")
+        println(data.log, "Time $(Dates.now())")
         stage.status = :solving
 
         nincs  = stage.nincs

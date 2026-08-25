@@ -133,7 +133,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
     model = ana.model
     data  = ana.data
-    println(data.log, "Mechanical FE analysis: Stage $(stage.id)")
 
     solstatus = success()
 
@@ -223,7 +222,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
     while T < 1.0-ΔTmin
 
-        println(data.log, "inc $(inc)   T=$(round(T, digits=4))   ΔT=$(round(ΔT, sigdigits=4))")
+        println(data.log, "inc $(inc)  output $(data.out)  T=$(round(T, digits=4))   ΔT=$(round(ΔT, sigdigits=4))")
 
         ΔUex, ΔFex = ΔT*Uex, ΔT*Fex     # increment of external vectors
 
