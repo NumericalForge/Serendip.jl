@@ -54,7 +54,7 @@ mutable struct Block
         ry::Real = 1.0,
         rz::Real = 1.0,
         r ::Real = 0.0,
-        shape = nothing,
+        shape::Union{Nothing,Symbol,CellShape} = nothing,
         quadratic = false,
         tag       = "",
         )
@@ -65,6 +65,7 @@ mutable struct Block
         shapes1d = (LIN2, LIN3, LIN4)
         shapes2d = (TRI3, TRI6, QUAD4, QUAD8, QUAD9, QUAD12)
         shapes3d = (TET4, TET10, HEX8, HEX20, HEX27, PYR5)
+        cell_shape = isnothing(shape) ? nothing : get_shape(shape)
 
         # Get ndim
         sumy = sum(abs, [ p.coord.y for p in points ])
@@ -81,32 +82,32 @@ mutable struct Block
 
         nz==0 && ndim==3 && (nz=1)
         ny==0 && ndim>=2 && (ny=1)
-        shape in shapes3d && (ndim==3 || error("Block: 3d points and nx, ny and nz are required for cell blockshape $(shape.kind)"))
+        cell_shape in shapes3d && (ndim==3 || error("Block: 3d points and nx, ny and nz are required for cell shape $(cell_shape.kind)"))
 
         npoints = length(points)
 
         if ndim==1
             npoints in (2, 3) || error("Block: invalid number of points ($npoints) for dimension $ndim or chord.")
-            shape===nothing && (shape = quadratic ? LIN3 : LIN2)
-            shape in shapes1d || error("Block: invalid cell type $(shape.kind) for dimension $ndim or chord.")
-            blockshape = npoints==2 ? LIN2 : LIN3
+            cell_shape===nothing && (cell_shape = quadratic ? LIN3 : LIN2)
+            cell_shape in shapes1d || error("Block: invalid cell type $(cell_shape.kind) for dimension $ndim or chord.")
+            block_shape = npoints==2 ? LIN2 : LIN3
         elseif ndim==2
             npoints in (4, 8) || error("Block: invalid number of points ($npoints) for dimension $ndim or surface.")
-            shape===nothing && (shape = quadratic ? QUAD8 : QUAD4)
-            shape in shapes2d || error("Block: invalid cell type $(shape.kind) for dimension $ndim or surface.")
-            blockshape = npoints==4 ? QUAD4 : QUAD8
+            cell_shape===nothing && (cell_shape = quadratic ? QUAD8 : QUAD4)
+            cell_shape in shapes2d || error("Block: invalid cell type $(cell_shape.kind) for dimension $ndim or surface.")
+            block_shape = npoints==4 ? QUAD4 : QUAD8
         else
             npoints in (8, 20) || error("Block: invalid number of points ($npoints) for dimension $ndim.")
-            shape===nothing && (shape = quadratic ? HEX20 : HEX8)
-            shape in shapes3d || error("Block: invalid cell type $(shape.kind) for dimension $ndim.")
-            blockshape = npoints==8 ? HEX8 : HEX20
+            cell_shape===nothing && (cell_shape = quadratic ? HEX20 : HEX8)
+            cell_shape in shapes3d || error("Block: invalid cell type $(cell_shape.kind) for dimension $ndim.")
+            block_shape = npoints==8 ? HEX8 : HEX20
         end
 
         for i in 1:length(points)
             points[i].id = i
         end
 
-        return new(ndim, points, blockshape, shape, nx, ny, nz, rx, ry, rz, tag)
+        return new(ndim, points, block_shape, cell_shape, nx, ny, nz, rx, ry, rz, tag)
     end
 end
 
