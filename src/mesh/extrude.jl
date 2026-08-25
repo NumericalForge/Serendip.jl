@@ -1,35 +1,35 @@
 # This file is part of Serendip package. See copyright license in https://github.com/NumericalForge/Serendip.jl
 
 """
-    EXTRUDE
+    extrude(block; axis=[0,0,1], length=1.0, n=1, quiet=true)
 
-Gets a 3D `Block` by extruding a 2D `block` in the direction given by `axis` and a distance `length`.
-It also sets the number of divisions `n` in the extruded direction.
+Create a 3D `Block` by extruding a 2D quadrilateral `block` over the specified
+`length`. The extrusion converts `QUAD4` blocks to `HEX8` and `QUAD8` blocks to
+`HEX20`, with `n` divisions in the extrusion direction.
 
-# Examples
+The `axis` direction is normalized, so its magnitude does not affect the
+extrusion length. It can be given as a vector or as `:x`, `:y`, or `:z`.
+
+# Arguments
+
+- `block::Block`: Two-dimensional block to extrude.
+- `axis=[0,0,1]`: Extrusion direction.
+- `length::Number=1.0`: Total extrusion distance.
+- `n::Int=1`: Number of divisions in the extrusion direction.
+- `quiet=true`: Accepted for API consistency; this method does not print progress
+  information.
+
+# Returns
+
+A new 3D `Block`; the input block is not modified.
+
+# Example
+
+Extrude a quadrilateral block through five divisions along the z-axis:
 
 ```julia
-julia> block2d = Block([ 0 0; 1 1 ], nx=3, ny=4, shape=QUAD8);
-julia> block3d = extrude(block2d, axis=[0,0,1], length=1, n=5)
-Block
-  nodes: 8-element Vector{Node}:
-    1: Node  id=1
-    2: Node  id=2
-    3: Node  id=3
-    4: Node  id=4
-    5: Node  id=5
-    6: Node  id=6
-    7: Node  id=7
-    8: Node  id=8
-  shape: CellShape  name="HEX8"
-  cellshape: CellShape  name="HEX20"
-  nx: 3
-  ny: 4
-  nz: 5
-  rx: 1.0
-  ry: 1.0
-  rz: 1.0
-  tag: ""
+block2d = Block([0 0; 1 0; 1 1; 0 1]; nx=3, ny=4, shape=:quad4)
+block3d = extrude(block2d; axis=:z, length=2.0, n=5)
 ```
 """
 function extrude(block::Block; axis=[0,0,1], length::Number=1.0, n::Int=1, quiet=true)::Block
@@ -80,8 +80,35 @@ end
 """
     extrude(mesh; length=1.0, n=1, axis=nothing, quiet=true, lagrangian=false)
 
-Generates a 3D mesh by extruding a planar `mesh` using
-a direction `axis`, a `length` and a number of divisions `n`.
+Create a mesh one dimension higher by extruding each element of `mesh` through
+`n` layers over the specified `length`. A 1D mesh produces a 2D mesh, while a
+2D mesh produces a 3D mesh.
+
+When `axis` is a vector, it is normalized and used as the extrusion direction.
+When `axis=nothing`, the direction is computed from the local mesh normals.
+
+# Arguments
+
+- `length::Real=1.0`: Total extrusion distance.
+- `n::Int=1`: Number of element layers in the extrusion direction. Must be positive.
+- `axis=nothing`: Extrusion direction, given as a vector, or `nothing` to use the
+  local mesh normals.
+- `quiet=true`: Suppress progress information when `true`.
+- `lagrangian=false`: Generate Lagrangian elements when available.
+
+# Returns
+
+A new `Mesh`; the input mesh is not modified.
+
+# Example
+
+Extrude one quadrilateral into two hexahedral layers:
+
+```julia
+coordinates = [0.0 0.0; 1.0 0.0; 1.0 1.0; 0.0 1.0]
+mesh2d = Mesh(coordinates, [[1, 2, 3, 4]], [:quad4])
+mesh3d = extrude(mesh2d; axis=[0, 0, 1], length=2.0, n=2)
+```
 """
 function extrude(mesh::Mesh; length::Real=1.0, n::Int=1, axis=nothing, quiet=true, lagrangian=false)
 
