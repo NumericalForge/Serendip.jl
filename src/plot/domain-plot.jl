@@ -1042,8 +1042,8 @@ function _domain_configure_layer_field!(layer::DomainPlotLayer, mesh::AbstractDo
 
     if layer.field_kind == :element
         fvals = collect(float.(elem_fields[field] .* layer.field_mult))
-        fmax = maximum(fvals)
-        fmin = minimum(fvals)
+        fmax = maximum(fvals[elem.id] for elem in layer.elems)
+        fmin = minimum(fvals[elem.id] for elem in layer.elems)
     elseif layer.field_kind == :node
         fvals = collect(float.(node_fields[field] .* layer.field_mult))
         fmax = maximum(fvals[node.id] for node in nodes)
