@@ -12,6 +12,7 @@ function make_domain_selector_mesh()
     end
 
     mesh.node_fields["temp"] = collect(1.0:length(mesh.nodes))
+    mesh.elem_fields["stress"] = [cell.tag == "left" ? 10.0 : 1_000.0 for cell in mesh.elems]
     return mesh
 end
 
@@ -30,6 +31,11 @@ Serendip.configure!(left_plot)
 @test length(left_plot.colorbars) == 1
 @test length(left_plot.left_items) == 1
 @test !isempty(left_plot.layers[1].values)
+
+left_element_plot = DomainPlot()
+add_plot(left_element_plot, mesh, "left"; field="stress", field_kind=:element)
+Serendip.configure!(left_element_plot)
+@test left_element_plot.layers[1].limits == [9.0, 11.0]
 
 right_plot = DomainPlot()
 add_plot(right_plot, mesh, none_of("left"); field="temp", field_kind=:node, colorbar=:right)
