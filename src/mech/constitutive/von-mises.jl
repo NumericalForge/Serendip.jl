@@ -22,7 +22,7 @@ Stored in `VonMisesState` (and its variants for reduced kinematics):
 # Variants
 - `VonMisesState`: 3D continuum elements (full stress/strain in Voigt notation).
 - `VonMisesPlaneStressState`: Plane stress elements.
-- `VonMisesBeamState`: Beam elements (axial + bending stress/strain).
+- `VonMisesBeamState`: Beam elements (axial and transverse-shear stress/strain).
 - `VonMisesBarState`: Truss elements (uniaxial stress/strain).
 """
 mutable struct VonMises<:Constitutive
@@ -78,6 +78,7 @@ mutable struct VonMisesBeamState<:ConstState
         this = new(ctx)
         this.σ   = zeros(Vec3)
         this.ε   = zeros(Vec3)
+        this.n   = zeros(Vec3)
         this.εpa = 0.0
         this.Δλ  = 0.0
         this.αs  = 1.0
@@ -140,7 +141,9 @@ function calcD(mat::VonMises, state::VonMisesState)
     s = SVector( σ[1]-p, σ[2]-p, σ[3]-p, σ[4], σ[5], σ[6] )
 
     dfdσ  = s*(√1.5/norm(s))
-    dεpdλ = √1.5
+    # For the normalized von Mises flow in Mandel notation,
+    # √(2/3)‖Δεp‖ = Δλ; hence dεpa/dλ = 1 for every stress state.
+    dεpdλ = 1.0
     dfdεp = -mat.H
 
     return De - De*dfdσ*dfdσ'*De / (dfdσ'*De*dfdσ - dfdεp*dεpdλ)
@@ -176,17 +179,19 @@ function update_state(mat::VonMises, state::VonMisesState, cstate::VonMisesState
             # update Δε
             # Δε = Vec6(Δε[1], Δε[2], Δε33, Δε[4], Δε[5], Δε[6])
     
-            return Δσ, success()
+            # return Δσ, success()
         else
             E, ν  = mat.E, mat.ν
             G     = E/(2*(1+ν))
             j2tr  = J2(σtr)
 
-            Δλ = ftr/(3*G + √1.5*mat.H)
+            Δλ = ftr/(3*G + mat.H)
             √j2tr - Δλ*√3*G >= 0.0 || return state.σ, failure("VonMisses: Negative value for √J2")
 
             s         = (1 - √3*G*Δλ/√j2tr)*dev(σtr)
             state.σ   = σtr - √6*G*Δλ*s/norm(s)
+            # Accumulated equivalent plastic strain:
+            # √(2/3)‖Δεp‖ = Δλ for the normalized flow direction.
             state.εpa = cstate.εpa + Δλ
             state.Δλ  = Δλ
     
@@ -220,17 +225,25 @@ function plastic_update_plane_stress(mat::VonMises, state::VonMisesState, cstate
     tol    = 1e-6*mat.σy
     Δλ     = 0.0 # plastic multiplier increment
     Δγ     = 0.0 # auxiliary variable
+    c      = 2/3
+    Δγmax  = mat.H > 0.0 ? 3/(2*mat.H) : Inf
     
     αs   = state.αs
     De   = calcDe(mat.E, mat.ν, :plane_stress, αs)
     invA = I4
-    
-    σ      = σtr
-    εpa    = cstate.εpa
-    ∂εp∂Δγ = √1.5
+    σ    = σtr
+    εpa  = cstate.εpa
 
     for i in 1:maxits
-        
+        den = 1.0 - c*mat.H*Δγ
+        den > 0.0 || return failure("VonMises: Invalid plane-stress plastic multiplier")
+
+        invA = inv(I4 + Δγ*De*Psd)
+        σ    = invA*σtr
+        σvm = √(3*J2(σ))
+        εpa = (cstate.εpa + c*mat.σy*Δγ)/den
+        Δλ  = εpa - cstate.εpa
+
         R = yield_func(mat, state, σ, εpa)
         if abs(R) <= tol
             state.σ   = σ
@@ -241,19 +254,19 @@ function plastic_update_plane_stress(mat::VonMises, state::VonMisesState, cstate
         
         p      = 1/3*(σ[1] + σ[2] + σ[3])
         s      = SVector( σ[1]-p, σ[2]-p, σ[3]-p, σ[4], σ[5], σ[6] )
-        ∂σvm∂σ = s/(√1.5*norm(s))
+        ∂σvm∂σ = √1.5*s/norm(s)
         ∂R∂εp  = -mat.H
         ∂σ∂Δγ  = -invA*De*s
-        
+        ∂εp∂Δγ = c*(mat.σy + mat.H*cstate.εpa)/den^2
+
         ∂R∂Δγ  = dot(∂σvm∂σ, ∂σ∂Δγ) + ∂R∂εp*∂εp∂Δγ
-        Δγ     = max(Δγ - R/∂R∂Δγ, 0.0)
+        isfinite(∂R∂Δγ) && ∂R∂Δγ!=0.0 || return failure("VonMises: Invalid plane-stress residual derivative")
 
-        σvm    = √(3*J2(σ))
-        Δλ     = 2/3*Δγ*σvm
-        invA   = inv(I4 + Δγ*De*Psd)
-
-        σ   = invA*σtr
-        εpa = cstate.εpa + Δλ*∂εp∂Δγ
+        Δγnew = max(Δγ - R/∂R∂Δγ, 0.0)
+        if Δγnew >= Δγmax
+            Δγnew = 0.5*(Δγ + Δγmax)
+        end
+        Δγ = Δγnew
 
     end
 
@@ -261,15 +274,15 @@ function plastic_update_plane_stress(mat::VonMises, state::VonMisesState, cstate
 end
 
 
-function calc_σ_εpa_plane_stress(mat::VonMises, state::VonMisesState, cstate::VonMisesState, σtr::Vec6, Δλ::Float64)
+function calc_σ_εpa_plane_stress(mat::VonMises, state::VonMisesState, cstate::VonMisesState, σtr::Vec6, Δγ::Float64)
     E, ν = mat.E, mat.ν
     G    = state.αs*E/2/(1+ν)
 
     # σ at n+1
-    den = E^2*Δλ^2 - 2*E*ν*Δλ + 4*E*Δλ - 3*ν^2 + 3
-    m11 = (2*E*Δλ - E*ν*Δλ - 3*ν^2 + 3)/den
-    m12 = (E*Δλ - 2*E*ν*Δλ)/den
-    m66 = 1/(2*G*Δλ + 1)
+    den = E^2*Δγ^2 - 2*E*ν*Δγ + 4*E*Δγ - 3*ν^2 + 3
+    m11 = (2*E*Δγ - E*ν*Δγ - 3*ν^2 + 3)/den
+    m12 = (E*Δγ - 2*E*ν*Δγ)/den
+    m66 = 1/(2*G*Δγ + 1)
 
     σ = SVector(
         m11*σtr[1] + m12*σtr[2],
@@ -280,9 +293,9 @@ function calc_σ_εpa_plane_stress(mat::VonMises, state::VonMisesState, cstate::
         m66*σtr[6]
     )
 
-    dfdσ = SVector( 2/3*σ[1] - 1/3*σ[2], 2/3*σ[2] - 1/3*σ[1], -1/3*σ[1]-1/3*σ[2], σ[4], σ[5], σ[6] )
-
-    εpa  = cstate.εpa + Δλ*norm(dfdσ)
+    denε = 1.0 - 2/3*mat.H*Δγ
+    denε > 0.0 || return σ, Inf
+    εpa = (cstate.εpa + 2/3*mat.σy*Δγ)/denε
 
     return σ, εpa
 end
@@ -291,7 +304,7 @@ end
 # ❱❱❱ VonMises model for beam elements ❱❱❱
 
 function yield_func(mat::VonMises, state::VonMisesBeamState, σ::Vec3, εpa::Float64)
-    # Using Mendel's notation
+    # Using Mandel's notation
     # f = √(3 J2) - fy - H εp
     # σ = [ σ1, √2*σ2, √2*σ3 ]
     # s = [ 2/3*σ1, -1/3*σ1, -1/3*σ1, 0.0, √2*σ2, √2*σ3 ]
@@ -309,40 +322,16 @@ function calcD(mat::VonMises, state::VonMisesBeamState)
     De = @SMatrix [ E    0.0  0.0
                     0.0  2*G  0.0
                     0.0  0.0  2*G ]
-                    
-    Δλ = state.Δλ
-    Δλ == 0.0 && return De
-    
+
+    state.Δλ == 0.0 && return De
+
     σ   = state.σ
     σvm = √(σ[1]^2 + 3/2*(σ[2]^2 + σ[3]^2) )
-    η   = 1.0 + 1e-3 # tangent regularization factor to avoid zero eigenvalues
-    
-    # if Δλ==0.0
-    # # if true
-    #     # @show "zero"
-    #     De_vec = Vec3(E, 2*G, 2*G)
-    #     Q_vec  = Vec3( 1, 1.5, 1.5 )
-    #     n      = 1/σvm * (Q_vec .* σ) # dfdσ
-    #     De_n   = De_vec .* n
-    #     return De.*η - (De_n*De_n') / (dot(n, De_n) + mat.H)
-    # else
-        # @show "nonzero"
-        Δλ = state.Δλ
+    Q    = Vec3(1.0, 1.5, 1.5)
+    n    = (Q.*σ)/σvm
+    De_n = De*n
 
-        n  = state.n
-        Q  = @SMatrix [ 1.0  0.0  0.0
-                       0.0  1.5  0.0
-                       0.0  0.0  1.5 ]
-
-        # Flow direction derivative: ∂n/∂σ = 1/σvm * (Q - n ⊗ n)
-        dndσ = (1/σvm)*(Q - n*n')
-
-        M    = I + Δλ*(De*dndσ)
-        R    = inv(M)*De # intermediate "softened" elastic tensor
-        R_n  = R*n
-        return R.*η - (R_n*R_n') / (dot(n, R_n) + mat.H)
-    # end
-
+    return De - (De_n*De_n')/(dot(n, De_n) + mat.H)
 end
 
 
@@ -353,13 +342,14 @@ function update_state(mat::VonMises, state::VonMisesBeamState, cstate::VonMisesB
     
     σtr = cstate.σ + De.*Δε
     ftr = yield_func(mat, state, σtr, cstate.εpa)
-    tol = 1e-8
+    tol = 1e-8*mat.σy
     
     if ftr<tol
         state.Δλ = 0.0
         state.σ  = σtr
+        state.n  = cstate.n
     else
-        status = plastic_update(mat, state, cstate, σtr)
+        status = plastic_update_beam(mat, state, cstate, σtr)
         failed(status) && return state.σ, status
     end
 
@@ -370,36 +360,53 @@ function update_state(mat::VonMises, state::VonMisesBeamState, cstate::VonMisesB
 end
 
 
-function plastic_update(mat::VonMises, state::VonMisesBeamState, cstate::VonMisesBeamState, σtr::Vec3)
+function plastic_update_beam(mat::VonMises, state::VonMisesBeamState, cstate::VonMisesBeamState, σtr::Vec3)
     E, ν = mat.E, mat.ν
-    G  = state.αs*E/2/(1+ν)
-    De = Vec3(E, 2*G, 2*G)
-    Q  = Vec3( 1, 1.5, 1.5 )
+    G     = state.αs*E/2/(1+ν)
+    De    = Vec3(E, 2*G, 2*G)
+    Pd    = Vec3(2/3, 1.0, 1.0)
+    Q     = De.*Pd
 
-    σ      = σtr
-    σvm_tr = √(σ[1]^2 + 1.5*(σ[2]^2 + σ[3]^2) )
-    n_tr   = (Q.*σtr)/σvm_tr # freezing the plastic direction
-    
-    Δλ     = 0.0
+    c      = 2/3
+    Δγ     = 0.0
+    Δγmax  = mat.H > 0.0 ? 3/(2*mat.H) : Inf
     maxits = 50
     tol    = 1e-6*mat.σy
+
+    σ    = σtr
+    εpa  = cstate.εpa
+    Δλ   = 0.0
+
     for i in 1:maxits
+        den = 1.0 - c*mat.H*Δγ
+        den > 0.0 || return failure("VonMises: Invalid beam plastic multiplier")
+
+        A    = 1.0 .+ Δγ.*Q
+        σ    = σtr./A
         σvm = √(σ[1]^2 + 1.5*(σ[2]^2 + σ[3]^2) )
-        n   = (Q.*σ)/σvm
-        εpa = cstate.εpa + Δλ
-        
+        εpa = (cstate.εpa + c*mat.σy*Δγ)/den
+        Δλ  = εpa - cstate.εpa
+
         R = yield_func(mat, state, σ, εpa)
         if abs(R) <= tol
             state.σ   = σ
+            state.n   = Vec3(σ[1], 1.5*σ[2], 1.5*σ[3])/σvm
             state.εpa = εpa
             state.Δλ  = Δλ
-            state.n   = n_tr
             return success()
         end
-        
-        Rp = -dot(n, De.*n_tr) - mat.H
-        Δλ = max(Δλ - R/Rp, 0.0)
-        σ  = σtr - Δλ*(De.*n_tr)
+
+        g       = Vec3(σ[1], 1.5*σ[2], 1.5*σ[3])/σvm
+        ∂σ∂Δγ   = -(Q.*σ)./A
+        ∂εp∂Δγ  = c*(mat.σy + mat.H*cstate.εpa)/den^2
+        ∂R∂Δγ   = dot(g, ∂σ∂Δγ) - mat.H*∂εp∂Δγ
+        isfinite(∂R∂Δγ) && ∂R∂Δγ!=0.0 || return failure("VonMises: Invalid beam residual derivative")
+
+        Δγnew = max(Δγ - R/∂R∂Δγ, 0.0)
+        if Δγnew >= Δγmax
+            Δγnew = 0.5*(Δγ + Δγmax)
+        end
+        Δγ = Δγnew
     end
 
     return failure("VonMises: plastic update failed")
