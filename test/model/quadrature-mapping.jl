@@ -1,5 +1,6 @@
 using Serendip
 using Test
+using LinearAlgebra
 
 @announced_testset "Mapping-level quadrature for generic elements" begin
     geo_line = GeoModel()
@@ -88,6 +89,45 @@ end
     add_mapping(mapper_tri, "shell", MechShell, LinearElastic; quadrature=(3, 2), E=1.0, nu=0.25, thickness=0.1)
     model_tri = FEModel(mesh_tri, mapper_tri, quiet=true)
     @test length(model_tri.elems[1].ips) == 6
+end
+
+@announced_testset "Shell drilling stiffness is independent of thickness quadrature" begin
+    for (shape, surface_rule) in ((:quad4, (2, 2)), (:quad8, (3, 3)), (:tri3, 3), (:tri6, 6))
+        geo = GeoModel()
+        add_block(geo, [0.0, 0.0, 0.0], 2.0, 1.0, 0.0; nx=1, ny=1, shape=shape, tag="shell")
+        mesh = Mesh(geo, ndim=3, quiet=true)
+        reference_drilling = nothing
+
+        for nth in (2, 3, 4)
+            quadrature = surface_rule isa Tuple ? (surface_rule..., nth) : (surface_rule, nth)
+            mapper = RegionMapper()
+            add_mapping(mapper, "shell", MechShell, LinearElastic;
+                quadrature=quadrature, E=100.0, nu=0.25, thickness=0.1, kappa=0.1)
+            model = FEModel(mesh, mapper, quiet=true)
+            elem = model.elems[1]
+            K, _, _ = Serendip.elem_stiffness(elem)
+            elem.etype.κ = 0.0
+            K_material, _, _ = Serendip.elem_stiffness(elem)
+            K_drilling = K - K_material
+
+            # On a flat shell, the drilling-rotation block is κGt ∫ N Nᵀ dA.
+            surface_ips = Serendip.get_ip_coords(elem.shape, surface_rule)
+            coords = Serendip.get_coords(elem)
+            expected = zeros(length(elem.nodes), length(elem.nodes))
+            for qp in surface_ips
+                N = elem.shape.func(qp.coord)
+                J = coords' * elem.shape.deriv(qp.coord)
+                area_scale = sqrt(det(J' * J))
+                expected += 0.1 * (100.0 / (2 * 1.25)) * 0.1 * qp.w * area_scale * N * N'
+            end
+            @test K_drilling[6:6:end, 6:6:end] ≈ expected rtol=1e-11 atol=1e-12
+            if reference_drilling === nothing
+                reference_drilling = K_drilling
+            else
+                @test K_drilling ≈ reference_drilling rtol=1e-10 atol=1e-12
+            end
+        end
+    end
 end
 
 @announced_testset "Invalid mapping-level quadrature" begin
