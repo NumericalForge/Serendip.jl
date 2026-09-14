@@ -24,6 +24,7 @@ for file in [
     "constitutive/vm-bar.jl",
     "constitutive/vm-2d.jl",
     "constitutive/vm-3d.jl",
+    "constitutive/vm-beam-material.jl",
     "constitutive/vm-beam-shell.jl",
     "constitutive/vm-beam-2d.jl",
     "constitutive/vm-beam-3d.jl",

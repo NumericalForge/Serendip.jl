@@ -1,5 +1,6 @@
 using Serendip
 using Test
+using LinearAlgebra
 
 h  = 0.1
 th = 0.05
@@ -40,4 +41,34 @@ if @isdefined(makeplots) && makeplots
     )
     add_series(chart, -tab["uy"], -tab["fy"], mark=:circle)
     save(chart, "vm-2d.pdf")
+end
+
+
+@testset "normalized plane-stress hardening" begin
+    ctx = Context(ndim=2, stress_state=:plane_stress)
+    mat = VonMises(E=200_000.0, nu=0.3, fy=250.0, H=1_000.0)
+
+    cstate = Serendip.VonMisesState(ctx)
+    state  = copy(cstate)
+    Δε     = [0.01, -0.002, 0.0, 0.0, 0.0, 0.003]
+
+    _, status = update_state(mat, state, cstate, Δε)
+    @test status.successful
+    @test state.ε ≈ Δε
+    @test state.εpa - cstate.εpa ≈ state.Δλ
+    @test abs(√(3*Serendip.J2(state.σ)) - mat.σy - mat.H*state.εpa) <= 1e-6*mat.σy
+
+    De = Serendip.calcDe(mat.E, mat.ν, :plane_stress)
+    s  = Serendip.dev(state.σ)
+    n  = √1.5*s/norm(s)
+    D  = De - De*n*n'*De/(dot(n, De*n) + mat.H)
+    @test Serendip.calcD(mat, state) ≈ D
+
+    cstate = copy(state)
+    state  = copy(cstate)
+    _, status = update_state(mat, state, cstate, 0.5*Δε)
+    @test status.successful
+    @test state.εpa >= cstate.εpa
+    @test state.εpa - cstate.εpa ≈ state.Δλ
+    @test abs(√(3*Serendip.J2(state.σ)) - mat.σy - mat.H*state.εpa) <= 1e-6*mat.σy
 end
