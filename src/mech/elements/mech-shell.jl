@@ -298,7 +298,10 @@ function elem_stiffness(elem::Element{MechShell})
     Bil_dr = zeros(1,3)
     Bi_dr  = zeros(1,ndof)
     Rθ_dr  = zeros(3,ndof)
-    m      = div(length(elem.ips), 2) # half the number of integration points
+    nth    = length(unique(ip.R[3] for ip in elem.ips)) # number of layers 
+    nsurf  = div(length(elem.ips), nth)
+    # The first thickness layer follows the registered surface-rule ordering.
+    surface_ips = get_ip_coords(elem.shape, nsurf)
 
     for (i,ip) in enumerate(elem.ips)
         N    = elem.shape.func(ip.R)
@@ -323,9 +326,9 @@ function elem_stiffness(elem::Element{MechShell})
         D     = calcD(elem.cmodel, ip.state)
         K    += coef*B'*D*B
 
-        if i<=m # drilling stiffness (area integration)
+        if i<=nsurf # drilling stiffness (area integration using the first layer)
             setB_dr(elem, N, L, dNdX′, Rθ_dr, Bil_dr, Bi_dr, B_dr)
-            coef = κ*G*norm2(J2D)*th*ip.w
+            coef = κ*G*norm2(J2D)*th*surface_ips[i].w
             @mul K += coef*B_dr'*B_dr
         end
 
