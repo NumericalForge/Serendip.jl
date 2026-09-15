@@ -123,8 +123,9 @@ end
 
 
 function calcD(mat::VonMises, state::VonMisesState)
-    
-    if state.ctx.stress_state==:plane_stress || state.αs!=1.0
+    is_plane_stress = state.ctx.stress_state==:plane_stress || state.αs!=1.0
+
+    if is_plane_stress
         αs = state.αs
         De = calcDe(mat.E, mat.ν, :plane_stress, αs)
     else
@@ -133,10 +134,30 @@ function calcD(mat::VonMises, state::VonMisesState)
     
     state.Δλ==0.0 && return De
 
-    j2d = J2(state.σ)
-    @assert j2d>0
-    
     σ = state.σ
+    j2d = J2(σ)
+    @assert j2d>0
+
+    if is_plane_stress
+        σvm = √(3*j2d)
+        Δγ  = 3*state.Δλ/(2*σvm)
+        den = 1.0 - 2/3*mat.H*Δγ
+        @assert den>0.0
+
+        s    = dev(σ)
+        g    = √1.5*s/norm(s)
+        invA = inv(I4 + Δγ*De*Psd)
+        B    = invA*De
+        v    = invA*De*s
+
+        # Exact linearization of the converged Δγ-based return mapping.
+        εpprime = 2/3*σvm/den
+        Rprime  = -dot(g, v) - mat.H*εpprime
+        @assert Rprime<0.0
+
+        return B + v*(g'*B)/Rprime
+    end
+
     p = 1/3*(σ[1] + σ[2] + σ[3])
     s = SVector( σ[1]-p, σ[2]-p, σ[3]-p, σ[4], σ[5], σ[6] )
 
@@ -327,11 +348,26 @@ function calcD(mat::VonMises, state::VonMisesBeamState)
 
     σ   = state.σ
     σvm = √(σ[1]^2 + 3/2*(σ[2]^2 + σ[3]^2) )
-    Q    = Vec3(1.0, 1.5, 1.5)
-    n    = (Q.*σ)/σvm
-    De_n = De*n
+    g    = Vec3(σ[1], 1.5*σ[2], 1.5*σ[3])/σvm
+    Pd   = Vec3(2/3, 1.0, 1.0)
+    Q    = Vec3(E, 2*G, 2*G).*Pd
+    Δγ   = 3*state.Δλ/(2*σvm)
+    den  = 1.0 - 2/3*mat.H*Δγ
+    @assert den>0.0
 
-    return De - (De_n*De_n')/(dot(n, De_n) + mat.H)
+    A     = 1.0 .+ Δγ.*Q
+    Bdiag = Vec3(E, 2*G, 2*G)./A
+    B     = @SMatrix [ Bdiag[1] 0.0      0.0
+                       0.0      Bdiag[2] 0.0
+                       0.0      0.0      Bdiag[3] ]
+    v     = (Q.*σ)./A
+
+    # Exact linearization of the converged Δγ-based return mapping.
+    εpprime = 2/3*σvm/den
+    Rprime  = -dot(g, v) - mat.H*εpprime
+    @assert Rprime<0.0
+
+    return B + v*(g'*B)/Rprime
 end
 
 
