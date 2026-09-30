@@ -147,15 +147,15 @@ function calcD(mat::VonMises, state::VonMisesState)
         s    = dev(σ)
         g    = √1.5*s/norm(s)
         invA = inv(I4 + Δγ*De*Psd)
-        B    = invA*De
-        v    = invA*De*s
+        Dγ   = invA*De
+        hγ   = invA*De*s
 
         # Exact linearization of the converged Δγ-based return mapping.
         εpprime = 2/3*σvm/den
-        Rprime  = -dot(g, v) - mat.H*εpprime
+        Rprime  = -dot(g, hγ) - mat.H*εpprime
         @assert Rprime<0.0
 
-        return B + v*(g'*B)/Rprime
+        return Dγ + hγ*(g'*Dγ)/Rprime
     end
 
     p = 1/3*(σ[1] + σ[2] + σ[3])
@@ -356,18 +356,18 @@ function calcD(mat::VonMises, state::VonMisesBeamState)
     @assert den>0.0
 
     A     = 1.0 .+ Δγ.*Q
-    Bdiag = Vec3(E, 2*G, 2*G)./A
-    B     = @SMatrix [ Bdiag[1] 0.0      0.0
-                       0.0      Bdiag[2] 0.0
-                       0.0      0.0      Bdiag[3] ]
-    v     = (Q.*σ)./A
+    Dγdiag = Vec3(E, 2*G, 2*G)./A
+    Dγ     = @SMatrix [ Dγdiag[1] 0.0       0.0
+                        0.0       Dγdiag[2] 0.0
+                        0.0       0.0       Dγdiag[3] ]
+    hγ     = (Q.*σ)./A
 
     # Exact linearization of the converged Δγ-based return mapping.
     εpprime = 2/3*σvm/den
-    Rprime  = -dot(g, v) - mat.H*εpprime
+    Rprime  = -dot(g, hγ) - mat.H*εpprime
     @assert Rprime<0.0
 
-    return B + v*(g'*B)/Rprime
+    return Dγ + hγ*(g'*Dγ)/Rprime
 end
 
 

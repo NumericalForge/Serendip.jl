@@ -76,7 +76,7 @@ end
 end
 
 
-@testset "von Mises beam continuum tangent" begin
+@testset "von Mises beam consistent tangent" begin
     E, nu = 200_000.0, 0.3
     mat = VonMises(E=E, nu=nu, fy=250.0, H=1_000.0)
     ctx = Context(ndim=3)
@@ -87,12 +87,25 @@ end
     @test status.successful
     @test state.Δλ > 0.0
 
-    G      = E/(2*(1 + nu))
-    De     = Matrix(Diagonal([E, 2*G, 2*G]))
-    σvm    = √(state.σ[1]^2 + 1.5*(state.σ[2]^2 + state.σ[3]^2))
-    n      = [state.σ[1], 1.5*state.σ[2], 1.5*state.σ[3]]/σvm
-    De_n   = De*n
-    D_cont = De - (De_n*De_n')/(dot(n, De_n) + mat.H)
+    Dalg = Matrix(Serendip.calcD(mat, state))
+    Dfd  = zeros(3, 3)
+    h    = 1e-8
 
-    @test Matrix(Serendip.calcD(mat, state)) ≈ D_cont
+    for j in 1:3
+        Δεp = [0.002, 0.001, 0.0005]
+        Δεm = copy(Δεp)
+        Δεp[j] += h
+        Δεm[j] -= h
+
+        statep = copy(cstate)
+        statem = copy(cstate)
+        _, statusp = update_state(mat, statep, cstate, Δεp)
+        _, statusm = update_state(mat, statem, cstate, Δεm)
+        @test statusp.successful && statusm.successful
+        @test statep.Δλ > 0.0 && statem.Δλ > 0.0
+        Dfd[:,j] = (statep.σ-statem.σ)/(2h)
+    end
+
+    @test Dalg ≈ Dfd rtol=1e-7
+    @test Dalg ≈ Dalg' rtol=1e-12
 end
