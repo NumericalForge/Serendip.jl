@@ -163,7 +163,7 @@ struct SolverSettings
 
     # Arguments
     - `tol::Float64`: Absolute tolerance for convergence checks.
-    - `rtol::Float64`: Relative tolerance for convergence checks.
+    - `rtol::Float64`: Relative tolerance for the iterative displacement correction.
     - `utol::Float64`: Absolute tolerance for constraint residuals.
     - `autoinc::Bool`: Enable automatic increment control .
     - `dT0::Float64`: Initial increment of pseudo-time.
@@ -317,7 +317,7 @@ Execute a finite-element analysis and return the solver status.
 
 # Keywords
 - `tol::Real`: absolute convergence tolerance for the residual.
-- `rtol::Real`: relative convergence tolerance for the residual.
+- `rtol::Real`: relative tolerance for the iterative displacement correction.
 - `utol::Real`: absolute convergence tolerance for constraint residuals.
 - `autoinc::Bool`: enable automatic step size control.
 - `dT0::Real`: initial time/load increment.

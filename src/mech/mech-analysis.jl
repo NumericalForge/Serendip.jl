@@ -244,6 +244,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         res   = 0.0 # residual for current iteration
         res1  = 0.0 # first iteration residual for autoinc adjustment
         res_c = 0.0 # constraint residual
+        err   = Inf # relative displacement correction
 
         converged = false
         syserror  = false
@@ -267,6 +268,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
             # Update accumulated displacement
             ΔUa .+= ΔUi
+            err = norm(ΔUi, Inf)/max(norm(ΔUa, Inf), eps(Float64))
 
             # Residual vector for next iteration
             R .= ΔFex .- ΔFin
@@ -277,14 +279,14 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                 res_c = norm(Rcon, Inf)
             end
             res = norm(R, Inf)
-            @printf(data.log, "    it %d  residue: %-10.4e\n", it, res)
+            @printf(data.log, "    it %d  residue: %-10.4e  relative correction: %-10.4e\n", it, res, err)
             
             if it==1
                 res1 = res
             end
             it>1  && (linear_domain=false)
             
-            res < ftol && res_c < utol && (converged=true; break)
+            (res < ftol || err < rtol) && res_c < utol && (converged=true; break)
 
             isnan(res) && break
             it>maxits  && break
