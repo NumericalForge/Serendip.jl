@@ -6,7 +6,7 @@ export AsinhYieldCohesive
 """
     AsinhYieldCohesive(; E, nu=0.0, fc, ft, wc=NaN, GF=NaN, psi=1.0,
                        ft_law=:hordijk, alpha=0.5, beta=0.0,
-                       theta=1.0, zeta=5.0)
+                       theta=1.0, zeta=5.0, tangent=:continuum)
 
 Cohesive constitutive model with tensile softening and an asinh shear envelope
 with fixed offset, with yield function:
@@ -22,7 +22,11 @@ offset is derived as `B = (beta*fc)/asinh(alpha*fc/ft)` and remains constant for
 The model uses the tensile softening law returned by `setup_tensile_strength(ft, GF, wc, ft_law)`.
 The local stiffness is obtained from `E`, `nu`, the local characteristic length `h`, and a
 scaling factor `zeta`. The stiffness factor is further degraded linearly with normal opening from
-`zeta` down to `0.1*zeta`.
+`zeta` down to `0.1*zeta`. For robustness in strongly softening problems, the algorithmic tangent
+limits the softening modulus to `-ft/(0.5wc)`.
+
+The global equilibrium iterations use the continuum elastoplastic tangent by default. Set
+`tangent=:consistent` to use the consistent linearization of the discrete stress update instead.
 
 Plastic flow is non-associated in tension through `psi`, and in compression the potential has no
 normal component, so plastic flow acts only in shear.
@@ -42,6 +46,8 @@ normal component, so plastic flow acts only in shear.
   (`0 ≤ beta ≤ 1`).
 - `theta::Real=1.0`: Degradation exponent of `A(σmax)` (`theta ≥ 0`).
 - `zeta::Real=5.0`: Maximum elastic stiffness scaling factor (`zeta ≥ 0`).
+- `tangent::Symbol=:continuum`: Tangent operator used by the global solver. Supported values are
+  `:continuum` and `:consistent`.
 """
 mutable struct AsinhYieldCohesive <: Constitutive
     E ::Float64
@@ -58,6 +64,7 @@ mutable struct AsinhYieldCohesive <: Constitutive
     θ ::Float64
     A0::Float64
     ζ ::Float64
+    tangent::Symbol
 
     function AsinhYieldCohesive(;
         E::Real = NaN,
@@ -72,6 +79,7 @@ mutable struct AsinhYieldCohesive <: Constitutive
         beta::Real = 0.2,
         theta::Real = 1.0,
         zeta::Real = 5.0,
+        tangent::Symbol = :continuum,
     )
         @check E > 0 "AsinhYieldCohesive: Young's modulus E must be > 0. Got $(repr(E))."
         @check 0 <= nu < 0.5 "AsinhYieldCohesive: Poisson ratio nu must be in the range [0, 0.5). Got $(repr(nu))."
@@ -82,6 +90,7 @@ mutable struct AsinhYieldCohesive <: Constitutive
         @check alpha > 0 "AsinhYieldCohesive: alpha must be positive. Got $(repr(alpha))."
         @check 0.0 <= beta <= 1.0 "AsinhYieldCohesive: beta must be in the range [0, 1]. Got $(repr(beta))."
         @check theta >= 0 "AsinhYieldCohesive: theta must be non-negative. Got $(repr(theta))."
+        @check tangent in (:continuum, :consistent) "AsinhYieldCohesive: tangent must be :continuum or :consistent. Got $(repr(tangent))."
         @check ft_law in (:linear, :bilinear, :hordijk) || ft_law isa AbstractSpline "AsinhYieldCohesive: Unknown ft_law model: $ft_law. Supported models are :linear, :bilinear, :hordijk or a custom AbstractSpline."
 
         B = (beta*fc)/asinh(alpha*fc/ft)
@@ -91,7 +100,7 @@ mutable struct AsinhYieldCohesive <: Constitutive
 
         A0 = fit_initial_asinh_amplitude(float(alpha), float(B), float(fc), float(ft))
 
-        return new(E, nu, fc, ft, wc, psi, ft_law, ft_fun, alpha, beta, B, theta, A0, zeta)
+        return new(E, nu, fc, ft, wc, psi, ft_law, ft_fun, alpha, beta, B, theta, A0, zeta, tangent)
     end
 end
 
@@ -103,6 +112,8 @@ mutable struct AsinhYieldCohesiveState <: ConstState
     up ::Float64
     Δλ ::Float64
     h  ::Float64
+    kn ::Float64
+    ks ::Float64
     function AsinhYieldCohesiveState(ctx::Context)
         this    = new(ctx)
         this.σ  = zeros(Vec3)
@@ -110,6 +121,8 @@ mutable struct AsinhYieldCohesiveState <: ConstState
         this.up = 0.0
         this.Δλ = 0.0
         this.h  = 0.0
+        this.kn = NaN
+        this.ks = NaN
         return this
     end
 end
@@ -250,9 +263,20 @@ function calc_kn_ks(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
 end
 
 
+function calc_tangent_softening_modulus(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
+    H = deriv_σmax_up(mat, state.up)
+    Hcap = -mat.ft/(0.5*mat.wc)
+    return max(H, Hcap)
+end
+
+
 function calcD(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
     σmax = calc_σmax(mat, state.up)
-    kn, ks = calc_kn_ks(mat, state)
+    kn, ks = if isnan(state.kn) || isnan(state.ks)
+        calc_kn_ks(mat, state)
+    else
+        state.kn, state.ks
+    end
     tiny = 1e-6*mat.ft
 
     De = @SMatrix [ kn   0.0  0.0
@@ -262,24 +286,41 @@ function calcD(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
     if state.Δλ == 0.0
         return De
     elseif σmax <= tiny && state.w[1] >= 0.0
-        return De*1e-8
-    else
+        return De*1e-6
+    elseif mat.tangent == :continuum
         n, ∂f∂σmax = yield_derivs(mat, state.σ, σmax)
         m = potential_derivs(mat, state.σ)
-        H = deriv_σmax_up(mat, state.up)
-        Hcap = -mat.ft/(0.5*mat.wc)
-        H = max(H, Hcap)
-
-        De_m  = De*m
+        H = calc_tangent_softening_modulus(mat, state)
+        De_m = De*m
         nT_De = n'*De
-        den   = dot(n, De_m) - ∂f∂σmax*H*norm(m)
+        den = dot(n, De_m) - ∂f∂σmax*H*norm(m)
         return De - (De_m*nT_De)/den
+    else
+        σn, τ1, τ2 = state.σ
+        q = σn < 0.0 ? 0.0 : mat.ψ^2
+        sn = 1.0/(1.0 + state.Δλ*kn*q)
+        ss = 1.0/(1.0 + state.Δλ*ks)
+        S = @SMatrix [ sn   0.0  0.0
+                       0.0  ss   0.0
+                       0.0  0.0  ss ]
+
+        n, ∂f∂σmax = yield_derivs(mat, state.σ, σmax)
+        m = Vec3(q*σn, τ1, τ2)
+        norm_m = norm(m)
+        unit_m = m/(norm_m + eps())
+        a = Vec3(-sn*kn*q*σn, -ss*ks*τ1, -ss*ks*τ2)
+        c = state.Δλ*Vec3(unit_m[1]*q*sn, unit_m[2]*ss, unit_m[3]*ss)
+        γ = norm_m + state.Δλ*dot(unit_m, Vec3(q*a[1], a[2], a[3]))
+        H = calc_tangent_softening_modulus(mat, state)
+        b = S*n + ∂f∂σmax*H*c
+        rλ = dot(n, a) + ∂f∂σmax*H*γ
+        return (S - a*b'/rλ)*De
     end
 end
 
 
 function plastic_update(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, cstate::AsinhYieldCohesiveState, σtr::Vec3)
-    kn, ks = calc_kn_ks(mat, state)
+    kn, ks = state.kn, state.ks
     σntr, τ1tr, τ2tr = σtr
 
     maxits    = 50
@@ -368,6 +409,8 @@ end
 
 function update_state(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState, cstate::AsinhYieldCohesiveState, Δw::Vector{Float64})
     kn, ks = calc_kn_ks(mat, state)
+    state.kn = kn
+    state.ks = ks
     De = @SMatrix [ kn   0.0  0.0
                     0.0  ks   0.0
                     0.0  0.0  ks ]
