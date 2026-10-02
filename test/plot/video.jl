@@ -80,7 +80,7 @@ save(video2d_free, outfile2d_free)
 
 mesh3d = warped_mesh_3d()
 plot1_3d = DomainPlot(mesh3d; face_color=:aliceblue, title="3D frame 1", warp=0.5, azimuth=35, elevation=20)
-plot2_3d = DomainPlot(mesh3d; face_color=:lightblue, title="3D frame 2", warp=3.0, azimuth=35, elevation=20)
+plot2_3d = DomainPlot(mesh3d; face_color=:lightblue, title="3D frame 2", warp=3.0, azimuth=75, elevation=35, distance=4, up=:y)
 
 video3d = VideoBuilder(framerate=2, cleanup=true, tempdir=frame_root, freeze_scale=true)
 add_frame(video3d, plot1_3d)
@@ -93,6 +93,11 @@ save(video3d, outfile3d)
 @test filesize(outfile3d) > 0
 @test plot2_3d.frozen_scaling_state isa Serendip.DomainPlotScalingState3D
 @test all(isapprox.(plot1_3d.canvas.limits, plot2_3d.canvas.limits; atol=1.0e-8))
+@test isapprox(plot1_3d.frozen_scaling_state.scale, plot2_3d.frozen_scaling_state.scale; atol=1.0e-8)
+@test isapprox(plot2_3d.projection_state.azimuth, plot2_3d.azimuth; atol=1.0e-8)
+@test isapprox(plot2_3d.projection_state.elevation, plot2_3d.elevation; atol=1.0e-8)
+@test isapprox(plot2_3d.projection_state.distance, plot2_3d.distance; atol=1.0e-8)
+@test plot2_3d.projection_state.up == plot2_3d.up
 
 Serendip._apply_scaling_state!(plot2_3d, plot2_2d.frozen_scaling_state)
 @test_throws Serendip.SerendipException Serendip.configure!(plot2_3d)

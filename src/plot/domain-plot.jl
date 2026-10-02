@@ -1548,6 +1548,25 @@ function _apply_scaling_state!(mplot::DomainPlot, state::DomainPlotScalingState)
 end
 
 
+function _apply_scaling_state!(mplot::DomainPlot, state::DomainPlotScalingState3D)
+    # Keep the first frame's normalization and bounds while preserving each frame's camera.
+    mplot.frozen_scaling_state = DomainPlotScalingState3D(
+        state.ndim,
+        state.center,
+        state.reflength,
+        state.xmin,
+        state.ymin,
+        state.scale,
+        state.canvas_limits,
+        mplot.azimuth,
+        mplot.elevation,
+        mplot.distance,
+        mplot.up,
+    )
+    return mplot
+end
+
+
 function _domain_build_render_elems!(mplot::DomainPlot)
     for (layer_index, layer) in enumerate(mplot.layers)
         for (index_in_layer, elem) in enumerate(layer.elems)

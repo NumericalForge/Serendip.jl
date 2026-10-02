@@ -81,7 +81,7 @@ nouts  = stage.nouts
 # outdir = "crack-2d"
 # outkey = "crack-2d"
 
-video = VideoBuilder(freeze_scale=true, bounds_factor=1.05)
+video = VideoBuilder(freeze_scale=true, bounds_factor=1.05, duration=5)
 
 for i in 0:nouts
     file = joinpath(ana.data.outdir, "$(ana.data.outkey)-$i.vtu")
