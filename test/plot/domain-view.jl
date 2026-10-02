@@ -1,6 +1,7 @@
 using Serendip
 using Test
 using LinearAlgebra
+using Statistics
 
 geo = GeoModel(quiet=true)
 add_block(geo, [0, 0, 0], 1, 1, 1, nx=1, ny=1, nz=1, tag="solids")
@@ -59,6 +60,60 @@ function two_hex_interface_mesh()
     end
 
     return mesh
+end
+
+function cohesive_gap_mesh(normal_jump; tangential=false, scale=0.1)
+    mesh = two_hex_interface_mesh()
+    for node in mesh.nodes
+        node.coord = scale * node.coord
+    end
+    add_cohesive_elements(mesh, "left", tag="cohesive", implicit=false, quiet=true)
+
+    cohesive = only(select(mesh.elems, :cohesive))
+    hnodes = div(length(cohesive.nodes), 2)
+    C = get_coords(cohesive.nodes[1:hnodes], 3)
+    R = vec(mean(cohesive.shape.base_shape.nat_coords, dims=1))
+    J = C' * cohesive.shape.deriv(R)
+    normal = normalize(cross(J[:, 1], J[:, 2]))
+    direction = tangential ? normalize(J[:, 1]) : normal
+
+    U = zeros(Float64, length(mesh.nodes), 3)
+    for node in cohesive.nodes[hnodes+1:end]
+        U[node.id, :] .= normal_jump .* direction
+    end
+    mesh.node_fields["U"] = U
+    return mesh
+end
+
+function cohesive_owner_face_keys(mesh)
+    cohesive = only(select(mesh.elems, :cohesive))
+    hnodes = div(length(cohesive.nodes), 2)
+    side_nodes = (cohesive.nodes[1:hnodes], cohesive.nodes[hnodes+1:end])
+    keys = Set{Tuple{Int,Int}}()
+
+    for (owner, nodes) in zip(cohesive.couplings[1:2], side_nodes)
+        topology_key = Serendip._topology_key(nodes)
+        face = only(face for face in get_facets(owner) if Serendip._topology_key(face) == topology_key)
+        push!(keys, (owner.id, face.facet_idx))
+    end
+    return keys
+end
+
+function configured_layer(mesh, selectors...; kwargs...)
+    plot = DomainPlot()
+    add_plot(plot, mesh, selectors...; kwargs...)
+    Serendip.configure!(plot)
+    return plot, plot.layers[1]
+end
+
+function rendered_owner_face_counts(layer)
+    counts = Dict{Tuple{Int,Int},Int}()
+    for face in layer.elems
+        face.owner === nothing && continue
+        key = (face.owner.id, face.facet_idx)
+        counts[key] = get(counts, key, 0) + 1
+    end
+    return counts
 end
 
 function configured_outline_geom_keys(mesh; warp=0.0)
@@ -316,6 +371,64 @@ correction_chain = sort([late_line; many_surfaces], by=Serendip._domain_render_d
     add_contact_elements(contact_mesh, "left", "right", tag="contact", quiet=true)
     contact_outline = configured_outline_geom_keys(contact_mesh)
     @test contact_outline == base_outline
+end
+
+@announced_testset "Automatic 3D cohesive crack faces" begin
+    reference_mesh = cohesive_gap_mesh(0.0)
+    opening_tol = 1e-3 * Serendip._domain_mesh_diagonal(reference_mesh)
+
+    no_u_mesh = two_hex_interface_mesh()
+    for node in no_u_mesh.nodes
+        node.coord = 0.1 * node.coord
+    end
+    add_cohesive_elements(no_u_mesh, "left", tag="cohesive", implicit=false, quiet=true)
+    _, no_u_layer = configured_layer(no_u_mesh, :solid; warp=10.0)
+    @test all(get(rendered_owner_face_counts(no_u_layer), key, 0) == 0 for key in cohesive_owner_face_keys(no_u_mesh))
+
+    unwarped_mesh = cohesive_gap_mesh(2.0*opening_tol)
+    _, unwarped_layer = configured_layer(unwarped_mesh, :solid; warp=0.0)
+    @test all(get(rendered_owner_face_counts(unwarped_layer), key, 0) == 0 for key in cohesive_owner_face_keys(unwarped_mesh))
+
+    below_mesh = cohesive_gap_mesh(0.5*opening_tol)
+    _, below_layer = configured_layer(below_mesh, :solid; warp=1.0)
+    @test all(get(rendered_owner_face_counts(below_layer), key, 0) == 0 for key in cohesive_owner_face_keys(below_mesh))
+
+    open_mesh = cohesive_gap_mesh(2.0*opening_tol)
+    interface_keys = cohesive_owner_face_keys(open_mesh)
+    open_plot, open_layer = configured_layer(open_mesh, :solid; warp=1.0)
+    open_counts = rendered_owner_face_counts(open_layer)
+    @test all(get(open_counts, key, 0) == 1 for key in interface_keys)
+    open_faces = [face for face in open_layer.elems if face.owner !== nothing && (face.owner.id, face.facet_idx) in interface_keys]
+    @test count(face -> Serendip._domain_render_elem_visible(open_layer, face), open_faces) == 1
+
+    amplified_mesh = cohesive_gap_mesh(0.5*opening_tol)
+    _, amplified_layer = configured_layer(amplified_mesh, :solid; warp=5.0)
+    @test all(get(rendered_owner_face_counts(amplified_layer), key, 0) == 1 for key in cohesive_owner_face_keys(amplified_mesh))
+
+    compressed_mesh = cohesive_gap_mesh(-2.0*opening_tol)
+    _, compressed_layer = configured_layer(compressed_mesh, :solid; warp=1.0)
+    @test all(get(rendered_owner_face_counts(compressed_layer), key, 0) == 0 for key in cohesive_owner_face_keys(compressed_mesh))
+
+    sliding_mesh = cohesive_gap_mesh(2.0*opening_tol, tangential=true)
+    _, sliding_layer = configured_layer(sliding_mesh, :solid; warp=1.0)
+    @test all(get(rendered_owner_face_counts(sliding_layer), key, 0) == 0 for key in cohesive_owner_face_keys(sliding_mesh))
+
+    separated_mesh = cohesive_gap_mesh(2e-3)
+    separated_keys = cohesive_owner_face_keys(separated_mesh)
+    _, separated_layer = configured_layer(separated_mesh, :solid; warp=1.0)
+    separated_counts = rendered_owner_face_counts(separated_layer)
+    @test all(get(separated_counts, key, 0) == 1 for key in separated_keys)
+
+    selected_mesh = cohesive_gap_mesh(2.0*opening_tol)
+    selected_keys = cohesive_owner_face_keys(selected_mesh)
+    selected_key = only(key for key in selected_keys if selected_mesh.elems[key[1]].tag == "left")
+    unselected_key = only(setdiff(selected_keys, Set([selected_key])))
+    _, selected_layer = configured_layer(selected_mesh, "left"; warp=1.0)
+    selected_counts = rendered_owner_face_counts(selected_layer)
+    @test get(selected_counts, selected_key, 0) == 1
+    @test get(selected_counts, unselected_key, 0) == 0
+
+    @test length(open_plot.render_elems) == length(open_layer.elems)
 end
 
 @announced_testset "Tolerant geometric matching" begin

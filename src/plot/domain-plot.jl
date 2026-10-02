@@ -233,10 +233,6 @@ mutable struct DomainPlot <: Figure
             arrow_length=axis_arrow_length,
         )
 
-        # printstyled("Domain plot\n", bold=true, color=:cyan)
-        # println("  size: $(width) x $(height) pt")
-        # title != "" && println("  title: $(title)")
-
         return new(
             nothing,
             Frame(0.0, 0.0, width, height),
@@ -459,7 +455,7 @@ function _domain_outline_rgb(face_color, line_color, outline_color)
     if outline_color != :auto
         return _domain_rgb(outline_color)
     elseif line_color == :auto
-        return face_color .* 0.7
+        return face_color .* 0.5
     else
         return _domain_rgb(line_color) .* 0.7
     end
@@ -1093,14 +1089,100 @@ function _domain_configure_layer_vector_field!(layer::DomainPlotLayer, mesh::Abs
 end
 
 
-function _domain_geom_match_tolerance(mesh::AbstractDomain)
-    isempty(mesh.nodes) && return 1e-5
-
+function _domain_mesh_diagonal(mesh::AbstractDomain)
+    isempty(mesh.nodes) && return 0.0
     xmin, xmax = extrema(node.coord.x for node in mesh.nodes)
     ymin, ymax = extrema(node.coord.y for node in mesh.nodes)
     zmin, zmax = extrema(node.coord.z for node in mesh.nodes)
-    diag = norm(Vec3(xmax - xmin, ymax - ymin, zmax - zmin))
-    return max(1e-3, 1e-3 * diag)
+    return norm(Vec3(xmax - xmin, ymax - ymin, zmax - zmin))
+end
+
+
+function _domain_geom_match_tolerance(mesh::AbstractDomain)
+    isempty(mesh.nodes) && return 1e-5
+    return max(1e-3, 1e-3 * _domain_mesh_diagonal(mesh))
+end
+
+
+function _domain_cohesive_face_keys(mesh::AbstractDomain, solid_ids::Set{Int}, warp::Float64)
+    U = get(mesh.node_fields, "U", nothing)
+    interface_keys = Set{Tuple{Int,Int}}()
+    open_keys = Set{Tuple{Int,Int}}()
+    warp > 0.0 && U !== nothing || return interface_keys, open_keys
+
+    opening_tol = 1e-3 * _domain_mesh_diagonal(mesh)
+    opening_tol > 0.0 || return interface_keys, open_keys
+
+    for cohesive in mesh.elems
+        cohesive.active && cohesive.role == :cohesive && cohesive.shape.ndim == 2 || continue
+        iseven(length(cohesive.nodes)) || continue
+        length(cohesive.couplings) >= 2 || continue
+
+        hnodes = div(length(cohesive.nodes), 2)
+        side_nodes = (cohesive.nodes[1:hnodes], cohesive.nodes[hnodes+1:end])
+        cohesive_keys = Tuple{Int,Int}[]
+        for (owner, nodes) in zip(cohesive.couplings[1:2], side_nodes)
+            owner.id in solid_ids || continue
+            topology_key = _topology_key(nodes)
+            for face in get_facets(owner)
+                if _topology_key(face) == topology_key
+                    key = (Int(owner.id), face.facet_idx)
+                    push!(interface_keys, key)
+                    push!(cohesive_keys, key)
+                    break
+                end
+            end
+        end
+
+        C = get_coords(cohesive.nodes[1:hnodes], 3)
+        R = vec(mean(cohesive.shape.base_shape.nat_coords, dims=1))
+        J = C' * cohesive.shape.deriv(R)
+        normal = cross(J[:, 1], J[:, 2])
+        normal_norm = norm(normal)
+        normal_norm > 0.0 || continue
+        normal ./= normal_norm
+
+        jump = zeros(Float64, 3)
+        for i in 1:hnodes
+            node1 = cohesive.nodes[i]
+            node2 = cohesive.nodes[hnodes+i]
+            jump .+= U[node2.id, 1:3] .- U[node1.id, 1:3]
+        end
+        jump ./= hnodes
+        warp * dot(jump, normal) >= opening_tol || continue
+        union!(open_keys, cohesive_keys)
+    end
+
+    return interface_keys, open_keys
+end
+
+
+function _domain_add_open_cohesive_faces!(surfcells, source_mesh::AbstractDomain, volcells, warp::Float64)
+    volcells_by_id = Dict(Int(cell.id) => cell for cell in volcells)
+    interface_keys, open_keys = _domain_cohesive_face_keys(source_mesh, Set(keys(volcells_by_id)), warp)
+    isempty(interface_keys) && return nothing
+
+    filter!(surfcells) do face
+        face.owner === nothing && return true
+        key = (Int(face.owner.id), face.facet_idx)
+        return key in open_keys || !(key in interface_keys)
+    end
+
+    existing_keys = Set{Tuple{Int,Int}}()
+    for face in surfcells
+        face.owner === nothing && continue
+        push!(existing_keys, (Int(face.owner.id), face.facet_idx))
+    end
+
+    for key in open_keys
+        key in existing_keys && continue
+        owner_id, facet_idx = key
+        owner = volcells_by_id[owner_id]
+        push!(surfcells, get_facets(owner)[facet_idx])
+        push!(existing_keys, key)
+    end
+
+    return nothing
 end
 
 
@@ -1134,6 +1216,7 @@ function _domain_prepare_layer!(mplot::DomainPlot, layer::DomainPlotLayer)
         areacells = [elem for elem in active_elems if elem.shape.ndim == 2 && elem.role in (:solid, :surface)]
         linecells = [elem for elem in active_elems if elem.role == :line]
         surfcells = get_outer_facets(volcells, tol=geom_tol)
+        _domain_add_open_cohesive_faces!(surfcells, layer.mesh, volcells, layer.warp)
         all_surfcells = AbstractCell[surfcells; areacells]
         outline_edges = get_outline_edges(all_surfcells, angle=layer.outline_angle, tol=geom_tol)
 
