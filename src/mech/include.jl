@@ -22,6 +22,7 @@ include("constitutive/evolution_laws.jl")
 
 # Models for bulk elements
 include("constitutive/linear-elastic.jl")
+include("constitutive/concrete-compression.jl")
 # include("constitutive/linear-elastic-fluid.jl")
 include("constitutive/drucker-prager.jl")
 include("constitutive/von-mises.jl")
