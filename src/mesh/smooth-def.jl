@@ -350,7 +350,7 @@ function _def_force_bc(mesh::Mesh, E::Float64, nu::Float64, alpha::Float64, exte
     for cell in mesh.elems
         ncell_nodes = length(cell.nodes)
         C0 = get_coords(cell.nodes, ndim)
-        extent = abs(cell_extent(cell))
+        extent = abs(cell_measure(cell))
         scale = extent^(1.0 / ndim)
         extended && (scale *= alpha)
 

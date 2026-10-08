@@ -3,6 +3,7 @@ include("../test-helpers.jl")
 
 for file in [
     "identity.jl",
+    "cell-metrics.jl",
     "select.jl",
     "shape/shape_deriv.jl",
     "shape/extrapolation.jl",

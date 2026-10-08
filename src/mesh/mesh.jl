@@ -806,7 +806,7 @@ function stats(mesh::Mesh)
 
     L = Float64[]
     for elem in mesh.elems.solids
-        l = cell_extent(elem)^(1/mesh.ctx.ndim)
+        l = cell_measure(elem)^(1/mesh.ctx.ndim)
         push!(L, l)
     end
     lavg = mean(L)

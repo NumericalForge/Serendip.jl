@@ -167,8 +167,13 @@ function get_edges(node::Node)
 end
 
 
-# Returns the volume/area/length of a cell
-function cell_extent(c::AbstractCell)
+"""
+    cell_measure(cell::AbstractCell)
+
+Return the intrinsic geometric measure of `cell`: length for a line cell, area
+for a surface cell, and volume for a solid cell.
+"""
+function cell_measure(c::AbstractCell)
     IP = get_ip_coords(c.shape)
     nip = size(IP,1)
     nldim = c.shape.ndim # cell basic dimension
@@ -186,11 +191,31 @@ function cell_extent(c::AbstractCell)
         @mul J = C'*dNdR
         normJ = norm2(J)
         #if normJ<0
-            #error("cell_extent: Negative Jacobian while calculating cell volume/area/length id=$(c.id) shape=$(c.shape.kind) ")
+            #error("cell_measure: Negative Jacobian while calculating cell volume/area/length id=$(c.id) shape=$(c.shape.kind) ")
         #end
         vol += normJ*w
     end
     return vol
+end
+
+
+"""
+    cell_diameter(cell::AbstractCell)
+
+Return the largest Euclidean distance between any two nodes of `cell`. A cell
+with fewer than two nodes has zero diameter.
+"""
+function cell_diameter(c::AbstractCell)
+    nnodes = length(c.nodes)
+    nnodes < 2 && return 0.0
+
+    diameter = 0.0
+    for i in 2:nnodes
+        for j in 1:i-1
+            diameter = max(diameter, norm(c.nodes[i].coord - c.nodes[j].coord))
+        end
+    end
+    return diameter
 end
 
 
@@ -278,11 +303,11 @@ function cell_quality(c::AbstractCell)::Float64
     # cell surface
     surf = 0.0
     for f in faces
-        surf += cell_extent(f)
+        surf += cell_measure(f)
     end
 
     # quality calculation
-    extent = cell_extent(c) # volume or area
+    extent = cell_measure(c) # volume or area
     rsurf  = regular_surface(abs(extent), c.shape)
 
     k = 2
@@ -296,7 +321,7 @@ end
 
 function cell_aspect_ratio(c::AbstractCell)::Float64
     edges = get_edges(c)
-    lengths_iter = (cell_extent(e) for e in edges)
+    lengths_iter = (cell_measure(e) for e in edges)
     min_l, max_l = extrema(lengths_iter)
     return max_l / min_l
 end

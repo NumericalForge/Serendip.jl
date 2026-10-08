@@ -1268,7 +1268,7 @@ end
 
 function _domain_render_2d_key(render::DomainRenderElem)
     role_rank = render.elem.role == :line ? 1 : 0
-    area_key = role_rank == 0 ? -cell_extent(render.elem) : 0.0
+    area_key = role_rank == 0 ? -cell_measure(render.elem) : 0.0
     return (render.layer_index, role_rank, area_key, render.index_in_layer)
 end
 

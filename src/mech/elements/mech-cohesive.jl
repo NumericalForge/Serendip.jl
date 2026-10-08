@@ -85,7 +85,7 @@ function elem_init(elem::Element{MechCohesive})
         else
             # Avg volume of linked elements
             for owner in elem.couplings
-                V += cell_extent(owner)
+                V += cell_measure(owner)
             end
             V /= length(elem.couplings)
 

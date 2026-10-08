@@ -100,7 +100,7 @@ function laplacian_smooth(
 
             if weighted
                 Xcs = [mean(get_coords(c, ndim), dims = 1)[1:ndim] for c in patch]
-                Vs = [abs(cell_extent(c)) for c in patch]
+                Vs = [abs(cell_measure(c)) for c in patch]
                 X = X0 + sum(Vs[j] * (Xcs[j] - X0) for j in 1:length(patch)) / sum(Vs)
             else
                 X = mean(get_coords(local_nodes), dims = 1)[1:ndim]

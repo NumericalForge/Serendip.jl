@@ -129,14 +129,31 @@ Filter = x -> x === Serendip.get_patches
 
 ```@raw html
 <details>
-<summary><code>cell_extent</code></summary>
+<summary><code>cell_measure</code></summary>
 ```
 
 ```@autodocs
 Modules = [Serendip]
 Private = false
 Public = true
-Filter = x -> x === Serendip.cell_extent
+Filter = x -> x === Serendip.cell_measure
+```
+
+```@raw html
+</details>
+```
+
+
+```@raw html
+<details>
+<summary><code>cell_diameter</code></summary>
+```
+
+```@autodocs
+Modules = [Serendip]
+Private = false
+Public = true
+Filter = x -> x === Serendip.cell_diameter
 ```
 
 ```@raw html
@@ -607,4 +624,3 @@ Filter = x -> x === Serendip.save
 ```@raw html
 </details>
 ```
-
