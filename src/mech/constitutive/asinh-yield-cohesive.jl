@@ -21,9 +21,10 @@ offset is derived as `B = (beta*fc)/asinh(alpha*fc/ft)` and remains constant for
 
 The model uses the tensile softening law returned by `setup_tensile_strength(ft, GF, wc, ft_law)`.
 The local stiffness is obtained from `E`, `nu`, the local characteristic length `h`, and a
-scaling factor `zeta`. The stiffness factor is further degraded linearly with normal opening from
-`zeta` down to `0.1*zeta`. For robustness in strongly softening problems, the algorithmic tangent
-limits the softening modulus to `-ft/(0.5wc)`.
+scaling factor `zeta`. The normal penalty stiffness retains the full scaling factor. The shear
+penalty stiffness is degraded linearly with accumulated plastic opening from `zeta` down to
+`0.1*zeta` at `up = 0.3wc`. For robustness in strongly softening problems, the algorithmic
+tangent limits the softening modulus to `-ft/(0.5wc)`.
 
 The global equilibrium iterations use the continuum elastoplastic tangent by default. Set
 `tangent=:consistent` to use the consistent linearization of the discrete stress update instead.
@@ -252,13 +253,12 @@ function calc_kn_ks(mat::AsinhYieldCohesive, state::AsinhYieldCohesiveState)
     ζmax = mat.ζ
     ζmin = 0.1*ζmax
 
-    wn = state.w[1]
     w0 = 0.3*mat.wc
-    ζ  = clamp(ζmax - (ζmax - ζmin)*wn/w0, ζmin, ζmax)
+    ζs = clamp(ζmax - (ζmax - ζmin)*state.up/w0, ζmin, ζmax)
 
-    kn = mat.E*ζ/state.h
+    kn = mat.E*ζmax/state.h
     G  = mat.E/(2*(1 + mat.ν))
-    ks = G*ζ/state.h
+    ks = G*ζs/state.h
     return kn, ks
 end
 
