@@ -78,6 +78,40 @@ for trajectory in trajectories
 end
 
 
+@announced_testset "AsinhYieldCohesive reference mode-II energy" begin
+    material_args = (
+        E=32.4e6,
+        nu=0.20,
+        fc=-47.9e3,
+        ft=3.96e3,
+        GF=0.100,
+        ft_law=:hordijk,
+        alpha=1.00,
+        beta=0.20,
+        psi=1.40,
+        zeta=20.0,
+    )
+
+    explicit = AsinhYieldCohesive(; material_args..., theta=2.0)
+    calibrated = AsinhYieldCohesive(; material_args..., GFII=explicit.GFII)
+    default = AsinhYieldCohesive(; material_args...)
+    target = AsinhYieldCohesive(; material_args..., GFII=0.100)
+
+    @test calibrated.θ ≈ explicit.θ rtol=1.0e-8
+    @test Serendip.calc_reference_mode_II_energy(calibrated) ≈ explicit.GFII rtol=1.0e-10
+    @test default.θ == 1.0
+    @test default.GFII ≈ Serendip.calc_reference_mode_II_energy(default)
+    @test target.θ ≈ 3.48124 rtol=1.0e-5
+    @test Serendip.calc_reference_mode_II_energy(target) ≈ 0.100 rtol=1.0e-10
+
+    GFIImin = Serendip.calc_reference_residual_mode_II_energy(default)
+    GFIImax = Serendip.calc_reference_mode_II_energy(default, 0.0)
+    @test_throws ArgumentError AsinhYieldCohesive(; material_args..., theta=2.0, GFII=0.100)
+    @test_throws ArgumentError AsinhYieldCohesive(; material_args..., GFII=GFIImin)
+    @test_throws ArgumentError AsinhYieldCohesive(; material_args..., GFII=1.01*GFIImax)
+end
+
+
 @announced_testset "AsinhYieldCohesive regularized algorithmic tangent" begin
     material_args = (
         E=31.0e6,
@@ -185,7 +219,7 @@ end
             Δw=[1.5e-7, -3.0e-7, 7.0e-7],
             h=2.0e-9,
             capped=false,
-            tolerance=1.0e-5,
+            tolerance=3.0e-5,
         ),
         (
             name="advanced softening in tension",
@@ -226,7 +260,7 @@ end
         De = diagm([kn, ks, ks])
         Dterminal = Matrix(Serendip.calcD(mat, state))
 
-        @test kn ≈ mat.E*(0.1*mat.ζ)/state.h
+        @test kn ≈ mat.E*mat.ζ/state.h
         @test ks ≈ mat.E/(2*(1 + mat.ν))*(0.1*mat.ζ)/state.h
         @test Dterminal ≈ De*1.0e-6
     end

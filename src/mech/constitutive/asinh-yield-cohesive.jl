@@ -4,9 +4,9 @@ export AsinhYieldCohesive
 
 
 """
-    AsinhYieldCohesive(; E, nu=0.0, fc, ft, wc=NaN, GF=NaN, psi=1.0,
-                       ft_law=:hordijk, alpha=0.5, beta=0.0,
-                       theta=1.0, zeta=5.0, tangent=:continuum)
+    AsinhYieldCohesive(; E, nu=0.0, fc, ft, wc=NaN, GF=NaN, GFII=NaN,
+                       psi=1.0, ft_law=:hordijk, alpha=0.5, beta=0.0,
+                       theta=nothing, zeta=5.0, tangent=:continuum)
 
 Cohesive constitutive model with tensile softening and an asinh shear envelope
 with fixed offset, with yield function:
@@ -18,6 +18,16 @@ Here `σmax` is the current tensile strength and
 from a tangency condition with the compressive Mohr circle at `σmax = ft`. The fixed
 offset is derived as `B = (beta*fc)/asinh(alpha*fc/ft)` and remains constant for given
 `alpha`, `beta`, `fc`, and `ft`.
+
+The exponent can be supplied directly with `theta`, or calibrated from the
+reference mode-II fracture energy `GFII`. The reference path is monotonic pure
+sliding at zero normal traction. On that path `up` equals the accumulated slip,
+and the total energy is
+
+`GFII = integral((B + A0*q(up)^theta)*asinh(alpha*q(up)), up=0..wc)`,
+
+where `q(up) = sigma_max(up)/ft`. When neither `theta` nor `GFII` is supplied,
+the backward-compatible default `theta=1.0` is used. Supplying both is invalid.
 
 The model uses the tensile softening law returned by `setup_tensile_strength(ft, GF, wc, ft_law)`.
 The local stiffness is obtained from `E`, `nu`, the local characteristic length `h`, and a
@@ -39,13 +49,16 @@ normal component, so plastic flow acts only in shear.
 - `ft::Real`: Tensile strength (`ft > 0`).
 - `wc::Real=NaN`: Critical crack opening. Provide `wc > 0`, or provide `GF` instead.
 - `GF::Real=NaN`: Fracture energy. Used by `setup_tensile_strength` when `wc` is not given.
+- `GFII::Real=NaN`: Total reference mode-II fracture energy. When supplied,
+  `theta` is calibrated internally from the zero-normal-traction pure-sliding path.
 - `psi::Real=1.0`: Dilatancy coefficient (`psi > 0`).
 - `ft_law::Union{Symbol,AbstractSpline}=:hordijk`: Tensile softening law (`:linear`,
   `:bilinear`, `:hordijk`, or a spline).
 - `alpha::Real=0.5`: Dimensionless `asinh` parameter (`alpha > 0`).
 - `beta::Real=0.0`: Residual shear fraction used to derive the fixed offset `B`
   (`0 ≤ beta ≤ 1`).
-- `theta::Real=1.0`: Degradation exponent of `A(σmax)` (`theta ≥ 0`).
+- `theta::Union{Real,Nothing}=nothing`: Degradation exponent of `A(σmax)`
+  (`theta ≥ 0`). It defaults to `1.0` when `GFII` is not supplied.
 - `zeta::Real=5.0`: Maximum elastic stiffness scaling factor (`zeta ≥ 0`).
 - `tangent::Symbol=:continuum`: Tangent operator used by the global solver. Supported values are
   `:continuum` and `:consistent`.
@@ -64,6 +77,7 @@ mutable struct AsinhYieldCohesive <: Constitutive
     B ::Float64
     θ ::Float64
     A0::Float64
+    GFII::Float64
     ζ ::Float64
     tangent::Symbol
 
@@ -74,11 +88,12 @@ mutable struct AsinhYieldCohesive <: Constitutive
         ft::Real = NaN,
         wc::Real = NaN,
         GF::Real = NaN,
+        GFII::Real = NaN,
         psi::Real = 1.0,
         ft_law::Union{Symbol,AbstractSpline} = :hordijk,
         alpha::Real = 0.5,
         beta::Real = 0.2,
-        theta::Real = 1.0,
+        theta::Union{Real,Nothing} = nothing,
         zeta::Real = 5.0,
         tangent::Symbol = :continuum,
     )
@@ -90,7 +105,9 @@ mutable struct AsinhYieldCohesive <: Constitutive
         @check zeta >= 0 "AsinhYieldCohesive: Factor zeta must be non-negative. Got $(repr(zeta))."
         @check alpha > 0 "AsinhYieldCohesive: alpha must be positive. Got $(repr(alpha))."
         @check 0.0 <= beta <= 1.0 "AsinhYieldCohesive: beta must be in the range [0, 1]. Got $(repr(beta))."
-        @check theta >= 0 "AsinhYieldCohesive: theta must be non-negative. Got $(repr(theta))."
+        @check theta === nothing || theta >= 0 "AsinhYieldCohesive: theta must be non-negative. Got $(repr(theta))."
+        @check isnan(GFII) || GFII > 0 "AsinhYieldCohesive: GFII must be positive. Got $(repr(GFII))."
+        @check theta === nothing || isnan(GFII) "AsinhYieldCohesive: define theta or GFII, not both."
         @check tangent in (:continuum, :consistent) "AsinhYieldCohesive: tangent must be :continuum or :consistent. Got $(repr(tangent))."
         @check ft_law in (:linear, :bilinear, :hordijk) || ft_law isa AbstractSpline "AsinhYieldCohesive: Unknown ft_law model: $ft_law. Supported models are :linear, :bilinear, :hordijk or a custom AbstractSpline."
 
@@ -101,7 +118,20 @@ mutable struct AsinhYieldCohesive <: Constitutive
 
         A0 = fit_initial_asinh_amplitude(float(alpha), float(B), float(fc), float(ft))
 
-        return new(E, nu, fc, ft, wc, psi, ft_law, ft_fun, alpha, beta, B, theta, A0, zeta, tangent)
+        θ = theta === nothing ? 1.0 : float(theta)
+        this = new(E, nu, fc, ft, wc, psi, ft_law, ft_fun, alpha, beta, B, θ, A0, NaN, zeta, tangent)
+
+        if isnan(GFII)
+            this.GFII = calc_reference_mode_II_energy(this, θ)
+        else
+            isfinite(wc) || throw(ArgumentError(
+                "AsinhYieldCohesive: GFII calibration requires a finite wc.",
+            ))
+            this.θ = fit_mode_II_exponent(this, float(GFII))
+            this.GFII = float(GFII)
+        end
+
+        return this
     end
 end
 
@@ -164,6 +194,80 @@ function fit_initial_asinh_amplitude(α::Float64, B::Float64, fc::Float64, ft::F
     A0 = calc_A_from_t(t, α, B, ft, fc, ft)
     A0 > 0 || error("AsinhYieldCohesive: invalid initial asinh amplitude A0 = $A0.")
     return A0
+end
+
+
+function integrate_reference_mode_II(mat::AsinhYieldCohesive, amplitude::Function)
+    isfinite(mat.wc) || return Inf
+
+    # Composite Gauss integration resolves the curved Hordijk law accurately
+    # without introducing an external quadrature dependency.
+    nsegments = 32
+    Δu = mat.wc/nsegments
+    energy = 0.0
+
+    for segment in 0:nsegments-1
+        center = (segment + 0.5)*Δu
+        for ip in LIN_IP5
+            up = center + 0.5*Δu*ip.coord[1]
+            q = clamp(calc_tensile_strength(mat, up)/mat.ft, 0.0, 1.0)
+            energy += 0.5*Δu*ip.w*amplitude(q)*asinh(mat.α*q)
+        end
+    end
+
+    return energy
+end
+
+
+function calc_reference_mode_II_energy(mat::AsinhYieldCohesive, θ::Float64=mat.θ)
+    θ >= 0.0 || throw(ArgumentError(
+        "AsinhYieldCohesive: mode-II degradation exponent must be non-negative.",
+    ))
+    return integrate_reference_mode_II(mat, q -> mat.B + mat.A0*q^θ)
+end
+
+
+function calc_reference_residual_mode_II_energy(mat::AsinhYieldCohesive)
+    return integrate_reference_mode_II(mat, _ -> mat.B)
+end
+
+
+function fit_mode_II_exponent(mat::AsinhYieldCohesive, GFII::Float64)
+    GFIImax = calc_reference_mode_II_energy(mat, 0.0)
+    GFIImin = calc_reference_residual_mode_II_energy(mat)
+    atol = max(1.0e-12, 1.0e-10*GFIImax)
+
+    GFII <= GFIImin + atol && throw(ArgumentError(
+        "AsinhYieldCohesive: GFII=$GFII must exceed the residual reference energy " *
+        "$GFIImin implied by beta=$(mat.β).",
+    ))
+    GFII > GFIImax + atol && throw(ArgumentError(
+        "AsinhYieldCohesive: GFII=$GFII exceeds the maximum reference energy " *
+        "$GFIImax obtained at theta=0.",
+    ))
+    isapprox(GFII, GFIImax; atol=atol, rtol=0.0) && return 0.0
+
+    residual(θ) = calc_reference_mode_II_energy(mat, θ) - GFII
+    lower = 0.0
+    upper = 1.0
+    while residual(upper) > 0.0
+        upper *= 2.0
+        upper <= 1.0e6 || throw(ArgumentError(
+            "AsinhYieldCohesive: could not bracket theta for GFII=$GFII.",
+        ))
+    end
+
+    for _ in 1:80
+        middle = 0.5*(lower + upper)
+        if residual(middle) > 0.0
+            lower = middle
+        else
+            upper = middle
+        end
+        upper - lower <= 1.0e-10*max(1.0, middle) && return 0.5*(lower + upper)
+    end
+
+    return 0.5*(lower + upper)
 end
 
 
