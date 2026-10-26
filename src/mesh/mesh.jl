@@ -839,13 +839,19 @@ function Mesh(elems::Vector{Cell})
     # newnodes
     nodes_d  = Dict{Int,Node}( node.id => copy(node) for node in nodes )
     newnodes = collect(values(nodes_d))
-    node_ids = collect(keys(nodes_d))
-
     # copy elements
     newelems = Cell[]
     for elem in elems
         elem_nodes = Node[ nodes_d[node.id] for node in elem.nodes ]
-        newelem    = Cell(elem.shape, elem_nodes, tag=elem.tag)
+        newelem = Cell(
+            elem.shape,
+            elem.role,
+            elem_nodes;
+            tag=elem.tag,
+            active=elem.active,
+        )
+        newelem.embedded = elem.embedded
+        newelem.crossed = elem.crossed
         push!(newelems, newelem)
     end
 

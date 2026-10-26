@@ -79,3 +79,39 @@ end
     @test length(cut.nodes) == 4
     @test length(cut.elems) == 1
 end
+
+
+@announced_testset "Mesh from cells" begin
+    geometry = GeoModel(quiet=true)
+    add_block(
+        geometry,
+        [0.0, 0.0, 0.0],
+        1.0,
+        1.0,
+        1.0;
+        nx=1,
+        ny=1,
+        nz=1,
+        shape=:hex8,
+        tag="concrete",
+    )
+    volume = Mesh(geometry, quiet=true)
+    faces = get_outer_facets(volume.elems)
+    faces[1].tag = "front"
+    faces[1].active = false
+    faces[1].embedded = true
+    faces[1].crossed = true
+
+    surface = Mesh(faces)
+
+    @test surface.ctx.ndim == 3
+    @test length(surface.elems) == 6
+    @test all(cell.role == :surface for cell in surface.elems)
+    @test count(cell.tag == "front" for cell in surface.elems) == 1
+
+    front = only(filter(cell -> cell.tag == "front", surface.elems))
+    @test !front.active
+    @test front.embedded
+    @test front.crossed
+    @test all(newnode !== oldnode for newnode in surface.nodes for oldnode in volume.nodes)
+end
