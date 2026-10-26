@@ -450,7 +450,7 @@ end
 
 
 function _get_entities_from_dimids(geo::GeoModel, dimids)
-    entities = []
+    entities = GeoEntity[]
     for (d, id) in dimids
         ent = get(geo.entities, (d, id), nothing)
         if ent !== nothing

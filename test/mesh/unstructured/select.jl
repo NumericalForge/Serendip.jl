@@ -27,6 +27,11 @@ using Serendip, Test
     top = select(geo, :surface, [1.0, 0.5, 0.0])
     @test length(top) == 1
     @test top[1] === base
+
+    points = select(geo, :point, [2.0, 1.0, 0.0])
+    @test eltype(points) == Serendip.GeoEntity
+    set_size(geo, points, 0.02)
+    @test Serendip.gmsh.model.mesh.get_sizes([(0, only(points).id)]) == [0.02]
 end
 
 @announced_testset "GeoModel select uses bbox corners conservatively" begin
