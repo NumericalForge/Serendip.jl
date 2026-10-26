@@ -147,6 +147,7 @@ struct SolverSettings
     dTmin::Float64
     dTmax::Float64
     maxits::Int
+    target_its::Int
     rspan::Float64
     alpha::Float64
     beta::Float64
@@ -156,20 +157,22 @@ struct SolverSettings
     linear_solver::Symbol
 
     @doc """
-        SolverSettings(; tol=0.01, rtol=0.01, utol=0.01, dT0=0.01, dTmin=1e-7, dTmax=0.1,
-                          rspan=0.01, maxits=15, autoinc=false, quiet=false)
+        SolverSettings(; tol=0.01, rtol=1e-3, utol=0.01,
+                          dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01,
+                          maxits=15, target_its=4, autoinc=false, quiet=false)
 
     Defines configuration parameters for controlling the analysis process.
 
     # Arguments
-    - `tol::Float64`: Absolute tolerance for convergence checks.
-    - `rtol::Float64`: Relative tolerance for the iterative displacement correction.
+    - `tol::Float64`: Absolute equivalent-force tolerance for convergence checks.
+    - `rtol::Float64`: Relative residual tolerance applied to the force reference.
     - `utol::Float64`: Absolute tolerance for constraint residuals.
     - `autoinc::Bool`: Enable automatic increment control .
     - `dT0::Float64`: Initial increment of pseudo-time.
     - `dTmin::Float64`: Minimum allowed increment of pseudo-time.
     - `dTmax::Float64`: Maximum allowed increment of pseudo-time.
     - `maxits::Int`: Maximum number of iterations per increment .
+    - `target_its::Int`: Target number of iterations used by automatic increment control.
     - `rspan::Float64`: Pseudo-time window for reapplying residuals in nonlinear iterations.
     - `alpha::Float64`: Damping coefficient for the mass matrix used in dynamic analyses.
     - `beta::Float64`: Damping coefficient for the stiffness matrix used in dynamic analyses.
@@ -183,9 +186,13 @@ struct SolverSettings
     ```
     """
     function SolverSettings(;
-        tol=0.01, rtol=0.01, utol=0.01, autoinc=false, dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01,
-        maxits=15, alpha=0.0, beta=0.0, nmodes=5, eigen_solver=:auto, rayleigh=false, linear_solver=:pardiso)
-        return new(tol, rtol, utol, autoinc, dT0, dTmin, dTmax, maxits, rspan, alpha, beta, nmodes, eigen_solver, rayleigh, linear_solver)
+        tol=0.01, rtol=1e-3, utol=0.01, autoinc=false,
+        dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01, maxits=15, target_its=4,
+        alpha=0.0, beta=0.0, nmodes=5, eigen_solver=:auto, rayleigh=false,
+        linear_solver=:pardiso)
+        return new(tol, rtol, utol, autoinc, dT0, dTmin, dTmax,
+                   maxits, target_its, rspan, alpha, beta, nmodes, eigen_solver,
+                   rayleigh, linear_solver)
     end
 end
 
@@ -303,8 +310,8 @@ end
 
 """
     run(ana;
-        tol=0.01, rtol=0.01, utol=0.01, autoinc=false,
-        dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01, maxits=5,
+        tol=0.01, rtol=1e-3, utol=0.01, autoinc=false,
+        dT0=0.01, dTmin=1e-7, dTmax=0.1, rspan=0.01, maxits=5, target_its=4,
         alpha=0.0, beta=0.0, nmodes=5, eigen_solver=:auto, rayleigh=false,
         linear_solver=:pardiso,
         quiet=false,
@@ -316,8 +323,8 @@ Execute a finite-element analysis and return the solver status.
 - `ana::Analysis`: analysis object to solve.
 
 # Keywords
-- `tol::Real`: absolute convergence tolerance for the residual.
-- `rtol::Real`: relative tolerance for the iterative displacement correction.
+- `tol::Real`: absolute equivalent-force tolerance for the residual.
+- `rtol::Real`: relative residual tolerance applied to the force reference.
 - `utol::Real`: absolute convergence tolerance for constraint residuals.
 - `autoinc::Bool`: enable automatic step size control.
 - `dT0::Real`: initial time/load increment.
@@ -325,6 +332,7 @@ Execute a finite-element analysis and return the solver status.
 - `dTmax::Real`: maximum allowed increment.
 - `rspan::Real`: span parameter for the auto-increment controller.
 - `maxits::Int`: maximum nonlinear iterations per step.
+- `target_its::Int`: target iteration count for automatic step size control.
 - `alpha::Float64`: Mass matrix coefficient to compute damping in dynamic analyses.
 - `beta::Float64`: Stiffness matrix coefficient to compute damping in dynamic analyses.
 - `nmodes::Int`: number of modes in modal analysis.
@@ -351,7 +359,7 @@ status = run(analysis;
 """
 function Base.run(ana::Analysis;
     tol     ::Real         = 0.01,
-    rtol    ::Real         = 0.01,
+    rtol    ::Real         = 1e-3,
     utol    ::Real         = 0.01,
     autoinc ::Bool         = false,
     dT0     ::Real         = 0.01,
@@ -359,6 +367,7 @@ function Base.run(ana::Analysis;
     dTmax   ::Real         = 0.2,
     rspan   ::Real         = 0.01,
     maxits  ::Int          = 5,
+    target_its::Int        = 4,
     alpha   ::Real         = 0.0,
     beta    ::Real         = 0.0,
     nmodes  ::Int          = 5,
@@ -369,7 +378,7 @@ function Base.run(ana::Analysis;
     kwargs...,
 )
     @check tol>0 "run: solver paramter `tol` must be positive"
-    @check rtol>0 "run: solver paramter `rtol` must be positive"
+    @check rtol>=0 "run: solver paramter `rtol` must be non-negative"
     @check utol>0 "run: solver paramter `utol` must be positive"
     @check dT0>0 "run: solver paramter `dT0` must be positive"
     @check dTmin>0 "run: solver paramter `dTmin` must be positive"
@@ -377,6 +386,7 @@ function Base.run(ana::Analysis;
     @check dTmin<dTmax "run: solver paramter `dTmin` must be less than `dTmax`"
     @check rspan>0 "run: solver paramter `rspan` must be positive"
     @check maxits>0 "run: solver paramter `maxits` must be positive"
+    @check target_its>0 "run: solver paramter `target_its` must be positive"
     @check nmodes>0 "run: solver paramter `nmodes` must be positive"
     @check alpha>=0 "run: solver paramter `alpha` must be positive"
     @check beta>=0 "run: solver paramter `beta` must be positive"
@@ -407,8 +417,10 @@ function Base.run(ana::Analysis;
     end
 
     solver_settings = SolverSettings(
-        tol=tol, rtol=rtol, utol=utol, autoinc=autoinc, dT0=dT0, dTmin=dTmin, dTmax=dTmax,
-        rspan=rspan, maxits=maxits, alpha=alpha, beta=beta, nmodes=nmodes, 
+        tol=tol, rtol=rtol, utol=utol, autoinc=autoinc,
+        dT0=dT0, dTmin=dTmin, dTmax=dTmax,
+        rspan=rspan, maxits=maxits, target_its=target_its,
+        alpha=alpha, beta=beta, nmodes=nmodes,
         eigen_solver=eigen_solver, rayleigh=rayleigh, linear_solver=linear_solver
     )
 

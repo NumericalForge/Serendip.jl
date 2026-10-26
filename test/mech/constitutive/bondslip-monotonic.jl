@@ -67,7 +67,7 @@ for case in cases
         add_bc(stage, :node, "fixed", ux=0, uy=0, uz=0)
         add_bc(stage, :node, "tip", uy=+0.007)
 
-        status = run(ana, autoinc=true, tol=0.01, dTmax=0.05)
+        status = run(ana, autoinc=true, tol=0.01, dTmax=0.01)
         table = joint_log.table
 
         @test status.successful

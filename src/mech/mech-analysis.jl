@@ -118,6 +118,87 @@ function update_state(elems::Vector{<:Element}, ΔUt::Vector{Float64}, t::Float6
 end
 
 
+const _ROTATIONAL_DOF_NAMES = (:rx, :ry, :rz)
+
+
+function _mechanical_force_scale(elems::AbstractVector{<:Element}, dofs::Vector{Dof})
+    ndofs = length(dofs)
+    force_scale = ones(ndofs)
+    rotation_length = fill(NaN, ndofs)
+    is_rotation = falses(ndofs)
+
+    for dof in dofs
+        dof.name in _ROTATIONAL_DOF_NAMES && (is_rotation[dof.eq_id] = true)
+    end
+    any(is_rotation) || return force_scale
+
+    for elem in elems
+        map = dof_map(elem)
+        any(id -> is_rotation[id], map) || continue
+
+        diameter = cell_diameter(elem)
+        isfinite(diameter) && diameter > 0.0 || throw(SerendipException(
+            "stage_solver: Element $(elem.id) has rotational dofs but no positive diameter."
+        ))
+
+        for id in map
+            is_rotation[id] || continue
+            rotation_length[id] = isnan(rotation_length[id]) ?
+                                  diameter : max(rotation_length[id], diameter)
+        end
+    end
+
+    for dof in dofs
+        dof.name in _ROTATIONAL_DOF_NAMES || continue
+        id = dof.eq_id
+        diameter = rotation_length[id]
+        isfinite(diameter) && diameter > 0.0 || throw(SerendipException(
+            "stage_solver: Rotational dof $(dof.name) with equation id $id has no associated element diameter."
+        ))
+        force_scale[id] = 1.0/diameter
+    end
+
+    return force_scale
+end
+
+
+function _scaled_inf_norm(values::AbstractVector, scales::AbstractVector, ids=eachindex(values))
+    result = 0.0
+    @inbounds for id in ids
+        result = max(result, abs(scales[id]*values[id]))
+    end
+    return result
+end
+
+
+function _scaled_two_norm(values::AbstractVector, scales::AbstractVector)
+    result = 0.0
+    @inbounds for id in eachindex(values, scales)
+        result += abs2(scales[id]*values[id])
+    end
+    return sqrt(result)
+end
+
+
+function _force_reference(Fext::AbstractVector, Fint::AbstractVector,
+                          force_scale::AbstractVector, prescribed_ids)
+    external_ref = _scaled_inf_norm(Fext, force_scale)
+    internal_ref = _scaled_inf_norm(Fint, force_scale)
+    reaction_ref = 0.0
+    @inbounds for id in prescribed_ids
+        reaction_ref = max(reaction_ref, abs(force_scale[id]*(Fint[id] - Fext[id])))
+    end
+    return max(external_ref, internal_ref, reaction_ref)
+end
+
+
+function _iteration_step_factor(iterations::Int, target_iterations::Int)
+    iterations > 0 || throw(ArgumentError("iterations must be positive"))
+    target_iterations > 0 || throw(ArgumentError("target_iterations must be positive"))
+    return clamp(sqrt(target_iterations/iterations), 0.5, 1.5)
+end
+
+
 function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSettings; quiet=quiet)
 
     tol     = solver_settings.tol
@@ -128,6 +209,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     ΔTmax   = solver_settings.dTmax
     rspan   = solver_settings.rspan
     maxits  = solver_settings.maxits
+    target_its = min(solver_settings.target_its, maxits)
     autoinc = solver_settings.autoinc
     lin_sol = solver_settings.linear_solver
 
@@ -142,8 +224,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     constraints = stage.constraints
     ctx       = model.ctx
     saveouts  = stage.nouts > 0
-    ftol      = tol
-
     stress_state = ctx.stress_state
     ctx.ndim==3 && @assert(stress_state==:auto)
     
@@ -162,6 +242,7 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     has_constraints = !isempty(b)
     data.nu     = nu
     data.nfails = 0
+    force_scale = _mechanical_force_scale(active_elems, dofs)
 
     println(data.log, "unknown dofs: $nu")
 
@@ -191,6 +272,9 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
     inc  = 1             # counter for the processing increment
     F    = zeros(ndofs)  # total internal force for current stage
+    Fext_acc = zeros(ndofs) # committed external force accumulated in current stage
+    Fext_tr  = zeros(ndofs) # trial total external force for current stage
+    Fint_tr  = zeros(ndofs) # trial total internal force for current stage
     U    = zeros(ndofs)  # total displacements for current stage
     R    = zeros(ndofs)  # vector for residuals of natural values
     ΔFin = zeros(ndofs)  # vector of internal natural values for current increment
@@ -199,7 +283,6 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
     Rc   = zeros(ndofs)  # vector of cumulated residues
     Rcon = zeros(length(b))
     λ    = zeros(size(A1, 1))
-    linear_domain = true
     sysstatus = ReturnStatus()
 
     # Get boundary conditions
@@ -227,11 +310,13 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
         ΔUex, ΔFex = ΔT*Uex, ΔT*Fex     # increment of external vectors
 
         η    = 1.0
-        αcap = η*ΔT*norm(F)/(T+ΔT)/(norm(Rc)+eps())
+        αcap = η*ΔT*_scaled_two_norm(F, force_scale)/(T+ΔT)/
+               (_scaled_two_norm(Rc, force_scale)+eps())
         αcr  = min(ΔT/rspan, αcap, 1.0)    # fraction of cumulated residues to apply
         # αcr  = min(ΔT/rspan, 1.0)    # fraction of cumulated residues to apply
 
         ΔFex .+= αcr.*Rc # addition of residuals
+        Fext_tr .= Fext_acc .+ ΔFex
 
         R   .= ΔFex
         ΔUa .= 0.0
@@ -242,14 +327,16 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
         # Newton Rapshon iterations
         res   = 0.0 # residual for current iteration
-        res1  = 0.0 # first iteration residual for autoinc adjustment
         res_c = 0.0 # constraint residual
-        err   = Inf # relative displacement correction
+        force_ref = 0.0
+        force_tol = tol
+        nit = 0
 
         converged = false
         syserror  = false
 
         for it in 1:maxits
+            nit = it
             yield()
 
             it>1 && (ΔUi.=0.0) # essential values are applied only at first iteration
@@ -268,7 +355,11 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
             # Update accumulated displacement
             ΔUa .+= ΔUi
-            err = norm(ΔUi, Inf)/max(norm(ΔUa, Inf), eps(Float64))
+            Fint_tr .= F .+ ΔFin
+            if it == 1
+                force_ref = _force_reference(Fext_tr, Fint_tr, force_scale, pmap)
+                force_tol = tol + rtol*force_ref
+            end
 
             # Residual vector for next iteration
             R .= ΔFex .- ΔFin
@@ -278,18 +369,14 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                 nu > 0 && (Rcon .-= A1 * ΔUi[umap])
                 res_c = norm(Rcon, Inf)
             end
-            res = norm(R, Inf)
-            @printf(data.log, "    it %d  residue: %-10.4e  relative correction: %-10.4e\n", it, res, err)
-            
-            if it==1
-                res1 = res
-            end
-            it>1  && (linear_domain=false)
-            
-            (res < ftol || err < rtol) && res_c < utol && (converged=true; break)
+            res = _scaled_inf_norm(R, force_scale, umap)
+            @printf(data.log,
+                    "    it %d  residue: %-10.4e  reference: %-10.4e  limit: %-10.4e\n",
+                    it, res, force_ref, force_tol)
 
-            isnan(res) && break
-            it>maxits  && break
+            res <= force_tol && res_c < utol && (converged=true; break)
+
+            !isfinite(res) && break
 
             it>1 && res>lastres && break
         end
@@ -310,7 +397,8 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
             
             # Update forces and displacement for the current stage
             U .+= ΔUa
-            F .+= ΔFin
+            F .= Fint_tr
+            Fext_acc .= Fext_tr
             Rc .= (1.0-αcr).*Rc .+ R  # update cumulated residue
 
             # Backup converged state at ips
@@ -342,30 +430,17 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
 
             # Adjust increment size for next increment
             if autoinc
-                if ΔTbk > 0.0
-                    ΔT = min(ΔTbk/2, Tcheck-T)
-                    if linear_domain
-                        ΔT = min(1.5*ΔT, ΔTmax, Tcheck-T)
-                    end
-                    ΔTbk = 0.0
-                else
-                    q = 1+tanh(log10(ftol/(res1+eps())))
-                    q = max(q, 1.1)
+                q = _iteration_step_factor(nit, target_its)
+                base_ΔT = ΔTbk > 0.0 ? ΔTbk : ΔT
+                ΔTbk = 0.0
+                ΔTtr = min(q*base_ΔT, ΔTmax, 1.0 - T)
 
-                    if linear_domain
-                        q = 2
-                    end
-                    
-                    ΔTtr = min(q*ΔT, ΔTmax, 1.0 - T)
-                    
-                    if T + ΔTtr > Tcheck - ΔTmin
-                        ΔTbk = ΔT
-                        ΔT = Tcheck-T
-                        @assert ΔT>=0.0
-                    else
-                        ΔT = ΔTtr
-                        ΔTbk = 0.0
-                    end
+                if T + ΔTtr > Tcheck + ΔTmin
+                    ΔTbk = ΔTtr
+                    ΔT = Tcheck-T
+                    @assert ΔT>=0.0
+                else
+                    ΔT = ΔTtr
                 end
             end
 
@@ -378,10 +453,9 @@ function stage_solver(ana::MechAnalysis, stage::Stage, solver_settings::SolverSe
                 println(data.log, "      increment failed")
                 data.nfails += 1
 
-                q = 1+tanh(log10(ftol/(res1+eps())))
-                q = clamp(q, 0.2, 0.9)
-                syserror && (q=0.7)
+                q = 0.5
                 ΔT = q*ΔT
+                ΔTbk = 0.0
                 ΔT = round(ΔT, sigdigits=3)  # round to 3 significant digits
                 if ΔT < ΔTmin
                     solstatus = failure("Solver did not converge.")

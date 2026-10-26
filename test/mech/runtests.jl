@@ -2,6 +2,7 @@ using Serendip
 include("../test-helpers.jl")
 
 for file in [
+    "solver-controls.jl",
     # "elements/elastic-solid.jl",
     "elements/elastic-elems.jl",
     "elements/variable-thickness.jl",
