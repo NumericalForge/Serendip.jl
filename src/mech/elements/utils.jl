@@ -27,9 +27,6 @@ function calc_interface_rotation(J::AbstractMatrix{Float64})
             n3 = sqrt(r3x*r3x + r3y*r3y + r3z*r3z)
 
             # write into R (3×3)
-            # R[:, 1] .= (r1x/n1, r1y/n1, r1z/n1)
-            # R[:, 2] .= (r2x/n2, r2y/n2, r2z/n2)
-            # R[:, 3] .= (r3x/n3, r3y/n3, r3z/n3)
 
             return @SMatrix [ r1x/n1 r2x/n2 r3x/n3;
                               r1y/n1 r2y/n2 r3y/n3;
@@ -48,16 +45,9 @@ function calc_interface_rotation(J::AbstractMatrix{Float64})
             n1 = sqrt(r1x*r1x + r1y*r1y)
             n2 = sqrt(r2x*r2x + r2y*r2y)
 
-            # R[:, 1] .= (r1x/n1, r1y/n1)
-            # R[:, 2] .= (r2x/n2, r2y/n2)
             return @SMatrix [ r1x/n1 r2x/n2 0.0;
                               r1y/n1 r2y/n2 0.0;
                               0.0    0.0    1.0 ]
-            # @show R
-            # R[:, 1] .= (r1x/n1, r1y/n1, 0.0)
-            # R[:, 2] .= (r2x/n2, r2y/n2, 0.0)
-            # R[:, 3] .= (   0.0,    0.0, 1.0)
         end
     end
-    # return R
 end

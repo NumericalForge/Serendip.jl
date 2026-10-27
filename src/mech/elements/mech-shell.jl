@@ -18,7 +18,6 @@ Isoparametric Reissner-Mindlin shell formulation for mechanical analyses.
 - `gamma`:
   Specific weight parameter available to mechanical loading routines.
 """
-
 mutable struct MechShell<:MechFormulation
     thickness::Float64
     κ::Float64

@@ -664,53 +664,6 @@ end
 
 
 """
-    Mesh(coordinates, connectivities, cellshapes=Symbol[]; tag="", quiet=true)
-
-Creates a `Mesh` from a nodal `coordinates` matrix,
-an array of `connectivities` and a list of `cellshapes`.
-If `cellshapes` are not provided, they are guessed based on the geometry.
-A `tag` string for all generated cells can be provided optionally.
-
-# Examples
-
-```jldoctest
-julia> using Serendip;
-julia> C = [ 0 0; 1 0; 1 1; 0 1 ];
-julia> L = [ [ 1, 2, 3 ], [ 1, 3, 4 ] ];
-julia> S = [ :tri3, :tri3 ];
-julia> Mesh(C, L, S, tag="triangle")
-
-Mesh
-  ndim: 2
-  nodes: 4-element Vector{Node}:
-    1: Node  id=1
-    2: Node  id=2
-    3: Node  id=3
-    4: Node  id=4
-  elems: 2-element Vector{Cell}:
-    1: Cell  id=1  tag="triangle"
-    2: Cell  id=2  tag="triangle"
-  faces: 4-element Vector{Cell}:
-    1: Cell  id=-1  tag="triangle"
-    2: Cell  id=-1  tag="triangle"
-    3: Cell  id=-1  tag="triangle"
-    4: Cell  id=-1  tag="triangle"
-  edges: 4-element Vector{Cell}:
-    1: Cell  id=-1  tag="triangle"
-    2: Cell  id=-1  tag="triangle"
-    3: Cell  id=-1  tag="triangle"
-    4: Cell  id=-1  tag="triangle"
-  node_fields: OrderedDict{String, Array} with 1 entry
-    "node-id" => [1, 2, 3, 4]
-  elem_fields: OrderedDict{String, Array} with 3 entries
-    "quality" => [0.8915188114208271, 0.8915188114208271]
-    "elem-id" => [1, 2]
-    "cell-type" => [5, 5]
-```
-"""
-
-
-"""
     Mesh(coordinates, connectivities, cellshapes=Symbol[]; tag="", quiet=true) -> Mesh
 
 Construct a `Mesh` object directly from nodal coordinates and element connectivities.
