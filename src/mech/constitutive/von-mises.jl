@@ -508,6 +508,6 @@ function state_values(mat::VonMises, state::VonMisesBarState)
     return OrderedDict{Symbol,Float64}(
         :σx´  => state.σ,
         :εx´  => state.ε,
-        :εp => state.εpa,
+        :εp´ => state.εpa,
     )
 end

@@ -25,3 +25,8 @@ add_bc(stage, :node, (x==1, y==0), fx=500)
 run(ana, autoinc=true).successful
 
 @test log.table[:ux][end] ≈ 0.000238 atol=1e-6
+
+bar_ip = model.elems[1].ips[1]
+bar_values = Serendip.state_values(model.elems[1].cmodel, bar_ip.state)
+@test bar_values[:εp´] == bar_ip.state.εpa
+@test !haskey(bar_values, :εp)
