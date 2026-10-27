@@ -78,6 +78,48 @@ function _add_mesh_constraints!(meshes, target_dim::Integer)
 end
 
 
+function _set_boundary_face_tag!(tags::Dict{Tuple,String}, key::Tuple, tag::String, surface_id::Integer)
+    existing = get(tags, key, nothing)
+    if existing !== nothing && existing != tag
+        error(
+            "Conflicting geometric surface tags for the same mesh facet: " *
+            "$(repr(existing)) and $(repr(tag)) (surface $surface_id)."
+        )
+    end
+    tags[key] = tag
+    return tags
+end
+
+
+function _collect_boundary_face_tags(geo::GeoModel, node_by_gmsh_id::Dict{Int,Node})
+    tags = Dict{Tuple,String}()
+
+    for ((dim, surface_id), entity) in geo.entities
+        dim == 2 || continue
+        entity isa Surface || continue
+        isempty(entity.tag) && continue
+
+        element_types, _, element_connectivities = gmsh.model.mesh.getElements(2, surface_id)
+        for (element_type, connectivity) in zip(element_types, element_connectivities)
+            _, element_dim, _, nnodes, _, _ = gmsh.model.mesh.getElementProperties(element_type)
+            element_dim == 2 || continue
+
+            for first_node in 1:nnodes:length(connectivity)
+                last_node = first_node + nnodes - 1
+                nodes = Node[
+                    node_by_gmsh_id[Int(node_id)]
+                    for node_id in connectivity[first_node:last_node]
+                ]
+                key = Tuple(sort!(collect(node_pos_key(node) for node in nodes)))
+                _set_boundary_face_tag!(tags, key, entity.tag, surface_id)
+            end
+        end
+    end
+
+    return tags
+end
+
+
 """
     mesh_unstructured(geo, constraint_meshes; ndim=0, recombine=false,
                       quadratic=false, algorithm=:delaunay, sort=true,
@@ -88,7 +130,8 @@ Generate the OCC portion of a `GeoModel` with Gmsh. Meshes in
 the returned mesh.
 
 This is an internal generator used by `Mesh(geo)`. Point tags are transferred
-to mesh nodes through Gmsh's geometric-entity classification.
+to mesh nodes through Gmsh's geometric-entity classification. Tags from
+geometric surfaces are retained on matching boundary faces of 3D meshes.
 """
 function mesh_unstructured(
     geo               ::GeoModel,
@@ -257,6 +300,9 @@ function mesh_unstructured(
     mesh = Mesh(max(gmsh_ndim, ndim))
     mesh.nodes = isempty(constraint_meshes) ? nodes : get_nodes(cells)
     mesh.elems = cells
+    if gmsh_ndim == 3
+        mesh._boundary_face_tags = _collect_boundary_face_tags(geo, node_by_gmsh_id)
+    end
     synchronize(mesh, sort=sort)
 
     return mesh

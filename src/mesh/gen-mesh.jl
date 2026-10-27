@@ -28,6 +28,8 @@ OCC mesh and both meshes are joined.
 - Defines physical groups for all top-dimensional entities.
 - Handles embedded points (`p.embedded == true`) by embedding them in host surfaces.
 - Transfers tags from retained geometric points to their mesh nodes.
+- Transfers tags from geometric surfaces to matching boundary faces in 3D
+  meshes and preserves them when the face list is rebuilt.
 - Removes orphan vertices without adjacencies.
 - Builds `Node` and `Cell` objects from Gmsh mesh data, including element connectivity.
 - For structured meshes, uses block definitions from `geo`.

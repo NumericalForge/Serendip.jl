@@ -10,6 +10,11 @@ mutable struct Mesh<:AbstractDomain
     elem_fields ::OrderedDict{String,Array}
     ctx::MeshContext
 
+    # Tags inherited from geometric boundary surfaces, indexed by a
+    # coordinate-based facet key.  Keeping this map on the mesh allows the
+    # tags to be restored whenever `mesh.faces` is rebuilt.
+    _boundary_face_tags::Dict{Tuple,String}
+
     _elempartition::ElemPartition
 
     function Mesh(ndim::Integer=0)
@@ -21,6 +26,7 @@ mutable struct Mesh<:AbstractDomain
         this.node_fields = OrderedDict()
         this.elem_fields = OrderedDict()
         this.ctx = MeshContext(ndim)
+        this._boundary_face_tags = Dict{Tuple,String}()
         # this._pointdict = Dict{UInt64, Node}()
         this._elempartition = ElemPartition()
         return this
@@ -35,6 +41,10 @@ function Base.copy(mesh::AbstractDomain)
     ndim = mesh.ctx.ndim
     newmesh = Mesh(ndim)
     newmesh.nodes = copy.(mesh.nodes)
+
+    if mesh isa Mesh
+        newmesh._boundary_face_tags = copy(mesh._boundary_face_tags)
+    end
 
     for elem in mesh.elems
         idxs = [ node.id for node in elem.nodes ]
@@ -429,7 +439,12 @@ function compute_facets(mesh::Mesh)
         for cell in surfaces
             cell.owner = cell # set itself as owner
         end
-        mesh.faces = [ get_outer_facets(solids); surfaces ]
+        boundary_faces = get_outer_facets(solids)
+        for face in boundary_faces
+            boundary_tag = get(mesh._boundary_face_tags, _cell_key(face), nothing)
+            boundary_tag === nothing || (face.tag = boundary_tag)
+        end
+        mesh.faces = [ boundary_faces; surfaces ]
         mesh.edges = get_edges(mesh.faces)
     end
 
@@ -637,6 +652,10 @@ function add_mesh(mesh::Mesh, other::Mesh; check::Bool=true)
     mesh.nodes = nodes
     mesh.elems = newcells
     mesh.ctx.ndim = max(mesh.ctx.ndim, other.ctx.ndim)
+    for (key, tag) in other._boundary_face_tags
+        # As with welded node tags, the destination mesh has precedence.
+        get!(mesh._boundary_face_tags, key, tag)
+    end
     synchronize(mesh, sort=false, cleandata=true)
 
     return mesh
