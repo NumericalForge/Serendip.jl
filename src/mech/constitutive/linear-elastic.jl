@@ -6,7 +6,7 @@ export LinearElastic
     LinearElastic(; E, nu=0.0)
 
 Linear elastic isotropic material model.
-This model can be used with bulk elements (e.g. solids), beams, bars, and shells.
+This model can be used with bulk elements (e.g. solids), beams, bars, shells, and membranes.
 It assumes small deformations and linear stress-strain response.
 
 # Parameters
@@ -90,12 +90,25 @@ mutable struct ElasticFrameState<:ConstState
 end
 
 
-compat_state_type(::Type{LinearElastic}, ::Type{MechSolid})   = LinearElasticState
-compat_state_type(::Type{LinearElastic}, ::Type{MechShell})  = LinearElasticState
-compat_state_type(::Type{LinearElastic}, ::Type{MechBeam})   = ElasticBeamState
-compat_state_type(::Type{LinearElastic}, ::Type{MechBar})    = ElasticBarState
-compat_state_type(::Type{LinearElastic}, ::Type{MechEmbBar}) = ElasticBarState
-compat_state_type(::Type{LinearElastic}, ::Type{MechFrame})  = ElasticFrameState
+mutable struct ElasticMembraneState <: ConstState
+    ctx::Context
+    σ::Vec3
+    ε::Vec3
+
+    function ElasticMembraneState(ctx::Context)
+        return new(ctx, zeros(Vec3), zeros(Vec3))
+    end
+end
+
+
+
+compat_state_type(::Type{LinearElastic}, ::Type{MechSolid})    = LinearElasticState
+compat_state_type(::Type{LinearElastic}, ::Type{MechShell})    = LinearElasticState
+compat_state_type(::Type{LinearElastic}, ::Type{MechBeam})     = ElasticBeamState
+compat_state_type(::Type{LinearElastic}, ::Type{MechBar})      = ElasticBarState
+compat_state_type(::Type{LinearElastic}, ::Type{MechEmbBar})   = ElasticBarState
+compat_state_type(::Type{LinearElastic}, ::Type{MechFrame})    = ElasticFrameState
+compat_state_type(::Type{LinearElastic}, ::Type{MechMembrane}) = ElasticMembraneState
 
 
 function calcDe(E::Real, ν::Real, stress_state::Symbol=:auto, αs::Float64=1.0)
@@ -244,4 +257,40 @@ function state_values(mat::LinearElastic, state::ElasticFrameState)
         :σx´y´ => state.τ,
         :εx´   => state.ε,
     )
+end
+
+
+# ❱❱❱ LinearElastic for membrane elements (local in-plane Mandel notation)
+
+
+function membrane_elastic_matrix(E::Real, ν::Real)
+    c = E/(1-ν^2)
+    return @SMatrix [ c    c*ν  0.0
+                      c*ν  c    0.0
+                      0.0  0.0  E/(1+ν) ]
+end
+
+function calcD(mat::LinearElastic, state::ElasticMembraneState)
+    return membrane_elastic_matrix(mat.E, mat.ν)
+end
+
+function update_state(mat::LinearElastic, state::ElasticMembraneState, cstate::ElasticMembraneState, Δε::AbstractVector)
+    Δσ = calcD(mat, state)*Δε
+    state.ε = cstate.ε + Δε
+    state.σ = cstate.σ + Δσ
+    return Δσ, success()
+end
+
+function membrane_state_values(σ::Vec3, ε::Vec3)
+    σvm = sqrt(max(0.0, σ[1]^2-σ[1]*σ[2]+σ[2]^2+1.5σ[3]^2))
+    principal = LinearAlgebra.eigvals(Symmetric([σ[1] σ[3]/√2; σ[3]/√2 σ[2]]))
+    return OrderedDict{Symbol,Float64}(
+        :σxx=>σ[1], :σyy=>σ[2], :σxy=>σ[3]/√2, :σvm=>σvm,
+        :σ1=>principal[2], :σ2=>principal[1],
+        :εxx=>ε[1], :εyy=>ε[2], :εxy=>ε[3]/√2,
+    )
+end
+
+function state_values(mat::LinearElastic, state::ElasticMembraneState)
+    return membrane_state_values(state.σ, state.ε)
 end

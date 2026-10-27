@@ -5,6 +5,7 @@ for file in [
     "logger.jl",
     "monitor.jl",
     "quadrature-mapping.jl",
+    "surface-recovery.jl",
     "select-points.jl",
 ]
     printstyled("\nRunning file ", file, "...\n", color=:yellow, bold=true)

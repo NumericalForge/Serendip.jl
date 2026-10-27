@@ -428,28 +428,26 @@ function elem_internal_forces(elem::Element{MechShell}, ΔU::Vector{Float64}=Flo
 end
 
 
-const shell_keys_d = Dict{Symbol,Symbol}(
-    :σxx => :σx´x´,
-    :σyy => :σy´y´, 
-    :σxy => :σx´y´,
-    :σvm => :σvm,
-    :εxx => :εx´x´,
-    :εyy => :εy´y´,
-    :εxy => :εx´y´,
-)
+function recovery_samples(elem::Element{MechShell})
+    selected = OrderedDict{Tuple{Float64,Float64},Int}()
+    strengths = [state_values(elem.cmodel, ip.state)[:σvm] for ip in elem.ips]
+    for (i, ip) in enumerate(elem.ips)
+        key = (ip.R[1], ip.R[2])
+        if !haskey(selected, key) || strengths[i] > strengths[selected[key]]
+            selected[key] = i
+        end
+    end
 
-
-function elem_vals(elem::Element{MechShell})
-    # get ip average values
-    ipvals = [ state_values(elem.cmodel, ip.state) for ip in elem.ips ]
-    merger(x,y) = abs(x) > abs(y) ? x : y
-    merged  = merge(merger, ipvals... )
-    vals = OrderedDict( k=>v for (k,v) in merged)
-
-    vals = OrderedDict( shell_keys_d[k] => vals[k] for k in keys(shell_keys_d) )
-    
-    return vals
+    C = get_coords(elem)
+    return [
+        (
+            coord=Vec3(C'*elem.shape.func(Vec3(ip.R[1], ip.R[2], 0.0))),
+            values=surface_recovery_values(elem.cmodel, ip.state,
+                Vec3(ip.state.σ[1], ip.state.σ[2], ip.state.σ[6])),
+        )
+        for ip in elem.ips[collect(values(selected))]
+    ]
 end
 
 
-recoverable_fields(elem::Element{MechShell}) = [:σvm]
+recoverable_fields(elem::Element{MechShell}) = [:σ1′, :σ2′, :σvm′, :εp′]

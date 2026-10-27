@@ -635,12 +635,15 @@ function _nodal_patch_recovery(model::FEModel, role::Symbol; use_recoverable_fie
         end
     end
 
-    # all data from ips per element and field names
+    # Sample coordinates may differ from the physical integration points,
+    # for example when recovering a shell layer onto its midsurface.
     all_ips_vals   = Array{Array{OrderedDict{Symbol,Float64}},1}()
+    all_ips_coords = Vector{Vector{Vec3}}()
     all_fields_set = OrderedSet{Symbol}()
     for elem in model.elems
         if participating[elem.id]
-            ips_vals = [ state_values(elem.cmodel, ip.state) for ip in elem.ips ]
+            samples = recovery_samples(elem)
+            ips_vals = [sample.values for sample in samples]
             if use_recoverable_fields
                 wanted = recovered_fields[elem.id]
                 ips_vals = [
@@ -649,10 +652,12 @@ function _nodal_patch_recovery(model::FEModel, role::Symbol; use_recoverable_fie
                 ]
             end
             push!(all_ips_vals, ips_vals)
+            push!(all_ips_coords, [sample.coord for sample in samples])
             isempty(ips_vals) || union!(all_fields_set, keys(ips_vals[1]))
 
         else # skip data from non-participating elements
             push!(all_ips_vals, OrderedDict{Symbol,Float64}[])
+            push!(all_ips_coords, Vec3[])
         end
     end
 
@@ -680,7 +685,7 @@ function _nodal_patch_recovery(model::FEModel, role::Symbol; use_recoverable_fie
             invM = Array{Float64,2}(undef,0,0)
 
             local N
-            subpatch_ips = Ip[]
+            subpatch_coords = Vec3[]
             subpatch_nodes = Node[]
             nterms = 0
 
@@ -690,42 +695,79 @@ function _nodal_patch_recovery(model::FEModel, role::Symbol; use_recoverable_fie
 
                 # get subpatch data
                 if subpatch != last_subpatch
-                    subpatch_ips   = [ ip for elem in subpatch for ip in elem.ips ]
+                    subpatch_coords = [coord for elem in subpatch for coord in all_ips_coords[elem.id]]
                     subpatch_nodes = unique( node for elem in subpatch for node in elem.nodes )
                     last_subpatch  = subpatch
 
-                    m = length(subpatch_ips)
+                    m = length(subpatch_coords)
                     n = length(subpatch_nodes)
 
-                    # number of polynomial terms
-                    if ndim==3
-                        # there were problems when using 10 terms
-                        nterms = m>=7 ? 7 : m>=4 ? 4 : 1
-                    else
-                        # nterms = m>=6 ? 6 : m>=4 ? 4 : m>=3 ? 3 : 1
-                        nterms = m>=4 ? 4 : m>=3 ? 3 : 1
-                    end
+                    if role == :surface
+                        # Keep a constant estimate unless the patch geometry
+                        # and sample layout support a linear regression.
+                        invM = fill(1.0/m, 1, m)
+                        N = ones(n, 1)
+                        X = get_coords(subpatch_nodes, 3)
+                        center = sum(X, dims=1)/n
+                        X .-= center
+                        plane = svd(X)
+                        s = plane.S
+                        nterms = 3
 
-                    # matrix M for regression
-                    M = Array{Float64,2}(undef,m,nterms)
-                    for (i,ip) in enumerate(subpatch_ips)
-                        x, y, z = ip.coord
-                        if ndim==3
-                            M[i,:] .= _reg_terms(x, y, z, nterms)
-                        else
-                            M[i,:] .= _reg_terms(x, y, nterms)
+                        if m >= 3 && length(s) >= 3 && s[2] > 1e-10*s[1] && s[2]-s[3] > sqrt(eps(Float64))*s[1]
+                            basis = plane.V[:,1:2]
+                            uv_nodes = X*basis
+                            uv_ips = ([subpatch_coords[i][j] for i in 1:m, j in 1:3] .- center)*basis
+                            scale = maximum(norm, eachrow(uv_nodes))
+                            uv_nodes ./= scale
+                            uv_ips ./= scale
+
+                            # A complete linear basis is independent of the
+                            # arbitrary orientation of the fitted plane's axes.
+                            M = Matrix{Float64}(undef, m, nterms)
+                            for i in 1:m
+                                M[i,:] .= _reg_terms(uv_ips[i,1], uv_ips[i,2], nterms)
+                            end
+                            fit = svd(M)
+                            if fit.S[end] > 1e-10*fit.S[1]
+                                N = Matrix{Float64}(undef, n, nterms)
+                                for i in 1:n
+                                    N[i,:] .= _reg_terms(uv_nodes[i,1], uv_nodes[i,2], nterms)
+                                end
+                                invM = fit.V*Diagonal(1.0 ./ fit.S)*fit.U'
+                            end
                         end
-                    end
-                    invM = pinv(M)
-
-                    # find nodal values
-                    N = Array{Float64,2}(undef,n,nterms)
-                    for (i,node) in enumerate(subpatch_nodes)
-                        x, y, z = node.coord
+                    else # role == :solid
+                        # number of polynomial terms
                         if ndim==3
-                            N[i,:] .= _reg_terms(x, y, z, nterms)
+                            # there were problems when using 10 terms
+                            nterms = m>=7 ? 7 : m>=4 ? 4 : 1
                         else
-                            N[i,:] .= _reg_terms(x, y, nterms)
+                            # nterms = m>=6 ? 6 : m>=4 ? 4 : m>=3 ? 3 : 1
+                            nterms = m>=4 ? 4 : m>=3 ? 3 : 1
+                        end
+
+                        # matrix M for regression
+                        M = Array{Float64,2}(undef,m,nterms)
+                        for (i,coord) in enumerate(subpatch_coords)
+                            x, y, z = coord
+                            if ndim==3
+                                M[i,:] .= _reg_terms(x, y, z, nterms)
+                            else
+                                M[i,:] .= _reg_terms(x, y, nterms)
+                            end
+                        end
+                        invM = pinv(M)
+
+                        # find nodal values
+                        N = Array{Float64,2}(undef,n,nterms)
+                        for (i,node) in enumerate(subpatch_nodes)
+                            x, y, z = node.coord
+                            if ndim==3
+                                N[i,:] .= _reg_terms(x, y, z, nterms)
+                            else
+                                N[i,:] .= _reg_terms(x, y, nterms)
+                            end
                         end
                     end
                 end

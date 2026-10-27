@@ -1,4 +1,17 @@
-
+function surface_recovery_values(mat::Constitutive, state::ConstState, σ::Vec3)
+    values = state_values(mat, state)
+    mean_stress = (σ[1]+σ[2])/2
+    radius = hypot((σ[1]-σ[2])/2, σ[3]/√2)
+    result = OrderedDict{Symbol,Float64}(
+        :σ1′ => mean_stress+radius,
+        :σ2′ => mean_stress-radius,
+        :σvm′ => values[:σvm],
+    )
+    if hasfield(typeof(state), :εpa)
+        result[:εp′] = state.εpa
+    end
+    return result
+end
 
 
 function calc_interface_rotation(J::AbstractMatrix{Float64})

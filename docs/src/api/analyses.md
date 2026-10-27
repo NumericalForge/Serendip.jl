@@ -197,6 +197,23 @@ Filter = x -> x === Serendip.MechFrame
 
 ```@raw html
 <details>
+<summary><code>MechMembrane</code></summary>
+```
+
+```@autodocs
+Modules = [Serendip]
+Private = false
+Public = true
+Filter = x -> x === Serendip.MechMembrane
+```
+
+```@raw html
+</details>
+```
+
+
+```@raw html
+<details>
 <summary><code>MechShell</code></summary>
 ```
 
@@ -519,6 +536,23 @@ Modules = [Serendip]
 Private = false
 Public = true
 Filter = x -> x === Serendip.DruckerPrager
+```
+
+```@raw html
+</details>
+```
+
+
+```@raw html
+<details>
+<summary><code>TensionFieldSoftening</code></summary>
+```
+
+```@autodocs
+Modules = [Serendip]
+Private = false
+Public = true
+Filter = x -> x === Serendip.TensionFieldSoftening
 ```
 
 ```@raw html

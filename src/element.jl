@@ -83,12 +83,23 @@ end
 """
 `recoverable_fields(elem)`
 
-Returns a list of integration-point fields that may participate in nodal patch
+Returns a list of sample fields that may participate in nodal patch
 recovery for non-solid elements handled by specialized patch pipelines, such as
 surface elements.
 """
 function recoverable_fields(elem::Element)
     return Symbol[]
+end
+
+
+"""
+    recovery_samples(elem)
+
+Return coordinates and scalar values used by patch recovery. Formulations may
+specialize the sampling, for example to select a representative section layer.
+"""
+function recovery_samples(elem::Element)
+    return [(coord=ip.coord, values=state_values(elem.cmodel, ip.state)) for ip in elem.ips]
 end
 
 
